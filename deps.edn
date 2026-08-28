@@ -1,0 +1,8 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.4"}}
+ :aliases
+ {:cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.134"}
+                      thheller/shadow-cljs {:mvn/version "3.5.0"}}}
+  :test {:extra-paths ["test"]
+         :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}
+         :main-opts ["-m" "app-kotoba-cloud.test-runner"]}}}

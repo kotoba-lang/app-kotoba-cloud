@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kotoba-cloud-control-plane",
+  "main": "build/worker.js",
+  "compatibility_date": "2026-08-28",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "kotoba.cloud", "custom_domain": true },
+    { "pattern": "www.kotoba.cloud", "custom_domain": true },
+    { "pattern": "api.kotoba.cloud", "custom_domain": true },
+    { "pattern": "console.kotoba.cloud", "custom_domain": true }
+  ],
+  "observability": { "enabled": true }
+}
+
