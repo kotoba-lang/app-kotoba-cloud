@@ -1,5 +1,7 @@
 /build/
 /dist/
 /.shadow-cljs/
+/.wrangler/
 /node_modules/
 /.cpcache/
+/public/

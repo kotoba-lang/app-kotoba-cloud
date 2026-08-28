@@ -5,7 +5,8 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "shadow-cljs release app",
+    "render": "clojure -M:render",
+    "build": "npm run render && shadow-cljs release app",
     "test": "clojure -M:test",
     "dry-run": "npm run build && wrangler deploy --dry-run --outdir dist --env=\"\"",
     "deploy": "npm run build && wrangler deploy --env=\"\""

@@ -21,11 +21,19 @@ the live `kotoba.cloud` profile names the expected storage and compute planes.
 The profile truthfully publishes `hostedApply: false` until a remote apply API
 is implemented and qualified.
 
+The public webpage is generated from pure CLJC using the workspace DADS
+(`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
+control/identity entrance feeding three separately governed planes rather than
+presenting the four domains as interchangeable products. `public/` is a build
+artifact: `npm run render` produces `index.html` and a real `404.html`, then
+Wrangler ships them as Static Assets beside the discovery Worker.
+
 ## Public routes
 
 - `GET https://kotoba.cloud/.well-known/kotoba-cloud.json`
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
+- `GET /` — public architecture and CLI entrance
 
 `console.kotoba.cloud` currently presents the same boundary and links to the
 CLI workflow; it does not claim deployment management that does not exist.
@@ -35,6 +43,7 @@ CLI workflow; it does not claim deployment management that does not exist.
 ```bash
 npm install
 npm test
+npm run render
 npm run build
 npm run dry-run
 ```
