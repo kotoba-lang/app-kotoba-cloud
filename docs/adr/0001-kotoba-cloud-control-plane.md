@@ -25,3 +25,11 @@ migrate WebAuthn credentials.
 Arbitrary deployed application content is not served beneath `kotoba.cloud`.
 Keeping it on the Murakumo execution domain prevents untrusted workloads from
 sharing the Kotoba authentication site's registrable-domain boundary.
+
+The apex webpage is a public explanation and discovery entrance, not a second
+deploy authority. Its source is a pure CLJC view on the workspace DADS base;
+the build renders static HTML and a finite 404 document, while the Worker keeps
+API and security-header behavior. The page must visualize one control/identity
+plane connected to three separate authority domains. It must not imply that
+`hostedApply`, credential migration, storage, compute, or agent execution are
+implemented by the apex Worker itself.

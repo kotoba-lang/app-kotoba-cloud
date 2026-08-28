@@ -4,6 +4,12 @@
   "main": "build/worker.js",
   "compatibility_date": "2026-08-28",
   "workers_dev": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "404-page"
+  },
   "routes": [
     { "pattern": "kotoba.cloud", "custom_domain": true },
     { "pattern": "www.kotoba.cloud", "custom_domain": true },
