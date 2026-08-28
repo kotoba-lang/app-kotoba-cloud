@@ -6,4 +6,3 @@
   (let [result (test/run-tests 'app-kotoba-cloud.profile-test)]
     (when (pos? (+ (:fail result) (:error result)))
       (System/exit 1))))
-

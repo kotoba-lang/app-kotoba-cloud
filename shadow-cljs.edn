@@ -6,4 +6,3 @@
    :modules {:worker {:exports {default app-kotoba-cloud.worker/app}}}
    :compiler-options {:output-feature-set :es2020
                       :infer-externs :auto}}}}
-

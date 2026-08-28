@@ -44,4 +44,3 @@
        (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
        (= "https://itonami.cloud" (get-in profile [:roles :agentWork :origin]))
        (false? (get-in profile [:deploy :hostedApply]))))
-

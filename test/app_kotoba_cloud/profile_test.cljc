@@ -27,4 +27,3 @@
          (get-in profile/control-plane [:security :sessionCookieScope])))
   (is (false? (get-in profile/control-plane
                        [:security :untrustedDeploymentsUnderKotobaCloud]))))
-

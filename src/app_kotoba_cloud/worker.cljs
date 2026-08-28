@@ -53,4 +53,3 @@
 (def app
   #js {:fetch (fn [request _env _ctx]
                 (js/Promise.resolve (route request)))})
-

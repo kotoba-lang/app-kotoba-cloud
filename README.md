@@ -51,4 +51,3 @@ npm run deploy
 `kotoba-lang/kotoba` owns the CLI host adapter. This repository owns only the
 network-facing `kotoba.cloud` control/discovery surface; it does not implement
 the compiler, store artifacts, or execute workloads.
-

@@ -25,4 +25,3 @@ migrate WebAuthn credentials.
 Arbitrary deployed application content is not served beneath `kotoba.cloud`.
 Keeping it on the Murakumo execution domain prevents untrusted workloads from
 sharing the Kotoba authentication site's registrable-domain boundary.
-
