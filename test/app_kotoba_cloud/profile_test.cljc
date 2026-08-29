@@ -27,6 +27,10 @@
          (get-in profile/control-plane [:security :sessionCookieScope])))
   (is (= "https://kotoba.cloud/v1/session"
          (get-in profile/control-plane [:security :sessionProjection])))
+  (is (= "webauthn-session+principal-pinned-ml-dsa-65"
+         (get-in profile/control-plane [:security :passkeyPqMode])))
+  (is (= "the-authenticator-passkey-itself-is-not-claimed-post-quantum"
+         (get-in profile/control-plane [:security :passkeyPqLimitation])))
   (is (false? (get-in profile/control-plane
                        [:security :untrustedDeploymentsUnderKotobaCloud]))))
 
@@ -37,7 +41,10 @@
     (is (= "https://kotobase.net" (:storageOrigin libraries)))
     (is (= "kotoba library inspect" (:inspectCommand libraries)))
     (is (= "kotoba library publish" (:publishCommand libraries)))
-    (is (= "local-signed-passkey-relay-distributed-gated" (:publishMode libraries)))
+    (is (= "local-signed-passkey-plus-principal-pinned-ml-dsa-relay-distributed-gated"
+           (:publishMode libraries)))
+    (is (= "https://kotoba.cloud/schemas/library-publication-request/v2"
+           (:requestSchema libraries)))
     (is (= 2 (:minimumByteCompleteStorageProviders libraries)))
     (is (= 2 (:minimumRoutedPeerIds libraries)))
     (is (= "kotoba library verify" (:verifyCommand libraries)))

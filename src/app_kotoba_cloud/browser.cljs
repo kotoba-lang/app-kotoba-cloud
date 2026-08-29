@@ -38,7 +38,7 @@
                     (apply str
                            (map (fn [c]
                                   (str "%" (.padStart (.toString (.charCodeAt c 0) 16) 2 "0")))
-                                (js/atob (.replace (.replace padded #"-" "+") #"_" "/")))))]
+                                (js/atob (.replaceAll (.replaceAll padded "-" "+") "_" "/")))))]
           (js->clj (js/JSON.parse json) :keywordize-keys true))
         (catch :default _ nil)))))
 
@@ -49,6 +49,10 @@
   (text! "library-publish-release" (:releaseCid publication))
   (text! "library-publish-record" (:recordCid publication))
   (text! "library-publish-name" (:ipnsName publication))
+  (text! "library-publish-result"
+         (if (= "passkey+ml-dsa-65" (get-in publication [:pqcApproval :suite]))
+           "Passkey + ML-DSA-65 approval ready"
+           "ML-DSA-65 approval is required"))
   (when-let [button (element "library-publish-submit")]
     (.addEventListener
      button "click"
