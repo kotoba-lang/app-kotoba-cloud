@@ -16,5 +16,13 @@
     { "pattern": "api.kotoba.cloud", "custom_domain": true },
     { "pattern": "console.kotoba.cloud", "custom_domain": true }
   ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "PQ_KEY_REGISTRY", "class_name": "PqKeyRegistry" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-pq-key-registry", "new_sqlite_classes": ["PqKeyRegistry"] }
+  ],
   "observability": { "enabled": true }
 }

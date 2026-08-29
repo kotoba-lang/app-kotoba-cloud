@@ -27,10 +27,20 @@ codebase. `kotoba library publish` is dry-run by default; explicit local apply
 builds an immutable release CID binding definitions, raw Wasm, compile receipts,
 and reproducibility evidence before reusing the signed namespace-head and IPNS
 path. `--hosted` replicates every CID to the configured storage providers,
-returns a fragment-only approval URL, and requires an explicit click
-under the existing Passkey session before relaying the locally signed head.
+returns a fragment-only approval URL, and requires both an explicit click
+under the existing Passkey session and a valid ML-DSA-65 approval made by the
+CLI. On first use that ML-DSA public key is atomically pinned to the Stable
+Principal; a later Passkey session cannot silently replace it. The Worker
+verifies the signed payload before relaying the locally signed head.
 Kotobase rechecks the `k51...` signer and monotonic sequence. The signing seed,
 storage tokens, and Passkey cookie never cross their respective boundaries.
+A platform Passkey still uses the COSE algorithm implemented by its
+authenticator. The post-quantum claim is intentionally narrower: hosted
+library publication is co-approved by the Principal-pinned ML-DSA-65 key. It
+does not claim that WebAuthn, TLS, IPNS, or every Kotoba operation is
+post-quantum. First-use key enrollment inherits the security of the live
+Passkey ceremony; after enrollment, classical Passkey compromise alone cannot
+replace the pinned ML-DSA key.
 A release remains pending until `kotoba library verify` proves every byte at
 two distinct storage origins and delegated routing observes two distinct
 libp2p peer IDs. `kotoba library run` enforces that proof before executing a
@@ -71,8 +81,8 @@ compiler, verifier, host enforcement, or service-specific authority.
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
 - `GET /v1/session` — credential-free projection of the current Passkey session
-- `POST /v1/libraries/publish` — same-origin Passkey approval relay for a
-  bounded, locally signed Kotobase head record
+- `POST /v1/libraries/publish` — same-origin Passkey + Principal-pinned
+  ML-DSA-65 approval relay for a bounded, locally signed Kotobase head record
 - `GET /` — Japanese public architecture and CLI entrance
 - `GET /en/` — English public architecture and CLI entrance
 

@@ -49,14 +49,19 @@
     :runCommand "kotoba library run"
     :installCommand (str "kotoba package add --catalog-cid " reference-package-catalog-cid)
     :runLockedCommand "kotoba package run"
-    :publishMode "local-signed-passkey-relay-distributed-gated"
+    :publishMode "local-signed-passkey-plus-principal-pinned-ml-dsa-relay-distributed-gated"
     :defaultDryRun true
     :hostedPasskeyPublish true
     :hostedPublishEndpoint "https://kotoba.cloud/v1/libraries/publish"
-    :requestSchema "https://kotoba.cloud/schemas/library-publication-request/v1"}
+    :requestSchema "https://kotoba.cloud/schemas/library-publication-request/v2"}
    :security
    {:passkeyRpId "auth.kotoba.cloud"
     :passkeyOrigin "https://auth.kotoba.cloud"
+    :passkeyCryptography "authenticator-selected-webauthn-cose-algorithm"
+    :passkeyPqMode "webauthn-session+principal-pinned-ml-dsa-65"
+    :passkeyPqScope "hosted-library-publication-approval-only"
+    :passkeyPqEnrollment "first-valid-passkey-session-binds-ml-dsa-key"
+    :passkeyPqLimitation "the-authenticator-passkey-itself-is-not-claimed-post-quantum"
     :sessionCookieScope "registrable-domain:kotoba.cloud"
     :sessionProjection "https://kotoba.cloud/v1/session"
     :untrustedDeploymentsUnderKotobaCloud false}})
@@ -76,6 +81,8 @@
        (false? (get-in profile [:deploy :hostedApply]))
        (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
        (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
+       (= "https://kotoba.cloud/schemas/library-publication-request/v2"
+          (get-in profile [:libraries :requestSchema]))
        (= reference-package-catalog-cid
           (get-in profile [:libraries :packageRegistryCid]))
        (= "ed25519+ml-dsa-65"
@@ -83,4 +90,6 @@
        (= 2 (get-in profile [:libraries :minimumByteCompleteStorageProviders]))
        (= 2 (get-in profile [:libraries :minimumRoutedPeerIds]))
        (true? (get-in profile [:libraries :defaultDryRun]))
-       (true? (get-in profile [:libraries :hostedPasskeyPublish]))))
+       (true? (get-in profile [:libraries :hostedPasskeyPublish]))
+       (= "webauthn-session+principal-pinned-ml-dsa-65"
+          (get-in profile [:security :passkeyPqMode]))))

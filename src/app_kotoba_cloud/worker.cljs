@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.worker
   (:require [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.pqc :as pqc]
             [app-kotoba-cloud.session :as session]
             [goog.object :as gobj]))
 
@@ -55,7 +56,7 @@
       (.then #(session-response (or % {:valid false})))))
 
 (def publication-schema
-  "https://kotoba.cloud/schemas/library-publication-request/v1")
+  "https://kotoba.cloud/schemas/library-publication-request/v2")
 
 (defn- bounded-string? [value max-length]
   (and (string? value) (pos? (count value)) (<= (count value) max-length)))
@@ -86,7 +87,40 @@
          (bounded-string? (:public_key_multibase signed) 256)
          (bounded-string? (:signature_multibase signed) 256))))
 
-(defn- route-library-publish [request]
+(defn- signed-payload-matches? [body payload]
+  (and (= publication-schema (:schema payload))
+       (= "library-publish" (:purpose payload))
+       (= (:namespace body) (:namespace payload))
+       (= (:releaseCid body) (:releaseCid payload))
+       (= (:recordCid body) (:recordCid payload))
+       (= (:publisher body) (:publisher payload))
+       (= (:ipnsName body) (:ipnsName payload))
+       (= (:storageOrigin body) (:storageOrigin payload))
+       (= (:signedRecord body) (:signedRecord payload))))
+
+(defn- bind-pq-key [env principal-id {:keys [key-id public-key]}]
+  (let [registry (gobj/get env "PQ_KEY_REGISTRY")]
+    (when-not (and registry (bounded-string? principal-id 256))
+      (throw (ex-info "pqc-key-registry-unavailable" {:status 503})))
+    (let [id (js-invoke registry "idFromName" principal-id)
+          stub (js-invoke registry "get" id)]
+      (-> (js-invoke stub "fetch" "https://pqc-key-registry.internal/bind"
+                     #js {:method "POST"
+                          :headers #js {"content-type" "application/json"}
+                          :body (js/JSON.stringify
+                                 #js {:keyId key-id :publicKey public-key})})
+          (.then (fn [result]
+                   (-> (.json result)
+                       (.then (fn [binding]
+                                (if (.-ok result)
+                                  (js->clj binding :keywordize-keys true)
+                                  (throw (ex-info
+                                          (if (= 409 (.-status result))
+                                            "pqc-key-mismatch"
+                                            "pqc-key-binding-failed")
+                                          {:status (if (= 409 (.-status result)) 409 503)}))))))))))))
+
+(defn- route-library-publish [request env]
   (let [origin (.get (.-headers request) "origin")
         content-type (or (.get (.-headers request) "content-type") "")]
     (cond
@@ -111,12 +145,20 @@
                                     (throw (ex-info "passkey-session-required" {:status 401})))
                                   [body viewer]))))))
           (.then (fn [[body viewer]]
+                   (-> (pqc/verify-approval (:pqcApproval body))
+                       (.then (fn [verified]
+                                (when-not (signed-payload-matches? body (:payload verified))
+                                  (throw (ex-info "pqc-payload-mismatch" {:status 400})))
+                                (-> (bind-pq-key env (:principalId viewer) verified)
+                                    (.then (fn [binding] [body viewer verified binding]))))))))
+          (.then (fn [[body viewer verified binding]]
                    (-> (js/fetch
                         "https://kotobase.net/xrpc/com.etzhayyim.apps.kotoba.ipns.publish"
                         #js {:method "POST"
                              :headers #js {"accept" "application/json"
                                            "content-type" "application/json"}
-                             :body (js/JSON.stringify (clj->js (:signedRecord body)))})
+                             :body (js/JSON.stringify
+                                    (clj->js (get-in verified [:payload :signedRecord])))})
                        (.then (fn [upstream]
                                 (-> (.json upstream)
                                     (.then (fn [result]
@@ -126,7 +168,7 @@
                                                                 :upstream-status (.-status upstream)}))
                                                (private-json-response
                                                 {:ok true
-                                                 :schema "https://kotoba.cloud/schemas/library-publication-receipt/v1"
+                                                 :schema "https://kotoba.cloud/schemas/library-publication-receipt/v2"
                                                  :namespace (:namespace body)
                                                  :releaseCid (:releaseCid body)
                                                  :recordCid (:recordCid body)
@@ -134,6 +176,10 @@
                                                  :publisher (:publisher body)
                                                  :principalId (:principalId viewer)
                                                  :activeDid (:activeDid viewer)
+                                                 :pqcVerified true
+                                                 :pqcSuite (:suite verified)
+                                                 :pqcKeyId (:key-id verified)
+                                                 :pqcKeyBinding (:binding binding)
                                                  :kotobase (js->clj result :keywordize-keys true)
                                                  :publishedAt (.toISOString (js/Date.))}))))))))))
           (.catch (fn [error]
@@ -155,7 +201,7 @@
         method (.-method request)]
     (cond
       (and (= path "/v1/libraries/publish") (= method "POST"))
-      (route-library-publish request)
+      (route-library-publish request env)
 
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
@@ -175,10 +221,11 @@
                       :required ["schema" "service" "roles" "deploy" "security"]
                       :constSchema profile/schema})
 
-      (= path "/schemas/library-publication-request/v1")
+      (= path "/schemas/library-publication-request/v2")
       (json-response {:type "object"
                       :required ["schema" "namespace" "releaseCid" "recordCid"
-                                 "publisher" "ipnsName" "storageOrigin" "signedRecord"]
+                                 "publisher" "ipnsName" "storageOrigin" "signedRecord"
+                                 "pqcApproval"]
                       :constSchema publication-schema})
 
       :else

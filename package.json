@@ -15,5 +15,8 @@
   "devDependencies": {
     "shadow-cljs": "3.5.0",
     "wrangler": "4.127.0"
+  },
+  "dependencies": {
+    "@noble/post-quantum": "0.7.1"
   }
 }

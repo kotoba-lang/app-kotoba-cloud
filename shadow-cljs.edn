@@ -11,6 +11,7 @@
   {:target :esm
    :output-dir "build"
    :modules {:worker {:exports {default app-kotoba-cloud.worker/app
+                               PqKeyRegistry app-kotoba-cloud.pq-key-registry/make-pq-key-registry
                                route app-kotoba-cloud.worker/route}}}
    :compiler-options {:output-feature-set :es2020
                       :infer-externs :auto}}}}

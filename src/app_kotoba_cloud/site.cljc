@@ -19,6 +19,7 @@
        "kotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n"
        "# replicate one exact release closure\n"
        "kotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false \\\n"
+       "  --pqc-seed-file <ml-dsa-seed> \\\n"
        "  --provider east=https://east.example --provider-token-file <east-token> \\\n"
        "  --provider west=https://west.example --provider-token-file <west-token>\n\n"
        "# qualification and execution are release-CID addressed\n"
@@ -59,10 +60,10 @@
               :body "Agent の workspace、goal、tool、approval と継続作業を扱う。"}]
     :library-title "一つのrelease CIDを、複数の保存先から実行する"
     :library-lead "release CIDはnamespace head、definition、raw Wasm、compile receipt、再現性evidenceを一つのIPLD graphに固定します。名前とGitHubは発見・provenanceです。"
-    :library-status "Passkeyは署名済みheadのrelayを承認します。分散認定は別で、2つのbyte-complete storage originと2 distinct libp2p peer IDのavailability proofが必要です。"
+    :library-status "公開にはPasskey sessionと、Principalに固定したML-DSA-65署名の両方が必要です。Passkey authenticator自体の耐量子化を意味しません。分散認定には別途availability proofが必要です。"
     :approval-title "ライブラリ公開を承認"
     :approval-lead "CLIがローカル鍵で署名し、Kotobaseへ保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
-    :approval-button "Passkey sessionで公開"
+    :approval-button "Passkey + ML-DSA-65で公開"
     :library-catalog-cta "ライブラリcatalogと依存graphを見る"
     :library-steps [["Bundle" "definition、Wasm artifact、compile receiptを一つのrelease CIDへ閉じる。"]
                     ["Replicate" "同じclosureを少なくとも2つの独立storage originへ保存する。"]
@@ -115,10 +116,10 @@
               :body "Runs continuing agent work across workspaces, goals, tools, and approvals."}]
     :library-title "One release CID, executable from multiple providers"
     :library-lead "A release CID fixes the namespace head, definitions, raw Wasm, compile receipts, and reproducibility evidence in one IPLD graph. Names and GitHub remain discovery and provenance."
-    :library-status "Passkey approves relay of the signed head. Distributed qualification is separate and requires an availability proof from two byte-complete storage origins and two distinct libp2p peer IDs."
+    :library-status "Publication requires both a Passkey session and an ML-DSA-65 signature pinned to the Principal. This does not make the authenticator's Passkey itself post-quantum. Distributed qualification still requires a separate availability proof."
     :approval-title "Approve library publication"
     :approval-lead "The CLI signed this graph locally and stored it in Kotobase. Verify the CIDs and IPNS name before publishing."
-    :approval-button "Publish with Passkey session"
+    :approval-button "Publish with Passkey + ML-DSA-65"
     :library-catalog-cta "Open the library catalog and dependency graph"
     :library-steps [["Bundle" "Close definitions, Wasm artifacts, and compile receipts under one release CID."]
                     ["Replicate" "Store the same complete closure at no fewer than two independent storage origins."]
