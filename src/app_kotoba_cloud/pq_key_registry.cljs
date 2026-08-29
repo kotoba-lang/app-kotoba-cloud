@@ -68,8 +68,15 @@
                     (.then (fn [_] (js-invoke txn "delete" "binding")))
                     (.then (fn [_]
                              (json-response
-                              {:ok true :binding (name (:binding result))
-                               :epoch (:epoch result) :status (name (:status result))}
+                              (cond-> {:ok true :binding (name (:binding result))
+                                       :epoch (:epoch result) :status (name (:status result))}
+                                (:previous-epoch result)
+                                (assoc :previousEpoch (:previous-epoch result))
+                                (:previous-key-id result)
+                                (assoc :previousKeyId (:previous-key-id result))
+                                (:key-id result) (assoc :keyId (:key-id result))
+                                (:transition-id result)
+                                (assoc :transitionId (:transition-id result)))
                               200))))))))))))
 
 (deftype PqKeyRegistry [state env]

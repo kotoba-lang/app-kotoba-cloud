@@ -68,6 +68,9 @@
   [state {:keys [current-key-id next-key-id next-public-key expected-epoch
                  transition-id at]}]
   (let [current (normalize state)]
+    (when (and current (bounded-string? transition-id 128)
+               (contains? (:transition-ids current) transition-id))
+      (fail! :pqc-transition-replayed))
     (when-not (and current (= :active (:status current))
                    (bounded-string? current-key-id 128)
                    (bounded-string? next-key-id 128)
@@ -78,8 +81,6 @@
     (when-not (= current-key-id (:key-id current)) (fail! :pqc-key-mismatch))
     (when-not (= expected-epoch (:epoch current)) (fail! :pqc-key-epoch-mismatch))
     (when (= current-key-id next-key-id) (fail! :pqc-key-unchanged))
-    (when (contains? (:transition-ids current) transition-id)
-      (fail! :pqc-transition-replayed))
     (let [next-epoch (inc expected-epoch)
           next-state (-> current
                          (assoc :epoch next-epoch :status :active
@@ -88,11 +89,17 @@
                          (append-history {:action :rotated :epoch next-epoch
                                           :from-key-id current-key-id
                                           :key-id next-key-id :at at}))]
-      {:state next-state :binding :rotated :epoch next-epoch :status :active})))
+      {:state next-state :binding :rotated
+       :previous-epoch expected-epoch :epoch next-epoch :status :active
+       :previous-key-id current-key-id :key-id next-key-id
+       :transition-id transition-id})))
 
 (defn revoke
   [state {:keys [current-key-id expected-epoch transition-id at]}]
   (let [current (normalize state)]
+    (when (and current (bounded-string? transition-id 128)
+               (contains? (:transition-ids current) transition-id))
+      (fail! :pqc-transition-replayed))
     (when-not (and current (= :active (:status current))
                    (bounded-string? current-key-id 128)
                    (bounded-string? transition-id 128)
@@ -100,12 +107,12 @@
       (fail! :pqc-revocation-invalid))
     (when-not (= current-key-id (:key-id current)) (fail! :pqc-key-mismatch))
     (when-not (= expected-epoch (:epoch current)) (fail! :pqc-key-epoch-mismatch))
-    (when (contains? (:transition-ids current) transition-id)
-      (fail! :pqc-transition-replayed))
     (let [next-state (-> current
                          (assoc :status :revoked :revoked-at at)
                          (assoc-in [:transition-ids transition-id] at)
                          (append-history {:action :revoked :epoch expected-epoch
                                           :key-id current-key-id :at at}))]
       {:state next-state :binding :revoked
-       :epoch expected-epoch :status :revoked})))
+       :previous-epoch expected-epoch :epoch expected-epoch :status :revoked
+       :previous-key-id current-key-id :key-id current-key-id
+       :transition-id transition-id})))

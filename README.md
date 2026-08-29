@@ -44,9 +44,13 @@ A hosted approval is valid for at most fifteen minutes, carries a signed
 single-use request ID and monotonic PQ-key epoch, and is atomically consumed by
 the Principal's Durable Object before Kotobase relay. Replaying the same
 approval, using an old epoch, or using a revoked key fails closed.
-Authenticated public rotation/revocation endpoints, independent recovery,
-scheduled drills, and a transparency witness are still blocked; only their
-fail-closed lifecycle transitions are specified and tested in this release.
+Authenticated public rotation and revocation are live at
+`POST /v1/pq-keys/rotate` and `POST /v1/pq-keys/revoke`. The current ML-DSA-65
+key signs a short-lived transition request; rotation also requires the next
+key to sign the exact same bytes. The browser then requires the Principal's
+Passkey session before the atomic transition and returns a no-store receipt.
+Exact transition IDs cannot be replayed. Independent recovery quorum,
+scheduled drills, and a transparency witness are still blocked.
 A platform Passkey still uses the COSE algorithm implemented by its
 authenticator. The post-quantum claim is intentionally narrower: hosted
 library publication is co-approved by the Principal-pinned ML-DSA-65 key. It

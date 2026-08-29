@@ -23,12 +23,42 @@ globalThis.fetch = async (url, init) => {
 const bindings = new Map();
 const env = { PQ_KEY_REGISTRY: {
   idFromName: (principal) => principal,
-  get: (principal) => ({ fetch: async (_url, init) => {
+  get: (principal) => ({ fetch: async (url, init) => {
     const proposed = JSON.parse(init.body);
     const current = bindings.get(principal);
+    if (String(url).endsWith("/rotate") || String(url).endsWith("/revoke")) {
+      if (!current) return Response.json({ ok: false, reason: "pqc-rotation-invalid" }, { status: 409 });
+      if (current.transitions.has(proposed.transitionId)) {
+        return Response.json({ ok: false, reason: "pqc-transition-replayed" }, { status: 409 });
+      }
+      if (current.status !== "active") {
+        return Response.json({ ok: false, reason: "pqc-key-revoked" }, { status: 409 });
+      }
+      if (current.keyId !== proposed.currentKeyId) {
+        return Response.json({ ok: false, reason: "pqc-key-mismatch" }, { status: 409 });
+      }
+      if (current.epoch !== proposed.expectedEpoch) {
+        return Response.json({ ok: false, reason: "pqc-key-epoch-mismatch" }, { status: 409 });
+      }
+      current.transitions.add(proposed.transitionId);
+      const previousEpoch = current.epoch;
+      const previousKeyId = current.keyId;
+      if (String(url).endsWith("/rotate")) {
+        current.epoch += 1;
+        current.keyId = proposed.nextKeyId;
+        current.publicKey = proposed.nextPublicKey;
+        return Response.json({ ok: true, binding: "rotated", previousEpoch,
+          epoch: current.epoch, status: "active", previousKeyId, keyId: current.keyId,
+          transitionId: proposed.transitionId });
+      }
+      current.status = "revoked";
+      return Response.json({ ok: true, binding: "revoked", previousEpoch,
+        epoch: current.epoch, status: "revoked", previousKeyId, keyId: current.keyId,
+        transitionId: proposed.transitionId });
+    }
     if (!current) {
       bindings.set(principal, { keyId: proposed.keyId, publicKey: proposed.publicKey,
-        epoch: 1, status: "active", used: new Set([proposed.requestId]) });
+        epoch: 1, status: "active", used: new Set([proposed.requestId]), transitions: new Set() });
       return Response.json({ ok: true, binding: "enrolled", epoch: 1, status: "active" });
     }
     if (current.status !== "active") {
@@ -62,6 +92,27 @@ async function approve(publication, seedByte) {
     requestId: publication.requestId, schema: publication.schema,
     signedRecord: publication.signedRecord,
     storageOrigin: publication.storageOrigin
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  return {
+    suite: "passkey+ml-dsa-65", payload: b64url(bytes), publicKey: b64url(keys.publicKey),
+    keyId: `sha256:${hex(await crypto.subtle.digest("SHA-256", keys.publicKey))}`,
+    signature: b64url(ml_dsa65.sign(bytes, keys.secretKey))
+  };
+}
+
+async function approveTransition(transition, seedByte) {
+  const keys = ml_dsa65.keygen(new Uint8Array(32).fill(seedByte));
+  const payload = {
+    action: transition.action,
+    currentKeyId: transition.currentKeyId,
+    expectedEpoch: transition.expectedEpoch,
+    expiresAt: transition.expiresAt,
+    issuedAt: transition.issuedAt,
+    ...(transition.nextKeyId ? { nextKeyId: transition.nextKeyId } : {}),
+    purpose: "pq-key-transition",
+    schema: transition.schema,
+    transitionId: transition.transitionId
   };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
   return {
@@ -234,4 +285,108 @@ const rejectedReplacement = await route(new Request("https://kotoba.cloud/v1/lib
 assert.equal(rejectedReplacement.status, 409);
 assert.equal(kotobaseCalls(), beforeRejected, "a Passkey session cannot replace the pinned PQ key");
 
-console.log("worker Passkey + principal-pinned ML-DSA publication smoke passed");
+const transitionBase = {
+  schema: "https://kotoba.cloud/schemas/pq-key-transition-request/v1",
+  transitionId: crypto.randomUUID(), issuedAt: new Date().toISOString(),
+  expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  action: "rotate", expectedEpoch: 1,
+  currentKeyId: publication.pqcApproval.keyId
+};
+const nextApprovalDraft = await approveTransition({ ...transitionBase, nextKeyId: "pending" }, 8);
+const rotation = { ...transitionBase, nextKeyId: nextApprovalDraft.keyId };
+rotation.currentApproval = await approveTransition(rotation, 7);
+rotation.nextApproval = await approveTransition(rotation, 8);
+
+const incompleteRotation = structuredClone(rotation);
+delete incompleteRotation.nextApproval;
+const rejectedIncompleteRotation = await route(new Request("https://kotoba.cloud/v1/pq-keys/rotate", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(incompleteRotation)
+}), env);
+assert.equal(rejectedIncompleteRotation.status, 400);
+
+const differentBytesRotation = structuredClone(rotation);
+const reorderedPayload = {
+  transitionId: rotation.transitionId, schema: rotation.schema,
+  purpose: "pq-key-transition", nextKeyId: rotation.nextKeyId,
+  issuedAt: rotation.issuedAt, expiresAt: rotation.expiresAt,
+  expectedEpoch: rotation.expectedEpoch, currentKeyId: rotation.currentKeyId,
+  action: rotation.action
+};
+const reorderedBytes = new TextEncoder().encode(JSON.stringify(reorderedPayload));
+const nextKeys = ml_dsa65.keygen(new Uint8Array(32).fill(8));
+differentBytesRotation.nextApproval.payload = b64url(reorderedBytes);
+differentBytesRotation.nextApproval.signature = b64url(ml_dsa65.sign(reorderedBytes, nextKeys.secretKey));
+const rejectedDifferentBytes = await route(new Request("https://kotoba.cloud/v1/pq-keys/rotate", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(differentBytesRotation)
+}), env);
+assert.equal(rejectedDifferentBytes.status, 400);
+assert.equal((await rejectedDifferentBytes.json()).error, "pqc-transition-bytes-mismatch");
+
+const rotatedResponse = await route(new Request("https://kotoba.cloud/v1/pq-keys/rotate", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(rotation)
+}), env);
+assert.equal(rotatedResponse.status, 200);
+const rotationReceipt = await rotatedResponse.json();
+assert.equal(rotationReceipt.schema, "https://kotoba.cloud/schemas/pq-key-transition-receipt/v1");
+assert.equal(rotationReceipt.previousEpoch, 1);
+assert.equal(rotationReceipt.epoch, 2);
+assert.equal(rotationReceipt.currentApprovalVerified, true);
+assert.equal(rotationReceipt.nextApprovalVerified, true);
+
+const replayedRotation = await route(new Request("https://kotoba.cloud/v1/pq-keys/rotate", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(rotation)
+}), env);
+assert.equal(replayedRotation.status, 409);
+assert.equal((await replayedRotation.json()).error, "pqc-transition-replayed");
+
+const newKeyPublication = structuredClone(publication);
+newKeyPublication.requestId = crypto.randomUUID();
+newKeyPublication.keyEpoch = 2;
+newKeyPublication.issuedAt = new Date().toISOString();
+newKeyPublication.expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+newKeyPublication.pqcApproval = await approve(newKeyPublication, 8);
+const newKeyPublished = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(newKeyPublication)
+}), env);
+assert.equal(newKeyPublished.status, 200);
+assert.equal((await newKeyPublished.json()).pqcKeyEpoch, 2);
+
+const revocation = {
+  schema: transitionBase.schema, transitionId: crypto.randomUUID(),
+  issuedAt: new Date().toISOString(),
+  expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  action: "revoke", expectedEpoch: 2, currentKeyId: rotation.nextKeyId
+};
+revocation.currentApproval = await approveTransition(revocation, 8);
+const revokedResponse = await route(new Request("https://kotoba.cloud/v1/pq-keys/revoke", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(revocation)
+}), env);
+assert.equal(revokedResponse.status, 200);
+assert.equal((await revokedResponse.json()).status, "revoked");
+
+const replayedRevocation = await route(new Request("https://kotoba.cloud/v1/pq-keys/revoke", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(revocation)
+}), env);
+assert.equal(replayedRevocation.status, 409);
+assert.equal((await replayedRevocation.json()).error, "pqc-transition-replayed");
+
+const afterRevocation = structuredClone(newKeyPublication);
+afterRevocation.requestId = crypto.randomUUID();
+afterRevocation.issuedAt = new Date().toISOString();
+afterRevocation.expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+afterRevocation.pqcApproval = await approve(afterRevocation, 8);
+const rejectedAfterRevocation = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(afterRevocation)
+}), env);
+assert.equal(rejectedAfterRevocation.status, 409);
+assert.equal((await rejectedAfterRevocation.json()).error, "pqc-key-revoked");
+
+console.log("worker Passkey + principal-pinned ML-DSA publication and key transition smoke passed");

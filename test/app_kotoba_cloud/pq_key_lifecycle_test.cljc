@@ -34,6 +34,10 @@
                                    :transition-id "revoke-1" :at "revoked"})]
     (is (= 2 (:epoch rotated)))
     (is (= :rotated (:binding rotated)))
+    (is (= 1 (:previous-epoch rotated)))
+    (is (= "key-a" (:previous-key-id rotated)))
+    (is (= "key-b" (:key-id rotated)))
+    (is (= "rotate-1" (:transition-id rotated)))
     (is (= :revoked (:status revoked)))
     (testing "old epochs, replayed transitions, and revoked publication fail"
       (is (= :pqc-key-epoch-mismatch
@@ -47,6 +51,11 @@
                                            :next-public-key "public-c"
                                            :expected-epoch 2
                                            :transition-id "rotate-1" :at "later"}))))
+      (is (= :pqc-transition-replayed
+             (rejected #(lifecycle/revoke
+                         (:state revoked) {:current-key-id "key-b"
+                                           :expected-epoch 2
+                                           :transition-id "revoke-1" :at "later"}))))
       (is (= :pqc-key-revoked
              (rejected #(lifecycle/admit-publication
                          (:state revoked)

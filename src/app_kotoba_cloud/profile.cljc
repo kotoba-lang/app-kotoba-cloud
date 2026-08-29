@@ -67,14 +67,17 @@
     :requestSchema "https://kotoba.cloud/schemas/library-publication-request/v3"
     :publicationRequestReplayPolicy "single-use-request-id"
     :pqKeyEpochPolicy "monotonic-principal-pinned"
-    :pqKeyLifecycle "publication-admission-live-transition-endpoints-blocked"
+    :pqKeyLifecycle "publication-and-passkey-authenticated-transitions-live"
+    :pqKeyTransitionSchema "https://kotoba.cloud/schemas/pq-key-transition-request/v1"
+    :pqKeyRotateEndpoint "https://kotoba.cloud/v1/pq-keys/rotate"
+    :pqKeyRevokeEndpoint "https://kotoba.cloud/v1/pq-keys/revoke"
     :pqKeyRecovery "blocked-independent-quorum-not-implemented"}
    :security
    {:passkeyRpId identity-rp-id
     :passkeyOrigin identity-origin
     :passkeyCryptography "authenticator-selected-webauthn-cose-algorithm"
     :passkeyPqMode "webauthn-session+principal-pinned-ml-dsa-65"
-    :passkeyPqScope "hosted-library-publication-approval-only"
+    :passkeyPqScope "hosted-library-publication-and-pq-key-transition-approval"
     :passkeyPqEnrollment "first-valid-passkey-session-binds-ml-dsa-key"
     :passkeyPqLimitation "the-authenticator-passkey-itself-is-not-claimed-post-quantum"
     :sessionCookieScope "registrable-domain:kotoba.cloud"
@@ -105,7 +108,7 @@
        (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
        (= "https://kotoba.cloud/schemas/library-publication-request/v3"
           (get-in profile [:libraries :requestSchema]))
-       (= "publication-admission-live-transition-endpoints-blocked"
+       (= "publication-and-passkey-authenticated-transitions-live"
           (get-in profile [:libraries :pqKeyLifecycle]))
        (= reference-package-catalog-cid
           (get-in profile [:libraries :packageRegistryCid]))

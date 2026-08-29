@@ -61,6 +61,9 @@
 (def publication-schema
   "https://kotoba.cloud/schemas/library-publication-request/v3")
 
+(def transition-schema
+  "https://kotoba.cloud/schemas/pq-key-transition-request/v1")
+
 (defn- bounded-string? [value max-length]
   (and (string? value) (pos? (count value)) (<= (count value) max-length)))
 
@@ -114,6 +117,40 @@
        (= (:storageOrigin body) (:storageOrigin payload))
        (= (:signedRecord body) (:signedRecord payload))))
 
+(defn- valid-transition-request? [body]
+  (let [issued-at (when (string? (:issuedAt body)) (js/Date.parse (:issuedAt body)))
+        expires-at (when (string? (:expiresAt body)) (js/Date.parse (:expiresAt body)))
+        rotate? (= "rotate" (:action body))
+        revoke? (= "revoke" (:action body))
+        now (.now js/Date)]
+    (and (= transition-schema (:schema body))
+         (bounded-string? (:transitionId body) 128)
+         (number? issued-at) (= issued-at issued-at)
+         (number? expires-at) (= expires-at expires-at)
+         (<= (- now (* 60 1000)) issued-at (+ now (* 60 1000)))
+         (< issued-at expires-at (min (+ issued-at (* 15 60 1000))
+                                      (+ now (* 15 60 1000))))
+         (or rotate? revoke?)
+         (integer? (:expectedEpoch body)) (pos? (:expectedEpoch body))
+         (bounded-string? (:currentKeyId body) 128)
+         (map? (:currentApproval body))
+         (if rotate?
+           (and (bounded-string? (:nextKeyId body) 128)
+                (not= (:currentKeyId body) (:nextKeyId body))
+                (map? (:nextApproval body)))
+           (and (nil? (:nextKeyId body)) (nil? (:nextApproval body)))))))
+
+(defn- transition-payload-matches? [body payload]
+  (and (= transition-schema (:schema payload))
+       (= "pq-key-transition" (:purpose payload))
+       (= (:transitionId body) (:transitionId payload))
+       (= (:issuedAt body) (:issuedAt payload))
+       (= (:expiresAt body) (:expiresAt payload))
+       (= (:action body) (:action payload))
+       (= (:expectedEpoch body) (:expectedEpoch payload))
+       (= (:currentKeyId body) (:currentKeyId payload))
+       (= (:nextKeyId body) (:nextKeyId payload))))
+
 (defn- admit-pq-key [env principal-id body {:keys [key-id public-key]}]
   (let [registry (gobj/get env "PQ_KEY_REGISTRY")]
     (when-not (and registry (bounded-string? principal-id 256))
@@ -139,6 +176,104 @@
                                                 "pqc-key-conflict"
                                                 "pqc-key-binding-failed"))
                                           {:status (if (= 409 (.-status result)) 409 503)}))))))))))))
+
+(defn- transition-pq-key [env principal-id body current next-key]
+  (let [registry (gobj/get env "PQ_KEY_REGISTRY")]
+    (when-not (and registry (bounded-string? principal-id 256))
+      (throw (ex-info "pqc-key-registry-unavailable" {:status 503})))
+    (let [id (js-invoke registry "idFromName" principal-id)
+          stub (js-invoke registry "get" id)
+          path (str "https://pqc-key-registry.internal/" (:action body))
+          command (cond-> {:currentKeyId (:key-id current)
+                           :expectedEpoch (:expectedEpoch body)
+                           :transitionId (:transitionId body)}
+                    next-key (assoc :nextKeyId (:key-id next-key)
+                                    :nextPublicKey (:public-key next-key)))]
+      (-> (js-invoke stub "fetch" path
+                     #js {:method "POST"
+                          :headers #js {"content-type" "application/json"}
+                          :body (js/JSON.stringify (clj->js command))})
+          (.then (fn [result]
+                   (-> (.json result)
+                       (.then (fn [transition]
+                                (if (.-ok result)
+                                  (js->clj transition :keywordize-keys true)
+                                  (throw (ex-info
+                                          (or (aget transition "reason")
+                                              "pqc-key-transition-failed")
+                                          {:status (if (= 409 (.-status result)) 409 503)}))))))))))))
+
+(defn- route-pq-key-transition [request env action]
+  (let [origin (.get (.-headers request) "origin")
+        content-type (or (.get (.-headers request) "content-type") "")]
+    (cond
+      (not= "https://kotoba.cloud" origin)
+      (private-json-response {:ok false :error "invalid-origin"} 403)
+
+      (not (.startsWith content-type "application/json"))
+      (private-json-response {:ok false :error "content-type-required"} 415)
+
+      :else
+      (-> (.text request)
+          (.then (fn [text]
+                   (if (> (count text) 32768)
+                     (throw (ex-info "request-too-large" {:status 413}))
+                     (js->clj (js/JSON.parse text) :keywordize-keys true))))
+          (.then (fn [body]
+                   (when-not (= action (:action body))
+                     (throw (ex-info "pq-key-action-mismatch" {:status 400})))
+                   (when-not (valid-transition-request? body)
+                     (throw (ex-info "invalid-pq-key-transition-request" {:status 400})))
+                   (-> (fetch-viewer request)
+                       (.then (fn [viewer]
+                                (when-not (:valid viewer)
+                                  (throw (ex-info "passkey-session-required" {:status 401})))
+                                [body viewer])))))
+          (.then (fn [[body viewer]]
+                   (-> (pqc/verify-approval (:currentApproval body))
+                       (.then (fn [current]
+                                (when-not (and (= (:currentKeyId body) (:key-id current))
+                                               (transition-payload-matches?
+                                                body (:payload current)))
+                                  (throw (ex-info "pqc-current-approval-mismatch"
+                                                  {:status 400})))
+                                (if (= "rotate" action)
+                                  (do
+                                    (when-not (= (get-in body [:currentApproval :payload])
+                                                 (get-in body [:nextApproval :payload]))
+                                      (throw (ex-info "pqc-transition-bytes-mismatch"
+                                                      {:status 400})))
+                                    (-> (pqc/verify-approval (:nextApproval body))
+                                      (.then (fn [next-key]
+                                               (when-not (and (= (:nextKeyId body)
+                                                                 (:key-id next-key))
+                                                              (transition-payload-matches?
+                                                               body (:payload next-key)))
+                                                 (throw (ex-info "pqc-next-approval-mismatch"
+                                                                 {:status 400})))
+                                               [body viewer current next-key]))))
+                                  (js/Promise.resolve [body viewer current nil])))))))
+          (.then (fn [[body viewer current next-key]]
+                   (-> (transition-pq-key env (:principalId viewer) body current next-key)
+                       (.then (fn [transition]
+                                (private-json-response
+                                 (cond-> {:ok true
+                                          :schema "https://kotoba.cloud/schemas/pq-key-transition-receipt/v1"
+                                          :action action
+                                          :principalId (:principalId viewer)
+                                          :transitionId (:transitionId body)
+                                          :previousEpoch (:previousEpoch transition)
+                                          :epoch (:epoch transition)
+                                          :previousKeyId (:previousKeyId transition)
+                                          :keyId (:keyId transition)
+                                          :status (:status transition)
+                                          :currentApprovalVerified true
+                                          :transitionedAt (.toISOString (js/Date.))}
+                                   next-key (assoc :nextApprovalVerified true))))))))
+          (.catch (fn [error]
+                    (private-json-response
+                     {:ok false :error (or (.-message error) "pq-key-transition-failed")}
+                     (or (:status (ex-data error)) 400))))))))
 
 (defn- route-library-publish [request env]
   (let [origin (.get (.-headers request) "origin")
@@ -226,6 +361,12 @@
       (and (= path "/v1/libraries/publish") (= method "POST"))
       (route-library-publish request env)
 
+      (and (= path "/v1/pq-keys/rotate") (= method "POST"))
+      (route-pq-key-transition request env "rotate")
+
+      (and (= path "/v1/pq-keys/revoke") (= method "POST"))
+      (route-pq-key-transition request env "revoke")
+
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
 
@@ -254,6 +395,15 @@
                                  "publisher" "ipnsName" "storageOrigin" "signedRecord"
                                  "pqcApproval"]
                       :constSchema publication-schema})
+
+      (= path "/schemas/pq-key-transition-request/v1")
+      (json-response {:type "object"
+                      :required ["schema" "transitionId" "issuedAt" "expiresAt"
+                                 "action" "expectedEpoch" "currentKeyId"
+                                 "currentApproval"]
+                      :rotateRequired ["nextKeyId" "nextApproval"]
+                      :actions ["rotate" "revoke"]
+                      :constSchema transition-schema})
 
       :else
       (-> (.fetch ^js (gobj/get env "ASSETS") request)
