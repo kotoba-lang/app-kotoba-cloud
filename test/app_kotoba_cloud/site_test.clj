@@ -10,7 +10,8 @@
     (is (= [:ja :en] site/supported-locales))
     (doseq [catalog catalogs]
       (is (= 3 (count (:planes catalog))))
-      (is (= 4 (count (:steps catalog)))))))
+      (is (= 4 (count (:steps catalog))))
+      (is (= 3 (count (:library-steps catalog)))))))
 
 (deftest japanese-page-matches-the-language-concept
   (let [html (site/page-html :ja)]
@@ -18,7 +19,8 @@
     (is (str/includes? html "AIは自由に書く。Kotobaは境界を引く。"))
     (is (= 1 (count (re-seq #"<h1" html))))
     (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
-                    "itonami.cloud" "kotoba-lang.org" "Hosted apply"]]
+                    "itonami.cloud" "kotoba-lang.org" "Hosted apply"
+                    "kotoba library inspect" "Passkeyによるhosted publish"]]
       (is (str/includes? html needle) needle))
     (is (str/includes? html "hreflang=\"en\""))
     (is (str/includes? html "href=\"/en/\""))
@@ -31,6 +33,8 @@
     (is (str/includes? html "<html lang=\"en\""))
     (is (str/includes? html "AI writes freely. Kotoba draws the boundary."))
     (is (str/includes? html "From AI-written code to admitted computation"))
+    (is (str/includes? html "Inspect the hash, then publish that same graph"))
+    (is (str/includes? html "Passkey-hosted publication is not available yet"))
     (is (str/includes? html "https://kotoba.cloud/en/"))
     (is (str/includes? html "hreflang=\"ja\""))
     (is (str/includes? html "return_to=https%3A%2F%2Fkotoba.cloud%2Fen%2F"))

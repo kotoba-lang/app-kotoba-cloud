@@ -29,6 +29,16 @@
     :computeOrigin "https://api.murakumo.cloud"
     :publicComputeOrigin "https://murakumo.cloud"
     :agentWorkOrigin "https://itonami.cloud"}
+   :libraries
+   {:catalogOrigin "https://kotoba-lang.org"
+    :catalogPath "/libraries/"
+    :machineCatalogPath "/.well-known/kotoba-libraries.json"
+    :storageOrigin "https://kotobase.net"
+    :inspectCommand "kotoba library inspect"
+    :publishCommand "kotoba library publish"
+    :publishMode "local-signed-ipns"
+    :defaultDryRun true
+    :hostedPasskeyPublish false}
    :security
    {:passkeyRpId "auth.kotoba.cloud"
     :passkeyOrigin "https://auth.kotoba.cloud"
@@ -43,4 +53,8 @@
        (= "https://kotobase.net" (get-in profile [:roles :storage :origin]))
        (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
        (= "https://itonami.cloud" (get-in profile [:roles :agentWork :origin]))
-       (false? (get-in profile [:deploy :hostedApply]))))
+       (false? (get-in profile [:deploy :hostedApply]))
+       (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
+       (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
+       (true? (get-in profile [:libraries :defaultDryRun]))
+       (false? (get-in profile [:libraries :hostedPasskeyPublish]))))

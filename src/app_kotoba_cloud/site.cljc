@@ -14,7 +14,7 @@
     :title "Kotoba Cloud — AIは自由に書く。Kotobaは境界を引く。"
     :description "AIが書いたコードを、effect・capability・identityを検査した許可済みの計算へ。Kotoba Cloudは分離されたstorage、compute、agent workへ接続します。"
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
-    :nav-architecture "構成" :nav-label "主要ナビゲーション"
+    :nav-architecture "構成" :nav-libraries "ライブラリ公開" :nav-label "主要ナビゲーション"
     :language-label "表示言語" :hero-eyebrow "SECURITY-FIRST COMPUTING"
     :headline "AIは自由に書く。Kotobaは境界を引く。"
     :lead ["Kotoba は、AI が書いたコードから effect と capability を検査し、境界を満たす artifact だけを生成します。"
@@ -32,8 +32,15 @@
               :href "https://murakumo.cloud"
               :body "Admit 済みの workload を CPU/GPU へ配置し、実行する。"}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
-              :href "https://itonami.cloud"
+             :href "https://itonami.cloud"
               :body "Agent の workspace、goal、tool、approval と継続作業を扱う。"}]
+    :library-title "CLIでhashを確認し、その同じgraphを公開する"
+    :library-lead "名前とGitHubは発見・provenanceです。Definition CIDと署名済みnamespace headが内容を固定し、Kotobaseがblockとreceiptを保持します。"
+    :library-status "CLIのlocal-signed IPNS公開は利用可能です。Passkeyによるhosted publishはまだ提供していません。"
+    :library-catalog-cta "ライブラリcatalogと依存graphを見る"
+    :library-steps [["確認" "名前・full CID・#hashから、同じdefinitionと依存CIDを解決する。"]
+                    ["公開" "署名済みnamespace headを、検証済みblockとIPNS名として公開する。"]
+                    ["発見" "kotoba-lang.orgでGitHub provenanceと互換性の証拠を読む。"]]
     :deploy-title "AIのコードが、許可済みの計算になるまで"
     :steps [["Write" "AIと人間は、読みやすいデータとしてコードを自由に書く。"]
             ["Admit" "Kotobaがtype、effect、capability、resource、targetを検査する。"]
@@ -56,7 +63,7 @@
     :title "Kotoba Cloud — AI writes freely. Kotoba draws the boundary."
     :description "Turn AI-written code into admitted computation by checking effects, capabilities, and identity, then connect it to separately governed storage, compute, and agent work."
     :skip "Skip to content" :home-label "Kotoba Cloud home"
-    :nav-architecture "Architecture" :nav-label "Primary navigation"
+    :nav-architecture "Architecture" :nav-libraries "Publish libraries" :nav-label "Primary navigation"
     :language-label "Display language" :hero-eyebrow "SECURITY-FIRST COMPUTING"
     :headline "AI writes freely. Kotoba draws the boundary."
     :lead ["Kotoba checks effects and capabilities in AI-written code, emitting only artifacts that satisfy the admitted boundary."
@@ -74,8 +81,15 @@
               :href "https://murakumo.cloud"
               :body "Places admitted workloads on CPU/GPU resources and executes them."}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
-              :href "https://itonami.cloud"
+             :href "https://itonami.cloud"
               :body "Runs continuing agent work across workspaces, goals, tools, and approvals."}]
+    :library-title "Inspect the hash, then publish that same graph"
+    :library-lead "Names and GitHub are discovery and provenance. Definition CIDs and the signed namespace head fix the content; Kotobase keeps blocks and receipts."
+    :library-status "Local-signed IPNS publication is available through the CLI. Passkey-hosted publication is not available yet."
+    :library-catalog-cta "Open the library catalog and dependency graph"
+    :library-steps [["Inspect" "Resolve the same definition and dependency CIDs from a name, full CID, or #hash."]
+                    ["Publish" "Publish the signed namespace head as verified blocks and an IPNS name."]
+                    ["Discover" "Read GitHub provenance and compatibility evidence at kotoba-lang.org."]]
     :deploy-title "From AI-written code to admitted computation"
     :steps [["Write" "Agents and humans write freely in readable, data-oriented code."]
             ["Admit" "Kotoba checks types, effects, capabilities, resources, and target support."]
@@ -163,6 +177,7 @@
          [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]]
         [:nav {:class "kc-nav" :aria-label (:nav-label t)}
          [:a {:class "kc-nav__secondary" :href "#architecture"} (:nav-architecture t)]
+         [:a {:class "kc-nav__secondary" :href "#libraries"} (:nav-libraries t)]
          (language-links locale (:language-label t))
          (dds/button "Passkey" {:type :outline :size "sm"
                                 :href (passkey-href locale)})]])]
@@ -191,8 +206,26 @@
            [:div {:class "kc-plane__kind"} (:control-kind t)]
            (dds/heading 3 (:control-title t) {:size "24"})
            [:p (:control-body t)]
-           [:div {:class "kc-control__origin"} "auth.kotoba.cloud  ·  api.kotoba.cloud"]])
+         [:div {:class "kc-control__origin"} "auth.kotoba.cloud  ·  api.kotoba.cloud"]])
          (into [:div {:class "kc-flow"}] (map plane-card (:planes t)))))]
+      (dds/container
+       (dds/section {:title (:library-title t) :id "libraries"}
+        [:p {:class "dds-ext-lead"} (:library-lead t)]
+        (into
+         [:div {:class "dds-ext-grid kc-steps" :style {:--dds-ext-grid-min "15rem"}}]
+         (map (fn [[title body]]
+                (dds/card [:article {:class "kc-step"}
+                           (dds/heading 3 title {:size "20"})
+                           [:p body]]))
+              (:library-steps t)))
+        [:pre {:class "kc-command"}
+         [:code "kotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo"]]
+        [:p {:class "kc-live"}
+         [:span {:class "kc-live__dot" :aria-hidden "true"}]
+         [:span (:library-status t)]]
+        (dds/button (:library-catalog-cta t)
+                    {:type :outline :size "lg"
+                     :href "https://kotoba-lang.org/libraries/"})))
       (dds/container
        (dds/section {:title (:deploy-title t) :id "deploy"}
         (into

@@ -27,3 +27,14 @@
          (get-in profile/control-plane [:security :sessionCookieScope])))
   (is (false? (get-in profile/control-plane
                        [:security :untrustedDeploymentsUnderKotobaCloud]))))
+
+(deftest library-publication-keeps-catalog-storage-and-control-separated
+  (let [libraries (:libraries profile/control-plane)]
+    (is (= "https://kotoba-lang.org" (:catalogOrigin libraries)))
+    (is (= "/libraries/" (:catalogPath libraries)))
+    (is (= "https://kotobase.net" (:storageOrigin libraries)))
+    (is (= "kotoba library inspect" (:inspectCommand libraries)))
+    (is (= "kotoba library publish" (:publishCommand libraries)))
+    (is (= "local-signed-ipns" (:publishMode libraries)))
+    (is (true? (:defaultDryRun libraries)))
+    (is (false? (:hostedPasskeyPublish libraries)))))

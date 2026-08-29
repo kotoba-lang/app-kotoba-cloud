@@ -45,3 +45,22 @@ pure CLJC view and locale catalogs with an identical key contract. Each locale
 has a stable canonical URL, reciprocal `hreflang` links, its own Passkey
 return URL, and a finite localized 404 document. New languages extend the
 catalog and route registry; they do not fork page structure or authority copy.
+
+## Library publication addendum — 2026-08-29
+
+Kotoba Cloud owns the publication-control entrance, not library identity or
+block storage. The language authority at `kotoba-lang.org` publishes the
+catalog contract and human documentation; Kotobase stores verified CID blocks
+and receipts; the Kotoba CLI inspects and signs the content-addressed graph.
+
+The first landed CLI flow is `kotoba library inspect` followed by
+`kotoba library publish`. Publish is dry-run by default and explicit apply
+reuses the existing local-operator signed-head plus IPNS implementation. A
+GitHub URL is provenance only. Names and versions are discovery refs; exact
+definition and release CIDs remain content identity, and neither identity
+grants execution authority.
+
+The discovery profile must publish `hostedPasskeyPublish: false` until the
+Passkey ceremony is connected to namespace authorization, endpoint admission,
+abuse controls, receipt persistence, and catalog projection. The webpage may
+show that future path but may not present it as live.
