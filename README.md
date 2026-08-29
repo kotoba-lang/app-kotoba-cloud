@@ -23,12 +23,14 @@ is implemented and qualified.
 
 Library publication follows the same separation. `kotoba library inspect`
 projects exact definition and dependency CIDs from the local hash-native
-codebase. `kotoba library publish` is dry-run by default; explicit apply
-reuses the existing locally signed namespace-head and IPNS path. The profile
-names `kotoba-lang.org/libraries/` as the public catalog and `kotobase.net` as
-block/receipt storage. `hostedPasskeyPublish: false` remains explicit until a
-Passkey-authorized publication API, namespace governance, abuse controls, and
-catalog ingestion are implemented and qualified.
+codebase. `kotoba library publish` is dry-run by default; explicit local apply
+reuses the signed namespace-head and IPNS path. `--hosted` stores every CID in
+Kotobase, returns a fragment-only approval URL, and requires an explicit click
+under the existing Passkey session before relaying the locally signed head.
+Kotobase rechecks the `k51...` signer and monotonic sequence. The signing seed,
+storage token, and Passkey cookie never cross their respective boundaries.
+Durable publication history, catalog ingestion, revocation UI, and short-lived
+Passkey-scoped storage grants are follow-ups, not current claims.
 
 After a successful Passkey ceremony, the apex reads its same-product
 `Domain=kotoba.cloud` HttpOnly session only through `GET /v1/session`. The
@@ -58,6 +60,8 @@ compiler, verifier, host enforcement, or service-specific authority.
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
 - `GET /v1/session` — credential-free projection of the current Passkey session
+- `POST /v1/libraries/publish` — same-origin Passkey approval relay for a
+  bounded, locally signed Kotobase head record
 - `GET /` — Japanese public architecture and CLI entrance
 - `GET /en/` — English public architecture and CLI entrance
 

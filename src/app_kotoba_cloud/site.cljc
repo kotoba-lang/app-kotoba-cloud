@@ -36,7 +36,10 @@
               :body "Agent の workspace、goal、tool、approval と継続作業を扱う。"}]
     :library-title "CLIでhashを確認し、その同じgraphを公開する"
     :library-lead "名前とGitHubは発見・provenanceです。Definition CIDと署名済みnamespace headが内容を固定し、Kotobaseがblockとreceiptを保持します。"
-    :library-status "CLIのlocal-signed IPNS公開は利用可能です。Passkeyによるhosted publishはまだ提供していません。"
+    :library-status "CLIからblockをKotobaseへ保存し、Passkeyで署名済みheadを承認するhosted publishが利用できます。"
+    :approval-title "ライブラリ公開を承認"
+    :approval-lead "CLIがローカル鍵で署名し、Kotobaseへ保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
+    :approval-button "Passkey sessionで公開"
     :library-catalog-cta "ライブラリcatalogと依存graphを見る"
     :library-steps [["確認" "名前・full CID・#hashから、同じdefinitionと依存CIDを解決する。"]
                     ["公開" "署名済みnamespace headを、検証済みblockとIPNS名として公開する。"]
@@ -85,7 +88,10 @@
               :body "Runs continuing agent work across workspaces, goals, tools, and approvals."}]
     :library-title "Inspect the hash, then publish that same graph"
     :library-lead "Names and GitHub are discovery and provenance. Definition CIDs and the signed namespace head fix the content; Kotobase keeps blocks and receipts."
-    :library-status "Local-signed IPNS publication is available through the CLI. Passkey-hosted publication is not available yet."
+    :library-status "Hosted publication is available: the CLI stores verified blocks in Kotobase, then Passkey approves the locally signed head."
+    :approval-title "Approve library publication"
+    :approval-lead "The CLI signed this graph locally and stored it in Kotobase. Verify the CIDs and IPNS name before publishing."
+    :approval-button "Publish with Passkey session"
     :library-catalog-cta "Open the library catalog and dependency graph"
     :library-steps [["Inspect" "Resolve the same definition and dependency CIDs from a name, full CID, or #hash."]
                     ["Publish" "Publish the signed namespace head as verified blocks and an IPNS name."]
@@ -140,6 +146,7 @@
    ".kc-plane h3{margin-block:var(--hig-spacing-2);}.kc-plane p{color:var(--hig-color-secondary-label);}.kc-plane a{font-family:var(--hig-font-mono);font-weight:700;}"
    ".kc-steps{counter-reset:step}.kc-step{counter-increment:step}.kc-step::before{content:'0' counter(step);display:block;margin-bottom:var(--hig-spacing-3);font-family:var(--hig-font-mono);font-weight:700;color:var(--hig-color-tint);}"
    ".kc-command{margin:var(--hig-spacing-6) 0 0;padding:var(--hig-spacing-5);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;}"
+   ".kc-publish-approval{margin-top:var(--hig-spacing-7);border-inline-start:.4rem solid var(--hig-color-tint);}.kc-publish-approval[hidden]{display:none}.kc-publish-fields{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--hig-spacing-2) var(--hig-spacing-4);}.kc-publish-fields dt{font-weight:700}.kc-publish-fields dd{margin:0;font-family:var(--hig-font-mono);overflow-wrap:anywhere}"
    ".kc-boundary{border-inline-start:.4rem solid var(--hig-color-separator);}"
    ".kc-footer{padding-block:var(--hig-spacing-8);border-top:1px solid var(--hig-color-separator);color:var(--hig-color-secondary-label);}.kc-footer__inner{display:flex;justify-content:space-between;gap:var(--hig-spacing-5);flex-wrap:wrap;}"
    "@media(max-width:48rem){.kc-nav__secondary{display:none}.kc-hero{padding-block:var(--hig-spacing-8)}.kc-hero .dads-heading[data-size='64']{font-size:var(--hig-text-large-title-font-size);line-height:var(--hig-text-large-title-line-height)}.kc-hero .dds-ext-row{display:grid;grid-template-columns:1fr}.kc-actions{margin-top:var(--hig-spacing-4)}.kc-actions .dads-button{width:100%;justify-content:center}.kc-identity__grid{grid-template-columns:1fr}.kc-flow{grid-template-columns:1fr}.kc-plane::before{inset-inline-start:var(--hig-spacing-4)}.kc-footer__inner{display:block}}"
@@ -242,13 +249,26 @@
                            [:p body]]))
               (:library-steps t)))
         [:pre {:class "kc-command"}
-         [:code "kotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo"]]
+         [:code "kotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n# store blocks, then open the returned Passkey approval URL\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false --write-token-file <path>"]]
         [:p {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span (:library-status t)]]
         (dds/button (:library-catalog-cta t)
                     {:type :outline :size "lg"
-                     :href "https://kotoba-lang.org/libraries/"})))
+                     :href "https://kotoba-lang.org/libraries/"})
+        (dds/card
+         [:article {:id "library-publish-approval" :hidden true
+                    :class "kc-publish-approval"}
+          (dds/heading 3 (:approval-title t) {:size "24"})
+          [:p (:approval-lead t)]
+          [:dl {:class "kc-publish-fields"}
+           [:dt "Namespace"] [:dd {:id "library-publish-namespace"} "—"]
+           [:dt "Release CID"] [:dd {:id "library-publish-release"} "—"]
+           [:dt "Head record CID"] [:dd {:id "library-publish-record"} "—"]
+           [:dt "IPNS name"] [:dd {:id "library-publish-name"} "—"]]
+          (dds/button (:approval-button t)
+                      {:type :primary :size "lg" :id "library-publish-submit"})
+          [:p {:id "library-publish-result" :role "status" :aria-live "polite"}]])))
       (dds/container
        (dds/section {:title (:deploy-title t) :id "deploy"}
         (into

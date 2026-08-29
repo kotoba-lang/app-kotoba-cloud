@@ -36,9 +36,11 @@
     :storageOrigin "https://kotobase.net"
     :inspectCommand "kotoba library inspect"
     :publishCommand "kotoba library publish"
-    :publishMode "local-signed-ipns"
+    :publishMode "local-signed-passkey-relay"
     :defaultDryRun true
-    :hostedPasskeyPublish false}
+    :hostedPasskeyPublish true
+    :hostedPublishEndpoint "https://kotoba.cloud/v1/libraries/publish"
+    :requestSchema "https://kotoba.cloud/schemas/library-publication-request/v1"}
    :security
    {:passkeyRpId "auth.kotoba.cloud"
     :passkeyOrigin "https://auth.kotoba.cloud"
@@ -62,4 +64,4 @@
        (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
        (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
        (true? (get-in profile [:libraries :defaultDryRun]))
-       (false? (get-in profile [:libraries :hostedPasskeyPublish]))))
+       (true? (get-in profile [:libraries :hostedPasskeyPublish]))))
