@@ -42,6 +42,10 @@
     (is (= 2 (:minimumRoutedPeerIds libraries)))
     (is (= "kotoba library verify" (:verifyCommand libraries)))
     (is (= "kotoba library run" (:runCommand libraries)))
+    (is (= "/.well-known/kotoba-package-registry.edn"
+           (:packageRegistryPath libraries)))
+    (is (= "kotoba package add" (:installCommand libraries)))
+    (is (= "kotoba package run" (:runLockedCommand libraries)))
     (is (true? (:defaultDryRun libraries)))
     (is (true? (:hostedPasskeyPublish libraries)))
     (is (= "https://kotoba.cloud/v1/libraries/publish"

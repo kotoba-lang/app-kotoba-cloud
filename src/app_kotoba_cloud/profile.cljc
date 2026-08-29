@@ -33,6 +33,7 @@
    {:catalogOrigin "https://kotoba-lang.org"
     :catalogPath "/libraries/"
     :machineCatalogPath "/.well-known/kotoba-libraries.json"
+    :packageRegistryPath "/.well-known/kotoba-package-registry.edn"
     :storageOrigin "https://kotobase.net"
     :releaseSchema "kotoba.library-release.v1"
     :availabilityProofSchema "kotoba.library-availability.v1"
@@ -42,6 +43,8 @@
     :publishCommand "kotoba library publish"
     :verifyCommand "kotoba library verify"
     :runCommand "kotoba library run"
+    :installCommand "kotoba package add"
+    :runLockedCommand "kotoba package run"
     :publishMode "local-signed-passkey-relay-distributed-gated"
     :defaultDryRun true
     :hostedPasskeyPublish true
