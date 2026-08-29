@@ -32,7 +32,8 @@
    :security
    {:passkeyRpId "auth.kotoba.cloud"
     :passkeyOrigin "https://auth.kotoba.cloud"
-    :sessionCookieScope "host-only"
+    :sessionCookieScope "registrable-domain:kotoba.cloud"
+    :sessionProjection "https://kotoba.cloud/v1/session"
     :untrustedDeploymentsUnderKotobaCloud false}})
 
 (defn valid-profile?
@@ -40,6 +41,10 @@
   (and (= schema (:schema profile))
        (= "https://auth.kotoba.cloud" (get-in profile [:roles :identity :origin]))
        (= "auth.kotoba.cloud" (get-in profile [:roles :identity :rpId]))
+       (= "registrable-domain:kotoba.cloud"
+          (get-in profile [:security :sessionCookieScope]))
+       (= "https://kotoba.cloud/v1/session"
+          (get-in profile [:security :sessionProjection]))
        (= "https://kotobase.net" (get-in profile [:roles :storage :origin]))
        (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
        (= "https://itonami.cloud" (get-in profile [:roles :agentWork :origin]))
