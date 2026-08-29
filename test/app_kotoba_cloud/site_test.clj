@@ -20,7 +20,7 @@
     (is (= 1 (count (re-seq #"<h1" html))))
     (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
                     "itonami.cloud" "kotoba-lang.org" "Hosted apply"
-                    "kotoba library inspect" "Passkeyで署名済みhead"]]
+                    "kotoba library inspect" "Passkeyは署名済みhead"]]
       (is (str/includes? html needle) needle))
     (is (str/includes? html "hreflang=\"en\""))
     (is (str/includes? html "href=\"/en/\""))
@@ -43,8 +43,8 @@
     (is (str/includes? html "<html lang=\"en\""))
     (is (str/includes? html "AI writes freely. Kotoba draws the boundary."))
     (is (str/includes? html "From AI-written code to admitted computation"))
-    (is (str/includes? html "Inspect the hash, then publish that same graph"))
-    (is (str/includes? html "Hosted publication is available"))
+    (is (str/includes? html "One release CID, executable from multiple providers"))
+    (is (str/includes? html "Distributed qualification is separate"))
     (is (str/includes? html "https://kotoba.cloud/en/"))
     (is (str/includes? html "hreflang=\"ja\""))
     (is (str/includes? html "return_to=https%3A%2F%2Fkotoba.cloud%2Fen%2F"))

@@ -24,11 +24,17 @@ is implemented and qualified.
 Library publication follows the same separation. `kotoba library inspect`
 projects exact definition and dependency CIDs from the local hash-native
 codebase. `kotoba library publish` is dry-run by default; explicit local apply
-reuses the signed namespace-head and IPNS path. `--hosted` stores every CID in
-Kotobase, returns a fragment-only approval URL, and requires an explicit click
+builds an immutable release CID binding definitions, raw Wasm, compile receipts,
+and reproducibility evidence before reusing the signed namespace-head and IPNS
+path. `--hosted` replicates every CID to the configured storage providers,
+returns a fragment-only approval URL, and requires an explicit click
 under the existing Passkey session before relaying the locally signed head.
 Kotobase rechecks the `k51...` signer and monotonic sequence. The signing seed,
-storage token, and Passkey cookie never cross their respective boundaries.
+storage tokens, and Passkey cookie never cross their respective boundaries.
+A release remains pending until `kotoba library verify` proves every byte at
+two distinct storage origins and delegated routing observes two distinct
+libp2p peer IDs. `kotoba library run` enforces that proof before executing a
+hash-addressed Wasm export.
 Durable publication history, catalog ingestion, revocation UI, and short-lived
 Passkey-scoped storage grants are follow-ups, not current claims.
 
