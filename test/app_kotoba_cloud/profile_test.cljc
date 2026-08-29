@@ -20,6 +20,14 @@
     (is (= "local-admission-remote-compute"
            (get-in profile/control-plane [:deploy :mode])))))
 
+(deftest post-quantum-is-the-default-cryptographic-floor
+  (let [cryptography (:cryptography profile/control-plane)]
+    (is (= "post-quantum-required-for-new-boundaries" (:defaultPolicy cryptography)))
+    (is (= "x25519+ml-kem-768+aes-256-gcm" (:confidentialitySuite cryptography)))
+    (is (= "ed25519+ml-dsa-65" (:publicationSignatureSuite cryptography)))
+    (is (= "reject-missing-pq-or-unknown-suite" (:downgradePolicy cryptography)))
+    (is (false? (:legacyCompatibilityRequired cryptography)))))
+
 (deftest passkey-rp-is-exact-and-session-is-apex-readable
   (is (= "auth.kotoba.cloud"
          (get-in profile/control-plane [:security :passkeyRpId])))

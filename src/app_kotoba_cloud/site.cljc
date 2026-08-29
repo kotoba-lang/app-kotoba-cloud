@@ -31,14 +31,14 @@
 (def copy
   {:ja
    {:html-lang "ja" :og-locale "ja_JP" :path "/"
-    :title "Kotoba Cloud — AIは自由に書く。Kotobaは境界を引く。"
-    :description "AIが書いたコードを、effect・capability・identityを検査した許可済みの計算へ。Kotoba Cloudは分離されたstorage、compute、agent workへ接続します。"
+    :title "Kotoba Cloud — 耐量子暗号を前提に、AIの境界を引く。"
+    :description "耐量子暗号を新しい暗号境界の前提とし、AIが書いたコードをeffect・capability・identityで検査して許可済みの計算へ接続します。"
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
     :nav-architecture "構成" :nav-libraries "ライブラリ公開" :nav-label "主要ナビゲーション"
-    :language-label "表示言語" :hero-eyebrow "SECURITY-FIRST COMPUTING"
+    :language-label "表示言語" :hero-eyebrow "POST-QUANTUM BY DEFAULT"
     :headline "AIは自由に書く。Kotobaは境界を引く。"
     :lead ["Kotoba は、AI が書いたコードから effect と capability を検査し、境界を満たす artifact だけを生成します。"
-           "Kotoba Cloud は、その境界を崩さず identity、storage、compute、agent work へ接続します。"]
+           "耐量子暗号は追加 mode ではなく、新しい暗号化・package admission・公開境界の前提です。Kotoba Cloud は、その境界を崩さず identity、storage、compute、agent work へ接続します。"]
     :passkey-cta "Passkey で始める" :cli-cta "Kotoba CLI を見る"
     :live "Discovery と Passkey RP は稼働中。Hosted apply はまだ提供していません。"
     :architecture-title "境界を保ったまま、三つの実行面へ。"
@@ -60,7 +60,7 @@
               :body "Agent の workspace、goal、tool、approval と継続作業を扱う。"}]
     :library-title "一つのrelease CIDを、複数の保存先から実行する"
     :library-lead "release CIDはnamespace head、definition、raw Wasm、compile receipt、再現性evidenceを一つのIPLD graphに固定します。名前とGitHubは発見・provenanceです。"
-    :library-status "公開にはPasskey sessionと、Principalに固定したML-DSA-65署名の両方が必要です。Passkey authenticator自体の耐量子化を意味しません。分散認定には別途availability proofが必要です。"
+    :library-status "耐量子署名は任意ではありません。公開にはPasskey sessionとPrincipalに固定したML-DSA-65署名の両方が必要です。外部Passkey authenticatorと分散認定は別に検証します。"
     :approval-title "ライブラリ公開を承認"
     :approval-lead "CLIがローカル鍵で署名し、Kotobaseへ保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
     :approval-button "Passkey + ML-DSA-65で公開"
@@ -87,14 +87,14 @@
 
    :en
    {:html-lang "en" :og-locale "en_US" :path "/en/"
-    :title "Kotoba Cloud — AI writes freely. Kotoba draws the boundary."
-    :description "Turn AI-written code into admitted computation by checking effects, capabilities, and identity, then connect it to separately governed storage, compute, and agent work."
+    :title "Kotoba Cloud — post-quantum by default for admitted AI computing"
+    :description "Post-quantum cryptography is the prerequisite for new Kotoba cryptographic boundaries, carrying admitted AI computation into separately governed storage, compute, and agent work."
     :skip "Skip to content" :home-label "Kotoba Cloud home"
     :nav-architecture "Architecture" :nav-libraries "Publish libraries" :nav-label "Primary navigation"
-    :language-label "Display language" :hero-eyebrow "SECURITY-FIRST COMPUTING"
+    :language-label "Display language" :hero-eyebrow "POST-QUANTUM BY DEFAULT"
     :headline "AI writes freely. Kotoba draws the boundary."
     :lead ["Kotoba checks effects and capabilities in AI-written code, emitting only artifacts that satisfy the admitted boundary."
-           "Kotoba Cloud carries that boundary into identity, storage, compute, and agent work without collapsing their authority."]
+           "Post-quantum cryptography is a prerequisite—not an optional mode—for new encryption, package admission, and publication boundaries. Kotoba Cloud carries that boundary into identity, storage, compute, and agent work without collapsing their authority."]
     :passkey-cta "Start with Passkey" :cli-cta "Explore the Kotoba CLI"
     :live "Discovery and the Passkey RP are live. Hosted apply is not available yet."
     :architecture-title "Three execution planes. Boundaries intact."
@@ -116,7 +116,7 @@
               :body "Runs continuing agent work across workspaces, goals, tools, and approvals."}]
     :library-title "One release CID, executable from multiple providers"
     :library-lead "A release CID fixes the namespace head, definitions, raw Wasm, compile receipts, and reproducibility evidence in one IPLD graph. Names and GitHub remain discovery and provenance."
-    :library-status "Publication requires both a Passkey session and an ML-DSA-65 signature pinned to the Principal. This does not make the authenticator's Passkey itself post-quantum. Distributed qualification still requires a separate availability proof."
+    :library-status "Post-quantum signatures are mandatory, not optional. Publication requires both a Passkey session and an ML-DSA-65 signature pinned to the Principal. External authenticators and distributed qualification remain separately verified boundaries."
     :approval-title "Approve library publication"
     :approval-lead "The CLI signed this graph locally and stored it in Kotobase. Verify the CIDs and IPNS name before publishing."
     :approval-button "Publish with Passkey + ML-DSA-65"

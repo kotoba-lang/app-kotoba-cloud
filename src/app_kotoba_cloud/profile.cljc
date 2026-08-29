@@ -31,6 +31,12 @@
     :computeOrigin "https://api.murakumo.cloud"
     :publicComputeOrigin "https://murakumo.cloud"
     :agentWorkOrigin "https://itonami.cloud"}
+   :cryptography
+   {:defaultPolicy "post-quantum-required-for-new-boundaries"
+    :confidentialitySuite "x25519+ml-kem-768+aes-256-gcm"
+    :publicationSignatureSuite "ed25519+ml-dsa-65"
+    :downgradePolicy "reject-missing-pq-or-unknown-suite"
+    :legacyCompatibilityRequired false}
    :libraries
    {:catalogOrigin "https://kotoba-lang.org"
     :catalogPath "/libraries/"
@@ -78,6 +84,11 @@
        (= "https://kotobase.net" (get-in profile [:roles :storage :origin]))
        (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
        (= "https://itonami.cloud" (get-in profile [:roles :agentWork :origin]))
+       (= "post-quantum-required-for-new-boundaries"
+          (get-in profile [:cryptography :defaultPolicy]))
+       (= "reject-missing-pq-or-unknown-suite"
+          (get-in profile [:cryptography :downgradePolicy]))
+       (false? (get-in profile [:cryptography :legacyCompatibilityRequired]))
        (false? (get-in profile [:deploy :hostedApply]))
        (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
        (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))

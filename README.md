@@ -5,6 +5,12 @@
 origin from which to discover identity, storage, compute, and agent-work
 services without making those services one trust domain.
 
+Kotoba Cloud applies the language's cryptographic floor: post-quantum evidence
+is mandatory for every new Kotoba encryption, package-admission, and hosted
+publication boundary. It is not an optional compatibility mode. Unknown
+suites, missing PQ material, and classical-only downgrade fail closed;
+development-only legacy paths are not migration requirements.
+
 The boundary is deliberate:
 
 - `kotoba.cloud` owns Kotoba identity, CLI and deploy control contracts;

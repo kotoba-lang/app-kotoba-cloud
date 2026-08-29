@@ -18,12 +18,13 @@
   (let [html (site/page-html :ja)]
     (is (str/includes? html "<html lang=\"ja\""))
     (is (str/includes? html "AIは自由に書く。Kotobaは境界を引く。"))
+    (is (str/includes? html "耐量子暗号は追加 mode ではなく"))
     (is (= 1 (count (re-seq #"<h1" html))))
     (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
                     "itonami.cloud" "kotoba-lang.org" "Hosted apply"
                     (str "kotoba package add kotoba-lang/reference-math@0.1.0 --catalog-cid "
                          profile/reference-package-catalog-cid)
-                    "kotoba library inspect" "Principalに固定したML-DSA-65署名"]]
+                    "kotoba library inspect" "耐量子署名は任意ではありません"]]
       (is (str/includes? html needle) needle))
     (is (str/includes? html "hreflang=\"en\""))
     (is (str/includes? html "href=\"/en/\""))
@@ -45,9 +46,10 @@
   (let [html (site/page-html :en)]
     (is (str/includes? html "<html lang=\"en\""))
     (is (str/includes? html "AI writes freely. Kotoba draws the boundary."))
+    (is (str/includes? html "Post-quantum cryptography is a prerequisite"))
     (is (str/includes? html "From AI-written code to admitted computation"))
     (is (str/includes? html "One release CID, executable from multiple providers"))
-    (is (str/includes? html "ML-DSA-65 signature pinned to the Principal"))
+    (is (str/includes? html "Post-quantum signatures are mandatory"))
     (is (str/includes? html "https://kotoba.cloud/en/"))
     (is (str/includes? html "hreflang=\"ja\""))
     (is (str/includes? html "return_to=https%3A%2F%2Fkotoba.cloud%2Fen%2F"))
