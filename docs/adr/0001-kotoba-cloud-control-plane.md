@@ -33,3 +33,15 @@ API and security-header behavior. The page must visualize one control/identity
 plane connected to three separate authority domains. It must not imply that
 `hostedApply`, credential migration, storage, compute, or agent execution are
 implemented by the apex Worker itself.
+
+The public thesis follows the language authority:
+**“AI writes freely. Kotoba draws the boundary.”** Kotoba language admission
+checks types, effects, capabilities, resources, and target support. Kotoba
+Cloud carries the resulting boundary into identity and deploy discovery; it
+does not claim that the apex page itself makes arbitrary code safe.
+
+Japanese is served at `/` and English at `/en/`. Both are rendered from one
+pure CLJC view and locale catalogs with an identical key contract. Each locale
+has a stable canonical URL, reciprocal `hreflang` links, its own Passkey
+return URL, and a finite localized 404 document. New languages extend the
+catalog and route registry; they do not fork page structure or authority copy.
