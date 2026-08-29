@@ -27,13 +27,25 @@ const env = { PQ_KEY_REGISTRY: {
     const proposed = JSON.parse(init.body);
     const current = bindings.get(principal);
     if (!current) {
-      bindings.set(principal, proposed);
-      return Response.json({ ok: true, binding: "enrolled" });
+      bindings.set(principal, { keyId: proposed.keyId, publicKey: proposed.publicKey,
+        epoch: 1, status: "active", used: new Set([proposed.requestId]) });
+      return Response.json({ ok: true, binding: "enrolled", epoch: 1, status: "active" });
+    }
+    if (current.status !== "active") {
+      return Response.json({ ok: false, reason: "pqc-key-revoked" }, { status: 409 });
+    }
+    if (current.epoch !== proposed.keyEpoch) {
+      return Response.json({ ok: false, reason: "pqc-key-epoch-mismatch" }, { status: 409 });
     }
     if (current.keyId === proposed.keyId && current.publicKey === proposed.publicKey) {
-      return Response.json({ ok: true, binding: "matched" });
+      if (current.used.has(proposed.requestId)) {
+        return Response.json({ ok: false, reason: "pqc-request-replayed" }, { status: 409 });
+      }
+      current.used.add(proposed.requestId);
+      return Response.json({ ok: true, binding: "matched", epoch: current.epoch,
+        status: current.status });
     }
-    return Response.json({ ok: false, reason: "key-mismatch" }, { status: 409 });
+    return Response.json({ ok: false, reason: "pqc-key-mismatch" }, { status: 409 });
   }})
 }};
 
@@ -42,10 +54,13 @@ const hex = (bytes) => Buffer.from(bytes).toString("hex");
 async function approve(publication, seedByte) {
   const keys = ml_dsa65.keygen(new Uint8Array(32).fill(seedByte));
   const payload = {
+    expiresAt: publication.expiresAt, issuedAt: publication.issuedAt,
     ipnsName: publication.ipnsName, namespace: publication.namespace,
-    publisher: publication.publisher, purpose: "library-publish",
+    keyEpoch: publication.keyEpoch, publisher: publication.publisher,
+    purpose: "library-publish",
     recordCid: publication.recordCid, releaseCid: publication.releaseCid,
-    schema: publication.schema, signedRecord: publication.signedRecord,
+    requestId: publication.requestId, schema: publication.schema,
+    signedRecord: publication.signedRecord,
     storageOrigin: publication.storageOrigin
   };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
@@ -93,7 +108,10 @@ assert.equal(login.headers.get("location").includes("auth.kotobase.net"), false)
 
 upstreamStatus = 200;
 const publication = {
-  schema: "https://kotoba.cloud/schemas/library-publication-request/v2",
+  schema: "https://kotoba.cloud/schemas/library-publication-request/v3",
+  requestId: crypto.randomUUID(), keyEpoch: 1,
+  issuedAt: new Date().toISOString(),
+  expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
   namespace: "demo", releaseCid: "bafyRelease", recordCid: "bafyRecord",
   publisher: "did:key:zDemo", ipnsName: "k51demo", storageOrigin: "https://kotobase.net",
   signedRecord: {
@@ -115,6 +133,18 @@ const rejectedNoApproval = await route(new Request("https://kotoba.cloud/v1/libr
 assert.equal(rejectedNoApproval.status, 400);
 assert.equal(kotobaseCalls(), 0, "classical-only approval never reaches Kotobase");
 
+const expired = structuredClone(publication);
+expired.requestId = crypto.randomUUID();
+expired.issuedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+expired.expiresAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+expired.pqcApproval = await approve(expired, 7);
+const rejectedExpired = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(expired)
+}), env);
+assert.equal(rejectedExpired.status, 400);
+assert.equal(kotobaseCalls(), 0, "expired approval never reaches Kotobase");
+
 const unauthenticatedPublish = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
   method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json" },
   body: JSON.stringify(publication)
@@ -132,18 +162,47 @@ assert.equal(receipt.ok, true);
 assert.equal(receipt.pqcVerified, true);
 assert.equal(receipt.pqcSuite, "passkey+ml-dsa-65");
 assert.equal(receipt.pqcKeyBinding, "enrolled");
+assert.equal(receipt.pqcKeyEpoch, 1);
+assert.equal(receipt.requestId, publication.requestId);
 const publishCall = calls.find((call) => call.url.includes("ipns.publish"));
 assert.ok(publishCall, "doubly approved signed head is relayed to Kotobase");
 assert.equal(publishCall.headers.get("cookie"), null, "Passkey cookie never leaves kotoba.cloud");
 assert.equal(publishCall.headers.get("authorization"), null, "relay adds no ambient server credential");
 assert.equal(JSON.parse(publishCall.body).signature_multibase, "zSignature");
 
+const replayed = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+  cookie: "gftd_session=publish-session" }, body: JSON.stringify(publication)
+}), env);
+assert.equal(replayed.status, 409);
+assert.equal((await replayed.json()).error, "pqc-request-replayed");
+assert.equal(kotobaseCalls(), 1, "replayed approval is rejected before Kotobase");
+
+const nextPublication = structuredClone(publication);
+nextPublication.requestId = crypto.randomUUID();
+nextPublication.issuedAt = new Date().toISOString();
+nextPublication.expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+nextPublication.pqcApproval = await approve(nextPublication, 7);
 const matched = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
   method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
-    cookie: "gftd_session=publish-session" }, body: JSON.stringify(publication)
+  cookie: "gftd_session=publish-session" }, body: JSON.stringify(nextPublication)
 }), env);
 assert.equal((await matched.json()).pqcKeyBinding, "matched");
 const beforeRejected = kotobaseCalls();
+
+const oldEpoch = structuredClone(publication);
+oldEpoch.requestId = crypto.randomUUID();
+oldEpoch.keyEpoch = 2;
+oldEpoch.issuedAt = new Date().toISOString();
+oldEpoch.expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+oldEpoch.pqcApproval = await approve(oldEpoch, 7);
+const rejectedOldEpoch = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
+  method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
+    cookie: "gftd_session=publish-session" }, body: JSON.stringify(oldEpoch)
+}), env);
+assert.equal(rejectedOldEpoch.status, 409);
+assert.equal((await rejectedOldEpoch.json()).error, "pqc-key-epoch-mismatch");
+assert.equal(kotobaseCalls(), beforeRejected, "wrong PQ key epoch is rejected before Kotobase");
 
 const tampered = structuredClone(publication);
 tampered.recordCid = "bafyOther";
@@ -164,6 +223,9 @@ assert.equal(rejectedSignature.status, 400);
 assert.equal(kotobaseCalls(), beforeRejected, "bad ML-DSA signature is rejected before Kotobase");
 
 const replacement = structuredClone(publication);
+replacement.requestId = crypto.randomUUID();
+replacement.issuedAt = new Date().toISOString();
+replacement.expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 replacement.pqcApproval = await approve(replacement, 8);
 const rejectedReplacement = await route(new Request("https://kotoba.cloud/v1/libraries/publish", {
   method: "POST", headers: { origin: "https://kotoba.cloud", "content-type": "application/json",
