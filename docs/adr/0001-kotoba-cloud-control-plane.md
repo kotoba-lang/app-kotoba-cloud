@@ -26,6 +26,15 @@ Arbitrary deployed application content is not served beneath `kotoba.cloud`.
 Keeping it on the Murakumo execution domain prevents untrusted workloads from
 sharing the Kotoba authentication site's registrable-domain boundary.
 
+The authentication Worker scopes its HttpOnly session to
+`Domain=kotoba.cloud`, not to the exact `auth.kotoba.cloud` host. This is an
+intentional same-product bridge so the apex can project login state without
+making browser JavaScript a credential holder. `GET /v1/session` forwards only
+that exact cookie to the pinned `https://auth.kotoba.cloud/v1/session` viewer,
+fails closed on upstream drift, and returns only the generated username,
+Stable Principal, account DID and active controller. It does not issue or
+validate sessions, change controllers, or become an authorization authority.
+
 The apex webpage is a public explanation and discovery entrance, not a second
 deploy authority. Its source is a pure CLJC view on the workspace DADS base;
 the build renders static HTML and a finite 404 document, while the Worker keeps

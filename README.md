@@ -30,6 +30,13 @@ block/receipt storage. `hostedPasskeyPublish: false` remains explicit until a
 Passkey-authorized publication API, namespace governance, abuse controls, and
 catalog ingestion are implemented and qualified.
 
+After a successful Passkey ceremony, the apex reads its same-product
+`Domain=kotoba.cloud` HttpOnly session only through `GET /v1/session`. The
+Worker forwards that one cookie to the exact `auth.kotoba.cloud` viewer and
+returns only a generated username, Stable Principal, account DID and active
+controller. The browser never receives the session token. The navbar, primary
+action and Identity panel then switch from anonymous to signed-in state.
+
 The public webpage is generated from pure CLJC using the workspace DADS
 (`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
 control/identity entrance feeding three separately governed planes rather than
@@ -50,6 +57,7 @@ compiler, verifier, host enforcement, or service-specific authority.
 - `GET https://kotoba.cloud/.well-known/kotoba-cloud.json`
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
+- `GET /v1/session` — credential-free projection of the current Passkey session
 - `GET /` — Japanese public architecture and CLI entrance
 - `GET /en/` — English public architecture and CLI entrance
 
