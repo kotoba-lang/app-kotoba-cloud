@@ -34,9 +34,15 @@
     :catalogPath "/libraries/"
     :machineCatalogPath "/.well-known/kotoba-libraries.json"
     :storageOrigin "https://kotobase.net"
+    :releaseSchema "kotoba.library-release.v1"
+    :availabilityProofSchema "kotoba.library-availability.v1"
+    :minimumByteCompleteStorageProviders 2
+    :minimumRoutedPeerIds 2
     :inspectCommand "kotoba library inspect"
     :publishCommand "kotoba library publish"
-    :publishMode "local-signed-passkey-relay"
+    :verifyCommand "kotoba library verify"
+    :runCommand "kotoba library run"
+    :publishMode "local-signed-passkey-relay-distributed-gated"
     :defaultDryRun true
     :hostedPasskeyPublish true
     :hostedPublishEndpoint "https://kotoba.cloud/v1/libraries/publish"
@@ -63,5 +69,7 @@
        (false? (get-in profile [:deploy :hostedApply]))
        (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
        (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
+       (= 2 (get-in profile [:libraries :minimumByteCompleteStorageProviders]))
+       (= 2 (get-in profile [:libraries :minimumRoutedPeerIds]))
        (true? (get-in profile [:libraries :defaultDryRun]))
        (true? (get-in profile [:libraries :hostedPasskeyPublish]))))

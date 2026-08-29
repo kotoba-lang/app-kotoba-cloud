@@ -34,16 +34,16 @@
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
              :href "https://itonami.cloud"
               :body "Agent の workspace、goal、tool、approval と継続作業を扱う。"}]
-    :library-title "CLIでhashを確認し、その同じgraphを公開する"
-    :library-lead "名前とGitHubは発見・provenanceです。Definition CIDと署名済みnamespace headが内容を固定し、Kotobaseがblockとreceiptを保持します。"
-    :library-status "CLIからblockをKotobaseへ保存し、Passkeyで署名済みheadを承認するhosted publishが利用できます。"
+    :library-title "一つのrelease CIDを、複数の保存先から実行する"
+    :library-lead "release CIDはnamespace head、definition、raw Wasm、compile receipt、再現性evidenceを一つのIPLD graphに固定します。名前とGitHubは発見・provenanceです。"
+    :library-status "Passkeyは署名済みheadのrelayを承認します。分散認定は別で、2つのbyte-complete storage originと2 distinct libp2p peer IDのavailability proofが必要です。"
     :approval-title "ライブラリ公開を承認"
     :approval-lead "CLIがローカル鍵で署名し、Kotobaseへ保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
     :approval-button "Passkey sessionで公開"
     :library-catalog-cta "ライブラリcatalogと依存graphを見る"
-    :library-steps [["確認" "名前・full CID・#hashから、同じdefinitionと依存CIDを解決する。"]
-                    ["公開" "署名済みnamespace headを、検証済みblockとIPNS名として公開する。"]
-                    ["発見" "kotoba-lang.orgでGitHub provenanceと互換性の証拠を読む。"]]
+    :library-steps [["Bundle" "definition、Wasm artifact、compile receiptを一つのrelease CIDへ閉じる。"]
+                    ["Replicate" "同じclosureを少なくとも2つの独立storage originへ保存する。"]
+                    ["Verify + Run" "全byteとrouted peer IDを検証し、release CIDとexportから実行する。"]]
     :deploy-title "AIのコードが、許可済みの計算になるまで"
     :steps [["Write" "AIと人間は、読みやすいデータとしてコードを自由に書く。"]
             ["Admit" "Kotobaがtype、effect、capability、resource、targetを検査する。"]
@@ -86,16 +86,16 @@
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
              :href "https://itonami.cloud"
               :body "Runs continuing agent work across workspaces, goals, tools, and approvals."}]
-    :library-title "Inspect the hash, then publish that same graph"
-    :library-lead "Names and GitHub are discovery and provenance. Definition CIDs and the signed namespace head fix the content; Kotobase keeps blocks and receipts."
-    :library-status "Hosted publication is available: the CLI stores verified blocks in Kotobase, then Passkey approves the locally signed head."
+    :library-title "One release CID, executable from multiple providers"
+    :library-lead "A release CID fixes the namespace head, definitions, raw Wasm, compile receipts, and reproducibility evidence in one IPLD graph. Names and GitHub remain discovery and provenance."
+    :library-status "Passkey approves relay of the signed head. Distributed qualification is separate and requires an availability proof from two byte-complete storage origins and two distinct libp2p peer IDs."
     :approval-title "Approve library publication"
     :approval-lead "The CLI signed this graph locally and stored it in Kotobase. Verify the CIDs and IPNS name before publishing."
     :approval-button "Publish with Passkey session"
     :library-catalog-cta "Open the library catalog and dependency graph"
-    :library-steps [["Inspect" "Resolve the same definition and dependency CIDs from a name, full CID, or #hash."]
-                    ["Publish" "Publish the signed namespace head as verified blocks and an IPNS name."]
-                    ["Discover" "Read GitHub provenance and compatibility evidence at kotoba-lang.org."]]
+    :library-steps [["Bundle" "Close definitions, Wasm artifacts, and compile receipts under one release CID."]
+                    ["Replicate" "Store the same complete closure at no fewer than two independent storage origins."]
+                    ["Verify + Run" "Verify every byte and routed peer IDs, then execute by release CID and export."]]
     :deploy-title "From AI-written code to admitted computation"
     :steps [["Write" "Agents and humans write freely in readable, data-oriented code."]
             ["Admit" "Kotoba checks types, effects, capabilities, resources, and target support."]
@@ -249,7 +249,7 @@
                            [:p body]]))
               (:library-steps t)))
         [:pre {:class "kc-command"}
-         [:code "kotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n# store blocks, then open the returned Passkey approval URL\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false --write-token-file <path>"]]
+         [:code "kotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n# replicate one exact release closure\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false \\\n  --provider east=https://east.example --provider-token-file <east-token> \\\n  --provider west=https://west.example --provider-token-file <west-token>\n\n# qualification and execution are release-CID addressed\nkotoba library verify ipfs://<release-cid> --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example\nkotoba library run ipfs://<release-cid> --entry answer --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example"]]
         [:p {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span (:library-status t)]]
