@@ -40,6 +40,13 @@ Principal; a later Passkey session cannot silently replace it. The Worker
 verifies the signed payload before relaying the locally signed head.
 Kotobase rechecks the `k51...` signer and monotonic sequence. The signing seed,
 storage tokens, and Passkey cookie never cross their respective boundaries.
+A hosted approval is valid for at most fifteen minutes, carries a signed
+single-use request ID and monotonic PQ-key epoch, and is atomically consumed by
+the Principal's Durable Object before Kotobase relay. Replaying the same
+approval, using an old epoch, or using a revoked key fails closed.
+Authenticated public rotation/revocation endpoints, independent recovery,
+scheduled drills, and a transparency witness are still blocked; only their
+fail-closed lifecycle transitions are specified and tested in this release.
 A platform Passkey still uses the COSE algorithm implemented by its
 authenticator. The post-quantum claim is intentionally narrower: hosted
 library publication is co-approved by the Principal-pinned ML-DSA-65 key. It
@@ -89,6 +96,8 @@ compiler, verifier, host enforcement, or service-specific authority.
 - `GET /v1/session` — credential-free projection of the current Passkey session
 - `POST /v1/libraries/publish` — same-origin Passkey + Principal-pinned
   ML-DSA-65 approval relay for a bounded, locally signed Kotobase head record
+- `GET /schemas/library-publication-request/v3` — single-use, epoch-bound
+  publication request contract
 - `GET /` — Japanese public architecture and CLI entrance
 - `GET /en/` — English public architecture and CLI entrance
 

@@ -59,8 +59,14 @@
     (is (= "kotoba library publish" (:publishCommand libraries)))
     (is (= "local-signed-passkey-plus-principal-pinned-ml-dsa-relay-distributed-gated"
            (:publishMode libraries)))
-    (is (= "https://kotoba.cloud/schemas/library-publication-request/v2"
+    (is (= "https://kotoba.cloud/schemas/library-publication-request/v3"
            (:requestSchema libraries)))
+    (is (= "single-use-request-id" (:publicationRequestReplayPolicy libraries)))
+    (is (= "monotonic-principal-pinned" (:pqKeyEpochPolicy libraries)))
+    (is (= "publication-admission-live-transition-endpoints-blocked"
+           (:pqKeyLifecycle libraries)))
+    (is (= "blocked-independent-quorum-not-implemented"
+           (:pqKeyRecovery libraries)))
     (is (= 2 (:minimumByteCompleteStorageProviders libraries)))
     (is (= 2 (:minimumRoutedPeerIds libraries)))
     (is (= "kotoba library verify" (:verifyCommand libraries)))

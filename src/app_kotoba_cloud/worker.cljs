@@ -59,7 +59,7 @@
       (.then #(session-response (or % {:valid false})))))
 
 (def publication-schema
-  "https://kotoba.cloud/schemas/library-publication-request/v2")
+  "https://kotoba.cloud/schemas/library-publication-request/v3")
 
 (defn- bounded-string? [value max-length]
   (and (string? value) (pos? (count value)) (<= (count value) max-length)))
@@ -68,8 +68,17 @@
   (let [signed (:signedRecord body)
         valid-until (when (string? (:valid_until signed))
                       (js/Date.parse (:valid_until signed)))
+        issued-at (when (string? (:issuedAt body)) (js/Date.parse (:issuedAt body)))
+        expires-at (when (string? (:expiresAt body)) (js/Date.parse (:expiresAt body)))
         now (.now js/Date)]
     (and (= publication-schema (:schema body))
+         (bounded-string? (:requestId body) 128)
+         (integer? (:keyEpoch body)) (pos? (:keyEpoch body))
+         (number? issued-at) (= issued-at issued-at)
+         (number? expires-at) (= expires-at expires-at)
+         (<= (- now (* 60 1000)) issued-at (+ now (* 60 1000)))
+         (< issued-at expires-at (min (+ issued-at (* 15 60 1000))
+                                      (+ now (* 15 60 1000))))
          (bounded-string? (:namespace body) 128)
          (bounded-string? (:releaseCid body) 128)
          (bounded-string? (:recordCid body) 128)
@@ -93,6 +102,10 @@
 (defn- signed-payload-matches? [body payload]
   (and (= publication-schema (:schema payload))
        (= "library-publish" (:purpose payload))
+       (= (:requestId body) (:requestId payload))
+       (= (:issuedAt body) (:issuedAt payload))
+       (= (:expiresAt body) (:expiresAt payload))
+       (= (:keyEpoch body) (:keyEpoch payload))
        (= (:namespace body) (:namespace payload))
        (= (:releaseCid body) (:releaseCid payload))
        (= (:recordCid body) (:recordCid payload))
@@ -101,26 +114,30 @@
        (= (:storageOrigin body) (:storageOrigin payload))
        (= (:signedRecord body) (:signedRecord payload))))
 
-(defn- bind-pq-key [env principal-id {:keys [key-id public-key]}]
+(defn- admit-pq-key [env principal-id body {:keys [key-id public-key]}]
   (let [registry (gobj/get env "PQ_KEY_REGISTRY")]
     (when-not (and registry (bounded-string? principal-id 256))
       (throw (ex-info "pqc-key-registry-unavailable" {:status 503})))
     (let [id (js-invoke registry "idFromName" principal-id)
           stub (js-invoke registry "get" id)]
-      (-> (js-invoke stub "fetch" "https://pqc-key-registry.internal/bind"
+      (-> (js-invoke stub "fetch" "https://pqc-key-registry.internal/admit"
                      #js {:method "POST"
                           :headers #js {"content-type" "application/json"}
                           :body (js/JSON.stringify
-                                 #js {:keyId key-id :publicKey public-key})})
+                                 #js {:keyId key-id :publicKey public-key
+                                      :keyEpoch (:keyEpoch body)
+                                      :requestId (:requestId body)
+                                      :expiresAt (js/Date.parse (:expiresAt body))})})
           (.then (fn [result]
                    (-> (.json result)
                        (.then (fn [binding]
                                 (if (.-ok result)
                                   (js->clj binding :keywordize-keys true)
                                   (throw (ex-info
-                                          (if (= 409 (.-status result))
-                                            "pqc-key-mismatch"
-                                            "pqc-key-binding-failed")
+                                          (or (aget binding "reason")
+                                              (if (= 409 (.-status result))
+                                                "pqc-key-conflict"
+                                                "pqc-key-binding-failed"))
                                           {:status (if (= 409 (.-status result)) 409 503)}))))))))))))
 
 (defn- route-library-publish [request env]
@@ -152,7 +169,7 @@
                        (.then (fn [verified]
                                 (when-not (signed-payload-matches? body (:payload verified))
                                   (throw (ex-info "pqc-payload-mismatch" {:status 400})))
-                                (-> (bind-pq-key env (:principalId viewer) verified)
+                                (-> (admit-pq-key env (:principalId viewer) body verified)
                                     (.then (fn [binding] [body viewer verified binding]))))))))
           (.then (fn [[body viewer verified binding]]
                    (-> (js/fetch
@@ -182,7 +199,9 @@
                                                  :pqcVerified true
                                                  :pqcSuite (:suite verified)
                                                  :pqcKeyId (:key-id verified)
+                                                 :pqcKeyEpoch (:epoch binding)
                                                  :pqcKeyBinding (:binding binding)
+                                                 :requestId (:requestId body)
                                                  :kotobase (js->clj result :keywordize-keys true)
                                                  :publishedAt (.toISOString (js/Date.))}))))))))))
           (.catch (fn [error]
@@ -228,9 +247,10 @@
                       :required ["schema" "service" "roles" "deploy" "security"]
                       :constSchema profile/schema})
 
-      (= path "/schemas/library-publication-request/v2")
+      (= path "/schemas/library-publication-request/v3")
       (json-response {:type "object"
-                      :required ["schema" "namespace" "releaseCid" "recordCid"
+                      :required ["schema" "requestId" "issuedAt" "expiresAt" "keyEpoch"
+                                 "namespace" "releaseCid" "recordCid"
                                  "publisher" "ipnsName" "storageOrigin" "signedRecord"
                                  "pqcApproval"]
                       :constSchema publication-schema})

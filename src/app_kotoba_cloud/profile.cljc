@@ -64,7 +64,11 @@
     :defaultDryRun true
     :hostedPasskeyPublish true
     :hostedPublishEndpoint "https://kotoba.cloud/v1/libraries/publish"
-    :requestSchema "https://kotoba.cloud/schemas/library-publication-request/v2"}
+    :requestSchema "https://kotoba.cloud/schemas/library-publication-request/v3"
+    :publicationRequestReplayPolicy "single-use-request-id"
+    :pqKeyEpochPolicy "monotonic-principal-pinned"
+    :pqKeyLifecycle "publication-admission-live-transition-endpoints-blocked"
+    :pqKeyRecovery "blocked-independent-quorum-not-implemented"}
    :security
    {:passkeyRpId identity-rp-id
     :passkeyOrigin identity-origin
@@ -99,8 +103,10 @@
        (false? (get-in profile [:deploy :hostedApply]))
        (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
        (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
-       (= "https://kotoba.cloud/schemas/library-publication-request/v2"
+       (= "https://kotoba.cloud/schemas/library-publication-request/v3"
           (get-in profile [:libraries :requestSchema]))
+       (= "publication-admission-live-transition-endpoints-blocked"
+          (get-in profile [:libraries :pqKeyLifecycle]))
        (= reference-package-catalog-cid
           (get-in profile [:libraries :packageRegistryCid]))
        (= "ed25519+ml-dsa-65"
