@@ -20,10 +20,12 @@
     (is (= "local-admission-remote-compute"
            (get-in profile/control-plane [:deploy :mode])))))
 
-(deftest passkey-is-exact-host-scoped
+(deftest passkey-rp-is-exact-and-session-is-apex-readable
   (is (= "auth.kotoba.cloud"
          (get-in profile/control-plane [:security :passkeyRpId])))
-  (is (= "host-only"
+  (is (= "registrable-domain:kotoba.cloud"
          (get-in profile/control-plane [:security :sessionCookieScope])))
+  (is (= "https://kotoba.cloud/v1/session"
+         (get-in profile/control-plane [:security :sessionProjection])))
   (is (false? (get-in profile/control-plane
                        [:security :untrustedDeploymentsUnderKotobaCloud]))))

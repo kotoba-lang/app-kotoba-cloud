@@ -24,7 +24,9 @@
     (is (str/includes? html "href=\"/en/\""))
     (is (= 1 (count (re-seq #"<nav" html))))
     (is (str/includes? html "dads-button"))
-    (is (str/includes? html "dds-ext-card"))))
+    (is (str/includes? html "dds-ext-card"))
+    (is (str/includes? html "id=\"identity\""))
+    (is (str/includes? html "src=\"/js/session.js\""))))
 
 (deftest english-page-is-complete-and-addressable
   (let [html (site/page-html :en)]

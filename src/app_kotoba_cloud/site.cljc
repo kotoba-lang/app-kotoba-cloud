@@ -111,6 +111,12 @@
    ".kc-actions{margin-top:var(--hig-spacing-7);}"
    ".kc-live{margin-top:var(--hig-spacing-5);display:flex;align-items:center;gap:var(--hig-spacing-3);color:var(--hig-color-secondary-label);}"
    ".kc-live__dot{inline-size:.75rem;block-size:.75rem;flex:none;border-radius:var(--hig-radius-capsule);background:var(--hig-palette-green);}"
+   ".kc-identity{padding-block:var(--hig-spacing-8);border-bottom:1px solid var(--hig-color-separator);background:var(--hig-color-secondary-system-background);}"
+   ".kc-identity[hidden]{display:none;}"
+   ".kc-identity__grid{display:grid;grid-template-columns:minmax(12rem,1fr) repeat(2,minmax(0,2fr));gap:var(--hig-spacing-5);align-items:start;}"
+   ".kc-identity__label{margin:0 0 var(--hig-spacing-2);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;color:var(--hig-color-secondary-label);}"
+   ".kc-identity__value{margin:0;font-family:var(--hig-font-mono);overflow-wrap:anywhere;}"
+   ".kc-identity__username{font-size:var(--hig-text-title2-font-size);font-weight:700;color:var(--hig-color-tint);}"
    ".kc-architecture{background:var(--hig-color-secondary-system-background);}"
    ".kc-control{border-inline-start:.4rem solid var(--hig-color-tint);}"
    ".kc-control__origin{font-family:var(--hig-font-mono);color:var(--hig-color-tint);}"
@@ -122,7 +128,7 @@
    ".kc-command{margin:var(--hig-spacing-6) 0 0;padding:var(--hig-spacing-5);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;}"
    ".kc-boundary{border-inline-start:.4rem solid var(--hig-color-separator);}"
    ".kc-footer{padding-block:var(--hig-spacing-8);border-top:1px solid var(--hig-color-separator);color:var(--hig-color-secondary-label);}.kc-footer__inner{display:flex;justify-content:space-between;gap:var(--hig-spacing-5);flex-wrap:wrap;}"
-   "@media(max-width:48rem){.kc-nav__secondary{display:none}.kc-hero{padding-block:var(--hig-spacing-8)}.kc-hero .dads-heading[data-size='64']{font-size:var(--hig-text-large-title-font-size);line-height:var(--hig-text-large-title-line-height)}.kc-hero .dds-ext-row{display:grid;grid-template-columns:1fr}.kc-actions{margin-top:var(--hig-spacing-4)}.kc-actions .dads-button{width:100%;justify-content:center}.kc-flow{grid-template-columns:1fr}.kc-plane::before{inset-inline-start:var(--hig-spacing-4)}.kc-footer__inner{display:block}}"
+   "@media(max-width:48rem){.kc-nav__secondary{display:none}.kc-hero{padding-block:var(--hig-spacing-8)}.kc-hero .dads-heading[data-size='64']{font-size:var(--hig-text-large-title-font-size);line-height:var(--hig-text-large-title-line-height)}.kc-hero .dds-ext-row{display:grid;grid-template-columns:1fr}.kc-actions{margin-top:var(--hig-spacing-4)}.kc-actions .dads-button{width:100%;justify-content:center}.kc-identity__grid{grid-template-columns:1fr}.kc-flow{grid-template-columns:1fr}.kc-plane::before{inset-inline-start:var(--hig-spacing-4)}.kc-footer__inner{display:block}}"
    "@media(max-width:30rem){.kc-wordmark__text{display:none}.kc-header__inner{gap:var(--hig-spacing-2)}.kc-nav{gap:var(--hig-spacing-2)}}"
    "@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}"))
 
@@ -164,7 +170,7 @@
         [:nav {:class "kc-nav" :aria-label (:nav-label t)}
          [:a {:class "kc-nav__secondary" :href "#architecture"} (:nav-architecture t)]
          (language-links locale (:language-label t))
-         (dds/button "Passkey" {:type :outline :size "sm"
+         (dds/button "Passkey" {:type :outline :size "sm" :id "kc-session-nav"
                                 :href (passkey-href locale)})]])]
      [:main {:id "main"}
       [:section {:class "kc-hero"}
@@ -175,13 +181,30 @@
         (dds/row
          [:div {:class "kc-actions"}
           (dds/button (:passkey-cta t) {:type :solid-fill :size "lg"
+                                        :id "kc-session-action"
                                         :href (passkey-href locale)})]
          [:div {:class "kc-actions"}
           (dds/button (:cli-cta t) {:type :outline :size "lg"
                                     :href "https://kotoba-lang.org/#install"})])
         [:div {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
-         [:span (:live t)]])]
+         [:span {:id "kc-session-status"} (:live t)]])]
+      [:section {:class "kc-identity" :id "identity" :hidden true
+                 :aria-label (if (= locale :en)
+                               "Signed-in identity"
+                               "ログイン中の Identity")}
+       (dds/container
+        [:div {:class "kc-identity__grid"}
+         [:div
+          [:p {:class "kc-identity__label"} "PASSKEY USERNAME"]
+          [:p {:class "kc-identity__value kc-identity__username"
+               :id "kc-session-username"} "@kotoba-…"]]
+         [:div
+          [:p {:class "kc-identity__label"} "STABLE PRINCIPAL"]
+          [:p {:class "kc-identity__value" :id "kc-session-principal"} "—"]]
+         [:div
+          [:p {:class "kc-identity__label"} "ACTIVE CONTROLLER"]
+          [:p {:class "kc-identity__value" :id "kc-session-controller"} "—"]]])]
       [:section {:class "kc-architecture" :id "architecture"}
        (dds/container
         (dds/section {:title (:architecture-title t)}
@@ -233,6 +256,7 @@
                 :css dds-css
                 :app-css (str tokens/skin-css app-css)
                 :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" (:path t))}]
+                       [:script {:src "/js/session.js" :defer true}]
                        [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/"}]
                        [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/en/"}]
                        [:link {:rel "alternate" :hreflang "x-default" :href "https://kotoba.cloud/"}]

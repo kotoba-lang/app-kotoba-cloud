@@ -1,8 +1,16 @@
 {:deps {:aliases [:cljs]}
  :builds
- {:app
+ {:browser
+  {:target :browser
+   :output-dir "public/js"
+   :asset-path "/js"
+   :modules {:session {:init-fn app-kotoba-cloud.browser/init!}}
+   :compiler-options {:output-feature-set :es2020
+                      :infer-externs :auto}}
+  :app
   {:target :esm
    :output-dir "build"
-   :modules {:worker {:exports {default app-kotoba-cloud.worker/app}}}
+   :modules {:worker {:exports {default app-kotoba-cloud.worker/app
+                               route app-kotoba-cloud.worker/route}}}
    :compiler-options {:output-feature-set :es2020
                       :infer-externs :auto}}}}
