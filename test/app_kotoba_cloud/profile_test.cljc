@@ -63,8 +63,14 @@
            (:requestSchema libraries)))
     (is (= "single-use-request-id" (:publicationRequestReplayPolicy libraries)))
     (is (= "monotonic-principal-pinned" (:pqKeyEpochPolicy libraries)))
-    (is (= "publication-admission-live-transition-endpoints-blocked"
+    (is (= "publication-and-passkey-authenticated-transitions-live"
            (:pqKeyLifecycle libraries)))
+    (is (= "https://kotoba.cloud/schemas/pq-key-transition-request/v1"
+           (:pqKeyTransitionSchema libraries)))
+    (is (= "https://kotoba.cloud/v1/pq-keys/rotate"
+           (:pqKeyRotateEndpoint libraries)))
+    (is (= "https://kotoba.cloud/v1/pq-keys/revoke"
+           (:pqKeyRevokeEndpoint libraries)))
     (is (= "blocked-independent-quorum-not-implemented"
            (:pqKeyRecovery libraries)))
     (is (= 2 (:minimumByteCompleteStorageProviders libraries)))

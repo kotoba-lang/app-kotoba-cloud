@@ -27,7 +27,11 @@
        "kotoba library verify ipfs://<release-cid> --store .kotoba/codebase \\\n"
        "  --provider east=https://east.example --provider west=https://west.example\n"
        "kotoba library run ipfs://<release-cid> --entry answer --store .kotoba/codebase \\\n"
-       "  --provider east=https://east.example --provider west=https://west.example"))
+       "  --provider east=https://east.example --provider west=https://west.example\n\n"
+       "# rotate or revoke the Principal-pinned ML-DSA key; both finish with Passkey\n"
+       "kotoba pq-key rotate --current-pqc-seed-file <current> \\\n"
+       "  --next-pqc-seed-file <next> --expected-epoch 1\n"
+       "kotoba pq-key revoke --current-pqc-seed-file <current> --expected-epoch 2"))
 
 (def copy
   {:ja
@@ -65,6 +69,9 @@
     :approval-title "ライブラリ公開を承認"
     :approval-lead "CLIがローカル鍵で署名し、Kotobaseへ保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
     :approval-button "Passkey + ML-DSA-65で公開"
+    :key-approval-title "耐量子公開鍵の変更を承認"
+    :key-approval-lead "action、epoch、現行鍵と次の鍵を確認してください。ローテーションは両方のML-DSA鍵で署名済みです。Passkey確認後にのみ反映します。"
+    :key-approval-button "Passkeyで鍵変更を確定"
     :library-catalog-cta "ライブラリcatalogと依存graphを見る"
     :library-steps [["Bundle" "definition、Wasm artifact、compile receiptを一つのrelease CIDへ閉じる。"]
                     ["Replicate" "同じclosureを少なくとも2つの独立storage originへ保存する。"]
@@ -121,6 +128,9 @@
     :approval-title "Approve library publication"
     :approval-lead "The CLI signed this graph locally and stored it in Kotobase. Verify the CIDs and IPNS name before publishing."
     :approval-button "Publish with Passkey + ML-DSA-65"
+    :key-approval-title "Approve post-quantum key transition"
+    :key-approval-lead "Verify the action, epoch, current key, and next key. Rotation is signed by both ML-DSA keys and takes effect only after Passkey confirmation."
+    :key-approval-button "Confirm key transition with Passkey"
     :library-catalog-cta "Open the library catalog and dependency graph"
     :library-steps [["Bundle" "Close definitions, Wasm artifacts, and compile receipts under one release CID."]
                     ["Replicate" "Store the same complete closure at no fewer than two independent storage origins."]
@@ -303,7 +313,20 @@
            [:dt "IPNS name"] [:dd {:id "library-publish-name"} "—"]]
           (dds/button (:approval-button t)
                       {:type :primary :size "lg" :id "library-publish-submit"})
-          [:p {:id "library-publish-result" :role "status" :aria-live "polite"}]])))
+          [:p {:id "library-publish-result" :role "status" :aria-live "polite"}]])
+        (dds/card
+         [:article {:id "pq-key-transition-approval" :hidden true
+                    :class "kc-publish-approval"}
+          (dds/heading 3 (:key-approval-title t) {:size "24"})
+          [:p (:key-approval-lead t)]
+          [:dl {:class "kc-publish-fields"}
+           [:dt "Action"] [:dd {:id "pq-key-transition-action"} "—"]
+           [:dt "Expected epoch"] [:dd {:id "pq-key-transition-epoch"} "—"]
+           [:dt "Current key"] [:dd {:id "pq-key-transition-current"} "—"]
+           [:dt "Next key"] [:dd {:id "pq-key-transition-next"} "—"]]
+          (dds/button (:key-approval-button t)
+                      {:type :primary :size "lg" :id "pq-key-transition-submit"})
+          [:p {:id "pq-key-transition-result" :role "status" :aria-live "polite"}]])))
       (dds/container
        (dds/section {:title (:deploy-title t) :id "deploy"}
         (into

@@ -28,11 +28,11 @@
            (str (if english? "Passkey session confirmed" "Passkey session を確認しました")
                 " · @" username))))
 
-(defn- decode-publication-fragment []
+(defn- decode-fragment [prefix]
   (let [hash (.-hash js/location)]
-    (when (.startsWith hash "#publish=")
+    (when (.startsWith hash prefix)
       (try
-        (let [encoded (subs hash (count "#publish="))
+        (let [encoded (subs hash (count prefix))
               padded (str encoded (apply str (repeat (mod (- 4 (mod (count encoded) 4)) 4) "=")))
               json (js/decodeURIComponent
                     (apply str
@@ -85,9 +85,49 @@
                        (set! (.-disabled button) false)
                        (text! "library-publish-result" (.-message error))))))))))
 
+(defn- transition-preview! [transition]
+  (when-let [panel (element "pq-key-transition-approval")]
+    (set! (.-hidden panel) false))
+  (text! "pq-key-transition-action" (:action transition))
+  (text! "pq-key-transition-epoch" (str (:expectedEpoch transition)))
+  (text! "pq-key-transition-current" (:currentKeyId transition))
+  (text! "pq-key-transition-next" (or (:nextKeyId transition) "—"))
+  (text! "pq-key-transition-result" "Passkey confirmation required")
+  (when-let [button (element "pq-key-transition-submit")]
+    (.addEventListener
+     button "click"
+     (fn []
+       (set! (.-disabled button) true)
+       (text! "pq-key-transition-result" "Confirming…")
+       (-> (js/fetch
+            (str "/v1/pq-keys/" (:action transition))
+            #js {:method "POST"
+                 :credentials "same-origin"
+                 :headers #js {"content-type" "application/json"
+                               "accept" "application/json"}
+                 :body (js/JSON.stringify (clj->js transition))})
+           (.then (fn [response]
+                    (-> (.json response)
+                        (.then (fn [payload]
+                                 (if (.-ok response)
+                                   (do
+                                     (text! "pq-key-transition-result"
+                                            (str "Confirmed · epoch "
+                                                 (gobj/get payload "epoch")))
+                                     (.replaceState js/history nil ""
+                                                    (.-pathname js/location)))
+                                   (throw (js/Error.
+                                           (or (gobj/get payload "error")
+                                               "PQ key transition failed"))))))))
+           (.catch (fn [error]
+                     (set! (.-disabled button) false)
+                     (text! "pq-key-transition-result" (.-message error))))))))))
+
 (defn init! []
-  (when-let [publication (decode-publication-fragment)]
+  (when-let [publication (decode-fragment "#publish=")]
     (publication-preview! publication))
+  (when-let [transition (decode-fragment "#pq-key-transition=")]
+    (transition-preview! transition))
   (-> (js/fetch "/v1/session" #js {:credentials "same-origin"
                                     :headers #js {"accept" "application/json"}})
       (.then (fn [response]
