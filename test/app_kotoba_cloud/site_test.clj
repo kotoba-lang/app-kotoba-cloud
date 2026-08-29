@@ -20,6 +20,7 @@
     (is (= 1 (count (re-seq #"<h1" html))))
     (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
                     "itonami.cloud" "kotoba-lang.org" "Hosted apply"
+                    "kotoba package add kotoba-lang/reference-math@0.1.0"
                     "kotoba library inspect" "Passkeyは署名済みhead"]]
       (is (str/includes? html needle) needle))
     (is (str/includes? html "hreflang=\"en\""))

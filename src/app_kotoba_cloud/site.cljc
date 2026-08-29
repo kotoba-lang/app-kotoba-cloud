@@ -263,7 +263,7 @@
                            [:p body]]))
               (:library-steps t)))
         [:pre {:class "kc-command"}
-         [:code "kotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n# replicate one exact release closure\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false \\\n  --provider east=https://east.example --provider-token-file <east-token> \\\n  --provider west=https://west.example --provider-token-file <west-token>\n\n# qualification and execution are release-CID addressed\nkotoba library verify ipfs://<release-cid> --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example\nkotoba library run ipfs://<release-cid> --entry answer --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example"]]
+         [:code "# install and run the live CID-locked reference package\nkotoba package add kotoba-lang/reference-math@0.1.0\nkotoba package run kotoba-lang/reference-math  # 42\n\nkotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n# replicate one exact release closure\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false \\\n  --provider east=https://east.example --provider-token-file <east-token> \\\n  --provider west=https://west.example --provider-token-file <west-token>\n\n# qualification and execution are release-CID addressed\nkotoba library verify ipfs://<release-cid> --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example\nkotoba library run ipfs://<release-cid> --entry answer --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example"]]
         [:p {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span (:library-status t)]]
@@ -354,11 +354,21 @@
 #?(:clj
    (defn -main [& _]
      (let [root (io/file "public")
-           en-dir (io/file root "en")]
+           en-dir (io/file root "en")
+           ipfs-source (io/file "assets" "ipfs")
+           ipfs-target (io/file root "ipfs")
+           registry-source (io/file "assets" "kotoba-package-registry.edn")
+           registry-target (io/file root ".well-known" "kotoba-package-registry.edn")]
        (.mkdirs root)
        (.mkdirs en-dir)
        (spit (io/file root "index.html") (page-html :ja))
        (spit (io/file root "404.html") (not-found-html :ja))
        (spit (io/file en-dir "index.html") (page-html :en))
        (spit (io/file en-dir "404.html") (not-found-html :en))
+       (doseq [source (file-seq ipfs-source) :when (.isFile ^java.io.File source)]
+         (let [target (io/file ipfs-target (.getName ^java.io.File source))]
+           (.mkdirs (.getParentFile target))
+           (io/copy source target)))
+       (.mkdirs (.getParentFile registry-target))
+       (io/copy registry-source registry-target)
        (println "rendered ja and en pages with localized 404 documents"))))
