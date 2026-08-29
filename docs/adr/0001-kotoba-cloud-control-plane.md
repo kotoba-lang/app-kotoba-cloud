@@ -69,7 +69,14 @@ GitHub URL is provenance only. Names and versions are discovery refs; exact
 definition and release CIDs remain content identity, and neither identity
 grants execution authority.
 
-The discovery profile must publish `hostedPasskeyPublish: false` until the
-Passkey ceremony is connected to namespace authorization, endpoint admission,
-abuse controls, receipt persistence, and catalog projection. The webpage may
-show that future path but may not present it as live.
+Hosted Passkey publication uses two independent gates. The CLI's Ed25519 key
+signs the namespace head and stores the complete immutable closure first. The
+approval URL carries only the bounded signed request in its fragment. An exact
+same-origin POST then verifies the Passkey session and relays only that signed
+record; Kotobase verifies the signer/name binding and sequence CAS. The
+Passkey cookie is never forwarded to Kotobase.
+
+The discovery profile publishes `hostedPasskeyPublish: true` for that bounded
+relay only. It does not imply durable history, catalog ingestion, revocation
+UI, generalized hosted deploy apply, or a short-lived Passkey-scoped storage
+grant; those remain separately qualified work.

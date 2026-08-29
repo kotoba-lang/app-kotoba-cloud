@@ -37,6 +37,8 @@
     (is (= "https://kotobase.net" (:storageOrigin libraries)))
     (is (= "kotoba library inspect" (:inspectCommand libraries)))
     (is (= "kotoba library publish" (:publishCommand libraries)))
-    (is (= "local-signed-ipns" (:publishMode libraries)))
+    (is (= "local-signed-passkey-relay" (:publishMode libraries)))
     (is (true? (:defaultDryRun libraries)))
-    (is (false? (:hostedPasskeyPublish libraries)))))
+    (is (true? (:hostedPasskeyPublish libraries)))
+    (is (= "https://kotoba.cloud/v1/libraries/publish"
+           (:hostedPublishEndpoint libraries)))))
