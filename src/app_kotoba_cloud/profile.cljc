@@ -4,13 +4,18 @@
 (def reference-package-catalog-cid
   "bafkreidcy5stqvnyfpmud6ozz5qz3supd3r3uzk7glmntuv36ezliaxstm")
 
+(def identity-origin "https://auth.kotoba.cloud")
+(def identity-href (str identity-origin "/"))
+(def identity-sign-in (str identity-origin "/sign-in"))
+(def identity-rp-id "auth.kotoba.cloud")
+
 (def control-plane
   {:schema schema
    :service "kotoba-cloud"
    :version "1"
    :roles
-   {:identity {:origin "https://auth.kotoba.cloud"
-               :rpId "auth.kotoba.cloud"
+   {:identity {:origin identity-origin
+               :rpId identity-rp-id
                :purpose "stable-principal-and-controller-authentication"}
     :control {:origin "https://api.kotoba.cloud"
               :purpose "cli-and-deploy-control"}
@@ -55,8 +60,8 @@
     :hostedPublishEndpoint "https://kotoba.cloud/v1/libraries/publish"
     :requestSchema "https://kotoba.cloud/schemas/library-publication-request/v2"}
    :security
-   {:passkeyRpId "auth.kotoba.cloud"
-    :passkeyOrigin "https://auth.kotoba.cloud"
+   {:passkeyRpId identity-rp-id
+    :passkeyOrigin identity-origin
     :passkeyCryptography "authenticator-selected-webauthn-cose-algorithm"
     :passkeyPqMode "webauthn-session+principal-pinned-ml-dsa-65"
     :passkeyPqScope "hosted-library-publication-approval-only"
@@ -69,8 +74,10 @@
 (defn valid-profile?
   [profile]
   (and (= schema (:schema profile))
-       (= "https://auth.kotoba.cloud" (get-in profile [:roles :identity :origin]))
-       (= "auth.kotoba.cloud" (get-in profile [:roles :identity :rpId]))
+       (= identity-origin (get-in profile [:roles :identity :origin]))
+       (= identity-rp-id (get-in profile [:roles :identity :rpId]))
+       (= identity-origin (get-in profile [:security :passkeyOrigin]))
+       (= identity-rp-id (get-in profile [:security :passkeyRpId]))
        (= "registrable-domain:kotoba.cloud"
           (get-in profile [:security :sessionCookieScope]))
        (= "https://kotoba.cloud/v1/session"

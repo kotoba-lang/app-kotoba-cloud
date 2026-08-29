@@ -37,6 +37,9 @@
 
 (defn- session-response [value] (private-json-response value))
 
+(defn- redirect [location]
+  (response "" 302 "text/plain; charset=utf-8" {"location" location}))
+
 (defn- fetch-viewer [request]
   (if-let [token (session/cookie-value (.get (.-headers request) "cookie")
                                        session/cookie-name)]
@@ -198,13 +201,17 @@
 (defn route [request ^js env]
   (let [url (js/URL. (.-url request))
         path (.-pathname url)
-        method (.-method request)]
+        method (.-method request)
+        sign-in (session/apex-sign-in-location path (.-search url))]
     (cond
       (and (= path "/v1/libraries/publish") (= method "POST"))
       (route-library-publish request env)
 
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
+
+      sign-in
+      (redirect sign-in)
 
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})

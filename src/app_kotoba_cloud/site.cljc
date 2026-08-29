@@ -2,6 +2,7 @@
   "Localized public pages for kotoba.cloud. Pure CLJC views render finite
   Worker Static Assets for every supported locale."
   (:require [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.session :as session]
             [jp-go-dds.core :as dds]
             [jp-go-dds.page :as page]
             [jp-go-dds.tokens :as tokens]
@@ -168,6 +169,7 @@
    ".kc-architecture{background:var(--hig-color-secondary-system-background);}"
    ".kc-control{border-inline-start:.4rem solid var(--hig-color-tint);}"
    ".kc-control__origin{font-family:var(--hig-font-mono);color:var(--hig-color-tint);}"
+   ".kc-control__origin a{color:inherit;font-weight:700;text-underline-offset:.25em;}"
    ".kc-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--hig-spacing-5);margin-top:var(--hig-spacing-7);padding-top:var(--hig-spacing-7);border-top:1px solid var(--hig-color-separator);}"
    ".kc-plane{position:relative;}.kc-plane::before{content:'↓';position:absolute;inset-block-start:calc(-1 * var(--hig-spacing-9));inset-inline-start:50%;color:var(--hig-color-tint);font-weight:700;}"
    ".kc-plane__kind{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;letter-spacing:.08em;color:var(--hig-color-secondary-label);}"
@@ -185,10 +187,7 @@
   (or (get copy locale) (get copy :ja)))
 
 (defn passkey-href [locale]
-  (str "https://auth.kotoba.cloud/sign-in?return_to="
-       (if (= locale :en)
-         "https%3A%2F%2Fkotoba.cloud%2Fen%2F"
-         "https%3A%2F%2Fkotoba.cloud%2F")))
+  (session/passkey-href locale))
 
 (defn language-links [locale label]
   [:div {:class "kc-languages" :role "group" :aria-label label}
@@ -269,7 +268,9 @@
            [:div {:class "kc-plane__kind"} (:control-kind t)]
            (dds/heading 3 (:control-title t) {:size "24"})
            [:p (:control-body t)]
-         [:div {:class "kc-control__origin"} "auth.kotoba.cloud  ·  api.kotoba.cloud"]])
+         [:div {:class "kc-control__origin"}
+          [:a {:href profile/identity-href} "auth.kotoba.cloud"]
+          "  ·  api.kotoba.cloud"]])
          (into [:div {:class "kc-flow"}]
                (map #(plane-card (:connect-label t) %) (:planes t)))))]
       (dds/container

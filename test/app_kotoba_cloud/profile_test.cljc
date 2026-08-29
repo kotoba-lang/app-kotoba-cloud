@@ -21,6 +21,14 @@
            (get-in profile/control-plane [:deploy :mode])))))
 
 (deftest passkey-rp-is-exact-and-session-is-apex-readable
+  (is (= "https://auth.kotoba.cloud" profile/identity-origin))
+  (is (= "https://auth.kotoba.cloud/" profile/identity-href))
+  (is (= "https://auth.kotoba.cloud/sign-in" profile/identity-sign-in))
+  (is (= "auth.kotoba.cloud" profile/identity-rp-id))
+  (is (= profile/identity-origin
+         (get-in profile/control-plane [:roles :identity :origin])))
+  (is (= profile/identity-origin
+         (get-in profile/control-plane [:security :passkeyOrigin])))
   (is (= "auth.kotoba.cloud"
          (get-in profile/control-plane [:security :passkeyRpId])))
   (is (= "registrable-domain:kotoba.cloud"
