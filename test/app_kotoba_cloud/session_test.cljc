@@ -1,10 +1,26 @@
 (ns app-kotoba-cloud.session-test
-  (:require [app-kotoba-cloud.session :as session]
+  (:require [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.session :as session]
             [clojure.test :refer [deftest is testing]]))
 
 (def principal "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111")
 (def account "did:web:kotoba.cloud:tenant:u_01")
 (def active "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")
+
+(deftest identity-floor-is-auth-kotoba-cloud
+  (is (= "https://auth.kotoba.cloud/v1/session" session/viewer-url))
+  (is (= profile/identity-origin "https://auth.kotoba.cloud"))
+  (is (= (session/passkey-href :ja)
+         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"))
+  (is (= (session/passkey-href :en)
+         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Fen%2F"))
+  (is (= "https://auth.kotoba.cloud/sign-in"
+         (session/apex-sign-in-location "/sign-in" "")))
+  (is (= "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
+         (session/apex-sign-in-location
+          "/login" "?return_to=https%3A%2F%2Fkotoba.cloud%2F")))
+  (is (nil? (session/apex-sign-in-location "/v1/session" "")))
+  (is (nil? (session/apex-sign-in-location "/sign-in/" ""))))
 
 (deftest exact-cookie-forwarding-input
   (is (= "abc==" (session/cookie-value

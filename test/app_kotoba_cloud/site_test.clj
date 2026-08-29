@@ -42,6 +42,30 @@
     (is (str/includes? html "data-session-link=\"true\""))
     (is (str/includes? html "同じPrincipalで接続"))))
 
+(deftest public-identity-and-passkey-ctas-use-auth-kotoba-cloud
+  (testing "identity origin is a link; Passkey CTAs use the live /sign-in path"
+    (doseq [locale site/supported-locales]
+      (let [html (site/page-html locale)
+            sign-in (site/passkey-href locale)
+            href-of (fn [url] (str "href=\"" url "\""))]
+        (is (= sign-in (str "https://auth.kotoba.cloud/sign-in?return_to="
+                            (if (= locale :en)
+                              "https%3A%2F%2Fkotoba.cloud%2Fen%2F"
+                              "https%3A%2F%2Fkotoba.cloud%2F"))))
+        (is (str/includes? html (href-of profile/identity-href)))
+        (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
+        (is (= 2 (count (re-seq (re-pattern
+                                 (str "href=\""
+                                      (java.util.regex.Pattern/quote sign-in)
+                                      "\""))
+                                html))))
+        (is (not (str/includes? html "href=\"https://auth.kotobase.net")))
+        (is (not (str/includes? html "href=\"https://auth.murakumo.cloud")))
+        (is (str/includes? html (get-in site/copy [locale :live]))))))
+  (testing "honest live copy does not invent a hosted apply SKU"
+    (is (str/includes? (get-in site/copy [:ja :live]) "Hosted apply はまだ提供していません"))
+    (is (str/includes? (get-in site/copy [:en :live]) "Hosted apply is not available yet"))))
+
 (deftest english-page-is-complete-and-addressable
   (let [html (site/page-html :en)]
     (is (str/includes? html "<html lang=\"en\""))

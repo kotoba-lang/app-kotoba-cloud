@@ -80,6 +80,17 @@ const anonymous = await route(new Request("https://kotoba.cloud/v1/session"), en
 assert.deepEqual(await anonymous.json(), { valid: false });
 assert.equal(calls.length, 2, "no cookie must not trigger an upstream request");
 
+const signIn = await route(new Request("https://kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"), env);
+assert.equal(signIn.status, 302);
+assert.equal(signIn.headers.get("location"),
+  "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F");
+assert.equal(calls.length, 2, "apex sign-in redirect does not call the session viewer");
+
+const login = await route(new Request("https://console.kotoba.cloud/login"), env);
+assert.equal(login.status, 302);
+assert.equal(login.headers.get("location"), "https://auth.kotoba.cloud/sign-in");
+assert.equal(login.headers.get("location").includes("auth.kotobase.net"), false);
+
 upstreamStatus = 200;
 const publication = {
   schema: "https://kotoba.cloud/schemas/library-publication-request/v2",
