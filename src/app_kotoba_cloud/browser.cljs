@@ -19,6 +19,8 @@
       (.setAttribute action "href" "#identity"))
     (when-let [panel (element "identity")]
       (set! (.-hidden panel) false))
+    (doseq [link (array-seq (.querySelectorAll js/document "[data-session-link]"))]
+      (set! (.-hidden link) false))
     (text! "kc-session-username" (str "@" username))
     (text! "kc-session-principal" (session/abbreviate (:principalId payload)))
     (text! "kc-session-controller" (session/abbreviate (:activeDid payload)))

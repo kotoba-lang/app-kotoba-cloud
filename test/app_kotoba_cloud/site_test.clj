@@ -30,6 +30,14 @@
     (is (str/includes? html "id=\"identity\""))
     (is (str/includes? html "src=\"/js/session.js\""))))
 
+(deftest signed-in-product-links-use-the-target-bound-controller-handoff
+  (let [html (site/page-html :ja)]
+    (is (str/includes? html "https://auth.kotoba.cloud/connect?target=kotobase"))
+    (is (str/includes? html "https://auth.kotoba.cloud/connect?target=murakumo"))
+    (is (str/includes? html "https://auth.kotoba.cloud/connect?target=itonami"))
+    (is (str/includes? html "data-session-link=\"true\""))
+    (is (str/includes? html "同じPrincipalで接続"))))
+
 (deftest english-page-is-complete-and-addressable
   (let [html (site/page-html :en)]
     (is (str/includes? html "<html lang=\"en\""))
