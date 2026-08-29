@@ -25,14 +25,18 @@
     :architecture-lead "一つの巨大な trust domain にまとめず、それぞれの authority を分けたまま接続します。"
     :control-kind "CONTROL + IDENTITY" :control-title "Kotoba Cloud"
     :control-body "Passkey で Stable Principal を確認し、CLI deploy が参照する topology と authority floor を公開します。"
+    :connect-label "同じPrincipalで接続"
     :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
               :href "https://kotobase.net"
+              :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
               :body "Content-addressed な artifact、状態、実行 receipt を保持する。"}
              {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
               :href "https://murakumo.cloud"
+              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
               :body "Admit 済みの workload を CPU/GPU へ配置し、実行する。"}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
-             :href "https://itonami.cloud"
+              :href "https://itonami.cloud"
+              :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
               :body "Agent の workspace、goal、tool、approval と継続作業を扱う。"}]
     :library-title "CLIでhashを確認し、その同じgraphを公開する"
     :library-lead "名前とGitHubは発見・provenanceです。Definition CIDと署名済みnamespace headが内容を固定し、Kotobaseがblockとreceiptを保持します。"
@@ -77,14 +81,18 @@
     :architecture-lead "The services connect without becoming one giant trust domain. Each authority remains separately governed."
     :control-kind "CONTROL + IDENTITY" :control-title "Kotoba Cloud"
     :control-body "Passkey verifies a Stable Principal. The control plane publishes the topology and authority floor used by CLI deploy."
+    :connect-label "Connect this Principal"
     :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
               :href "https://kotobase.net"
+              :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
               :body "Keeps content-addressed artifacts, state, and execution receipts."}
              {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
               :href "https://murakumo.cloud"
+              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
               :body "Places admitted workloads on CPU/GPU resources and executes them."}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
-             :href "https://itonami.cloud"
+              :href "https://itonami.cloud"
+              :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
               :body "Runs continuing agent work across workspaces, goals, tools, and approvals."}]
     :library-title "Inspect the hash, then publish that same graph"
     :library-lead "Names and GitHub are discovery and provenance. Definition CIDs and the signed namespace head fix the content; Kotobase keeps blocks and receipts."
@@ -143,7 +151,7 @@
    ".kc-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--hig-spacing-5);margin-top:var(--hig-spacing-7);padding-top:var(--hig-spacing-7);border-top:1px solid var(--hig-color-separator);}"
    ".kc-plane{position:relative;}.kc-plane::before{content:'↓';position:absolute;inset-block-start:calc(-1 * var(--hig-spacing-9));inset-inline-start:50%;color:var(--hig-color-tint);font-weight:700;}"
    ".kc-plane__kind{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;letter-spacing:.08em;color:var(--hig-color-secondary-label);}"
-   ".kc-plane h3{margin-block:var(--hig-spacing-2);}.kc-plane p{color:var(--hig-color-secondary-label);}.kc-plane a{font-family:var(--hig-font-mono);font-weight:700;}"
+   ".kc-plane h3{margin-block:var(--hig-spacing-2);}.kc-plane p{color:var(--hig-color-secondary-label);}.kc-plane a{font-family:var(--hig-font-mono);font-weight:700;}.kc-plane__connect{display:inline-block;margin-top:var(--hig-spacing-3);}.kc-plane__connect[hidden]{display:none;}"
    ".kc-steps{counter-reset:step}.kc-step{counter-increment:step}.kc-step::before{content:'0' counter(step);display:block;margin-bottom:var(--hig-spacing-3);font-family:var(--hig-font-mono);font-weight:700;color:var(--hig-color-tint);}"
    ".kc-command{margin:var(--hig-spacing-6) 0 0;padding:var(--hig-spacing-5);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;}"
    ".kc-publish-approval{margin-top:var(--hig-spacing-7);border-inline-start:.4rem solid var(--hig-color-tint);}.kc-publish-approval[hidden]{display:none}.kc-publish-fields{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--hig-spacing-2) var(--hig-spacing-4);}.kc-publish-fields dt{font-weight:700}.kc-publish-fields dd{margin:0;font-family:var(--hig-font-mono);overflow-wrap:anywhere}"
@@ -170,13 +178,18 @@
    [:a (cond-> {:href "/en/" :lang "en" :hreflang "en"}
          (= locale :en) (assoc :aria-current "page")) "English"]])
 
-(defn plane-card [{:keys [kind name origin href body]}]
+(defn plane-card [connect-label {:keys [kind name origin href body connect-href]}]
   (dds/card
    [:article {:class "kc-plane"}
     [:div {:class "kc-plane__kind"} kind]
     (dds/heading 3 name {:size "24"})
     [:p body]
-    [:a {:href href} origin " ↗"]]))
+    [:a {:href href} origin " ↗"]
+    (when connect-href
+      [:div
+       [:a {:href connect-href :class "kc-plane__connect"
+            :data-session-link "true" :hidden true}
+        connect-label " →"]])]))
 
 (defn view [locale]
   (let [t (translation locale)]
@@ -237,7 +250,8 @@
            (dds/heading 3 (:control-title t) {:size "24"})
            [:p (:control-body t)]
          [:div {:class "kc-control__origin"} "auth.kotoba.cloud  ·  api.kotoba.cloud"]])
-         (into [:div {:class "kc-flow"}] (map plane-card (:planes t)))))]
+         (into [:div {:class "kc-flow"}]
+               (map #(plane-card (:connect-label t) %) (:planes t)))))]
       (dds/container
        (dds/section {:title (:library-title t) :id "libraries"}
         [:p {:class "dds-ext-lead"} (:library-lead t)]

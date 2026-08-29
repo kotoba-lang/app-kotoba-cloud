@@ -80,3 +80,27 @@ The discovery profile publishes `hostedPasskeyPublish: true` for that bounded
 relay only. It does not imply durable history, catalog ingestion, revocation
 UI, generalized hosted deploy apply, or a short-lived Passkey-scoped storage
 grant; those remain separately qualified work.
+
+## Public identity E2E addendum — 2026-08-29
+
+`kotoba id new` uses a ten-minute single-use device authorization request at
+`auth.kotoba.cloud`. The browser performs and retains the Passkey ceremony;
+the CLI receives only the generated username, Stable Principal, account DID
+and active controller after an explicit browser approval. It persists that
+public projection with user-only permissions and never receives a Passkey
+private key, wallet seed, browser cookie or long-lived bearer token.
+
+The same Principal reaches Kotobase, Murakumo and Itonami through a separate
+two-minute, target-bound controller handoff. Kotobase and Murakumo consume the
+code on their own auth host and issue their own first-party cookie. Itonami is
+an independently deployed Worker, so it redeems the code server-to-server at
+the fixed Kotoba controller and then issues its host-only
+`__Host-itonami_session`. Every code is consumed once and fixes its target and
+return URL before the browser receives it.
+
+This is Principal continuity, not WebAuthn credential portability. Each RP
+keeps an independent Passkey credential, session and authorization policy.
+`itonami.cloud` is a relying application and agent-work plane; it is not the
+root of Kotoba identity. The public product pages expose an explicit connect
+action only after the Kotoba session is known and visibly project their own
+first-party session after connection.

@@ -39,6 +39,11 @@ returns only a generated username, Stable Principal, account DID and active
 controller. The browser never receives the session token. The navbar, primary
 action and Identity panel then switch from anonymous to signed-in state.
 
+Signed-in product cards use a two-minute target-bound, single-use handoff to
+create a separate first-party session at Kotobase, Murakumo, or Itonami. The
+Stable Principal remains the same; RP Passkeys and cookies do not cross service
+boundaries.
+
 The public webpage is generated from pure CLJC using the workspace DADS
 (`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
 control/identity entrance feeding three separately governed planes rather than
