@@ -25,15 +25,24 @@ The public webpage is generated from pure CLJC using the workspace DADS
 (`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
 control/identity entrance feeding three separately governed planes rather than
 presenting the four domains as interchangeable products. `public/` is a build
-artifact: `npm run render` produces `index.html` and a real `404.html`, then
-Wrangler ships them as Static Assets beside the discovery Worker.
+artifact: `npm run render` produces Japanese `/`, English `/en/`, and
+localized finite 404 documents, then Wrangler ships them as Static Assets
+beside the discovery Worker. Locale catalogs share one key contract and the
+page publishes canonical and `hreflang` links, so another locale is an
+explicit catalog-and-route addition rather than a second handwritten page.
+
+Public copy follows the language authority's current thesis:
+**“AI writes freely. Kotoba draws the boundary.”** The Cloud surface carries
+that admitted-computation boundary into operation; it does not replace the
+compiler, verifier, host enforcement, or service-specific authority.
 
 ## Public routes
 
 - `GET https://kotoba.cloud/.well-known/kotoba-cloud.json`
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
-- `GET /` — public architecture and CLI entrance
+- `GET /` — Japanese public architecture and CLI entrance
+- `GET /en/` — English public architecture and CLI entrance
 
 `console.kotoba.cloud` currently presents the same boundary and links to the
 CLI workflow; it does not claim deployment management that does not exist.
