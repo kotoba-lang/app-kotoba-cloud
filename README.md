@@ -21,6 +21,15 @@ the live `kotoba.cloud` profile names the expected storage and compute planes.
 The profile truthfully publishes `hostedApply: false` until a remote apply API
 is implemented and qualified.
 
+Library publication follows the same separation. `kotoba library inspect`
+projects exact definition and dependency CIDs from the local hash-native
+codebase. `kotoba library publish` is dry-run by default; explicit apply
+reuses the existing locally signed namespace-head and IPNS path. The profile
+names `kotoba-lang.org/libraries/` as the public catalog and `kotobase.net` as
+block/receipt storage. `hostedPasskeyPublish: false` remains explicit until a
+Passkey-authorized publication API, namespace governance, abuse controls, and
+catalog ingestion are implemented and qualified.
+
 After a successful Passkey ceremony, the apex reads its same-product
 `Domain=kotoba.cloud` HttpOnly session only through `GET /v1/session`. The
 Worker forwards that one cookie to the exact `auth.kotoba.cloud` viewer and
@@ -51,6 +60,10 @@ compiler, verifier, host enforcement, or service-specific authority.
 - `GET /v1/session` — credential-free projection of the current Passkey session
 - `GET /` — Japanese public architecture and CLI entrance
 - `GET /en/` — English public architecture and CLI entrance
+
+The control-plane document also includes the library catalog, storage,
+commands, current publication mode, default dry-run behavior, and hosted
+Passkey publication status.
 
 `console.kotoba.cloud` currently presents the same boundary and links to the
 CLI workflow; it does not claim deployment management that does not exist.
