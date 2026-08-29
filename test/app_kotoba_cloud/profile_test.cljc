@@ -44,7 +44,10 @@
     (is (= "kotoba library run" (:runCommand libraries)))
     (is (= "/.well-known/kotoba-package-registry.edn"
            (:packageRegistryPath libraries)))
-    (is (= "kotoba package add" (:installCommand libraries)))
+    (is (= profile/reference-package-catalog-cid (:packageRegistryCid libraries)))
+    (is (= "ed25519+ml-dsa-65" (:packageSignatureSuite libraries)))
+    (is (= (str "kotoba package add --catalog-cid " profile/reference-package-catalog-cid)
+           (:installCommand libraries)))
     (is (= "kotoba package run" (:runLockedCommand libraries)))
     (is (true? (:defaultDryRun libraries)))
     (is (true? (:hostedPasskeyPublish libraries)))
