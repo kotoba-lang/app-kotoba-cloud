@@ -1,6 +1,8 @@
 (ns app-kotoba-cloud.profile)
 
 (def schema "https://kotoba.cloud/schemas/control-plane/v1")
+(def reference-package-catalog-cid
+  "bafkreidcy5stqvnyfpmud6ozz5qz3supd3r3uzk7glmntuv36ezliaxstm")
 
 (def control-plane
   {:schema schema
@@ -34,6 +36,8 @@
     :catalogPath "/libraries/"
     :machineCatalogPath "/.well-known/kotoba-libraries.json"
     :packageRegistryPath "/.well-known/kotoba-package-registry.edn"
+    :packageRegistryCid reference-package-catalog-cid
+    :packageSignatureSuite "ed25519+ml-dsa-65"
     :storageOrigin "https://kotobase.net"
     :releaseSchema "kotoba.library-release.v1"
     :availabilityProofSchema "kotoba.library-availability.v1"
@@ -43,7 +47,7 @@
     :publishCommand "kotoba library publish"
     :verifyCommand "kotoba library verify"
     :runCommand "kotoba library run"
-    :installCommand "kotoba package add"
+    :installCommand (str "kotoba package add --catalog-cid " reference-package-catalog-cid)
     :runLockedCommand "kotoba package run"
     :publishMode "local-signed-passkey-relay-distributed-gated"
     :defaultDryRun true
@@ -72,6 +76,10 @@
        (false? (get-in profile [:deploy :hostedApply]))
        (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
        (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
+       (= reference-package-catalog-cid
+          (get-in profile [:libraries :packageRegistryCid]))
+       (= "ed25519+ml-dsa-65"
+          (get-in profile [:libraries :packageSignatureSuite]))
        (= 2 (get-in profile [:libraries :minimumByteCompleteStorageProviders]))
        (= 2 (get-in profile [:libraries :minimumRoutedPeerIds]))
        (true? (get-in profile [:libraries :defaultDryRun]))

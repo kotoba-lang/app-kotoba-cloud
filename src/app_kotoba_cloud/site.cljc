@@ -1,12 +1,31 @@
 (ns app-kotoba-cloud.site
   "Localized public pages for kotoba.cloud. Pure CLJC views render finite
   Worker Static Assets for every supported locale."
-  (:require [jp-go-dds.core :as dds]
+  (:require [app-kotoba-cloud.profile :as profile]
+            [jp-go-dds.core :as dds]
             [jp-go-dds.page :as page]
             [jp-go-dds.tokens :as tokens]
             #?(:clj [clojure.java.io :as io])))
 
 (def supported-locales [:ja :en])
+
+(def reference-package-command
+  (str "# install and run the live Ed25519 + ML-DSA-65 reference package\n"
+       "kotoba package add kotoba-lang/reference-math@0.1.0 --catalog-cid "
+       profile/reference-package-catalog-cid
+       "\nkotoba package run kotoba-lang/reference-math  # 42\n\n"
+       "kotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n"
+       "# dry-run by default\n"
+       "kotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n"
+       "# replicate one exact release closure\n"
+       "kotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false \\\n"
+       "  --provider east=https://east.example --provider-token-file <east-token> \\\n"
+       "  --provider west=https://west.example --provider-token-file <west-token>\n\n"
+       "# qualification and execution are release-CID addressed\n"
+       "kotoba library verify ipfs://<release-cid> --store .kotoba/codebase \\\n"
+       "  --provider east=https://east.example --provider west=https://west.example\n"
+       "kotoba library run ipfs://<release-cid> --entry answer --store .kotoba/codebase \\\n"
+       "  --provider east=https://east.example --provider west=https://west.example"))
 
 (def copy
   {:ja
@@ -263,7 +282,7 @@
                            [:p body]]))
               (:library-steps t)))
         [:pre {:class "kc-command"}
-         [:code "# install and run the live CID-locked reference package\nkotoba package add kotoba-lang/reference-math@0.1.0\nkotoba package run kotoba-lang/reference-math  # 42\n\nkotoba library inspect <name|CID|#hash> --store .kotoba/codebase --namespace demo\n\n# dry-run by default\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted\n\n# replicate one exact release closure\nkotoba library publish --store .kotoba/codebase --namespace demo --hosted --dry-run false \\\n  --provider east=https://east.example --provider-token-file <east-token> \\\n  --provider west=https://west.example --provider-token-file <west-token>\n\n# qualification and execution are release-CID addressed\nkotoba library verify ipfs://<release-cid> --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example\nkotoba library run ipfs://<release-cid> --entry answer --store .kotoba/codebase \\\n  --provider east=https://east.example --provider west=https://west.example"]]
+         [:code reference-package-command]]
         [:p {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span (:library-status t)]]
