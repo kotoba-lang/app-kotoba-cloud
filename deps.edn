@@ -2,7 +2,7 @@
  :deps {org.clojure/clojure {:mvn/version "1.12.4"}
         io.github.kotoba-lang/jp-go-digital-design-system
         {:git/url "https://github.com/kotoba-lang/jp-go-digital-design-system.git"
-         :git/sha "dc4602dc17bce8f6e9ba038e92b3e95fcc411b49"}}
+         :git/sha "94ffae44a8e248b196b7d0b8a692f0645c9d34b1"}}
  :aliases
  {:cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.134"}
                       thheller/shadow-cljs {:mvn/version "3.5.0"}}}
