@@ -13,8 +13,8 @@
   (str profile/identity-sign-in
        "?return_to="
        (if (= locale :en)
-         "https%3A%2F%2Fkotoba.cloud%2Fen%2F"
-         "https%3A%2F%2Fkotoba.cloud%2F")))
+         "https%3A%2F%2Fkotoba.cloud%2F"
+         "https%3A%2F%2Fkotoba.cloud%2Fja%2F")))
 
 (defn apex-sign-in-location
   "Send mistaken apex login paths to the live Passkey RP, keeping any query."

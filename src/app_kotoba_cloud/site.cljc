@@ -3,12 +3,14 @@
   Worker Static Assets for every supported locale."
   (:require [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.session :as session]
+            [jp-go-dds.behavior :as behavior]
             [jp-go-dds.core :as dds]
+            [jp-go-dds.css :as dcss]
             [jp-go-dds.page :as page]
             [jp-go-dds.tokens :as tokens]
             #?(:clj [clojure.java.io :as io])))
 
-(def supported-locales [:ja :en])
+(def supported-locales [:en :ja])
 
 (def reference-package-command
   (str "# install and run the live Ed25519 + ML-DSA-65 reference package\n"
@@ -35,7 +37,7 @@
 
 (def copy
   {:ja
-   {:html-lang "ja" :og-locale "ja_JP" :path "/"
+   {:html-lang "ja" :og-locale "ja_JP" :path "/ja/"
     :title "Kotoba Cloud — 耐量子暗号を前提に、AIの境界を引く。"
     :description "耐量子暗号を新しい暗号境界の前提とし、AIが書いたコードをeffect・capability・identityで検査して許可済みの計算へ接続します。"
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
@@ -94,7 +96,7 @@
     :not-found-cta "kotoba.cloud へ戻る"}
 
    :en
-   {:html-lang "en" :og-locale "en_US" :path "/en/"
+   {:html-lang "en" :og-locale "en_US" :path "/"
     :title "Kotoba Cloud — post-quantum by default for admitted AI computing"
     :description "Post-quantum cryptography is the prerequisite for new Kotoba cryptographic boundaries, carrying admitted AI computation into separately governed storage, compute, and agent work."
     :skip "Skip to content" :home-label "Kotoba Cloud home"
@@ -160,9 +162,8 @@
    ".kc-header__inner{min-height:4.5rem;display:flex;align-items:center;justify-content:space-between;gap:var(--hig-spacing-4);}"
    ".kc-wordmark{display:flex;align-items:center;gap:var(--hig-spacing-3);color:var(--hig-color-label);font-weight:700;text-decoration:none;letter-spacing:.04em;}"
    ".kc-mark{inline-size:2rem;block-size:2rem;display:grid;place-items:center;border:2px solid var(--hig-color-tint);border-radius:var(--hig-radius-xs);color:var(--hig-color-tint);font-weight:700;}"
-   ".kc-nav,.kc-languages{display:flex;align-items:center;gap:var(--hig-spacing-4);}"
-   ".kc-nav a,.kc-languages a{color:var(--hig-color-label);font-weight:700;text-underline-offset:.25em;}"
-   ".kc-languages{gap:var(--hig-spacing-2);white-space:nowrap}.kc-languages [aria-current='page']{text-decoration-thickness:.15em;}"
+   ".kc-nav{display:flex;align-items:center;gap:var(--hig-spacing-4);}"
+   ".kc-nav>a{color:var(--hig-color-label);font-weight:700;text-underline-offset:.25em;}"
    ".kc-hero{padding-block:var(--hig-spacing-10);border-bottom:1px solid var(--hig-color-separator);}"
    ".kc-eyebrow{margin:0 0 var(--hig-spacing-4);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;letter-spacing:.12em;color:var(--hig-color-tint);}"
    ".kc-hero h1{max-width:17ch;text-wrap:balance;}"
@@ -194,18 +195,19 @@
    "@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}"))
 
 (defn translation [locale]
-  (or (get copy locale) (get copy :ja)))
+  (or (get copy locale) (get copy :en)))
 
 (defn passkey-href [locale]
   (session/passkey-href locale))
 
 (defn language-links [locale label]
-  [:div {:class "kc-languages" :role "group" :aria-label label}
-   [:a (cond-> {:href "/" :lang "ja" :hreflang "ja"}
-         (= locale :ja) (assoc :aria-current "page")) "日本語"]
-   [:span {:aria-hidden "true"} "/"]
-   [:a (cond-> {:href "/en/" :lang "en" :hreflang "en"}
-         (= locale :en) (assoc :aria-current "page")) "English"]])
+  (dds/language-selector
+   {:id-prefix "kotoba-cloud-language"
+    :size "md"
+    :current locale
+    :languages [{:code :en :label "English" :href "/"}
+                {:code :ja :label "日本語" :href "/ja/"}]
+    :attrs {:aria-label label}}))
 
 (defn plane-card [connect-label {:keys [kind name origin href body connect-href]}]
   (dds/card
@@ -356,10 +358,11 @@
 
 #?(:clj
    (defn page-html
-     ([] (page-html :ja))
+     ([] (page-html :en))
      ([locale]
       (let [t (translation locale)
-            dds-css (slurp (io/resource "jp_go_dds/dds.css"))]
+            dds-css (str (slurp (io/resource "jp_go_dds/dds.css"))
+                         "\n" (dcss/css-for [:language-selector :menu-list-box :menu-list]))]
         (apply page/->page
                {:title (:title t)
                 :description (:description t)
@@ -367,9 +370,10 @@
                 :css dds-css
                 :app-css (str tokens/skin-css app-css)
                 :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" (:path t))}]
+                       [:script {:src "/js/language-selector.js" :defer true}]
                        [:script {:src "/js/session.js" :defer true}]
-                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/"}]
-                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/en/"}]
+                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/"}]
+                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/"}]
                        [:link {:rel "alternate" :hreflang "x-default" :href "https://kotoba.cloud/"}]
                        [:meta {:property "og:type" :content "website"}]
                        [:meta {:property "og:title" :content (:title t)}]
@@ -380,7 +384,7 @@
 
 #?(:clj
    (defn not-found-html
-     ([] (not-found-html :ja))
+     ([] (not-found-html :en))
      ([locale]
       (let [t (translation locale)
             dds-css (slurp (io/resource "jp_go_dds/dds.css"))]
@@ -398,21 +402,30 @@
 #?(:clj
    (defn -main [& _]
      (let [root (io/file "public")
+           ja-dir (io/file root "ja")
            en-dir (io/file root "en")
+           js-dir (io/file root "js")
            ipfs-source (io/file "assets" "ipfs")
            ipfs-target (io/file root "ipfs")
            registry-source (io/file "assets" "kotoba-package-registry.edn")
            registry-target (io/file root ".well-known" "kotoba-package-registry.edn")]
        (.mkdirs root)
+       (.mkdirs ja-dir)
        (.mkdirs en-dir)
-       (spit (io/file root "index.html") (page-html :ja))
-       (spit (io/file root "404.html") (not-found-html :ja))
+       (.mkdirs js-dir)
+       (spit (io/file root "index.html") (page-html :en))
+       (spit (io/file root "404.html") (not-found-html :en))
+       (spit (io/file ja-dir "index.html") (page-html :ja))
+       (spit (io/file ja-dir "404.html") (not-found-html :ja))
+       ;; Keep the old English URL addressable while canonical English moves
+       ;; to the apex. Existing links should not become a language regression.
        (spit (io/file en-dir "index.html") (page-html :en))
        (spit (io/file en-dir "404.html") (not-found-html :en))
+       (spit (io/file js-dir "language-selector.js") behavior/language-selector-script)
        (doseq [source (file-seq ipfs-source) :when (.isFile ^java.io.File source)]
          (let [target (io/file ipfs-target (.getName ^java.io.File source))]
            (.mkdirs (.getParentFile target))
            (io/copy source target)))
        (.mkdirs (.getParentFile registry-target))
        (io/copy registry-source registry-target)
-       (println "rendered ja and en pages with localized 404 documents"))))
+       (println "rendered English-first root, Japanese pages, and localized 404 documents"))))

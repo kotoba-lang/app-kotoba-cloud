@@ -8,7 +8,7 @@
   (let [catalogs (map site/copy site/supported-locales)
         keysets (map (comp set keys) catalogs)]
     (is (= (first keysets) (second keysets)))
-    (is (= [:ja :en] site/supported-locales))
+    (is (= [:en :ja] site/supported-locales))
     (doseq [catalog catalogs]
       (is (= 3 (count (:planes catalog))))
       (is (= 4 (count (:steps catalog))))
@@ -27,7 +27,9 @@
                     "kotoba library inspect" "耐量子署名は任意ではありません"]]
       (is (str/includes? html needle) needle))
     (is (str/includes? html "hreflang=\"en\""))
-    (is (str/includes? html "href=\"/en/\""))
+    (is (str/includes? html "href=\"/ja/\""))
+    (is (str/includes? html "data-language-selector"))
+    (is (str/includes? html "src=\"/js/language-selector.js\""))
     (is (= 1 (count (re-seq #"<nav" html))))
     (is (str/includes? html "dads-button"))
     (is (str/includes? html "dds-ext-card"))
@@ -50,8 +52,8 @@
             href-of (fn [url] (str "href=\"" url "\""))]
         (is (= sign-in (str "https://auth.kotoba.cloud/sign-in?return_to="
                             (if (= locale :en)
-                              "https%3A%2F%2Fkotoba.cloud%2Fen%2F"
-                              "https%3A%2F%2Fkotoba.cloud%2F"))))
+                              "https%3A%2F%2Fkotoba.cloud%2F"
+                              "https%3A%2F%2Fkotoba.cloud%2Fja%2F"))))
         (is (str/includes? html (href-of profile/identity-href)))
         (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
         (is (= 2 (count (re-seq (re-pattern
@@ -74,9 +76,9 @@
     (is (str/includes? html "From AI-written code to admitted computation"))
     (is (str/includes? html "One release CID, executable from multiple providers"))
     (is (str/includes? html "Post-quantum signatures are mandatory"))
-    (is (str/includes? html "https://kotoba.cloud/en/"))
+    (is (str/includes? html "https://kotoba.cloud/"))
     (is (str/includes? html "hreflang=\"ja\""))
-    (is (str/includes? html "return_to=https%3A%2F%2Fkotoba.cloud%2Fen%2F"))
+    (is (str/includes? html "return_to=https%3A%2F%2Fkotoba.cloud%2F"))
     (is (= 1 (count (re-seq #"<h1" html))))
     (is (= 1 (count (re-seq #"<nav" html))))))
 
@@ -87,8 +89,8 @@
     (is (not (re-find #"font-family:(?!var\()" site/app-css)))))
 
 (deftest localized-not-found-pages-are-finite-documents
-  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/\""]
-                                 [:en "That entrance does not exist." "href=\"/en/\""]]]
+  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/ja/\""]
+                                 [:en "That entrance does not exist." "href=\"/\""]]]
     (let [html (site/not-found-html locale)]
       (is (str/includes? html "404 / NOT FOUND"))
       (is (str/includes? html heading))

@@ -11,9 +11,9 @@
   (is (= "https://auth.kotoba.cloud/v1/session" session/viewer-url))
   (is (= profile/identity-origin "https://auth.kotoba.cloud"))
   (is (= (session/passkey-href :ja)
-         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"))
+         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Fja%2F"))
   (is (= (session/passkey-href :en)
-         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Fen%2F"))
+         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"))
   (is (= "https://auth.kotoba.cloud/sign-in"
          (session/apex-sign-in-location "/sign-in" "")))
   (is (= "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
