@@ -12,6 +12,10 @@
 
 (def supported-locales [:en :ja])
 
+(def operator-name "Kotoba Labs Inc")
+(def public-contact-email "support@kotoba.cloud")
+(def legal-disclosure "請求があった場合、法令に従い遅滞なく開示します")
+
 (def reference-package-command
   (str "# install and run the live Ed25519 + ML-DSA-65 reference package\n"
        "kotoba package add kotoba-lang/reference-math@0.1.0 --catalog-cid "
@@ -90,6 +94,42 @@
     :profile-link "Machine-readable profile" :spec-link "言語仕様を読む"
     :footer "Kotoba Cloud — identity and deploy control"
     :footer-roles "Language: kotoba-lang.org · Storage: kotobase.net · Compute: murakumo.cloud · Agent work: itonami.cloud"
+    :operator-label "運営元"
+    :contact-label "連絡先"
+    :legal-link "運営"
+    :tokushoho-link "特定商取引法に基づく表記"
+    :legal-path "/ja/legal/"
+    :tokushoho-path "/ja/legal/tokushoho/"
+    :legal-title "運営元 — Kotoba Cloud"
+    :legal-heading "運営元"
+    :legal-about "Kotoba Cloud は identity と deploy control の公開入口です。storage、compute、agent work は別 origin のまま接続します。"
+    :entity-label "法人情報"
+    :representative-label "代表者"
+    :address-label "所在地"
+    :phone-label "電話番号"
+    :service-provider-label "役務提供事業者"
+    :service-label "対象役務"
+    :price-label "販売価格"
+    :other-costs-label "価格以外に必要な費用"
+    :payment-label "支払方法"
+    :payment-timing-label "支払時期"
+    :provision-label "役務の提供時期"
+    :term-label "契約期間"
+    :cancel-label "解約"
+    :refund-label "返金"
+    :tokushoho-title "特定商取引法に基づく表記 — Kotoba Cloud"
+    :tokushoho-heading "特定商取引法に基づく表記"
+    :tokushoho-updated "最終更新日: 2026-08-30"
+    :tokushoho-service "kotoba.cloud の identity および deploy control（Discovery と Passkey RP）。Hosted apply は提供していません。"
+    :tokushoho-price "有償の hosted apply は提供していないため、販売価格はありません。"
+    :tokushoho-other-costs "インターネット接続料金その他の通信費はお客様のご負担となります。"
+    :tokushoho-payment "有償役務は現在提供していません。"
+    :tokushoho-payment-timing "該当なし"
+    :tokushoho-provision "Discovery と Passkey RP は公開中です。Hosted apply は提供していません。"
+    :tokushoho-term "有償契約はありません。"
+    :tokushoho-cancel "該当なし"
+    :tokushoho-refund "該当なし"
+    :tokushoho-note "法人情報、代表者、所在地、電話番号は、請求があった場合、法令に従い遅滞なく開示します。"
     :not-found-title "見つかりません — Kotoba Cloud"
     :not-found-heading "その入口はありません。"
     :not-found-lead "Kotoba Cloud の公開入口へ戻ってください。"
@@ -149,6 +189,42 @@
     :profile-link "Machine-readable profile" :spec-link "Read the language specification"
     :footer "Kotoba Cloud — identity and deploy control"
     :footer-roles "Language: kotoba-lang.org · Storage: kotobase.net · Compute: murakumo.cloud · Agent work: itonami.cloud"
+    :operator-label "Operator"
+    :contact-label "Contact"
+    :legal-link "Operator"
+    :tokushoho-link "Specified Commercial Transactions notice"
+    :legal-path "/legal/"
+    :tokushoho-path "/legal/tokushoho/"
+    :legal-title "Operator — Kotoba Cloud"
+    :legal-heading "Operator"
+    :legal-about "Kotoba Cloud is the public identity and deploy-control entrance. Storage, compute, and agent work remain separately governed origins."
+    :entity-label "法人情報"
+    :representative-label "代表者"
+    :address-label "所在地"
+    :phone-label "電話番号"
+    :service-provider-label "Service provider"
+    :service-label "Service"
+    :price-label "Price"
+    :other-costs-label "Costs other than the price"
+    :payment-label "Payment method"
+    :payment-timing-label "Payment timing"
+    :provision-label "When the service is provided"
+    :term-label "Contract term"
+    :cancel-label "Cancellation"
+    :refund-label "Refunds"
+    :tokushoho-title "Specified Commercial Transactions notice — Kotoba Cloud"
+    :tokushoho-heading "Specified Commercial Transactions Act notice"
+    :tokushoho-updated "Last updated: 2026-08-30"
+    :tokushoho-service "kotoba.cloud identity and deploy control (discovery and the Passkey RP). Hosted apply is not offered."
+    :tokushoho-price "No sale price applies. Paid hosted apply is not offered."
+    :tokushoho-other-costs "Internet access and other communication charges are the customer's responsibility."
+    :tokushoho-payment "No paid service is offered."
+    :tokushoho-payment-timing "Not applicable"
+    :tokushoho-provision "Discovery and the Passkey RP are live. Hosted apply is not offered."
+    :tokushoho-term "There is no paid contract."
+    :tokushoho-cancel "Not applicable"
+    :tokushoho-refund "Not applicable"
+    :tokushoho-note "法人情報、代表者、所在地、電話番号は、請求があった場合、法令に従い遅滞なく開示します。"
     :not-found-title "Not found — Kotoba Cloud"
     :not-found-heading "That entrance does not exist."
     :not-found-lead "Return to the public Kotoba Cloud entrance."
@@ -190,6 +266,10 @@
    ".kc-publish-approval{margin-top:var(--hig-spacing-7);border-inline-start:.4rem solid var(--hig-color-tint);}.kc-publish-approval[hidden]{display:none}.kc-publish-fields{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--hig-spacing-2) var(--hig-spacing-4);}.kc-publish-fields dt{font-weight:700}.kc-publish-fields dd{margin:0;font-family:var(--hig-font-mono);overflow-wrap:anywhere}"
    ".kc-boundary{border-inline-start:.4rem solid var(--hig-color-separator);}"
    ".kc-footer{padding-block:var(--hig-spacing-8);border-top:1px solid var(--hig-color-separator);color:var(--hig-color-secondary-label);}.kc-footer__inner{display:flex;justify-content:space-between;gap:var(--hig-spacing-5);flex-wrap:wrap;}"
+   ".kc-footer__legal{margin-top:var(--hig-spacing-4);display:flex;flex-wrap:wrap;gap:var(--hig-spacing-2) var(--hig-spacing-4);align-items:baseline;}"
+   ".kc-footer__legal a{color:inherit;font-weight:700;text-underline-offset:.25em;}"
+   ".kc-legal{padding-block:var(--hig-spacing-8);}.kc-legal__lead{max-width:48rem;font-size:var(--hig-text-title3-font-size);line-height:var(--hig-text-title3-line-height);color:var(--hig-color-secondary-label);}"
+   ".kc-legal .dads-table{margin-top:var(--hig-spacing-6);overflow-x:auto;}.kc-legal__note{margin-top:var(--hig-spacing-6);color:var(--hig-color-secondary-label);}"
    "@media(max-width:48rem){.kc-nav__secondary{display:none}.kc-hero{padding-block:var(--hig-spacing-8)}.kc-hero .dads-heading[data-size='64']{font-size:var(--hig-text-large-title-font-size);line-height:var(--hig-text-large-title-line-height)}.kc-hero .dds-ext-row{display:grid;grid-template-columns:1fr}.kc-actions{margin-top:var(--hig-spacing-4)}.kc-actions .dads-button{width:100%;justify-content:center}.kc-identity__grid{grid-template-columns:1fr}.kc-flow{grid-template-columns:1fr}.kc-plane::before{inset-inline-start:var(--hig-spacing-4)}.kc-footer__inner{display:block}}"
    "@media(max-width:30rem){.kc-wordmark__text{display:none}.kc-header__inner{gap:var(--hig-spacing-2)}.kc-nav{gap:var(--hig-spacing-2)}}"
    "@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}"))
@@ -200,14 +280,118 @@
 (defn passkey-href [locale]
   (session/passkey-href locale))
 
-(defn language-links [locale label]
-  (dds/language-selector
-   {:id-prefix "kotoba-cloud-language"
-    :size "md"
-    :current locale
-    :languages [{:code :en :label "English" :href "/"}
-                {:code :ja :label "日本語" :href "/ja/"}]
-    :attrs {:aria-label label}}))
+(defn language-links
+  ([locale label]
+   (language-links locale label {}))
+  ([locale label {:keys [en ja] :or {en "/" ja "/ja/"}}]
+   (dds/language-selector
+    {:id-prefix "kotoba-cloud-language"
+     :size "md"
+     :current locale
+     :languages [{:code :en :label "English" :href en}
+                 {:code :ja :label "日本語" :href ja}]
+     :attrs {:aria-label label}})))
+
+(defn operator-lead [locale]
+  (if (= locale :en)
+    (str "The public operator of kotoba.cloud is " operator-name ".")
+    (str "kotoba.cloud の公開運営元は " operator-name " です。")))
+
+(defn contact-mailto []
+  [:a {:href (str "mailto:" public-contact-email)} public-contact-email])
+
+(defn site-header
+  ([locale t]
+   (site-header locale t {}))
+  ([locale t {:keys [language-ja language-en]}]
+   [:header {:class "kc-header"}
+    (dds/container
+     [:div {:class "kc-header__inner"}
+      [:a {:class "kc-wordmark" :href (:path t) :aria-label (:home-label t)}
+       [:span {:class "kc-mark" :aria-hidden "true"} "こ"]
+       [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]]
+      [:nav {:class "kc-nav" :aria-label (:nav-label t)}
+       [:a {:class "kc-nav__secondary" :href (str (:path t) "#architecture")} (:nav-architecture t)]
+       [:a {:class "kc-nav__secondary" :href (str (:path t) "#libraries")} (:nav-libraries t)]
+       (language-links locale (:language-label t)
+                       {:ja (or language-ja "/ja/") :en (or language-en "/")})
+       (dds/button "Passkey" {:type :outline :size "sm" :id "kc-session-nav"
+                              :href (passkey-href locale)})]])]))
+
+(defn site-footer [t]
+  [:footer {:class "kc-footer"}
+   (dds/container
+    [:div {:class "kc-footer__inner"}
+     [:span (:footer t)]
+     [:span (:footer-roles t)]]
+    [:div {:class "kc-footer__legal"}
+     [:span (:operator-label t) ": " operator-name]
+     [:span (:contact-label t) ": " (contact-mailto)]
+     [:a {:href (:legal-path t)} (:legal-link t)]
+     [:a {:href (:tokushoho-path t)} (:tokushoho-link t)]])])
+
+(defn legal-rows [t]
+  [[(:operator-label t) operator-name]
+   [(:service-provider-label t) operator-name]
+   [(:entity-label t) legal-disclosure]
+   [(:representative-label t) legal-disclosure]
+   [(:address-label t) legal-disclosure]
+   [(:phone-label t) legal-disclosure]
+   [(:contact-label t) public-contact-email]])
+
+(defn tokushoho-rows [t]
+  (concat (legal-rows t)
+          [[(:service-label t) (:tokushoho-service t)]
+           [(:price-label t) (:tokushoho-price t)]
+           [(:other-costs-label t) (:tokushoho-other-costs t)]
+           [(:payment-label t) (:tokushoho-payment t)]
+           [(:payment-timing-label t) (:tokushoho-payment-timing t)]
+           [(:provision-label t) (:tokushoho-provision t)]
+           [(:term-label t) (:tokushoho-term t)]
+           [(:cancel-label t) (:tokushoho-cancel t)]
+           [(:refund-label t) (:tokushoho-refund t)]]))
+
+(defn disclosure-table [caption rows]
+  (dds/table {:caption caption
+              :headers nil
+              :row-header? true
+              :rows rows}))
+
+(defn legal-view [locale]
+  (let [t (translation locale)]
+    [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
+          :href "#main"} (:skip t)]
+     (site-header locale t {:language-ja "/ja/legal/" :language-en "/legal/"})
+     [:main {:id "main" :class "kc-legal"}
+      (dds/container
+       (dds/section {:title (:legal-heading t)}
+        [:p {:class "kc-legal__lead"} (operator-lead locale)]
+        [:p (:legal-about t)]
+        [:p (:contact-label t) ": " (contact-mailto)]
+        (disclosure-table (:legal-heading t) (legal-rows t))
+        [:p {:class "kc-legal__note"} (:tokushoho-note t)]
+        (dds/row
+         (dds/button (:tokushoho-link t) {:type :text :size "md"
+                                          :href (:tokushoho-path t)}))))]
+     (site-footer t)]))
+
+(defn tokushoho-view [locale]
+  (let [t (translation locale)]
+    [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
+          :href "#main"} (:skip t)]
+     (site-header locale t {:language-ja "/ja/legal/tokushoho/"
+                            :language-en "/legal/tokushoho/"})
+     [:main {:id "main" :class "kc-legal"}
+      (dds/container
+       (dds/section {:title (:tokushoho-heading t)}
+        [:p {:class "kc-legal__lead"} (operator-lead locale)]
+        [:p (:tokushoho-updated t)]
+        (disclosure-table (:tokushoho-heading t) (tokushoho-rows t))
+        [:p {:class "kc-legal__note"} (:tokushoho-note t)]
+        (dds/row
+         (dds/button (:legal-link t) {:type :text :size "md"
+                                      :href (:legal-path t)}))))]
+     (site-footer t)]))
 
 (defn plane-card [connect-label {:keys [kind name origin href body connect-href]}]
   (dds/card
@@ -226,18 +410,7 @@
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     [:header {:class "kc-header"}
-      (dds/container
-       [:div {:class "kc-header__inner"}
-        [:a {:class "kc-wordmark" :href (:path t) :aria-label (:home-label t)}
-         [:span {:class "kc-mark" :aria-hidden "true"} "こ"]
-         [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]]
-        [:nav {:class "kc-nav" :aria-label (:nav-label t)}
-         [:a {:class "kc-nav__secondary" :href "#architecture"} (:nav-architecture t)]
-         [:a {:class "kc-nav__secondary" :href "#libraries"} (:nav-libraries t)]
-         (language-links locale (:language-label t))
-         (dds/button "Passkey" {:type :outline :size "sm" :id "kc-session-nav"
-                                :href (passkey-href locale)})]])]
+     (site-header locale t)
      [:main {:id "main"}
       [:section {:class "kc-hero"}
        (dds/container
@@ -350,37 +523,76 @@
                                           :href "/.well-known/kotoba-cloud.json"})
            (dds/button (:spec-link t) {:type :text :size "md"
                                        :href "https://kotoba-lang.org"}))])))]
-     [:footer {:class "kc-footer"}
-      (dds/container
-       [:div {:class "kc-footer__inner"}
-        [:span (:footer t)]
-        [:span (:footer-roles t)]])]]))
+     (site-footer t)]))
+
+#?(:clj
+   (defn document-css []
+     (str (slurp (io/resource "jp_go_dds/dds.css"))
+          "\n" (dcss/css-for [:language-selector :menu-list-box :menu-list]))))
+
+#?(:clj
+   (defn document-head
+     [locale path-key title description]
+     (let [t (translation locale)
+           path (path-key t)
+           ja-href (str "https://kotoba.cloud" (get-in copy [:ja path-key]))
+           en-href (str "https://kotoba.cloud" (get-in copy [:en path-key]))]
+       [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+        [:script {:src "/js/language-selector.js" :defer true}]
+        [:script {:src "/js/session.js" :defer true}]
+        [:link {:rel "alternate" :hreflang "ja" :href ja-href}]
+        [:link {:rel "alternate" :hreflang "en" :href en-href}]
+        [:link {:rel "alternate" :hreflang "x-default" :href en-href}]
+        [:meta {:property "og:type" :content "website"}]
+        [:meta {:property "og:title" :content title}]
+        [:meta {:property "og:description" :content description}]
+        [:meta {:property "og:locale" :content (:og-locale t)}]
+        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]])))
 
 #?(:clj
    (defn page-html
      ([] (page-html :en))
      ([locale]
-      (let [t (translation locale)
-            dds-css (str (slurp (io/resource "jp_go_dds/dds.css"))
-                         "\n" (dcss/css-for [:language-selector :menu-list-box :menu-list]))]
+      (let [t (translation locale)]
         (apply page/->page
                {:title (:title t)
                 :description (:description t)
                 :lang (:html-lang t)
-                :css dds-css
+                :css (document-css)
                 :app-css (str tokens/skin-css app-css)
-                :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" (:path t))}]
-                       [:script {:src "/js/language-selector.js" :defer true}]
-                       [:script {:src "/js/session.js" :defer true}]
-                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/"}]
-                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/"}]
-                       [:link {:rel "alternate" :hreflang "x-default" :href "https://kotoba.cloud/"}]
-                       [:meta {:property "og:type" :content "website"}]
-                       [:meta {:property "og:title" :content (:title t)}]
-                       [:meta {:property "og:description" :content (:description t)}]
-                       [:meta {:property "og:locale" :content (:og-locale t)}]
-                       [:meta {:property "og:url" :content (str "https://kotoba.cloud" (:path t))}]]}
+                :head (document-head locale :path (:title t) (:description t))}
                (view locale))))))
+
+#?(:clj
+   (defn legal-html
+     ([] (legal-html :en))
+     ([locale]
+      (let [t (translation locale)]
+        (apply page/->page
+               {:title (:legal-title t)
+                :description (operator-lead locale)
+                :lang (:html-lang t)
+                :css (document-css)
+                :app-css (str tokens/skin-css app-css)
+                :head (document-head locale :legal-path (:legal-title t)
+                                     (operator-lead locale))}
+               (legal-view locale))))))
+
+#?(:clj
+   (defn tokushoho-html
+     ([] (tokushoho-html :en))
+     ([locale]
+      (let [t (translation locale)]
+        (apply page/->page
+               {:title (:tokushoho-title t)
+                :description (operator-lead locale)
+                :lang (:html-lang t)
+                :css (document-css)
+                :app-css (str tokens/skin-css app-css)
+                :head (document-head locale :tokushoho-path
+                                     (:tokushoho-title t)
+                                     (operator-lead locale))}
+               (tokushoho-view locale))))))
 
 #?(:clj
    (defn not-found-html
@@ -397,7 +609,8 @@
             [:p {:class "kc-eyebrow"} "404 / NOT FOUND"]
             (dds/heading 1 (:not-found-heading t) {:size "45"})
             [:p {:class "kc-lead"} (:not-found-lead t)]
-            (dds/button (:not-found-cta t) {:href (:path t) :size "lg"})]]))))))
+            (dds/button (:not-found-cta t) {:href (:path t) :size "lg"})]])
+         (site-footer t))))))
 
 #?(:clj
    (defn -main [& _]
@@ -413,14 +626,27 @@
        (.mkdirs ja-dir)
        (.mkdirs en-dir)
        (.mkdirs js-dir)
+       (doseq [dir [(io/file root "legal")
+                    (io/file root "legal" "tokushoho")
+                    (io/file ja-dir "legal")
+                    (io/file ja-dir "legal" "tokushoho")
+                    (io/file en-dir "legal")
+                    (io/file en-dir "legal" "tokushoho")]]
+         (.mkdirs dir))
        (spit (io/file root "index.html") (page-html :en))
        (spit (io/file root "404.html") (not-found-html :en))
+       (spit (io/file root "legal" "index.html") (legal-html :en))
+       (spit (io/file root "legal" "tokushoho" "index.html") (tokushoho-html :en))
        (spit (io/file ja-dir "index.html") (page-html :ja))
        (spit (io/file ja-dir "404.html") (not-found-html :ja))
+       (spit (io/file ja-dir "legal" "index.html") (legal-html :ja))
+       (spit (io/file ja-dir "legal" "tokushoho" "index.html") (tokushoho-html :ja))
        ;; Keep the old English URL addressable while canonical English moves
        ;; to the apex. Existing links should not become a language regression.
        (spit (io/file en-dir "index.html") (page-html :en))
        (spit (io/file en-dir "404.html") (not-found-html :en))
+       (spit (io/file en-dir "legal" "index.html") (legal-html :en))
+       (spit (io/file en-dir "legal" "tokushoho" "index.html") (tokushoho-html :en))
        (spit (io/file js-dir "language-selector.js") behavior/language-selector-script)
        (doseq [source (file-seq ipfs-source) :when (.isFile ^java.io.File source)]
          (let [target (io/file ipfs-target (.getName ^java.io.File source))]
@@ -428,4 +654,4 @@
            (io/copy source target)))
        (.mkdirs (.getParentFile registry-target))
        (io/copy registry-source registry-target)
-       (println "rendered English-first root, Japanese pages, and localized 404 documents"))))
+       (println "rendered English-first root, Japanese pages, legal/tokushoho documents, and localized 404s"))))

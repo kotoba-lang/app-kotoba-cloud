@@ -95,3 +95,42 @@
       (is (str/includes? html "404 / NOT FOUND"))
       (is (str/includes? html heading))
       (is (str/includes? html href)))))
+
+(def public-html-pages
+  (for [locale site/supported-locales
+        render [site/page-html site/legal-html site/tokushoho-html site/not-found-html]]
+    (render locale)))
+
+(deftest public-operator-is-kotoba-labs-inc
+  (testing "operator and contact constants stay exact"
+    (is (= "Kotoba Labs Inc" site/operator-name))
+    (is (= "support@kotoba.cloud" site/public-contact-email))
+    (is (= "請求があった場合、法令に従い遅滞なく開示します" site/legal-disclosure)))
+  (testing "legal routes follow English-first apex paths"
+    (is (= "/legal/" (get-in site/copy [:en :legal-path])))
+    (is (= "/legal/tokushoho/" (get-in site/copy [:en :tokushoho-path])))
+    (is (= "/ja/legal/" (get-in site/copy [:ja :legal-path])))
+    (is (= "/ja/legal/tokushoho/" (get-in site/copy [:ja :tokushoho-path])))
+    (is (str/includes? (site/legal-html :en) "https://kotoba.cloud/legal/"))
+    (is (str/includes? (site/legal-html :ja) "https://kotoba.cloud/ja/legal/")))
+  (testing "every public HTML document names the operator and the support inbox"
+    (doseq [html public-html-pages]
+      (is (str/includes? html "Kotoba Labs Inc"))
+      (is (str/includes? html "support@kotoba.cloud"))
+      (is (str/includes? html "mailto:support@kotoba.cloud"))))
+  (testing "legal and tokushoho pages keep 法人情報 fields on-request"
+    (doseq [html [(site/legal-html :ja) (site/legal-html :en)
+                  (site/tokushoho-html :ja) (site/tokushoho-html :en)]]
+      (is (str/includes? html "法人情報"))
+      (is (str/includes? html "代表者"))
+      (is (str/includes? html "所在地"))
+      (is (str/includes? html "電話番号"))
+      (is (<= 4 (count (re-seq #"請求があった場合、法令に従い遅滞なく開示します" html)))))))
+
+(deftest public-copy-does-not-publish-forbidden-operator-or-contact
+  (doseq [html public-html-pages
+          needle ["Gftd Japan" "gftd.co.jp" "gftdcojp" "mailer.gftd.ai" "ai-gftd"
+                  "河崎" "Kawasaki" "com-junkawasaki" "10704996"
+                  "AWAI Network" "j@awai.network" "@agentmail.to" "@kotobalabs.com"
+                  "hello@kotoba.cloud" "info@kotoba.cloud"]]
+    (is (not (str/includes? html needle)) needle)))
