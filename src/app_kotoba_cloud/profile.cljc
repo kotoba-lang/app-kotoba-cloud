@@ -1,4 +1,5 @@
-(ns app-kotoba-cloud.profile)
+(ns app-kotoba-cloud.profile
+  (:require [app-kotoba-cloud.boot :as boot]))
 
 (def schema "https://kotoba.cloud/schemas/control-plane/v1")
 (def reference-package-catalog-cid
@@ -19,6 +20,8 @@
                :purpose "stable-principal-and-controller-authentication"}
     :control {:origin "https://api.kotoba.cloud"
               :purpose "cli-and-deploy-control"}
+    :boot {:origin boot/origin
+           :purpose "network-boot-discovery-and-immutable-bootstrap"}
     :storage {:origin "https://kotobase.net"
               :purpose "content-addressed-artifacts-state-and-receipts"}
     :compute {:origin "https://api.murakumo.cloud"
@@ -72,6 +75,15 @@
     :pqKeyRotateEndpoint "https://kotoba.cloud/v1/pq-keys/rotate"
     :pqKeyRevokeEndpoint "https://kotoba.cloud/v1/pq-keys/revoke"
     :pqKeyRecovery "blocked-independent-quorum-not-implemented"}
+   :boot
+   {:catalogUrl (str boot/origin boot/catalog-path)
+    :bootstrapUrl (get-in boot/catalog [:bootstrap :url])
+    :channel "k16-candidate"
+    :manifestCid boot/manifest-cid
+    :ipnsName boot/channel-ipns
+    :status "candidate"
+    :physicalK16 "unverified"
+    :internalDiskWrites false}
    :security
    {:passkeyRpId identity-rp-id
     :passkeyOrigin identity-origin
@@ -96,6 +108,7 @@
        (= "https://kotoba.cloud/v1/session"
           (get-in profile [:security :sessionProjection]))
        (= "https://kotobase.net" (get-in profile [:roles :storage :origin]))
+       (= boot/origin (get-in profile [:roles :boot :origin]))
        (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
        (= "https://itonami.cloud" (get-in profile [:roles :agentWork :origin]))
        (= "post-quantum-required-for-new-boundaries"
@@ -114,6 +127,10 @@
           (get-in profile [:libraries :packageRegistryCid]))
        (= "ed25519+ml-dsa-65"
           (get-in profile [:libraries :packageSignatureSuite]))
+       (= boot/manifest-cid (get-in profile [:boot :manifestCid]))
+       (= "candidate" (get-in profile [:boot :status]))
+       (= "unverified" (get-in profile [:boot :physicalK16]))
+       (false? (get-in profile [:boot :internalDiskWrites]))
        (= 2 (get-in profile [:libraries :minimumByteCompleteStorageProviders]))
        (= 2 (get-in profile [:libraries :minimumRoutedPeerIds]))
        (true? (get-in profile [:libraries :defaultDryRun]))

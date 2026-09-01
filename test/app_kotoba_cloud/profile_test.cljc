@@ -12,7 +12,9 @@
     (is (= "cpu-gpu-placement-and-execution"
            (get-in roles [:compute :purpose])))
     (is (= "agent-workspaces-goals-tools-and-approvals"
-           (get-in roles [:agentWork :purpose])))))
+           (get-in roles [:agentWork :purpose])))
+    (is (= "network-boot-discovery-and-immutable-bootstrap"
+           (get-in roles [:boot :purpose])))))
 
 (deftest hosted-apply-is-not-overclaimed
   (testing "discovery distinguishes the landed control dependency from a future hosted apply API"
@@ -88,3 +90,11 @@
     (is (true? (:hostedPasskeyPublish libraries)))
     (is (= "https://kotoba.cloud/v1/libraries/publish"
            (:hostedPublishEndpoint libraries)))))
+
+(deftest boot-discovery-keeps-publication-and-physical-proof-separated
+  (let [boot (:boot profile/control-plane)]
+    (is (= "https://boot.kotoba.cloud/.well-known/aiueos-boot.json"
+           (:catalogUrl boot)))
+    (is (= "candidate" (:status boot)))
+    (is (= "unverified" (:physicalK16 boot)))
+    (is (false? (:internalDiskWrites boot)))))

@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kotoba-cloud-control-plane",
   "main": "build/worker.js",
-  "compatibility_date": "2026-08-28",
+  "compatibility_date": "2026-09-01",
   "workers_dev": false,
   "assets": {
     "directory": "./public",
@@ -14,7 +14,14 @@
     { "pattern": "kotoba.cloud", "custom_domain": true },
     { "pattern": "www.kotoba.cloud", "custom_domain": true },
     { "pattern": "api.kotoba.cloud", "custom_domain": true },
-    { "pattern": "console.kotoba.cloud", "custom_domain": true }
+    { "pattern": "console.kotoba.cloud", "custom_domain": true },
+    { "pattern": "boot.kotoba.cloud", "custom_domain": true }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PUBLIC_BLOCKS",
+      "bucket_name": "kotobase-graph-database-production"
+    }
   ],
   "durable_objects": {
     "bindings": [
