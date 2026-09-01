@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.test-runner
   (:require [app-kotoba-cloud.profile-test]
+            [app-kotoba-cloud.boot-test]
             [app-kotoba-cloud.pq-key-lifecycle-test]
             [app-kotoba-cloud.session-test]
             [app-kotoba-cloud.site-test]
@@ -7,6 +8,7 @@
 
 (defn -main [& _]
   (let [result (test/run-tests 'app-kotoba-cloud.profile-test
+                               'app-kotoba-cloud.boot-test
                                'app-kotoba-cloud.pq-key-lifecycle-test
                                'app-kotoba-cloud.session-test
                                'app-kotoba-cloud.site-test)]

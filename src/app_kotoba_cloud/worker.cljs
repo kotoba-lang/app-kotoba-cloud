@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.worker
-  (:require [app-kotoba-cloud.profile :as profile]
+  (:require [app-kotoba-cloud.boot :as boot]
+            [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.pqc :as pqc]
             [app-kotoba-cloud.session :as session]
             [goog.object :as gobj]))
@@ -27,6 +28,11 @@
 (defn json-response [value]
   (response (js/JSON.stringify (clj->js value) nil 2)
             200 "application/json; charset=utf-8"))
+
+(defn- boot-json-response [value]
+  (response (js/JSON.stringify (clj->js value) nil 2)
+            200 "application/json; charset=utf-8"
+            {"cache-control" "public, max-age=60, must-revalidate"}))
 
 (defn- private-json-response
   ([value] (private-json-response value 200))
@@ -352,12 +358,66 @@
                        :statusText (.-statusText asset)
                        :headers headers})))
 
+(defn- boot-error [error status]
+  (response (js/JSON.stringify (clj->js {:ok false :error error}))
+            status "application/json; charset=utf-8"
+            {"cache-control" "no-store"}))
+
+(defn- route-bootstrap [request ^js env]
+  (if (.has (.-headers request) "range")
+    (boot-error "range-not-supported" 416)
+    (let [method (.-method request)
+          bucket (gobj/get env "PUBLIC_BLOCKS")
+          key (str "ipld/" (:cid boot/loader))]
+      (if-not bucket
+        (boot-error "immutable-bootstrap-unavailable" 503)
+        (-> (js-invoke bucket "get" key)
+          (.then (fn [object]
+                   (let [expected-length (str (:bytes boot/loader))]
+                     (if-not (and object (= (:bytes boot/loader) (.-size object)))
+                       (boot-error "immutable-bootstrap-unavailable" 502)
+                       (let [headers (js/Headers.)]
+                         (doseq [[k v] security-headers] (.set headers k v))
+                         (.set headers "content-type" "application/octet-stream")
+                         (.set headers "content-length" expected-length)
+                         (.set headers "cache-control" "public, max-age=31536000, immutable")
+                         (.set headers "etag" (str "\"sha256-" (:sha256 boot/loader) "\""))
+                         (.set headers "digest" (str "sha-256=" (:sha256Base64 boot/loader)))
+                         (.set headers "x-aiueos-cid" (:cid boot/loader))
+                         (.set headers "accept-ranges" "none")
+                         (js/Response. (when (= "GET" method) (.-body object))
+                                       #js {:status 200 :headers headers}))))))
+          (.catch (fn [_] (boot-error "immutable-bootstrap-unavailable" 502))))))))
+
+(defn- route-boot-host [request env path]
+  (let [method (.-method request)]
+    (cond
+      (not (contains? #{"GET" "HEAD"} method))
+      (boot-error "method-not-allowed" 405)
+
+      (= path "/health")
+      (boot-json-response {:ok true :service "kotoba-cloud-aiueos-boot"
+                           :channel "k16-candidate" :status "candidate"})
+
+      (= path boot/catalog-path)
+      (boot-json-response boot/catalog)
+
+      (= path boot/bootstrap-path)
+      (route-bootstrap request env)
+
+      :else
+      (boot-error "not-found" 404))))
+
 (defn route [request ^js env]
   (let [url (js/URL. (.-url request))
         path (.-pathname url)
+        hostname (.-hostname url)
         method (.-method request)
         sign-in (session/apex-sign-in-location path (.-search url))]
     (cond
+      (= hostname "boot.kotoba.cloud")
+      (route-boot-host request env path)
+
       (and (= path "/v1/libraries/publish") (= method "POST"))
       (route-library-publish request env)
 
@@ -383,10 +443,19 @@
           (= path "/v1/control-plane"))
       (json-response profile/control-plane)
 
+      (= path boot/catalog-path)
+      (boot-json-response boot/catalog)
+
       (= path "/schemas/control-plane/v1")
       (json-response {:type "object"
                       :required ["schema" "service" "roles" "deploy" "security"]
                       :constSchema profile/schema})
+
+      (= path "/schemas/aiueos-boot-catalog/v1")
+      (json-response {:type "object"
+                      :required ["schema" "status" "target" "bootstrap" "update"
+                                 "distribution" "qualification" "source"]
+                      :constSchema boot/schema})
 
       (= path "/schemas/library-publication-request/v3")
       (json-response {:type "object"

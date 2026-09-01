@@ -4,6 +4,10 @@ import { route } from "../build/worker.js";
 
 const calls = [];
 let upstreamStatus = 200;
+const BOOT_CID = "bafkreifk2gpt4b2z5criansz5dj26pdrpv5pii7qt6jyqtaan564lamkqq";
+const BOOT_BYTES = 744448;
+let bootStoredSize = BOOT_BYTES;
+const bootReads = [];
 globalThis.fetch = async (url, init) => {
   calls.push({ url: String(url), headers: new Headers(init?.headers), body: init?.body });
   if (String(url).includes("ipns.publish")) {
@@ -21,7 +25,13 @@ globalThis.fetch = async (url, init) => {
 };
 
 const bindings = new Map();
-const env = { PQ_KEY_REGISTRY: {
+const env = { PUBLIC_BLOCKS: {
+  get: async (key) => {
+    bootReads.push(key);
+    if (key !== `ipld/${BOOT_CID}` || upstreamStatus !== 200) return null;
+    return { size: bootStoredSize, body: new Blob([new Uint8Array(BOOT_BYTES)]).stream() };
+  }
+}, PQ_KEY_REGISTRY: {
   idFromName: (principal) => principal,
   get: (principal) => ({ fetch: async (url, init) => {
     const proposed = JSON.parse(init.body);
@@ -389,4 +399,57 @@ const rejectedAfterRevocation = await route(new Request("https://kotoba.cloud/v1
 assert.equal(rejectedAfterRevocation.status, 409);
 assert.equal((await rejectedAfterRevocation.json()).error, "pqc-key-revoked");
 
-console.log("worker Passkey + principal-pinned ML-DSA publication and key transition smoke passed");
+upstreamStatus = 200;
+const bootCallCount = () => bootReads.length;
+const bootCatalogResponse = await route(
+  new Request("https://boot.kotoba.cloud/.well-known/aiueos-boot.json"), env);
+assert.equal(bootCatalogResponse.status, 200);
+assert.equal(bootCatalogResponse.headers.get("cache-control"),
+  "public, max-age=60, must-revalidate");
+const bootCatalog = await bootCatalogResponse.json();
+assert.equal(bootCatalog.status, "candidate");
+assert.equal(bootCatalog.qualification.physicalK16, "unverified");
+assert.equal(bootCatalog.qualification.internalDiskWrites, false);
+assert.equal(bootCatalog.bootstrap.url,
+  "https://boot.kotoba.cloud/aiueos/x86_64/gmktec-k16/bootstrap/v1.efi");
+
+const bootGet = await route(new Request(
+  "https://boot.kotoba.cloud/aiueos/x86_64/gmktec-k16/bootstrap/v1.efi"), env);
+assert.equal(bootGet.status, 200);
+assert.equal((await bootGet.arrayBuffer()).byteLength, BOOT_BYTES);
+assert.equal(bootGet.headers.get("content-length"), String(BOOT_BYTES));
+assert.equal(bootGet.headers.get("cache-control"), "public, max-age=31536000, immutable");
+assert.equal(bootGet.headers.get("x-aiueos-cid"),
+  "bafkreifk2gpt4b2z5criansz5dj26pdrpv5pii7qt6jyqtaan564lamkqq");
+assert.equal(bootGet.headers.get("digest"),
+  "sha-256=qtGfPgdZ6KKANlno0688cX169CPwn5OITABvfcWBioQ=");
+
+const bootHead = await route(new Request(
+  "https://boot.kotoba.cloud/aiueos/x86_64/gmktec-k16/bootstrap/v1.efi",
+  { method: "HEAD" }), env);
+assert.equal(bootHead.status, 200);
+assert.equal(await bootHead.text(), "");
+assert.equal(bootHead.headers.get("content-length"), String(BOOT_BYTES));
+
+const callsBeforeRange = bootCallCount();
+const bootRange = await route(new Request(
+  "https://boot.kotoba.cloud/aiueos/x86_64/gmktec-k16/bootstrap/v1.efi",
+  { headers: { range: "bytes=0-1" } }), env);
+assert.equal(bootRange.status, 416);
+assert.equal(bootCallCount(), callsBeforeRange, "unsupported ranges never reach immutable storage");
+
+bootStoredSize = 1;
+const bootWrongLength = await route(new Request(
+  "https://boot.kotoba.cloud/aiueos/x86_64/gmktec-k16/bootstrap/v1.efi"), env);
+assert.equal(bootWrongLength.status, 502);
+assert.equal((await bootWrongLength.json()).error, "immutable-bootstrap-unavailable");
+bootStoredSize = BOOT_BYTES;
+
+const bootPost = await route(new Request(
+  "https://boot.kotoba.cloud/aiueos/x86_64/gmktec-k16/bootstrap/v1.efi",
+  { method: "POST" }), env);
+assert.equal(bootPost.status, 405);
+const bootUnknown = await route(new Request("https://boot.kotoba.cloud/unknown"), env);
+assert.equal(bootUnknown.status, 404);
+
+console.log("worker Passkey/PQ publication and hash-addressed AIUEOS boot smoke passed");
