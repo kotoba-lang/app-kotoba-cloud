@@ -663,7 +663,12 @@
        (doseq [source (file-seq (io/file "assets" "well-known")) :when (.isFile ^java.io.File source)]
          (let [target (io/file root ".well-known" (.getName ^java.io.File source))]
            (.mkdirs (.getParentFile target))
-           (io/copy source target)))
+           (io/copy source target)
+           ;; `<did>/whois` transforms to `/.well-known/whois` (no extension)
+           ;; while the #whois service names `whois.vp`; a static host has no
+           ;; rewrite, so the same file is published under both names.
+           (when (= "whois.vp" (.getName ^java.io.File source))
+             (io/copy source (io/file root ".well-known" "whois")))))
        (let [headers (io/file "assets" "_headers")]
          (when (.isFile headers)
            (io/copy headers (io/file root "_headers"))))

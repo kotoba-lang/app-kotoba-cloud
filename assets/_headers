@@ -12,3 +12,14 @@
   Content-Type: application/did+json; charset=utf-8
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=300
+# The Linked Verifiable Presentation did:webvh's `<did>/whois` DID URL path
+# dereferences to (`/.well-known/whois` for a .well-known DID); `whois.vp` is
+# the explicit #whois service endpoint. Same bytes at both paths.
+/.well-known/whois.vp
+  Content-Type: application/vp; charset=utf-8
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+/.well-known/whois
+  Content-Type: application/vp; charset=utf-8
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
