@@ -654,4 +654,17 @@
            (io/copy source target)))
        (.mkdirs (.getParentFile registry-target))
        (io/copy registry-source registry-target)
+       ;; kotoba.cloud's did:webvh root and its did:web alias
+       ;; (net-kotobase/control-plane ADR-2609021500): did.jsonl,
+       ;; did-witness.json and did.json are minted offline by
+       ;; authn/scripts/webvh_root.clj and committed under assets/well-known;
+       ;; they ship verbatim. `_headers` gives the log its JSON Lines content
+       ;; type and lets any resolver fetch it cross-origin.
+       (doseq [source (file-seq (io/file "assets" "well-known")) :when (.isFile ^java.io.File source)]
+         (let [target (io/file root ".well-known" (.getName ^java.io.File source))]
+           (.mkdirs (.getParentFile target))
+           (io/copy source target)))
+       (let [headers (io/file "assets" "_headers")]
+         (when (.isFile headers)
+           (io/copy headers (io/file root "_headers"))))
        (println "rendered English-first root, Japanese pages, legal/tokushoho documents, and localized 404s"))))
