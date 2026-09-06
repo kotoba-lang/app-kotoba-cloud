@@ -1,0 +1,32 @@
+{:network "base-sepolia"
+ :chain-id 84532
+ :contract "DelegationRootRegistry"
+ :address "0x639E057957D27F6Fb91545281a2985E6e95EcC6C"
+ :deploy-tx "0x1eddf5a504f14a9283131007f682574e794510f4f8c7a3ff911debe7e1d316d7"
+ :block 46465662
+ :gas-used 1251446
+ :code-bytes 5541
+ :deployer "0x1210bdA52642223b3AC58e50f0D2723506ecB22A"
+ :deployer-key "kagi:kotoba-cloud-registry-deployer-base-sepolia"
+ :deployed-at "2026-09-06"
+ :explorer "https://sepolia.basescan.org/address/0x639E057957D27F6Fb91545281a2985E6e95EcC6C"
+
+ ;; Proven against the deployed contract, not against a local build.
+ :smoke
+ {:subject "keccak256(kotoba.cloud/delegation-SMOKE)"
+  :subject-hash "0xe10f7f258becd232fb037c0e724d3ec85d0ed3bb2ab7f1ac7b2a5db09d523ce2"
+  :register-tx "0x72cb279118f28c3fad355b46d50013e690b8285bb9d5f1d7511c306eeb64c9bf"
+  :reads-back {:timelock-of 604800 :epoch 1}
+  :why "A smoke subject rather than kotoba.cloud/delegation itself: registering
+        the real one fixes its guardians and timelock permanently, and neither
+        has been decided (ADR-2800011000 D2 — three models on one credential is
+        one seat, so the guardian set is not settled)."}
+
+ ;; The selector app_kotoba_cloud.chain-facts hard-codes, confirmed to resolve
+ ;; on the deployed bytecode and not only in a local artifact.
+ :verified
+ {:announced-at-selector "0x4ddf26c7"
+  :unknown-subject-revert "0x475b8e67"}
+
+ :not-registered
+ ["kotoba.cloud/delegation — waiting on the guardian set and the timelock length"]}
