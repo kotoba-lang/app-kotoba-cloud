@@ -2,6 +2,7 @@
   (:require [app-kotoba-cloud.profile-test]
             [app-kotoba-cloud.rootkey-test]
             [app-kotoba-cloud.delegation-root-test]
+            [app-kotoba-cloud.guardian-test]
             [app-kotoba-cloud.boot-test]
             [app-kotoba-cloud.pq-key-lifecycle-test]
             [app-kotoba-cloud.session-test]
@@ -12,6 +13,7 @@
   (let [result (test/run-tests 'app-kotoba-cloud.profile-test
                           'app-kotoba-cloud.rootkey-test
                           'app-kotoba-cloud.delegation-root-test
+                          'app-kotoba-cloud.guardian-test
                                'app-kotoba-cloud.boot-test
                                'app-kotoba-cloud.pq-key-lifecycle-test
                                'app-kotoba-cloud.session-test
