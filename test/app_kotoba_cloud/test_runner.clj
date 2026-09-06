@@ -4,6 +4,7 @@
             [app-kotoba-cloud.delegation-root-test]
             [app-kotoba-cloud.guardian-test]
             [app-kotoba-cloud.advisory-panel-test]
+            [app-kotoba-cloud.chain-facts-test]
             [app-kotoba-cloud.boot-test]
             [app-kotoba-cloud.pq-key-lifecycle-test]
             [app-kotoba-cloud.session-test]
@@ -16,6 +17,7 @@
                           'app-kotoba-cloud.delegation-root-test
                           'app-kotoba-cloud.guardian-test
                           'app-kotoba-cloud.advisory-panel-test
+                          'app-kotoba-cloud.chain-facts-test
                                'app-kotoba-cloud.boot-test
                                'app-kotoba-cloud.pq-key-lifecycle-test
                                'app-kotoba-cloud.session-test
