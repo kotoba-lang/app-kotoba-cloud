@@ -1,6 +1,7 @@
 (ns app-kotoba-cloud.worker
   (:require [app-kotoba-cloud.boot :as boot]
             [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.rootkey :as rootkey]
             [app-kotoba-cloud.pqc :as pqc]
             [app-kotoba-cloud.session :as session]
             [goog.object :as gobj]))
@@ -25,9 +26,11 @@
      (js/Response. body #js {:status status :headers headers})))
   ([body] (response body 200 "text/plain; charset=utf-8")))
 
-(defn json-response [value]
-  (response (js/JSON.stringify (clj->js value) nil 2)
-            200 "application/json; charset=utf-8"))
+(defn json-response
+  ([value] (json-response value 200))
+  ([value status]
+   (response (js/JSON.stringify (clj->js value) nil 2)
+             status "application/json; charset=utf-8")))
 
 (defn- boot-json-response [value]
   (response (js/JSON.stringify (clj->js value) nil 2)
@@ -442,6 +445,16 @@
       (or (= path "/.well-known/kotoba-cloud.json")
           (= path "/v1/control-plane"))
       (json-response profile/control-plane)
+
+      ;; Served, but never as the authority: the genesis digest is pinned by the
+      ;; caller, and a plane that reads the pin from here and verifies the log
+      ;; against it has trusted this apex for both halves. Refuses rather than
+      ;; serving a log it cannot itself verify against the configured genesis.
+      (= path rootkey/log-path)
+      (let [{:keys [status body]}
+            (rootkey/served profile/root-key-log
+                            (fn [_records] {:refused :no-verifier-configured}))]
+        (json-response body status))
 
       (= path boot/catalog-path)
       (boot-json-response boot/catalog)
