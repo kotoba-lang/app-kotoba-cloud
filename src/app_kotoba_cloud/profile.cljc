@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.profile
-  (:require [app-kotoba-cloud.boot :as boot]))
+  (:require [app-kotoba-cloud.boot :as boot]
+            [app-kotoba-cloud.rootkey :as rootkey]))
 
 (def schema "https://kotoba.cloud/schemas/control-plane/v1")
 (def reference-package-catalog-cid
@@ -9,6 +10,15 @@
 (def identity-href (str identity-origin "/"))
 (def identity-sign-in (str identity-origin "/sign-in"))
 (def identity-rp-id "auth.kotoba.cloud")
+
+(def root-key-log
+  "The published root-key log for this apex, or the absence of one.
+
+  Empty until a genesis ceremony has been run. `rootkey/profile-section` turns
+  that into `published false` rather than omitting the section, so a reader can
+  tell `no ceremony yet` from `this build does not know about delegation`."
+  {:genesis-key-digest nil
+   :records []})
 
 (def control-plane
   {:schema schema
@@ -76,6 +86,17 @@
     :communityEnrollment "public-default-admission-pending"
     :enforcedAt "enrollment"
     :dispatchTierFiltering false}
+   ;; Delegation is the half of the tier story the roles above do not carry: a
+   ;; tier says who is party to a call, and this says how a narrower authority
+   ;; reaches the caller who makes it. A Biscuit is attenuated offline by
+   ;; whoever holds it, so the useful question is not who mints but who can
+   ;; verify without asking anyone.
+   ;;
+   ;; `verifiedLocally false` is the measured state and the reason this section
+   ;; exists. Publishing the material for local verification while every plane
+   ;; still asks the identity service would read as though the decentralised
+   ;; path were in use.
+   :delegation (rootkey/profile-section root-key-log)
    :deploy
    {:mode "local-admission-remote-compute"
     :hostedApply false
@@ -170,6 +191,13 @@
        (= "did:web:awai.network" (get-in profile [:tiers :secureProvider]))
        (= "operator-authorized-only" (get-in profile [:tiers :secureEnrollment]))
        (= "enrollment" (get-in profile [:tiers :enforcedAt]))
+       (= rootkey/log-path (get-in profile [:delegation :logPath]))
+       (= "the-log-not-this-document" (get-in profile [:delegation :authority]))
+       (= "the-calling-plane-not-this-document"
+          (get-in profile [:delegation :pinnedBy]))
+       ;; Same rule as the two above it: a claim that is not wired yet must cost
+       ;; a commit against this predicate to become true.
+       (false? (get-in profile [:delegation :verifiedLocally]))
        (= "https://itonami.cloud" (get-in profile [:roles :agentWork :origin]))
        (= "post-quantum-required-for-new-boundaries"
           (get-in profile [:cryptography :defaultPolicy]))
