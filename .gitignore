@@ -5,3 +5,6 @@
 /node_modules/
 /.cpcache/
 /public/
+
+# kotoba-cloud-maint cron scratch (do not commit)
+.maint_*
