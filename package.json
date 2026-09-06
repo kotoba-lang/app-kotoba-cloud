@@ -12,7 +12,8 @@
     "dry-run": "npm test && npm run build && npm run test:worker && wrangler deploy --dry-run --outdir dist --env=\"\"",
     "deploy": "npm test && npm run build && npm run test:worker && wrangler deploy --env=\"\"",
     "test:contract": "forge test --root contracts",
-    "build:contract": "forge build --root contracts"
+    "build:contract": "forge build --root contracts",
+    "deploy:registry": "nbb scripts/deploy-registry.cljs"
   },
   "devDependencies": {
     "shadow-cljs": "3.5.0",
