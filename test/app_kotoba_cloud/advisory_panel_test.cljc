@@ -54,7 +54,18 @@
     (let [r (p/panel-verdict (ask-fixed {:claude {:verdict :maybe} :gpt {:verdict :maybe}})
                              p/default-panel {})]
       (is (= :allow (:verdict r)) "no veto was cast")
-      (is (= 1 (:answered r)) "but only one seat actually answered"))))
+      (is (= 1 (:answered r)) "but only one seat actually answered")))
+  (testing "a panel nobody answered is not a panel that allowed"
+    ;; Measured live 2026-09-06: all three seats failed and the verdict was
+    ;; :allow with :answered 0. That is not-measured wearing the face of
+    ;; measured-and-fine, so it gets its own value.
+    (let [r (p/panel-verdict (fn [_ _] (throw (ex-info "down" {}))) p/default-panel {})]
+      (is (= :no-answer (:verdict r)))
+      (is (= 0 (:answered r)))
+      (is (= 3 (count (:unreachable r))))))
+  (testing "and :no-answer produces no advisory, so the guardian is never told it was cleared"
+    (is (nil? (p/->advisory (p/panel-verdict (fn [_ _] (throw (ex-info "down" {})))
+                                             p/default-panel {}))))))
 
 (deftest only-a-veto-crosses-into-the-guardian
   (testing "an allowing panel produces no advisory at all"

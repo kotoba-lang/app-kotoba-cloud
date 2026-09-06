@@ -39,11 +39,11 @@
 
   `credential-ref` names where the key is read from, not the key. Two members
   sharing a ref share a failure, which is what `independence` counts."
-  [{:seat :claude :model "anthropic/claude-sonnet-4.6"
+  [{:seat :claude :model "anthropic/claude-sonnet-5"
     :api-base openrouter-base :credential-ref "env:OPENROUTER_API_KEY"}
-   {:seat :gpt :model "openai/gpt-5.5-pro"
+   {:seat :gpt :model "openai/gpt-5.6-luna-pro"
     :api-base openrouter-base :credential-ref "env:OPENROUTER_API_KEY"}
-   {:seat :gemini :model "google/gemini-3-pro-preview"
+   {:seat :gemini :model "google/gemini-3.8-flash"
     :api-base openrouter-base :credential-ref "env:OPENROUTER_API_KEY"}])
 
 (defn independence
@@ -94,13 +94,22 @@
   [ask panel facts]
   (let [members (mapv #(member-verdict ask % facts) panel)
         vetoes (filterv #(= :veto (:verdict %)) members)
-        unreachable (filterv #(= :unreachable (:verdict %)) members)]
+        unreachable (filterv #(= :unreachable (:verdict %)) members)
+        answered (- (count members) (count unreachable))]
     (merge (independence-report panel)
-           {:verdict (if (seq vetoes) :veto :allow)
+           {;; `:no-answer` is a third value on purpose. Measured 2026-09-06
+            ;; against the live panel: all three seats failed (one model id was
+            ;; not routable, two replied in prose) and the verdict came back
+            ;; `:allow` with `:answered 0`. A caller reading the verdict alone
+            ;; would have acted on a panel that said nothing — the exact shape
+            ;; where not-measured is indistinguishable from measured-and-fine.
+            :verdict (cond (seq vetoes) :veto
+                           (zero? answered) :no-answer
+                           :else :allow)
             :members members
             :vetoed-by (mapv :seat vetoes)
             :unreachable (mapv :seat unreachable)
-            :answered (- (count members) (count unreachable))})))
+            :answered answered})))
 
 (defn ->advisory
   "The panel result in the shape `guardian/decide` accepts.
