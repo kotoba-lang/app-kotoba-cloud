@@ -59,16 +59,53 @@
                       "  kotoba-cloud-registry-deployer-base-sepolia")))
         rpc (or (aget (.-env proc) "REGISTRY_RPC_URL") (:rpc chain))
         dry? (flag? "--dry-run")
-        args ["create" "contracts/src/DelegationRootRegistry.sol:DelegationRootRegistry"
+        ;; Relative to --root, not to the cwd. The first version passed
+        ;; contracts/src/... together with --root contracts and forge looked for
+        ;; contracts/contracts/src/... — which --dry-run could not catch, because
+        ;; a dry run proves the credential path and never invokes forge.
+        args ["create" "src/DelegationRootRegistry.sol:DelegationRootRegistry"
+              ;; forge 1.7 does NOT send without --broadcast, and it exits 0
+              ;; either way. The first run of this script reported success while
+              ;; the log said "Dry run enabled, not broadcasting transaction".
+              "--broadcast"
               "--rpc-url" rpc "--private-key" pk "--root" "contracts"]]
     (println (str "network=" network " chainId=" (:id chain) " rpc=" rpc
                   " key-from=" (if kagi-item (str "kagi:" kagi-item) key-var)
                   (when dry? " (dry-run)")))
     (if dry?
-      (println "dry-run: not sending. Re-run without --dry-run to deploy.")
-      (let [r (cp/spawnSync "forge" (clj->js args) #js {:stdio "inherit"})]
+      (do (println "dry-run: not sending. Re-run without --dry-run to deploy.")
+          ;; Resolve the artifact the real run would use, so a path that only
+          ;; breaks under forge is caught here rather than during a deploy.
+          (let [r (cp/spawnSync "forge" #js ["build" "--root" "contracts"]
+                                #js {:encoding "utf8"})]
+            (when-not (zero? (or (.-status r) 1))
+              (die (str "forge build failed under --root contracts:\n" (.-stderr r))))
+            (println "dry-run: contracts build under --root contracts OK")))
+      (let [r (cp/spawnSync "forge" (clj->js args) #js {:encoding "utf8"})]
+        (println (.-stdout r))
         (when-not (zero? (or (.-status r) 1))
-          (die "forge create failed"))
-        (println (str "explorer: " (:explorer chain)))))))
+          (die (str "forge create failed:\n" (.-stderr r))))
+        (let [out (str (.-stdout r))
+              addr (second (re-find #"Deployed to:\s*(0x[0-9a-fA-F]{40})" out))]
+          ;; An exit code is not a deployment. Ask the chain whether code is
+          ;; actually at the address before saying the word.
+          (when-not addr (die "forge printed no `Deployed to:` — nothing was broadcast"))
+          ;; Retry: the first version asked once, immediately, and reported
+          ;; "the transaction did not land" for a deployment that had. An RPC
+          ;; that has not caught up is not a chain that rejected the tx, and a
+          ;; check that cannot tell those apart is worse than no check.
+          (let [code (loop [n 0]
+                       (let [c (cp/spawnSync "cast" #js ["code" addr "--rpc-url" rpc]
+                                             #js {:encoding "utf8"})
+                             out (str/trim (str (.-stdout c)))]
+                         (cond
+                           (and (not (str/blank? out)) (not= "0x" out)) out
+                           (>= n 10) out
+                           :else (do (cp/spawnSync "sleep" #js ["2"]) (recur (inc n))))))]
+            (when (or (str/blank? code) (= "0x" code))
+              (die (str "no code at " addr " after 10 retries — the transaction did not land")))
+            (println (str "deployed: " addr))
+            (println (str "code size: " (quot (- (count code) 2) 2) " bytes"))
+            (println (str "explorer: " (:explorer chain) "/address/" addr))))))))
 
 (-main)
