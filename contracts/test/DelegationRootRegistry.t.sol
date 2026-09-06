@@ -371,4 +371,19 @@ contract DelegationRootRegistryTest {
         reg.rotate(SUBJECT, PK2, CID2);
         assertEq(reg.rootOf(SUBJECT).publicKey, PK2);
     }
+
+    function test_theSelectorTheOffchainReaderHardcodesIsTheRealOne() public pure {
+        // src/app_kotoba_cloud/chain_facts.cljc hard-codes this because it has no
+        // keccak. The first value written there was invented, not computed, and a
+        // wrong selector fails silently off-chain: eth_call returns empty and the
+        // reader reports an unavailable fact instead of a bug.
+        require(
+            bytes4(keccak256("announcedAt(bytes32,address)")) == bytes4(0x4ddf26c7),
+            "announcedAt selector drifted from chain_facts.cljc"
+        );
+        require(
+            bytes4(keccak256("rootOf(bytes32)")) == bytes4(0x6d6f398e),
+            "rootOf selector drifted"
+        );
+    }
 }
