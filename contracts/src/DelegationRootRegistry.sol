@@ -39,6 +39,16 @@ contract DelegationRootRegistry {
     ///      Both are configuration that reads as a quorum and is not one.
     error InvalidThreshold(uint256 threshold, uint256 guardians);
     error DuplicateGuardian(address guardian);
+    /// @dev A proposal must name a candidate that was announced first, so a
+    ///      guardian can compare it against a chain fact rather than against
+    ///      the requester's prose. ADR-2800011000 D4: prose is a shared input,
+    ///      and a shared input correlates guardians that are otherwise diverse.
+    error NotAnnounced(address candidate);
+    error RecoveryVetoed(address vetoedBy, bytes32 reasonCode);
+    error TimelockNotElapsed(uint64 executeAfter);
+    error NoProposal();
+    error ZeroReasonCode();
+    error ZeroTimelock();
 
     struct Root {
         bytes32 publicKey;
@@ -51,7 +61,10 @@ contract DelegationRootRegistry {
     struct Recovery {
         address proposedController;
         uint64 proposedAt;
+        uint64 executeAfter;
         uint256 approvals;
+        address vetoedBy;
+        bytes32 vetoReason;
     }
 
     mapping(bytes32 subject => Root root) private _roots;
@@ -60,6 +73,8 @@ contract DelegationRootRegistry {
     mapping(bytes32 subject => Recovery recovery) private _recoveries;
     mapping(bytes32 subject => mapping(uint64 epoch => mapping(address guardian => bool approved)))
         private _approved;
+    mapping(bytes32 subject => mapping(address candidate => uint64 announcedAt)) private _announced;
+    mapping(bytes32 subject => uint64 timelock) private _timelocks;
 
     event RootRegistered(
         bytes32 indexed subject, bytes32 indexed publicKey, bytes32 logDigest, address controller
@@ -67,7 +82,12 @@ contract DelegationRootRegistry {
     event RootRotated(
         bytes32 indexed subject, bytes32 indexed publicKey, bytes32 logDigest, uint64 epoch
     );
-    event RecoveryProposed(bytes32 indexed subject, address indexed proposedController, uint64 epoch);
+    event CandidateAnnounced(bytes32 indexed subject, address indexed candidate, uint64 announcedAt);
+    event RecoveryProposed(
+        bytes32 indexed subject, address indexed proposedController, uint64 epoch, uint64 executeAfter
+    );
+    event RecoveryVetoedBy(bytes32 indexed subject, address indexed guardian, bytes32 reasonCode);
+    event RecoveryExecuted(bytes32 indexed subject, address indexed newController, address executedBy);
     event RecoveryApproved(bytes32 indexed subject, address indexed guardian, uint256 approvals);
     event ControllerRecovered(
         bytes32 indexed subject, address indexed previousController, address indexed newController
@@ -87,13 +107,18 @@ contract DelegationRootRegistry {
         bytes32 logDigest,
         address controller,
         address[] calldata guardians,
-        uint256 threshold
+        uint256 threshold,
+        uint64 timelock
     ) external {
         if (subject == bytes32(0)) revert ZeroSubject();
         if (publicKey == bytes32(0)) revert ZeroPublicKey();
         if (controller == address(0)) revert ZeroController();
         if (_roots[subject].publicKey != bytes32(0)) revert SubjectExists(subject);
+        // Zero would make a proposal executable in the same block it was made,
+        // which is the investigation window the guardians exist to use.
+        if (guardians.length > 0 && timelock == 0) revert ZeroTimelock();
         _setQuorum(subject, guardians, threshold);
+        _timelocks[subject] = timelock;
 
         _roots[subject] = Root({
             publicKey: publicKey,
@@ -120,7 +145,25 @@ contract DelegationRootRegistry {
         emit RootRotated(subject, publicKey, logDigest, r.epoch);
     }
 
-    /// @notice Propose a new controller. Clears any approvals for the previous proposal.
+    /// @notice Announce a candidate. The timelock starts here, not at proposal.
+    /// @dev Anyone may announce: an announcement grants nothing, it only makes a
+    ///      later proposal comparable to something that was public first. An
+    ///      attacker must therefore expose the target address and wait, which is
+    ///      the window the guardians investigate in.
+    function announceCandidate(bytes32 subject, address candidate) external {
+        if (_roots[subject].publicKey == bytes32(0)) revert UnknownSubject(subject);
+        if (candidate == address(0)) revert ZeroController();
+        if (_announced[subject][candidate] == 0) {
+            _announced[subject][candidate] = uint64(block.timestamp);
+            emit CandidateAnnounced(subject, candidate, uint64(block.timestamp));
+        }
+    }
+
+    function announcedAt(bytes32 subject, address candidate) external view returns (uint64) {
+        return _announced[subject][candidate];
+    }
+
+    /// @notice Propose an announced candidate. Clears approvals for the previous proposal.
     /// @dev Keyed by epoch so approvals cannot survive into a different proposal:
     ///      without that, a guardian who approved handing control to A would be
     ///      counted as approving B.
@@ -130,34 +173,82 @@ contract DelegationRootRegistry {
         if (proposedController == address(0)) revert ZeroController();
         if (!_isGuardian(subject, msg.sender)) revert NotGuardian(msg.sender);
 
+        uint64 at = _announced[subject][proposedController];
+        if (at == 0) revert NotAnnounced(proposedController);
+
         r.epoch += 1;
-        _recoveries[subject] =
-            Recovery({proposedController: proposedController, proposedAt: uint64(block.timestamp), approvals: 0});
-        emit RecoveryProposed(subject, proposedController, r.epoch);
+        _recoveries[subject] = Recovery({
+            proposedController: proposedController,
+            proposedAt: uint64(block.timestamp),
+            // Anchored at the ANNOUNCEMENT, not at this call. The window exists
+            // to expose the candidate publicly for investigation, and it starts
+            // the moment it became public. Anchoring here instead would let a
+            // late proposal restart a clock that had already run, and would
+            // stack two full waits for one guarantee.
+            executeAfter: at + _timelocks[subject],
+            approvals: 0,
+            vetoedBy: address(0),
+            vetoReason: bytes32(0)
+        });
+        emit RecoveryProposed(subject, proposedController, r.epoch, _recoveries[subject].executeAfter);
     }
 
-    /// @notice Approve the standing recovery proposal. Executes at the threshold.
+    /// @notice Refuse the standing proposal, naming which check failed.
+    /// @dev The reason code is required and emitted. "A guardian refused" without
+    ///      one is unfalsifiable — the same defect as a negative test that counts
+    ///      a run which failed for an unrelated reason (ADR-2800011000 D7).
+    function veto(bytes32 subject, bytes32 reasonCode) external {
+        Root storage r = _roots[subject];
+        if (r.publicKey == bytes32(0)) revert UnknownSubject(subject);
+        if (!_isGuardian(subject, msg.sender)) revert NotGuardian(msg.sender);
+        if (reasonCode == bytes32(0)) revert ZeroReasonCode();
+
+        Recovery storage rec = _recoveries[subject];
+        if (rec.proposedController == address(0)) revert NoProposal();
+
+        rec.vetoedBy = msg.sender;
+        rec.vetoReason = reasonCode;
+        emit RecoveryVetoedBy(subject, msg.sender, reasonCode);
+    }
+
+    /// @notice Approve the standing proposal. Approvals shorten nothing; they record consent.
     function approveRecovery(bytes32 subject) external {
         Root storage r = _roots[subject];
         if (r.publicKey == bytes32(0)) revert UnknownSubject(subject);
         if (!_isGuardian(subject, msg.sender)) revert NotGuardian(msg.sender);
 
         Recovery storage rec = _recoveries[subject];
-        if (rec.proposedController == address(0)) revert UnknownSubject(subject);
+        if (rec.proposedController == address(0)) revert NoProposal();
         if (_approved[subject][r.epoch][msg.sender]) revert AlreadyApproved(msg.sender);
 
         _approved[subject][r.epoch][msg.sender] = true;
         rec.approvals += 1;
         emit RecoveryApproved(subject, msg.sender, rec.approvals);
+    }
 
-        uint256 threshold = _thresholds[subject];
-        if (rec.approvals >= threshold) {
-            address previous = r.controller;
-            r.controller = rec.proposedController;
-            r.updatedAt = uint64(block.timestamp);
-            delete _recoveries[subject];
-            emit ControllerRecovered(subject, previous, r.controller);
+    /// @notice Execute a proposal that survived its timelock without a veto.
+    /// @dev Deliberately callable by anyone. Restricting it would mean an agent
+    ///      outage blocks recovery at the moment the keys are already lost, which
+    ///      is the liveness half of ADR-2800011000 D5. Safety is bought by the
+    ///      announcement, the timelock and the veto, not by gating this call.
+    function executeRecovery(bytes32 subject) external {
+        Root storage r = _roots[subject];
+        if (r.publicKey == bytes32(0)) revert UnknownSubject(subject);
+
+        Recovery storage rec = _recoveries[subject];
+        if (rec.proposedController == address(0)) revert NoProposal();
+        if (rec.vetoedBy != address(0)) revert RecoveryVetoed(rec.vetoedBy, rec.vetoReason);
+        if (uint64(block.timestamp) < rec.executeAfter) revert TimelockNotElapsed(rec.executeAfter);
+        if (rec.approvals < _thresholds[subject]) {
+            revert ThresholdNotMet(rec.approvals, _thresholds[subject]);
         }
+
+        address previous = r.controller;
+        r.controller = rec.proposedController;
+        r.updatedAt = uint64(block.timestamp);
+        delete _recoveries[subject];
+        emit ControllerRecovered(subject, previous, r.controller);
+        emit RecoveryExecuted(subject, r.controller, msg.sender);
     }
 
     function rootOf(bytes32 subject) external view returns (Root memory) {
@@ -168,6 +259,10 @@ contract DelegationRootRegistry {
 
     function guardiansOf(bytes32 subject) external view returns (address[] memory) {
         return _guardians[subject];
+    }
+
+    function timelockOf(bytes32 subject) external view returns (uint64) {
+        return _timelocks[subject];
     }
 
     function thresholdOf(bytes32 subject) external view returns (uint256) {
