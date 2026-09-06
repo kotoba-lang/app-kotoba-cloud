@@ -1,0 +1,35 @@
+=== package.json on kotoba-lang/main ===
+  "devDependencies": {
+    "shadow-cljs": "3.5.0",
+    "wrangler": "4.129.0"
+  },
+  "dependencies": {
+    "@noble/post-quantum": "0.7.1"
+  }
+}
+=== npm latest: @noble/post-quantum ===
+0.7.1
+=== npm latest: shadow-cljs ===
+3.5.0
+=== npm latest: wrangler ===
+4.129.0
+=== worker build file headers / deploy HTTP check: worker.js exists? ===
+=== probe: does site expose a version/revision header? full headers / ===
+HTTP/2 200 
+date: Sun, 06 Sep 2026 07:32:29 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+etag: "0be05d928ab1344c0b4965952c8c9109"
+content-security-policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
+cross-origin-opener-policy: same-origin
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=()
+referrer-policy: no-referrer
+x-content-type-options: nosniff
+x-frame-options: DENY
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=mFo98KDzoRuIMM%2FyAdN%2FbSLmSPOxoxu%2FWGiFORDXlXMHoxvmAvfko6fP45j0wNyy3%2FHk1dPkeZ%2FpU9NHDxT%2BavTMdmKKjISjHNK1XzMeIlLMnCA7wdX1jw5T9C%2BsTxrEk93ByMMQ9WKG39w%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a36bc7b1ec0bb9dd-NRT
+alt-svc: h3=":443"; ma=86400
+

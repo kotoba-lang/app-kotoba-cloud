@@ -1,0 +1,46 @@
+=== git remote ===
+kotoba-lang	git@github.com:kotoba-lang/app-kotoba-cloud (fetch)
+kotoba-lang	git@github.com:kotoba-lang/app-kotoba-cloud (push)
+=== HEAD ===
+3e5effcc618757d91e1a0a520e74f311c7464854
+3e5effc 2026-09-02 20:23:12 +0900 Merge agent/whois-attestation: the auditor's attestation in kotoba.cloud's whois
+=== last deploy ref via main ===
+96a566e9b55a10fb87fdacd3be4e0bce17f0bb80
+96a566e 2026-09-05 10:12:43 +0900 deps: wrangler 4.127.0 -> 4.129.0 (#21)
+=== open issues ===
+=== open PRs ===
+=== recent merged PRs (for deploy freshness) ===
+21	deps: wrangler 4.127.0 -> 4.129.0	bot/maint-wrangler-4.129.0	MERGED	2026-09-04T09:38:55Z
+19	Publish signed AIUEOS K16 network boot candidate	codex/aiueos-public-boot-20260901	MERGED	2026-09-01T04:25:00Z
+18	docs: enforce workspace human-auth policy	codex/repo-wide-human-auth-policy	MERGED	2026-08-30T12:37:22Z
+17	Publish Kotoba Labs Inc as the kotoba.cloud operator	cursor/kotoba-labs-inc-operator-42e9	MERGED	2026-08-30T01:22:10Z
+16	Unify mobile language UX and default to English	codex/mobile-ui-english-first-20260830	MERGED	2026-08-30T01:12:15Z
+15	Expose Passkey-approved PQ key transitions	codex/pq-key-transitions-cloud	MERGED	2026-08-29T11:14:09Z
+14	Enforce PQ publication epochs and replay lifecycle	codex/post-quantum-default-cloud-copy	MERGED	2026-08-29T08:26:55Z
+13	feat: publish post-quantum admission policy	codex/post-quantum-default-cloud-copy	MERGED	2026-08-29T07:40:55Z
+=== package.json wrangler + deps ===
+  "devDependencies": {
+    "shadow-cljs": "3.5.0",
+    "wrangler": "4.127.0"
+  },
+  "dependencies": {
+    "@noble/post-quantum": "0.7.1"
+  }
+=== npm latest versions ===
+4.129.0
+=== last commits on repo (git log) ===
+96a566e deps: wrangler 4.127.0 -> 4.129.0 (#21)
+3e5effc Merge agent/whois-attestation: the auditor's attestation in kotoba.cloud's whois
+b05fa9e whois: carry the auditor's attestation beside the self-issued credential
+20c4106 Merge agent/webvh-witness-custody: did:webvh version 2 — witnesses on fleet nodes, whois.vp
+edf9280 did:webvh version 2: witnesses on three fleet nodes, whois.vp, #whois service
+b84ee9a Merge agent/did-webvh-root: kotoba.cloud publishes its did:webvh root
+bd89378 kotoba.cloud publishes its did:webvh root and a did:web document
+1e269b9 Merge pull request #19 from kotoba-lang/codex/aiueos-public-boot-20260901
+cd485ba feat: publish signed AIUEOS network boot candidate
+db4245b Merge pull request #18 from kotoba-lang/codex/repo-wide-human-auth-policy
+2245607 docs: enforce workspace human-auth policy
+3993a20 Publish Kotoba Labs Inc as the kotoba.cloud operator (#17)
+4aca0de Merge pull request #16 from kotoba-lang/codex/mobile-ui-english-first-20260830
+8e672ef Unify mobile language UX and default to English
+65e9f98 Merge pull request #15 from kotoba-lang/codex/pq-key-transitions-cloud
