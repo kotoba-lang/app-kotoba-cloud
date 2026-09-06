@@ -22,15 +22,60 @@
               :purpose "cli-and-deploy-control"}
     :boot {:origin boot/origin
            :purpose "network-boot-discovery-and-immutable-bootstrap"}
+    ;; Inference and pinning were reachable and authenticated long before this
+    ;; document named them, and neither is a trust domain of its own: one is
+    ;; served by the compute origin, the other by the storage origin. They are
+    ;; listed as capabilities so that discovery gains a path without the profile
+    ;; gaining a boundary it does not actually have — a role per capability
+    ;; would put two names on one origin and make the separation look finer
+    ;; than it is.
+    ;;
+    ;; `principalIssuedCredentials false` is the honest half of each entry: the
+    ;; surface is live and authenticated, but a Stable Principal does not mint
+    ;; the credential for it. The caller still gets that from the plane itself.
     :storage {:origin "https://kotobase.net"
-              :purpose "content-addressed-artifacts-state-and-receipts"}
+              :purpose "content-addressed-artifacts-state-and-receipts"
+              :capabilities
+              {:pinning {:purpose "ipfs-pinning-service-api-over-the-shared-block-space"
+                         :path "/pins"
+                         :authorization "bearer-or-cacao"
+                         :credentialIssuer "kotobase"
+                         :principalIssuedCredentials false}}}
     :compute {:origin "https://api.murakumo.cloud"
               :publicOrigin "https://murakumo.cloud"
-              :purpose "cpu-gpu-placement-and-execution"}
+              :purpose "cpu-gpu-placement-and-execution"
+              :capabilities
+              {:llm {:purpose "hosted-inference-on-the-murakumo-fleet"
+                     :path "/v1/messages"
+                     :modelAliasPath "/infer/models/murakumo-main"
+                     :authorization "bearer-or-x-api-key"
+                     :credentialIssuer "murakumo"
+                     :principalIssuedCredentials false}}}
     :agentWork {:origin "https://itonami.cloud"
                 :purpose "agent-workspaces-goals-tools-and-approvals"}
     :language {:origin "https://kotoba-lang.org"
                :purpose "language-specification-documentation-and-conformance"}}
+   ;; Compute is offered in two trust tiers, and the difference between them is
+   ;; who the provider is — not how fast the hardware is. An AWAI Secure node
+   ;; carries `did:web:awai.network`; a Community node carries its own
+   ;; `did:key`, so the operator is the venue for it rather than the party.
+   ;;
+   ;; `enforcedAt "enrollment"` and `dispatchTierFiltering false` are the
+   ;; measured limit, published rather than implied: today the tier decides who
+   ;; may join and under whose name, and nothing yet routes work by it. A caller
+   ;; that needs work confined to one tier cannot get that from this surface.
+   :tiers
+   {:enrollmentSurface "https://api.murakumo.cloud/infer/nodes"
+    :planSurface "https://api.murakumo.cloud/itonami/plans"
+    :creditsSurface "https://api.murakumo.cloud/infer/credits"
+    :costSurface "https://api.murakumo.cloud/infer/cost"
+    :trustTiers ["awai-secure" "community"]
+    :secureProvider "did:web:awai.network"
+    :secureEnrollment "operator-authorized-only"
+    :communityProvider "each-node-presents-its-own-did-key"
+    :communityEnrollment "public-default-admission-pending"
+    :enforcedAt "enrollment"
+    :dispatchTierFiltering false}
    :deploy
    {:mode "local-admission-remote-compute"
     :hostedApply false
@@ -110,6 +155,21 @@
        (= "https://kotobase.net" (get-in profile [:roles :storage :origin]))
        (= boot/origin (get-in profile [:roles :boot :origin]))
        (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
+       (= "/v1/messages"
+          (get-in profile [:roles :compute :capabilities :llm :path]))
+       (= "/pins"
+          (get-in profile [:roles :storage :capabilities :pinning :path]))
+       ;; These three falses are the claims most likely to rot upward. Each one
+       ;; is a boundary that is not wired yet, so flipping it has to be a commit
+       ;; against this predicate rather than an edit that nobody notices.
+       (false? (get-in profile [:roles :compute :capabilities :llm
+                                :principalIssuedCredentials]))
+       (false? (get-in profile [:roles :storage :capabilities :pinning
+                                :principalIssuedCredentials]))
+       (false? (get-in profile [:tiers :dispatchTierFiltering]))
+       (= "did:web:awai.network" (get-in profile [:tiers :secureProvider]))
+       (= "operator-authorized-only" (get-in profile [:tiers :secureEnrollment]))
+       (= "enrollment" (get-in profile [:tiers :enforcedAt]))
        (= "https://itonami.cloud" (get-in profile [:roles :agentWork :origin]))
        (= "post-quantum-required-for-new-boundaries"
           (get-in profile [:cryptography :defaultPolicy]))

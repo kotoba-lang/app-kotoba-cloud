@@ -98,3 +98,51 @@
     (is (= "candidate" (:status boot)))
     (is (= "unverified" (:physicalK16 boot)))
     (is (false? (:internalDiskWrites boot)))))
+
+(deftest live-capabilities-are-declared-without-inventing-boundaries
+  (testing "inference and pinning are capabilities of an existing plane, not planes of their own"
+    (let [roles (:roles profile/control-plane)
+          llm (get-in roles [:compute :capabilities :llm])
+          pinning (get-in roles [:storage :capabilities :pinning])]
+      (is (= "/v1/messages" (:path llm)))
+      (is (= "/pins" (:path pinning)))
+      ;; The separation invariant above counts one origin per role. A capability
+      ;; must not reintroduce an origin, or it becomes a second name for a
+      ;; boundary that does not exist.
+      (is (nil? (:origin llm)))
+      (is (nil? (:origin pinning)))
+      (is (= "murakumo" (:credentialIssuer llm)))
+      (is (= "kotobase" (:credentialIssuer pinning))))))
+
+(deftest principal-issued-credentials-are-not-claimed
+  (testing "both live surfaces authenticate, but a Stable Principal does not mint either credential"
+    (is (false? (get-in profile/control-plane
+                        [:roles :compute :capabilities :llm :principalIssuedCredentials])))
+    (is (false? (get-in profile/control-plane
+                        [:roles :storage :capabilities :pinning :principalIssuedCredentials]))))
+  (testing "and the predicate rejects the profile if either claim is flipped without wiring"
+    (is (not (profile/valid-profile?
+              (assoc-in profile/control-plane
+                        [:roles :compute :capabilities :llm :principalIssuedCredentials]
+                        true))))
+    (is (not (profile/valid-profile?
+              (assoc-in profile/control-plane
+                        [:roles :storage :capabilities :pinning :principalIssuedCredentials]
+                        true))))))
+
+(deftest tiers_are_a_party_distinction_enforced_only_at_enrollment
+  (testing "the two trust tiers differ by who provides the node, not by speed"
+    (let [tiers (:tiers profile/control-plane)]
+      (is (= ["awai-secure" "community"] (:trustTiers tiers)))
+      (is (= "did:web:awai.network" (:secureProvider tiers)))
+      (is (= "operator-authorized-only" (:secureEnrollment tiers)))
+      (is (= "each-node-presents-its-own-did-key" (:communityProvider tiers)))))
+  (testing "the measured limit is published rather than implied"
+    (is (= "enrollment" (get-in profile/control-plane [:tiers :enforcedAt])))
+    (is (false? (get-in profile/control-plane [:tiers :dispatchTierFiltering]))))
+  (testing "and claiming dispatch-time tier filtering fails the predicate"
+    (is (not (profile/valid-profile?
+              (assoc-in profile/control-plane [:tiers :dispatchTierFiltering] true))))
+    (is (not (profile/valid-profile?
+              (assoc-in profile/control-plane [:tiers :secureProvider]
+                        "did:web:kotobalabs.com"))))))
