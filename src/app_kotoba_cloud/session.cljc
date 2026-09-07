@@ -8,7 +8,10 @@
 (def apex-sign-in-paths #{"/sign-in" "/login"})
 
 (defn passkey-href
-  "Public Passkey CTA. Live auth.kotoba.cloud serves HTML at /sign-in."
+  "Public sign-in CTA. Live auth.kotoba.cloud serves HTML at /sign-in; its
+  default way in is a Base Account (smart-contract wallet) since 2026-09-07,
+  with passkey, wallet and recovery-phrase sign-in on the same page. The name
+  predates that and is kept so callers need not change."
   [locale]
   (str profile/identity-sign-in
        "?return_to="
