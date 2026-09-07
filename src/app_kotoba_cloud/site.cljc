@@ -50,7 +50,8 @@
     :headline "AIは自由に書く。Kotobaは境界を引く。"
     :lead ["Kotoba は、AI が書いたコードから effect と capability を検査し、境界を満たす artifact だけを生成します。"
            "耐量子暗号は追加 mode ではなく、新しい暗号化・package admission・公開境界の前提です。Kotoba Cloud は、その境界を崩さず identity、storage、compute、agent work へ接続します。"]
-    :passkey-cta "Passkey で始める" :cli-cta "Kotoba CLI を見る"
+    :passkey-cta "Base Account で始める" :cli-cta "Kotoba CLI を見る"
+    :nav-sign-in "ログイン"
     :live "Discovery と Passkey RP は稼働中。Hosted apply はまだ提供していません。"
     :architecture-title "境界を保ったまま、三つの実行面へ。"
     :architecture-lead "一つの巨大な trust domain にまとめず、それぞれの authority を分けたまま接続します。"
@@ -145,7 +146,8 @@
     :headline "AI writes freely. Kotoba draws the boundary."
     :lead ["Kotoba checks effects and capabilities in AI-written code, emitting only artifacts that satisfy the admitted boundary."
            "Post-quantum cryptography is a prerequisite—not an optional mode—for new encryption, package admission, and publication boundaries. Kotoba Cloud carries that boundary into identity, storage, compute, and agent work without collapsing their authority."]
-    :passkey-cta "Start with Passkey" :cli-cta "Explore the Kotoba CLI"
+    :passkey-cta "Start with a Base Account" :cli-cta "Explore the Kotoba CLI"
+    :nav-sign-in "Sign in"
     :live "Discovery and the Passkey RP are live. Hosted apply is not available yet."
     :architecture-title "Three execution planes. Boundaries intact."
     :architecture-lead "The services connect without becoming one giant trust domain. Each authority remains separately governed."
@@ -315,8 +317,11 @@
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#libraries")} (:nav-libraries t)]
        (language-links locale (:language-label t)
                        {:ja (or language-ja "/ja/") :en (or language-en "/")})
-       (dds/button "Passkey" {:type :outline :size "sm" :id "kc-session-nav"
-                              :href (passkey-href locale)})]])]))
+       ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
+       ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
+       ;; ADR-2609071000); passkeys, wallets and recovery phrases remain.
+       (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
+                                     :href (passkey-href locale)})]])]))
 
 (defn site-footer [t]
   [:footer {:class "kc-footer"}

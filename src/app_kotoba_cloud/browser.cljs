@@ -25,7 +25,10 @@
     (text! "kc-session-principal" (session/abbreviate (:principalId payload)))
     (text! "kc-session-controller" (session/abbreviate (:activeDid payload)))
     (text! "kc-session-status"
-           (str (if english? "Passkey session confirmed" "Passkey session を確認しました")
+           ;; The session may be a Base Account, a passkey, a wallet or a
+           ;; recovery phrase (auth.kotoba.cloud, 2026-09-07); the projection
+           ;; does not say which, so neither does this line.
+           (str (if english? "Signed-in session confirmed" "ログイン済みの session を確認しました")
                 " · @" username))))
 
 (defn- decode-fragment [prefix]
