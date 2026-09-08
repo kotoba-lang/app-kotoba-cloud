@@ -17,8 +17,8 @@
 (deftest japanese-page-matches-the-language-concept
   (let [html (site/page-html :ja)]
     (is (str/includes? html "<html lang=\"ja\""))
-    (is (str/includes? html "AIは自由に書く。Kotobaは境界を引く。"))
-    (is (str/includes? html "耐量子暗号は追加 mode ではなく"))
+    (is (str/includes? html "AIが書くソフトウェアを、制御された実行へ。"))
+    (is (str/includes? html "安全なコード。信頼できる状態。制御された実行。"))
     (is (= 1 (count (re-seq #"<h1" html))))
     (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
                     "itonami.cloud" "kotoba-lang.org" "Hosted apply"
@@ -71,8 +71,8 @@
 (deftest english-page-is-complete-and-addressable
   (let [html (site/page-html :en)]
     (is (str/includes? html "<html lang=\"en\""))
-    (is (str/includes? html "AI writes freely. Kotoba draws the boundary."))
-    (is (str/includes? html "Post-quantum cryptography is a prerequisite"))
+    (is (str/includes? html "Controlled execution for AI-generated software."))
+    (is (str/includes? html "Safe code. Trusted state. Controlled execution."))
     (is (str/includes? html "From AI-written code to admitted computation"))
     (is (str/includes? html "One release CID, executable from multiple providers"))
     (is (str/includes? html "Post-quantum signatures are mandatory"))

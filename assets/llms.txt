@@ -1,0 +1,26 @@
+# Kotoba Cloud
+
+> Controlled execution for AI-generated software.
+
+Safe code. Trusted state. Controlled execution. Kotoba Labs is building toward a safe and ultra-fast software stack for AI-generated software.
+
+- Kotoba is the language: https://kotoba-lang.org/
+- Kotobase is the content-addressed graph state layer: https://kotobase.net/
+- Kotoba Cloud is the identity and deploy-control entrance to the execution environment: https://kotoba.cloud/
+
+## Available today
+
+Discovery and the Passkey RP are live. Hosted apply is not yet offered. Consult the machine-readable profile for exact capabilities: https://kotoba.cloud/.well-known/kotoba-cloud.json
+
+CPU/GPU compute is provided by Murakumo; continuing agent work by Itonami. Each service retains its own authority and operational qualification. Discovery does not grant access.
+
+Post-quantum signatures remain mandatory for library publication. The authenticator itself is a separate trust boundary. See the publication flow and requirements at https://kotoba.cloud/#libraries
+
+## Start
+
+- Executable language quickstart: https://kotoba-lang.org/agent-quickstart.md
+- Language performance and safety evidence: https://kotoba-lang.org/#proof
+- Graph documentation: https://kotobase.net/llms-full.txt
+- Japanese site: https://kotoba.cloud/ja/
+
+Public operator: Kotoba Labs Inc. Contact: support@kotoba.cloud.

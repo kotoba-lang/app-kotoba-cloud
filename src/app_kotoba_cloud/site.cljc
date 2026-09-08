@@ -42,14 +42,14 @@
 (def copy
   {:ja
    {:html-lang "ja" :og-locale "ja_JP" :path "/ja/"
-    :title "Kotoba Cloud — 耐量子暗号を前提に、AIの境界を引く。"
-    :description "耐量子暗号を新しい暗号境界の前提とし、AIが書いたコードをeffect・capability・identityで検査して許可済みの計算へ接続します。"
+    :title "Kotoba Cloud — AIが書くソフトウェアを、制御された実行へ。"
+    :description "Kotobaの安全なコードとKotobaseのグラフ状態を、identityとdeploy controlで実行環境へつなぎます。Discoveryは公開中。Hosted applyは未提供です。"
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
     :nav-architecture "構成" :nav-libraries "ライブラリ公開" :nav-label "主要ナビゲーション"
-    :language-label "表示言語" :hero-eyebrow "POST-QUANTUM BY DEFAULT"
-    :headline "AIは自由に書く。Kotobaは境界を引く。"
-    :lead ["Kotoba は、AI が書いたコードから effect と capability を検査し、境界を満たす artifact だけを生成します。"
-           "耐量子暗号は追加 mode ではなく、新しい暗号化・package admission・公開境界の前提です。Kotoba Cloud は、その境界を崩さず identity、storage、compute、agent work へ接続します。"]
+    :language-label "表示言語" :hero-eyebrow "CONTROLLED EXECUTION"
+    :headline "AIが書くソフトウェアを、制御された実行へ。"
+    :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
+           "安全なコード。信頼できる状態。制御された実行。Kotoba Labs は、この三つをつなぐ安全で超高速なソフトウェアスタックを目指しています。"]
     :passkey-cta "Base Account で始める" :cli-cta "Kotoba CLI を見る"
     :nav-sign-in "ログイン"
     :live "Discovery と Passkey RP は稼働中。Hosted apply はまだ提供していません。"
@@ -61,7 +61,7 @@
     :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
               :href "https://kotobase.net"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
-              :body "Content-addressed な artifact、状態、実行 receipt を保持する。"}
+              :body "AI の状態と知識を支える content-addressed graph database。関係と履歴を明示する。"}
              {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
               :href "https://murakumo.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
@@ -138,14 +138,14 @@
 
    :en
    {:html-lang "en" :og-locale "en_US" :path "/"
-    :title "Kotoba Cloud — post-quantum by default for admitted AI computing"
-    :description "Post-quantum cryptography is the prerequisite for new Kotoba cryptographic boundaries, carrying admitted AI computation into separately governed storage, compute, and agent work."
+    :title "Kotoba Cloud — controlled execution for AI-generated software"
+    :description "Connect Kotoba code and Kotobase graph state to the execution environment through identity and deploy control. Discovery is live; hosted apply is not yet offered."
     :skip "Skip to content" :home-label "Kotoba Cloud home"
     :nav-architecture "Architecture" :nav-libraries "Publish libraries" :nav-label "Primary navigation"
-    :language-label "Display language" :hero-eyebrow "POST-QUANTUM BY DEFAULT"
-    :headline "AI writes freely. Kotoba draws the boundary."
-    :lead ["Kotoba checks effects and capabilities in AI-written code, emitting only artifacts that satisfy the admitted boundary."
-           "Post-quantum cryptography is a prerequisite—not an optional mode—for new encryption, package admission, and publication boundaries. Kotoba Cloud carries that boundary into identity, storage, compute, and agent work without collapsing their authority."]
+    :language-label "Display language" :hero-eyebrow "CONTROLLED EXECUTION"
+    :headline "Controlled execution for AI-generated software."
+    :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
+           "Safe code. Trusted state. Controlled execution. Kotoba Labs is building toward a safe and ultra-fast software stack that connects all three."]
     :passkey-cta "Start with a Base Account" :cli-cta "Explore the Kotoba CLI"
     :nav-sign-in "Sign in"
     :live "Discovery and the Passkey RP are live. Hosted apply is not available yet."
@@ -157,7 +157,7 @@
     :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
               :href "https://kotobase.net"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
-              :body "Keeps content-addressed artifacts, state, and execution receipts."}
+              :body "A content-addressed graph database for AI state and knowledge, with explicit relationships and identifiable history."}
              {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
               :href "https://murakumo.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
@@ -429,7 +429,7 @@
                                         :href (passkey-href locale)})]
          [:div {:class "kc-actions"}
           (dds/button (:cli-cta t) {:type :outline :size "lg"
-                                    :href "https://kotoba-lang.org/#install"})])
+                                    :href "https://kotoba-lang.org/#start"})])
         [:div {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span {:id "kc-session-status"} (:live t)]])]
@@ -638,6 +638,7 @@
                     (io/file en-dir "legal")
                     (io/file en-dir "legal" "tokushoho")]]
          (.mkdirs dir))
+       (io/copy (io/file "assets" "llms.txt") (io/file root "llms.txt"))
        (spit (io/file root "index.html") (page-html :en))
        (spit (io/file root "404.html") (not-found-html :en))
        (spit (io/file root "legal" "index.html") (legal-html :en))
