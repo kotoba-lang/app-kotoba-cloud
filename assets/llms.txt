@@ -18,9 +18,14 @@ Post-quantum signatures remain mandatory for library publication. The authentica
 
 ## Start
 
+- Agent onboarding: https://kotoba.cloud/agent-quickstart.md
+- Graph CLI and MCP onboarding: https://kotobase.net/agent-quickstart.md
+
 - Executable language quickstart: https://kotoba-lang.org/agent-quickstart.md
 - Language performance and safety evidence: https://kotoba-lang.org/#proof
 - Graph documentation: https://kotobase.net/llms-full.txt
 - Japanese site: https://kotoba.cloud/ja/
 
 Public operator: Kotoba Labs Inc. Contact: support@kotoba.cloud.
+
+Qualification note (8 September 2026): the installed native CLI reference-package add command returned runtime/internal-error. The agent quickstart records the failure and links the verified compile-and-execute path; package installation is not claimed verified.
