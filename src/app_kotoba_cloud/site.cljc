@@ -328,6 +328,8 @@
    (dds/container
     [:div {:class "kc-footer__inner"}
      [:span (:footer t)]
+     [:a {:href "/agent-quickstart.md"} "AI agent quickstart"]
+     [:a {:href "/llms.txt"} "LLM docs"]
      [:span (:footer-roles t)]]
     [:div {:class "kc-footer__legal"}
      [:span (:operator-label t) ": " operator-name]
@@ -430,6 +432,7 @@
          [:div {:class "kc-actions"}
           (dds/button (:cli-cta t) {:type :outline :size "lg"
                                     :href "https://kotoba-lang.org/#start"})])
+        [:p [:a {:href "/agent-quickstart.md"} "AI agent quickstart"]]
         [:div {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span {:id "kc-session-status"} (:live t)]])]
@@ -548,6 +551,17 @@
         [:link {:rel "alternate" :hreflang "ja" :href ja-href}]
         [:link {:rel "alternate" :hreflang "en" :href en-href}]
         [:link {:rel "alternate" :hreflang "x-default" :href en-href}]
+        [:link {:rel "alternate" :type "text/markdown" :href "https://kotoba.cloud/agent-quickstart.md" :title "AI agent quickstart"}]
+        [:meta {:property "og:site_name" :content "Kotoba Cloud"}]
+        [:meta {:property "og:image" :content "https://kotoba.cloud/og.png"}]
+        [:meta {:property "og:image:width" :content "1731"}]
+        [:meta {:property "og:image:height" :content "909"}]
+        [:meta {:property "og:image:alt" :content "Kotoba Cloud - controlled execution for AI-generated software"}]
+        [:meta {:name "twitter:card" :content "summary_large_image"}]
+        [:meta {:name "twitter:title" :content title}]
+        [:meta {:name "twitter:description" :content description}]
+        [:meta {:name "twitter:image" :content "https://kotoba.cloud/og.png"}]
+        [:script {:type "application/ld+json"} "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"@id\":\"https://kotoba.cloud/#website\",\"url\":\"https://kotoba.cloud/\",\"name\":\"Kotoba Cloud\",\"publisher\":{\"@type\":\"Organization\",\"name\":\"Kotoba Labs Inc.\"},\"inLanguage\":[\"en\",\"ja\"]}"]
         [:meta {:property "og:type" :content "website"}]
         [:meta {:property "og:title" :content title}]
         [:meta {:property "og:description" :content description}]
@@ -638,7 +652,8 @@
                     (io/file en-dir "legal")
                     (io/file en-dir "legal" "tokushoho")]]
          (.mkdirs dir))
-       (io/copy (io/file "assets" "llms.txt") (io/file root "llms.txt"))
+       (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png"]]
+         (io/copy (io/file "assets" name) (io/file root name)))
        (spit (io/file root "index.html") (page-html :en))
        (spit (io/file root "404.html") (not-found-html :en))
        (spit (io/file root "legal" "index.html") (legal-html :en))
