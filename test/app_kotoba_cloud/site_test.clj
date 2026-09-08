@@ -1,7 +1,7 @@
 (ns app-kotoba-cloud.site-test
   (:require [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.site :as site]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
 (deftest locale-catalogs-have-the-same-contract

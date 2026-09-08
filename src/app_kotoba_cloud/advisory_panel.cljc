@@ -30,7 +30,7 @@
   `ask` is injected: `(fn [member prompt] -> {:verdict … :reason …})`. The same
   split `biscuit.token` makes for crypto, and for the same reason — a test must
   be able to answer for a model without a network."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def openrouter-base "https://openrouter.ai/api/v1")
 

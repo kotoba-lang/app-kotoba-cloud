@@ -36,7 +36,7 @@
   re-checked by a third party from chain data. `reason-codes` is that vocabulary;
   a verdict carrying a reason outside it is not reportable and `decide` will not
   produce one."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def reason-codes
   "Every refusal this namespace can produce. The contract stores keccak256 of
@@ -64,7 +64,7 @@
    :controller-active-within-sec (* 7 24 60 60)})
 
 (defn- normalize [addr]
-  (some-> addr str str/lower-case (str/replace #"^0x" "")))
+  (some-> addr str str/lower (str/replace #"^0x" "")))
 
 (defn similarity
   "Shared leading and trailing hex characters between two addresses.

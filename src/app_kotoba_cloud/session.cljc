@@ -1,7 +1,7 @@
 (ns app-kotoba-cloud.session
   "Pure session projection shared by the Worker and the browser UI."
   (:require [app-kotoba-cloud.profile :as profile]
-            [clojure.string :as str]))
+            [kotoba.lang.text :as str]))
 
 (def cookie-name "gftd_session")
 (def viewer-url (str profile/identity-origin "/v1/session"))
@@ -59,7 +59,7 @@
   It is a UI alias, not an authority identifier. Authorization continues to
   use the Stable Principal and active controller supplied alongside it."
   [principal-id]
-  (let [material (-> (or principal-id "") str/lower-case
+  (let [material (-> (or principal-id "") str/lower
                      (str/replace #"[^a-z0-9]" ""))
         suffix (if (> (count material) 14)
                  (subs material (- (count material) 14))

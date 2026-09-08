@@ -29,7 +29,7 @@
   ## This namespace owns no HTTP
 
   `rpc` is injected: `(fn [method params] -> result-or-throw)`."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def indexed-facts
   "Facts that need an index over history, not a node.
@@ -44,7 +44,7 @@
        :cljs (js/parseInt (subs s 2) 16))))
 
 (defn- pad32 [addr]
-  (let [a (str/replace (str/lower-case (str addr)) #"^0x" "")]
+  (let [a (str/replace (str/lower (str addr)) #"^0x" "")]
     (str (apply str (repeat (- 64 (count a)) "0")) a)))
 
 (def announced-at-selector

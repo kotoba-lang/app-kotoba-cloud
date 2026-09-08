@@ -2,7 +2,7 @@
   (:require [app-kotoba-cloud.chain-facts :as cf]
             [app-kotoba-cloud.guardian :as g]
             [clojure.java.io :as io]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
 (def ^:private REG "0x00000000000000000000000000000000000000AA")
@@ -21,8 +21,8 @@
       (is (str/starts-with? data cf/announced-at-selector))
       (is (= (+ 10 64 64) (count data))))
     (testing "the address is left-padded, not truncated"
-      (is (str/ends-with? (str/lower-case data)
-                          (str/replace (str/lower-case CAND) #"^0x" ""))))))
+      (is (str/ends-with? (str/lower data)
+                          (str/replace (str/lower CAND) #"^0x" ""))))))
 
 (deftest what-the-node-can-answer-is-read-and-the-rest-is-named
   (let [r (cf/read (rpc-fixed {"eth_call" "0x000000000000000000000000000000000000000000000000000000006543210f"
