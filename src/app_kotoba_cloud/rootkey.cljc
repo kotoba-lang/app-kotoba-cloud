@@ -31,7 +31,7 @@
   carries `published false`. An apex that 404s the path, or serves `[]`, tells a
   caller the same thing whether the ceremony has not happened or the binding was
   lost."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def log-path "/.well-known/biscuit-rootkey.json")
 

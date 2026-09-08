@@ -36,7 +36,7 @@
   That is why ADR-2800010900 D5 puts the recovery quorum in the contract and
   says the two land together: derivation without recovery is not a safer root,
   only a differently-fragile one."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def version "kotoba.cloud/delegation-root/v1")
 
@@ -122,7 +122,7 @@
   who is sure it will not be persisted."
   [m]
   (boolean (some (fn [[k _]]
-                   (let [n (str/lower-case (name k))]
+                   (let [n (str/lower (name k))]
                      (or (str/includes? n "secret")
                          (str/includes? n "private")
                          (str/includes? n "seed"))))

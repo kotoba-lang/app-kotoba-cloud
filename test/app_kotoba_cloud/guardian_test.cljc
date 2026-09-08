@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.guardian-test
-  (:require [app-kotoba-cloud.guardian :as g]
+  (:require [kotoba.lang.text] [app-kotoba-cloud.guardian :as g]
             [clojure.test :refer [deftest is testing]]))
 
 (def ^:private P g/default-policy)
@@ -32,7 +32,7 @@
           v (g/deterministic-verdict P (facts :candidate near))]
       (is (= "address-poisoning-suspected" (:reason v)))))
   (testing "similarity ignores case and the 0x prefix, which an attacker need not match"
-    (is (= 40 (:prefix (g/similarity controller (clojure.string/lower-case controller)))))
+    (is (= 40 (:prefix (g/similarity controller (kotoba.lang.text/lower controller)))))
     (is (= 40 (:prefix (g/similarity controller (subs controller 2))))))
   (testing "an unrelated address is not flagged"
     (is (false? (g/poisoning-suspect? P controller
