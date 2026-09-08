@@ -6,7 +6,7 @@
 ;; shared input, and a shared input correlates models that differ in every
 ;; other way.
 (ns guardian-panel-probe
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             ["node:process" :as proc]
             [app-kotoba-cloud.advisory-panel :as panel]
             [app-kotoba-cloud.guardian :as guardian]))

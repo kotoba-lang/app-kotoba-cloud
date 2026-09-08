@@ -10,7 +10,7 @@
 ;; pinned by everyone who reads it, so a mainnet address published early is one
 ;; that cannot be taken back by editing a file.
 (ns deploy-registry
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             ["node:child_process" :as cp]
             ["node:process" :as proc]))
 
