@@ -252,6 +252,7 @@
         [:p {:class "kc-eyebrow"} (:hero-eyebrow t)]
         (dds/heading 1 (:headline t) {:size "64"})
         (into [:p {:class "kc-lead"}] (interpose " " (:lead t)))
+        [:p {:class "kc-lead"} (:philosophy t)]
         (dds/row
          [:div {:class "kc-actions"}
           (dds/button (:passkey-cta t) {:type :solid-fill :size "lg"

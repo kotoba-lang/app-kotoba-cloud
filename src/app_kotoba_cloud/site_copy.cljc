@@ -53,6 +53,7 @@
    :headline "AIが書くソフトウェアを、制御された実行へ。"
    :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
           "安全なコード。信頼できる状態。制御された実行。Kotoba Labs は、この三つをつなぐ安全で超高速なソフトウェアスタックを目指しています。"]
+   :philosophy "他者の達成を助けるとして、Kotoba Cloud は、すでに存在する場所へ他者がサインインし agent work を向けるための扉です。"
    :passkey-cta "Base Account で始める" :cli-cta "Kotoba CLI を見る"
    :nav-sign-in "ログイン"
    :live "Discovery と Passkey RP は稼働中。Hosted apply はまだ提供していません。"
@@ -139,6 +140,7 @@
    :headline "Controlled execution for AI-generated software."
    :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
           "Safe code. Trusted state. Controlled execution. Kotoba Labs is building toward a safe and ultra-fast software stack that connects all three."]
+   :philosophy "As 他者の達成を助ける, Kotoba Cloud is the door so someone else can sign in and point agent work at a place that already exists."
    :passkey-cta "Start with a Base Account" :cli-cta "Explore the Kotoba CLI"
    :nav-sign-in "Sign in"
    :live "Discovery and the Passkey RP are live. Hosted apply is not available yet."
@@ -225,6 +227,7 @@
    :nav-architecture "संरचना" :nav-libraries "लाइब्रेरी प्रकाशन" :nav-label "मुख्य नेविगेशन"
    :language-label "प्रदर्शन भाषा"
    :headline "AI द्वारा लिखे सॉफ़्टवेयर के लिए नियंत्रित निष्पादन।"
+   :philosophy "他者の達成を助ける के रूप में, Kotoba Cloud वह द्वार है जिससे कोई और साइन इन करके पहले से मौजूद स्थान पर agent work निर्देशित कर सके।"
    :lead ["Kotoba Cloud, AI द्वारा लिखे सॉफ़्टवेयर के निष्पादन वातावरण का identity और deploy-control प्रवेश द्वार है। Kotoba भाषा है। Kotobase विश्वसनीय ग्राफ़-अवस्था परत है।"
           "सुरक्षित कोड। विश्वसनीय अवस्था। नियंत्रित निष्पादन। Kotoba Labs इन तीनों को जोड़ने वाले सुरक्षित और अत्यंत तेज़ सॉफ़्टवेयर स्टैक की ओर निर्माण कर रहा है।"]
    :passkey-cta "Base Account से शुरू करें" :cli-cta "Kotoba CLI देखें"
@@ -311,6 +314,7 @@
    :nav-architecture "அமைப்பு" :nav-libraries "நூலக வெளியீடு" :nav-label "முதன்மை வழிசெலுத்தல்"
    :language-label "காட்சி மொழி"
    :headline "AI எழுதும் மென்பொருளுக்கு கட்டுப்படுத்தப்பட்ட இயக்கம்."
+   :philosophy "他者の達成を助ける என்பதன்படி, Kotoba Cloud என்பது வேறொருவர் உள்நுழைந்து ஏற்கனவே உள்ள இடத்திற்கு agent work ஐ நோக்கிச் சுட்டிக்காட்டும் கதவு."
    :lead ["Kotoba Cloud, AI எழுதும் மென்பொருளின் இயக்கச் சூழலுக்கான identity மற்றும் deploy-control நுழைவாயில். Kotoba மொழி. Kotobase நம்பகமான வரைபட-நிலை அடுக்கு."
           "பாதுகாப்பான குறியீடு. நம்பகமான நிலை. கட்டுப்படுத்தப்பட்ட இயக்கம். Kotoba Labs இம்மூன்றையும் இணைக்கும் பாதுகாப்பான, மிக வேகமான மென்பொருள் அடுக்கை நோக்கி கட்டுகிறது."]
    :passkey-cta "Base Account மூலம் தொடங்கு" :cli-cta "Kotoba CLI ஐ பார்க்க"
@@ -397,6 +401,7 @@
    :nav-architecture "架构" :nav-libraries "发布库" :nav-label "主导航"
    :language-label "显示语言"
    :headline "面向 AI 生成软件的受控执行。"
+   :philosophy "作为他者の達成を助ける，Kotoba Cloud 是一扇门，好让他人登录并把 agent work 指向一个已经存在的地方。"
    :lead ["Kotoba Cloud 是 AI 生成软件进入执行环境的 identity 与 deploy-control 入口。Kotoba 是语言。Kotobase 是可信图状态层。"
           "安全的代码。可信的状态。受控的执行。Kotoba Labs 正在建设连接这三者的安全且超高速软件栈。"]
    :passkey-cta "用 Base Account 开始" :cli-cta "查看 Kotoba CLI"
@@ -486,6 +491,7 @@
    :nav-architecture "البنية" :nav-libraries "نشر المكتبات" :nav-label "التنقل الرئيسي"
    :language-label "لغة العرض"
    :headline "تنفيذ مضبوط للبرمجيات التي يولّدها الذكاء الاصطناعي."
+   :philosophy "بوصفها 他者の達成を助ける، Kotoba Cloud هو الباب حتى يتمكن شخص آخر من تسجيل الدخول وتوجيه agent work إلى مكان موجود مسبقاً."
    :lead ["Kotoba Cloud هو مدخل identity وdeploy-control إلى بيئة تنفيذ البرمجيات التي يولّدها الذكاء الاصطناعي. Kotoba هي اللغة. Kotobase طبقة حالة الرسم البياني الموثوقة."
           "شفرة آمنة. حالة موثوقة. تنفيذ مضبوط. تعمل Kotoba Labs نحو رزمة برمجيات آمنة وسريعة جداً تصل بين الثلاثة."]
    :passkey-cta "ابدأ بـ Base Account" :cli-cta "اطّلع على Kotoba CLI"
@@ -572,6 +578,7 @@
    :nav-architecture "Архітектура" :nav-libraries "Публікація бібліотек" :nav-label "Основна навігація"
    :language-label "Мова відображення"
    :headline "Контрольоване виконання програм, які пише ШІ."
+   :philosophy "Як 他者の達成を助ける, Kotoba Cloud — це двері, щоб хтось інший міг увійти й спрямувати agent work на місце, яке вже існує."
    :lead ["Kotoba Cloud — це вхід identity і deploy-control до середовища виконання програм, які пише ШІ. Kotoba — мова. Kotobase — шар довіреного графового стану."
           "Безпечний код. Довірений стан. Контрольоване виконання. Kotoba Labs будує безпечний і надшвидкий програмний стек, що з’єднує всі три."]
    :passkey-cta "Почати з Base Account" :cli-cta "Переглянути Kotoba CLI"
@@ -658,6 +665,7 @@
    :nav-architecture "Arquitectura" :nav-libraries "Publicar bibliotecas" :nav-label "Navegación principal"
    :language-label "Idioma de visualización"
    :headline "Ejecución controlada para software generado por IA."
+   :philosophy "Como 他者の達成を助ける, Kotoba Cloud es la puerta para que otra persona inicie sesión y dirija agent work a un lugar que ya existe."
    :lead ["Kotoba Cloud es la entrada de identity y deploy-control al entorno de ejecución del software generado por IA. Kotoba es el lenguaje. Kotobase es la capa de estado de grafo de confianza."
           "Código seguro. Estado de confianza. Ejecución controlada. Kotoba Labs construye hacia una pila de software segura y ultrarrápida que conecta las tres."]
    :passkey-cta "Empezar con un Base Account" :cli-cta "Ver la Kotoba CLI"
@@ -744,6 +752,7 @@
    :nav-architecture "Architecture" :nav-libraries "Publier des bibliothèques" :nav-label "Navigation principale"
    :language-label "Langue d’affichage"
    :headline "Exécution contrôlée pour les logiciels générés par l’IA."
+   :philosophy "En tant que 他者の達成を助ける, Kotoba Cloud est la porte pour qu’une autre personne se connecte et oriente l’agent work vers un lieu qui existe déjà."
    :lead ["Kotoba Cloud est l’entrée identity et deploy-control vers l’environnement d’exécution des logiciels générés par l’IA. Kotoba est le langage. Kotobase est la couche d’état de graphe de confiance."
           "Code sûr. État de confiance. Exécution contrôlée. Kotoba Labs construit une pile logicielle sûre et ultra-rapide qui relie les trois."]
    :passkey-cta "Commencer avec un Base Account" :cli-cta "Voir la Kotoba CLI"

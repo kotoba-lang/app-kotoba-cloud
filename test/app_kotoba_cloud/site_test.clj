@@ -20,7 +20,8 @@
       (is (contains? catalog :passkey-fact))
       (is (contains? catalog :authority-fact))
       (is (contains? catalog :package-fact))
-      (is (contains? catalog :rail-fact)))))
+      (is (contains? catalog :rail-fact))
+      (is (contains? catalog :philosophy)))))
 
 (deftest japanese-page-matches-the-language-concept
   (let [html (site/page-html :ja)]
@@ -171,7 +172,23 @@
       (is (str/includes? html "/.well-known/x402"))
       (is (str/includes? html "x402.nexus"))
       (is (str/includes? html "dry-run"))
-      (is (str/includes? html "reference-package")))))
+      (is (str/includes? html "reference-package"))
+      (is (str/includes? html "他者の達成を助ける"))
+      (is (str/includes? html (:philosophy t)))
+      (is (= 1 (count (re-seq #"他者の達成を助ける" html)))))))
+
+(deftest philosophy-sentence-is-one-door-sentence
+  (testing "exactly one named philosophy sentence; no hosted apply or paid rail claim"
+    (is (= "As 他者の達成を助ける, Kotoba Cloud is the door so someone else can sign in and point agent work at a place that already exists."
+           (get-in site/copy [:en :philosophy])))
+    (doseq [locale site/supported-locales]
+      (let [sentence (get-in site/copy [locale :philosophy])]
+        (is (str/includes? sentence "他者の達成を助ける"))
+        (is (str/includes? sentence "Kotoba Cloud"))
+        (is (str/includes? sentence "agent work"))
+        (is (not (str/includes? sentence "Hosted apply is offered")))
+        (is (not (str/includes? sentence "paid rail")))
+        (is (not (re-find #"[.!?。][^.!?。]*[.!?。]" sentence)))))))
 
 (deftest arabic-public-pages-are-rtl
   (doseq [render [site/page-html site/legal-html site/tokushoho-html site/not-found-html]]
