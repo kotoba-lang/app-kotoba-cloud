@@ -8,3 +8,6 @@
 
 # kotoba-cloud-maint cron scratch (do not commit)
 .maint_*
+
+# nbb dependency cache -- a build artifact, not source
+.nbb/
