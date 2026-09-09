@@ -81,11 +81,14 @@ The public webpage is generated from pure CLJC using the workspace DADS
 (`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
 control/identity entrance feeding three separately governed planes rather than
 presenting the four domains as interchangeable products. `public/` is a build
-artifact: `npm run render` produces Japanese `/`, English `/en/`, and
-localized finite 404 documents, then Wrangler ships them as Static Assets
-beside the discovery Worker. Locale catalogs share one key contract and the
-page publishes canonical and `hreflang` links, so another locale is an
-explicit catalog-and-route addition rather than a second handwritten page.
+artifact: `npm run render` produces English `/`, Japanese `/ja/`, the other
+catalog locales under `/{locale}/`, the `/en/` alias, and localized finite
+404 documents, then Wrangler ships them as Static Assets beside the discovery
+Worker. Locale catalogs share one key contract and the page publishes
+canonical and `hreflang` links, so another locale is an explicit
+catalog-and-route addition rather than a second handwritten page. Hindi and
+Arabic catalogs are draft copy for review; they render with `noindex` and
+are omitted from the sitemap until that review.
 
 Public copy follows the language authority's current thesis:
 **“AI writes freely. Kotoba draws the boundary.”** The Cloud surface carries
@@ -102,8 +105,10 @@ compiler, verifier, host enforcement, or service-specific authority.
   ML-DSA-65 approval relay for a bounded, locally signed Kotobase head record
 - `GET /schemas/library-publication-request/v3` — single-use, epoch-bound
   publication request contract
-- `GET /` — Japanese public architecture and CLI entrance
-- `GET /en/` — English public architecture and CLI entrance
+- `GET /` — English public architecture and CLI entrance
+- `GET /ja/` — Japanese public architecture and CLI entrance
+- `GET /ta/`, `/zh-Hans/`, `/uk/`, `/es/`, `/fr/` — localized public architecture and CLI entrance
+- `GET /hi/`, `/ar/` — draft localized pages for review (not sitemap-listed)
 
 The control-plane document also includes the library catalog, storage,
 commands, current publication mode, default dry-run behavior, and hosted
