@@ -56,7 +56,7 @@
   "catalog": {
     "es": {
       "source_segments": 92,
-      "translated_segments": 72,
+      "translated_segments": 73,
       "untranslated_or_invariant": [
         "KOTOBA CLOUD",
         "English",
@@ -66,7 +66,6 @@
         "Bahasa Indonesia",
         "Deutsch",
         "Naijá",
-        "Start with a Base Account",
         "@kotoba-…",
         "Kotoba Cloud",
         "auth.kotoba.cloud",
@@ -82,13 +81,11 @@
     },
     "ar": {
       "source_segments": 92,
-      "translated_segments": 76,
+      "translated_segments": 79,
       "untranslated_or_invariant": [
         "KOTOBA CLOUD",
-        "Start with a Base Account",
         "@kotoba-…",
         "Kotoba Cloud",
-        "Passkey verifies a Stable Principal. The control plane publishes the topology and authority floor used by CLI deploy.",
         "auth.kotoba.cloud",
         "·  api.kotoba.cloud",
         "Kotobase",
@@ -98,7 +95,6 @@
         "murakumo.cloud ↗",
         "Itonami",
         "itonami.cloud ↗",
-        "Post-quantum signatures are mandatory, not optional. Publication requires both a Passkey session and an ML-DSA-65 signature pinned to the Principal. External authenticators and distributed qualification remain separately verified boundaries.",
         "support@kotoba.cloud"
       ]
     },
@@ -129,13 +125,11 @@
     },
     "arz": {
       "source_segments": 92,
-      "translated_segments": 76,
+      "translated_segments": 79,
       "untranslated_or_invariant": [
         "KOTOBA CLOUD",
-        "Start with a Base Account",
         "@kotoba-…",
         "Kotoba Cloud",
-        "Passkey verifies a Stable Principal. The control plane publishes the topology and authority floor used by CLI deploy.",
         "auth.kotoba.cloud",
         "·  api.kotoba.cloud",
         "Kotobase",
@@ -145,7 +139,6 @@
         "murakumo.cloud ↗",
         "Itonami",
         "itonami.cloud ↗",
-        "Post-quantum signatures are mandatory, not optional. Publication requires both a Passkey session and an ML-DSA-65 signature pinned to the Principal. External authenticators and distributed qualification remain separately verified boundaries.",
         "support@kotoba.cloud"
       ]
     },
@@ -179,13 +172,11 @@
     },
     "hi": {
       "source_segments": 92,
-      "translated_segments": 77,
+      "translated_segments": 79,
       "untranslated_or_invariant": [
         "KOTOBA CLOUD",
-        "Start with a Base Account",
         "@kotoba-…",
         "Kotoba Cloud",
-        "Passkey verifies a Stable Principal. The control plane publishes the topology and authority floor used by CLI deploy.",
         "auth.kotoba.cloud",
         "·  api.kotoba.cloud",
         "Kotobase",
@@ -200,10 +191,9 @@
     },
     "ko": {
       "source_segments": 92,
-      "translated_segments": 79,
+      "translated_segments": 80,
       "untranslated_or_invariant": [
         "KOTOBA CLOUD",
-        "Start with a Base Account",
         "@kotoba-…",
         "Kotoba Cloud",
         "auth.kotoba.cloud",
@@ -219,7 +209,7 @@
     },
     "fr": {
       "source_segments": 92,
-      "translated_segments": 70,
+      "translated_segments": 71,
       "untranslated_or_invariant": [
         "KOTOBA CLOUD",
         "Architecture",
@@ -230,7 +220,6 @@
         "Bahasa Indonesia",
         "Deutsch",
         "Naijá",
-        "Start with a Base Account",
         "@kotoba-…",
         "Kotoba Cloud",
         "auth.kotoba.cloud",
@@ -296,10 +285,9 @@
     },
     "ru": {
       "source_segments": 92,
-      "translated_segments": 79,
+      "translated_segments": 80,
       "untranslated_or_invariant": [
         "KOTOBA CLOUD",
-        "Start with a Base Account",
         "@kotoba-…",
         "Kotoba Cloud",
         "auth.kotoba.cloud",
@@ -337,9 +325,8 @@
     },
     "pcm": {
       "source_segments": 92,
-      "translated_segments": 25,
+      "translated_segments": 37,
       "untranslated_or_invariant": [
-        "Kotoba Cloud — controlled execution for AI-generated software",
         "Skip to content",
         "KOTOBA CLOUD",
         "Architecture",
@@ -354,15 +341,11 @@
         "Naijá",
         "Sign in",
         "CONTROLLED EXECUTION",
-        "Controlled execution for AI-generated software.",
-        "Start with a Base Account",
-        "Explore the Kotoba CLI",
         "AI agent quickstart",
         "PASSKEY USERNAME",
         "@kotoba-…",
         "STABLE PRINCIPAL",
         "ACTIVE CONTROLLER",
-        "Three execution planes. Boundaries intact.",
         "CONTROL + IDENTITY",
         "Kotoba Cloud",
         "auth.kotoba.cloud",
@@ -377,18 +360,14 @@
         "AGENT WORK",
         "Itonami",
         "itonami.cloud ↗",
-        "One release CID, executable from multiple providers",
         "Bundle",
-        "Close definitions, Wasm artifacts, and compile receipts under one release CID.",
         "Replicate",
         "Verify + Run",
-        "Verify every byte and routed peer IDs, then execute by release CID and export.",
         "Approve library publication",
         "Namespace",
         "Release CID",
         "Head record CID",
         "IPNS name",
-        "Approve post-quantum key transition",
         "Action",
         "Expected epoch",
         "Current key",
@@ -398,14 +377,11 @@
         "Bind",
         "Run",
         "Machine-readable profile",
-        "Kotoba Cloud — identity and deploy control",
         "LLM docs",
-        "Language: kotoba-lang.org · Storage: kotobase.net · Compute: murakumo.cloud · Agent work: itonami.cloud",
         "Operator: Kotoba Labs Inc",
         "Contact:",
         "support@kotoba.cloud",
-        "Operator",
-        "Specified Commercial Transactions notice"
+        "Operator"
       ]
     },
     "mr": {
