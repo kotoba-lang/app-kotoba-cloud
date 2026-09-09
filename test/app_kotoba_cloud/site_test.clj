@@ -1,14 +1,15 @@
 (ns app-kotoba-cloud.site-test
   (:require [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.site :as site]
+            [app-kotoba-cloud.public-locales :as locales]
             [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
 (deftest locale-catalogs-have-the-same-contract
-  (let [catalogs (map site/copy site/supported-locales)
-        keysets (map (comp set keys) catalogs)]
+  (let [catalogs (map site/translation site/supported-locales)
+        keysets (map (comp set #(remove #{:translation-note} %) keys) catalogs)]
     (is (= (first keysets) (second keysets)))
-    (is (= [:en :ja] site/supported-locales))
+    (is (= [:en :zh-Hans :hi :es :ar :fr :bn :pt :id :ur :ru :de :ja :ko :pcm :arz :mr] site/supported-locales))
     (doseq [catalog catalogs]
       (is (= 3 (count (:planes catalog))))
       (is (= 4 (count (:steps catalog))))
@@ -51,9 +52,9 @@
             sign-in (site/passkey-href locale)
             href-of (fn [url] (str "href=\"" url "\""))]
         (is (= sign-in (str "https://auth.kotoba.cloud/sign-in?return_to="
-                            (if (= locale :en)
-                              "https%3A%2F%2Fkotoba.cloud%2F"
-                              "https%3A%2F%2Fkotoba.cloud%2Fja%2F"))))
+                            (if (= locale :ja)
+                              "https%3A%2F%2Fkotoba.cloud%2Fja%2F"
+                              "https%3A%2F%2Fkotoba.cloud%2F"))))
         (is (str/includes? html (href-of profile/identity-href)))
         (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
         (is (= 2 (count (re-seq (re-pattern
@@ -63,7 +64,7 @@
                                 html))))
         (is (not (str/includes? html "href=\"https://auth.kotobase.net")))
         (is (not (str/includes? html "href=\"https://auth.murakumo.cloud")))
-        (is (str/includes? html (get-in site/copy [locale :live]))))))
+        (is (str/includes? html (:live (site/translation locale)))))))
   (testing "honest live copy does not invent a hosted apply SKU"
     (is (str/includes? (get-in site/copy [:ja :live]) "Hosted apply はまだ提供していません"))
     (is (str/includes? (get-in site/copy [:en :live]) "Hosted apply is not available yet"))))
@@ -134,3 +135,16 @@
                   "AWAI Network" "j@awai.network" "@agentmail.to" "@kotobalabs.com"
                   "hello@kotoba.cloud" "info@kotoba.cloud"]]
     (is (not (str/includes? html needle)) needle)))
+
+(deftest seventeen-real-entry-locales-preserve-authority-boundaries
+  (doseq [[locale t] locales/copy]
+    (let [html (site/page-html locale)]
+      (is (str/includes? html (str "<html lang=\"" (name locale) "\" dir=\"" (locales/direction locale) "\">")))
+      (doseq [key [:cloud-headline :cloud-lead :cloud-live :boundary-heading :boundary-body :note]]
+        (is (str/includes? html (get t key)) (str locale " " key)))
+      (is (str/includes? html (str "rel=\"canonical\" href=\"https://kotoba.cloud/" (name locale) "/\"")))
+      (is (str/includes? html "lang=\"en\" dir=\"ltr\""))
+      (doseq [loc site/supported-locales]
+        (is (str/includes? html (str "hreflang=\"" (name loc) "\""))))))
+
+)

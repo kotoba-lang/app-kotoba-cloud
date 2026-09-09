@@ -2,6 +2,9 @@
   "Localized public pages for kotoba.cloud. Pure CLJC views render finite
   Worker Static Assets for every supported locale."
   (:require [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.public-locales :as locales]
+            [app-kotoba-cloud.extended-translations :as extended]
+            [kotoba.lang.text :as str]
             [app-kotoba-cloud.session :as session]
             [jp-go-dds.behavior :as behavior]
             [jp-go-dds.core :as dds]
@@ -10,7 +13,7 @@
             [jp-go-dds.tokens :as tokens]
             #?(:clj [clojure.java.io :as io])))
 
-(def supported-locales [:en :ja])
+(def supported-locales locales/locale-order)
 
 (def operator-name "Kotoba Labs Inc")
 (def public-contact-email "support@kotoba.cloud")
@@ -277,10 +280,24 @@
    "@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}"))
 
 (defn translation [locale]
-  (or (get copy locale) (get copy :en)))
+  (if-let [t (get locales/copy locale)]
+    (merge (:en copy)
+           {:html-lang (name locale) :og-locale (name locale)
+            :path (str "/" (name locale) "/")
+            :title (str "Kotoba Cloud — " (:cloud-headline t))
+            :description (:cloud-lead t)
+            :skip (:skip t) :home-label "Kotoba Cloud"
+            :nav-architecture (:architecture t) :nav-libraries (:libraries t)
+            :language-label (:language t) :nav-sign-in (:signin t)
+            :headline (:cloud-headline t) :lead [(:cloud-lead t)]
+            :passkey-cta (:start t) :cli-cta (:cli t) :live (:cloud-live t)
+            :boundary-heading (:boundary-heading t)
+            :boundary-p1 (:boundary-body t) :boundary-p2 ""
+            :contact-label (:contact t) :translation-note (:note t)})
+    (or (get copy locale) (get copy :en))))
 
 (defn passkey-href [locale]
-  (session/passkey-href locale))
+  (session/passkey-href (if (= locale :ja) :ja :en)))
 
 (defn language-links
   ([locale label]
@@ -290,8 +307,10 @@
     {:id-prefix "kotoba-cloud-language"
      :size "md"
      :current locale
-     :languages [{:code :en :label "English" :href en}
-                 {:code :ja :label "日本語" :href ja}]
+     :languages (mapv (fn [loc]
+                        {:code loc :label (get locales/native-names loc)
+                         :href (case loc :en en :ja ja (str "/" (name loc) "/"))})
+                      supported-locales)
      :attrs {:aria-label label}})))
 
 (defn operator-lead [locale]
@@ -424,6 +443,8 @@
         [:p {:class "kc-eyebrow"} (:hero-eyebrow t)]
         (dds/heading 1 (:headline t) {:size "64"})
         (into [:p {:class "kc-lead"}] (interpose " " (:lead t)))
+        (when-let [note (:translation-note t)]
+          [:p {:class "kc-live" :data-translation-coverage "core-entry"} note])
         (dds/row
          [:div {:class "kc-actions"}
           (dds/button (:passkey-cta t) {:type :solid-fill :size "lg"
@@ -545,6 +566,10 @@
            path (path-key t)
            ja-href (str "https://kotoba.cloud" (get-in copy [:ja path-key]))
            en-href (str "https://kotoba.cloud" (get-in copy [:en path-key]))]
+       (into (vec (for [loc supported-locales
+                         :when (and (= path-key :path) (not (#{:en :ja} loc)))]
+                     [:link {:rel "alternate" :hreflang (name loc)
+                             :href (str "https://kotoba.cloud/" (name loc) "/")}]))
        [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
         [:script {:src "/js/language-selector.js" :defer true}]
         [:script {:src "/js/session.js" :defer true}]
@@ -566,21 +591,49 @@
         [:meta {:property "og:title" :content title}]
         [:meta {:property "og:description" :content description}]
         [:meta {:property "og:locale" :content (:og-locale t)}]
-        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]])))
+        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]]))))
+
+(defn mark-english-fallback
+  "Keep assistive technology honest for technical copy awaiting translation."
+  [locale node]
+  (let [catalog (get extended/copy locale)
+        translated (set (vals (get locales/copy locale)))]
+    (letfn [(walk [x]
+              (cond
+                (string? x) (if-let [localized (get catalog x)]
+                              (if (= localized x) [:span {:lang "en" :dir "ltr"} x] localized)
+                              (if (or (translated x) (not (re-find #"[A-Za-z]" x)))
+                              x [:span {:lang "en" :dir "ltr"} x]))
+                (and (vector? x) (keyword? (first x)))
+                (let [[tag & more] x
+                      attrs (when (map? (first more)) (first more))
+                      children (if attrs (rest more) more)]
+                  (if (or (:lang attrs) (#{:script :style :pre :code} tag))
+                    (if (#{:pre :code} tag)
+                      (into [tag (assoc (or attrs {}) :dir "ltr")] children) x)
+                    (into (if attrs [tag attrs] [tag]) (map walk children))))
+                (sequential? x) (map walk x)
+                :else x))]
+      (walk node))))
 
 #?(:clj
    (defn page-html
      ([] (page-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
+        (str/replace
+         (apply page/->page
                {:title (:title t)
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
                 :app-css (str tokens/skin-css app-css)
                 :head (document-head locale :path (:title t) (:description t))}
-               (view locale))))))
+               (if (get locales/copy locale)
+                 (mark-english-fallback locale (view locale))
+                 (view locale)))
+         (str "<html lang=\"" (:html-lang t) "\">")
+         (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">"))))))
 
 #?(:clj
    (defn legal-html
@@ -652,8 +705,15 @@
                     (io/file en-dir "legal")
                     (io/file en-dir "legal" "tokushoho")]]
          (.mkdirs dir))
-       (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png"]]
+       (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
          (io/copy (io/file "assets" name) (io/file root name)))
+       (doseq [locale supported-locales :when (not (#{:en :ja} locale))]
+         (let [dir (io/file root (name locale))]
+           (.mkdirs dir)
+           (spit (io/file dir "index.html") (page-html locale))))
+       ;; Simplified Chinese compatibility alias uses the canonical document.
+       (.mkdirs (io/file root "zh"))
+       (spit (io/file root "zh" "index.html") (page-html :zh-Hans))
        (spit (io/file root "index.html") (page-html :en))
        (spit (io/file root "404.html") (not-found-html :en))
        (spit (io/file root "legal" "index.html") (legal-html :en))
