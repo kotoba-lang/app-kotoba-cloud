@@ -6,17 +6,23 @@
 
 (defn- text! [id value]
   (when-let [el (element id)]
-    (set! (.-textContent el) value)))
+    (set! (.-textContent el) value)
+    ;; Dynamic session/approval copy remains in the existing English/Japanese
+    ;; UI. Mark its real language when the public entry uses another locale.
+    (when-not (#{"en" "ja"} (.-lang (.-documentElement js/document)))
+      (.setAttribute el "lang" "en")
+      (.setAttribute el "dir" "ltr"))))
 
 (defn- signed-in! [payload]
   (let [username (:username payload)
-        english? (= "en" (.-lang (.-documentElement js/document)))]
+        english? (not= "ja" (.-lang (.-documentElement js/document)))]
     (when-let [nav (element "kc-session-nav")]
       (set! (.-textContent nav) (str "@" username))
       (.setAttribute nav "href" "#identity"))
     (when-let [action (element "kc-session-action")]
       (set! (.-textContent action) (if english? "View identity" "Identity を確認"))
-      (.setAttribute action "href" "#identity"))
+      (.setAttribute action "href" "#identity")
+      (.setAttribute action "lang" (if english? "en" "ja")))
     (when-let [panel (element "identity")]
       (set! (.-hidden panel) false))
     (doseq [link (array-seq (.querySelectorAll js/document "[data-session-link]"))]
