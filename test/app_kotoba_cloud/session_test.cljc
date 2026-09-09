@@ -14,6 +14,10 @@
          "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Fja%2F"))
   (is (= (session/passkey-href :en)
          "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"))
+  (is (= (session/passkey-href :ar)
+         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Far%2F"))
+  (is (= (session/passkey-href :zh-Hans)
+         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Fzh-Hans%2F"))
   (is (= "https://auth.kotoba.cloud/sign-in"
          (session/apex-sign-in-location "/sign-in" "")))
   (is (= "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"

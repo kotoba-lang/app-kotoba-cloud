@@ -3,6 +3,7 @@
   Worker Static Assets for every supported locale."
   (:require [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.session :as session]
+            [app-kotoba-cloud.site-copy :as site-copy]
             [jp-go-dds.behavior :as behavior]
             [jp-go-dds.core :as dds]
             [jp-go-dds.css :as dcss]
@@ -10,14 +11,17 @@
             [jp-go-dds.tokens :as tokens]
             #?(:clj [clojure.java.io :as io])))
 
-(def supported-locales [:en :ja])
+(def supported-locales site-copy/supported-locales)
+(def published-locales site-copy/published-locales)
+(def draft-locales site-copy/draft-locales)
+(def copy site-copy/copy)
 
 (def operator-name "Kotoba Labs Inc")
 (def public-contact-email "support@kotoba.cloud")
 (def legal-disclosure "請求があった場合、法令に従い遅滞なく開示します")
 
 (def reference-package-command
-  (str "# install and run the live Ed25519 + ML-DSA-65 reference package\n"
+  (str "# reference package (install is not claimed verified)\n"
        "kotoba package add kotoba-lang/reference-math@0.1.0 --catalog-cid "
        profile/reference-package-catalog-cid
        "\nkotoba package run kotoba-lang/reference-math  # 42\n\n"
@@ -39,199 +43,6 @@
        "  --next-pqc-seed-file <next> --expected-epoch 1\n"
        "kotoba pq-key revoke --current-pqc-seed-file <current> --expected-epoch 2"))
 
-(def copy
-  {:ja
-   {:html-lang "ja" :og-locale "ja_JP" :path "/ja/"
-    :title "Kotoba Cloud — AIが書くソフトウェアを、制御された実行へ。"
-    :description "Kotobaの安全なコードとKotobaseのグラフ状態を、identityとdeploy controlで実行環境へつなぎます。Discoveryは公開中。Hosted applyは未提供です。"
-    :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
-    :nav-architecture "構成" :nav-libraries "ライブラリ公開" :nav-label "主要ナビゲーション"
-    :language-label "表示言語" :hero-eyebrow "CONTROLLED EXECUTION"
-    :headline "AIが書くソフトウェアを、制御された実行へ。"
-    :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
-           "安全なコード。信頼できる状態。制御された実行。Kotoba Labs は、この三つをつなぐ安全で超高速なソフトウェアスタックを目指しています。"]
-    :passkey-cta "Base Account で始める" :cli-cta "Kotoba CLI を見る"
-    :nav-sign-in "ログイン"
-    :live "Discovery と Passkey RP は稼働中。Hosted apply はまだ提供していません。"
-    :architecture-title "境界を保ったまま、三つの実行面へ。"
-    :architecture-lead "一つの巨大な trust domain にまとめず、それぞれの authority を分けたまま接続します。"
-    :control-kind "CONTROL + IDENTITY" :control-title "Kotoba Cloud"
-    :control-body "Passkey で Stable Principal を確認し、CLI deploy が参照する topology と authority floor を公開します。"
-    :connect-label "同じPrincipalで接続"
-    :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
-              :href "https://kotobase.net"
-              :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
-              :body "AI の状態と知識を支える content-addressed graph database。関係と履歴を明示する。"}
-             {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
-              :href "https://murakumo.cloud"
-              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
-              :body "Admit 済みの workload を CPU/GPU へ配置し、実行する。"}
-             {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
-              :href "https://itonami.cloud"
-              :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
-              :body "Agent の workspace、goal、tool、approval と継続作業を扱う。"}]
-    :library-title "一つのrelease CIDを、複数の保存先から実行する"
-    :library-lead "release CIDはnamespace head、definition、raw Wasm、compile receipt、再現性evidenceを一つのIPLD graphに固定します。名前とGitHubは発見・provenanceです。"
-    :library-status "耐量子署名は任意ではありません。公開にはPasskey sessionとPrincipalに固定したML-DSA-65署名の両方が必要です。外部Passkey authenticatorと分散認定は別に検証します。"
-    :approval-title "ライブラリ公開を承認"
-    :approval-lead "CLIがローカル鍵で署名し、Kotobaseへ保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
-    :approval-button "Passkey + ML-DSA-65で公開"
-    :key-approval-title "耐量子公開鍵の変更を承認"
-    :key-approval-lead "action、epoch、現行鍵と次の鍵を確認してください。ローテーションは両方のML-DSA鍵で署名済みです。Passkey確認後にのみ反映します。"
-    :key-approval-button "Passkeyで鍵変更を確定"
-    :library-catalog-cta "ライブラリcatalogと依存graphを見る"
-    :library-steps [["Bundle" "definition、Wasm artifact、compile receiptを一つのrelease CIDへ閉じる。"]
-                    ["Replicate" "同じclosureを少なくとも2つの独立storage originへ保存する。"]
-                    ["Verify + Run" "全byteとrouted peer IDを検証し、release CIDとexportから実行する。"]]
-    :deploy-title "AIのコードが、許可済みの計算になるまで"
-    :steps [["Write" "AIと人間は、読みやすいデータとしてコードを自由に書く。"]
-            ["Admit" "Kotobaがtype、effect、capability、resource、targetを検査する。"]
-            ["Bind" "Passkey identityと対象限定grantを、host/providerが具体的なscopeへ結びつける。"]
-            ["Run" "Kotobaseがartifactとreceiptを保持し、MurakumoとItonamiが許可された処理を担う。"]]
-    :boundary-title "境界があるから、つながれる。"
-    :boundary-heading "Discoveryは権限委譲ではありません"
-    :boundary-p1 "kotoba.cloud は各 origin を発見可能にしますが、storage、compute、agent work を一つの trust domain にしません。receipt は各 origin を別々に記録します。"
-    :boundary-p2 "既存の auth.kotobase.net Passkey も自動移行しません。新しい RP では、検証された Principal link が必要です。"
-    :profile-link "Machine-readable profile" :spec-link "言語仕様を読む"
-    :footer "Kotoba Cloud — identity and deploy control"
-    :footer-roles "Language: kotoba-lang.org · Storage: kotobase.net · Compute: murakumo.cloud · Agent work: itonami.cloud"
-    :operator-label "運営元"
-    :contact-label "連絡先"
-    :legal-link "運営"
-    :tokushoho-link "特定商取引法に基づく表記"
-    :legal-path "/ja/legal/"
-    :tokushoho-path "/ja/legal/tokushoho/"
-    :legal-title "運営元 — Kotoba Cloud"
-    :legal-heading "運営元"
-    :legal-about "Kotoba Cloud は identity と deploy control の公開入口です。storage、compute、agent work は別 origin のまま接続します。"
-    :entity-label "法人情報"
-    :representative-label "代表者"
-    :address-label "所在地"
-    :phone-label "電話番号"
-    :service-provider-label "役務提供事業者"
-    :service-label "対象役務"
-    :price-label "販売価格"
-    :other-costs-label "価格以外に必要な費用"
-    :payment-label "支払方法"
-    :payment-timing-label "支払時期"
-    :provision-label "役務の提供時期"
-    :term-label "契約期間"
-    :cancel-label "解約"
-    :refund-label "返金"
-    :tokushoho-title "特定商取引法に基づく表記 — Kotoba Cloud"
-    :tokushoho-heading "特定商取引法に基づく表記"
-    :tokushoho-updated "最終更新日: 2026-08-30"
-    :tokushoho-service "kotoba.cloud の identity および deploy control（Discovery と Passkey RP）。Hosted apply は提供していません。"
-    :tokushoho-price "有償の hosted apply は提供していないため、販売価格はありません。"
-    :tokushoho-other-costs "インターネット接続料金その他の通信費はお客様のご負担となります。"
-    :tokushoho-payment "有償役務は現在提供していません。"
-    :tokushoho-payment-timing "該当なし"
-    :tokushoho-provision "Discovery と Passkey RP は公開中です。Hosted apply は提供していません。"
-    :tokushoho-term "有償契約はありません。"
-    :tokushoho-cancel "該当なし"
-    :tokushoho-refund "該当なし"
-    :tokushoho-note "法人情報、代表者、所在地、電話番号は、請求があった場合、法令に従い遅滞なく開示します。"
-    :not-found-title "見つかりません — Kotoba Cloud"
-    :not-found-heading "その入口はありません。"
-    :not-found-lead "Kotoba Cloud の公開入口へ戻ってください。"
-    :not-found-cta "kotoba.cloud へ戻る"}
-
-   :en
-   {:html-lang "en" :og-locale "en_US" :path "/"
-    :title "Kotoba Cloud — controlled execution for AI-generated software"
-    :description "Connect Kotoba code and Kotobase graph state to the execution environment through identity and deploy control. Discovery is live; hosted apply is not yet offered."
-    :skip "Skip to content" :home-label "Kotoba Cloud home"
-    :nav-architecture "Architecture" :nav-libraries "Publish libraries" :nav-label "Primary navigation"
-    :language-label "Display language" :hero-eyebrow "CONTROLLED EXECUTION"
-    :headline "Controlled execution for AI-generated software."
-    :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
-           "Safe code. Trusted state. Controlled execution. Kotoba Labs is building toward a safe and ultra-fast software stack that connects all three."]
-    :passkey-cta "Start with a Base Account" :cli-cta "Explore the Kotoba CLI"
-    :nav-sign-in "Sign in"
-    :live "Discovery and the Passkey RP are live. Hosted apply is not available yet."
-    :architecture-title "Three execution planes. Boundaries intact."
-    :architecture-lead "The services connect without becoming one giant trust domain. Each authority remains separately governed."
-    :control-kind "CONTROL + IDENTITY" :control-title "Kotoba Cloud"
-    :control-body "Passkey verifies a Stable Principal. The control plane publishes the topology and authority floor used by CLI deploy."
-    :connect-label "Connect this Principal"
-    :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
-              :href "https://kotobase.net"
-              :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
-              :body "A content-addressed graph database for AI state and knowledge, with explicit relationships and identifiable history."}
-             {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
-              :href "https://murakumo.cloud"
-              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
-              :body "Places admitted workloads on CPU/GPU resources and executes them."}
-             {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
-              :href "https://itonami.cloud"
-              :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
-              :body "Runs continuing agent work across workspaces, goals, tools, and approvals."}]
-    :library-title "One release CID, executable from multiple providers"
-    :library-lead "A release CID fixes the namespace head, definitions, raw Wasm, compile receipts, and reproducibility evidence in one IPLD graph. Names and GitHub remain discovery and provenance."
-    :library-status "Post-quantum signatures are mandatory, not optional. Publication requires both a Passkey session and an ML-DSA-65 signature pinned to the Principal. External authenticators and distributed qualification remain separately verified boundaries."
-    :approval-title "Approve library publication"
-    :approval-lead "The CLI signed this graph locally and stored it in Kotobase. Verify the CIDs and IPNS name before publishing."
-    :approval-button "Publish with Passkey + ML-DSA-65"
-    :key-approval-title "Approve post-quantum key transition"
-    :key-approval-lead "Verify the action, epoch, current key, and next key. Rotation is signed by both ML-DSA keys and takes effect only after Passkey confirmation."
-    :key-approval-button "Confirm key transition with Passkey"
-    :library-catalog-cta "Open the library catalog and dependency graph"
-    :library-steps [["Bundle" "Close definitions, Wasm artifacts, and compile receipts under one release CID."]
-                    ["Replicate" "Store the same complete closure at no fewer than two independent storage origins."]
-                    ["Verify + Run" "Verify every byte and routed peer IDs, then execute by release CID and export."]]
-    :deploy-title "From AI-written code to admitted computation"
-    :steps [["Write" "Agents and humans write freely in readable, data-oriented code."]
-            ["Admit" "Kotoba checks types, effects, capabilities, resources, and target support."]
-            ["Bind" "The host and provider bind Passkey identity and a resource-scoped grant."]
-            ["Run" "Kotobase keeps artifacts and receipts; Murakumo and Itonami perform the admitted work."]]
-    :boundary-title "Boundaries make connection possible."
-    :boundary-heading "Discovery is not delegation"
-    :boundary-p1 "kotoba.cloud makes each origin discoverable without merging storage, compute, and agent work into one trust domain. Receipts record every origin separately."
-    :boundary-p2 "Existing auth.kotobase.net Passkeys do not migrate automatically. The new RP requires a verified Principal link."
-    :profile-link "Machine-readable profile" :spec-link "Read the language specification"
-    :footer "Kotoba Cloud — identity and deploy control"
-    :footer-roles "Language: kotoba-lang.org · Storage: kotobase.net · Compute: murakumo.cloud · Agent work: itonami.cloud"
-    :operator-label "Operator"
-    :contact-label "Contact"
-    :legal-link "Operator"
-    :tokushoho-link "Specified Commercial Transactions notice"
-    :legal-path "/legal/"
-    :tokushoho-path "/legal/tokushoho/"
-    :legal-title "Operator — Kotoba Cloud"
-    :legal-heading "Operator"
-    :legal-about "Kotoba Cloud is the public identity and deploy-control entrance. Storage, compute, and agent work remain separately governed origins."
-    :entity-label "法人情報"
-    :representative-label "代表者"
-    :address-label "所在地"
-    :phone-label "電話番号"
-    :service-provider-label "Service provider"
-    :service-label "Service"
-    :price-label "Price"
-    :other-costs-label "Costs other than the price"
-    :payment-label "Payment method"
-    :payment-timing-label "Payment timing"
-    :provision-label "When the service is provided"
-    :term-label "Contract term"
-    :cancel-label "Cancellation"
-    :refund-label "Refunds"
-    :tokushoho-title "Specified Commercial Transactions notice — Kotoba Cloud"
-    :tokushoho-heading "Specified Commercial Transactions Act notice"
-    :tokushoho-updated "Last updated: 2026-08-30"
-    :tokushoho-service "kotoba.cloud identity and deploy control (discovery and the Passkey RP). Hosted apply is not offered."
-    :tokushoho-price "No sale price applies. Paid hosted apply is not offered."
-    :tokushoho-other-costs "Internet access and other communication charges are the customer's responsibility."
-    :tokushoho-payment "No paid service is offered."
-    :tokushoho-payment-timing "Not applicable"
-    :tokushoho-provision "Discovery and the Passkey RP are live. Hosted apply is not offered."
-    :tokushoho-term "There is no paid contract."
-    :tokushoho-cancel "Not applicable"
-    :tokushoho-refund "Not applicable"
-    :tokushoho-note "法人情報、代表者、所在地、電話番号は、請求があった場合、法令に従い遅滞なく開示します。"
-    :not-found-title "Not found — Kotoba Cloud"
-    :not-found-heading "That entrance does not exist."
-    :not-found-lead "Return to the public Kotoba Cloud entrance."
-    :not-found-cta "Return to kotoba.cloud"}})
-
 (def app-css
   (str
    ".kc-skip{position:absolute;inset-inline-start:var(--hig-spacing-4);top:-10rem;z-index:10;}"
@@ -247,6 +58,10 @@
    ".kc-hero h1{max-width:17ch;text-wrap:balance;}"
    ".kc-lead{max-width:48rem;font-size:var(--hig-text-title3-font-size);line-height:var(--hig-text-title3-line-height);color:var(--hig-color-secondary-label);}"
    ".kc-actions{margin-top:var(--hig-spacing-7);}"
+   ".kc-draft{margin:0 0 var(--hig-spacing-5);padding:var(--hig-spacing-4);border:1px solid var(--hig-color-separator);background:var(--hig-color-secondary-system-background);color:var(--hig-color-secondary-label);max-width:48rem;}"
+   "html[dir=rtl]{direction:rtl;}"
+   ".kc-facts{margin:var(--hig-spacing-5) 0 0;padding-inline-start:var(--hig-spacing-5);max-width:48rem;color:var(--hig-color-secondary-label);}"
+   ".kc-facts li{margin-block-end:var(--hig-spacing-2);}"
    ".kc-live{margin-top:var(--hig-spacing-5);display:flex;align-items:center;gap:var(--hig-spacing-3);color:var(--hig-color-secondary-label);}"
    ".kc-live__dot{inline-size:.75rem;block-size:.75rem;flex:none;border-radius:var(--hig-radius-capsule);background:var(--hig-palette-green);}"
    ".kc-identity{padding-block:var(--hig-spacing-8);border-bottom:1px solid var(--hig-color-separator);background:var(--hig-color-secondary-system-background);}"
@@ -280,24 +95,37 @@
   (or (get copy locale) (get copy :en)))
 
 (defn passkey-href [locale]
-  (session/passkey-href locale))
+  (session/passkey-href locale (get-in copy [locale :path] "/")))
+
+(defn locale-href
+  [locale suffix]
+  (str (get-in copy [locale :path]) (or suffix "")))
+
+(defn language-label-for
+  [locale]
+  (let [name (get-in copy [locale :language-name])]
+    (if (get-in copy [locale :draft])
+      (str name " (draft)")
+      name)))
 
 (defn language-links
   ([locale label]
-   (language-links locale label {}))
-  ([locale label {:keys [en ja] :or {en "/" ja "/ja/"}}]
+   (language-links locale label ""))
+  ([locale label suffix]
    (dds/language-selector
     {:id-prefix "kotoba-cloud-language"
      :size "md"
      :current locale
-     :languages [{:code :en :label "English" :href en}
-                 {:code :ja :label "日本語" :href ja}]
+     :languages (mapv (fn [loc]
+                        {:code loc
+                         :label (language-label-for loc)
+                         :href (locale-href loc suffix)})
+                      supported-locales)
      :attrs {:aria-label label}})))
 
 (defn operator-lead [locale]
-  (if (= locale :en)
-    (str "The public operator of kotoba.cloud is " operator-name ".")
-    (str "kotoba.cloud の公開運営元は " operator-name " です。")))
+  (or (get-in copy [locale :operator-lead])
+      (str "The public operator of kotoba.cloud is " operator-name ".")))
 
 (defn contact-mailto []
   [:a {:href (str "mailto:" public-contact-email)} public-contact-email])
@@ -305,7 +133,7 @@
 (defn site-header
   ([locale t]
    (site-header locale t {}))
-  ([locale t {:keys [language-ja language-en]}]
+  ([locale t {:keys [page-suffix] :or {page-suffix ""}}]
    [:header {:class "kc-header"}
     (dds/container
      [:div {:class "kc-header__inner"}
@@ -315,8 +143,7 @@
       [:nav {:class "kc-nav" :aria-label (:nav-label t)}
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#architecture")} (:nav-architecture t)]
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#libraries")} (:nav-libraries t)]
-       (language-links locale (:language-label t)
-                       {:ja (or language-ja "/ja/") :en (or language-en "/")})
+       (language-links locale (:language-label t) page-suffix)
        ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
        ;; ADR-2609071000); passkeys, wallets and recovery phrases remain.
@@ -368,7 +195,7 @@
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/ja/legal/" :language-en "/legal/"})
+     (site-header locale t {:page-suffix "legal/"})
      [:main {:id "main" :class "kc-legal"}
       (dds/container
        (dds/section {:title (:legal-heading t)}
@@ -386,8 +213,7 @@
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/ja/legal/tokushoho/"
-                            :language-en "/legal/tokushoho/"})
+     (site-header locale t {:page-suffix "legal/tokushoho/"})
      [:main {:id "main" :class "kc-legal"}
       (dds/container
        (dds/section {:title (:tokushoho-heading t)}
@@ -421,6 +247,8 @@
      [:main {:id "main"}
       [:section {:class "kc-hero"}
        (dds/container
+        (when (seq (:review-banner t))
+          [:p {:class "kc-draft" :role "status"} (:review-banner t)])
         [:p {:class "kc-eyebrow"} (:hero-eyebrow t)]
         (dds/heading 1 (:headline t) {:size "64"})
         (into [:p {:class "kc-lead"}] (interpose " " (:lead t)))
@@ -428,18 +256,25 @@
          [:div {:class "kc-actions"}
           (dds/button (:passkey-cta t) {:type :solid-fill :size "lg"
                                         :id "kc-session-action"
-                                        :href (passkey-href locale)})]
+                                        :href (passkey-href locale)
+                                        :attrs {:data-signed-in-label
+                                                (:signed-in-action t)}})]
          [:div {:class "kc-actions"}
           (dds/button (:cli-cta t) {:type :outline :size "lg"
                                     :href "https://kotoba-lang.org/#start"})])
         [:p [:a {:href "/agent-quickstart.md"} "AI agent quickstart"]]
         [:div {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
-         [:span {:id "kc-session-status"} (:live t)]])]
+         [:span {:id "kc-session-status"
+                 :data-signed-in-status (:signed-in-status t)}
+          (:live t)]]
+        [:ul {:class "kc-facts"}
+         [:li (:passkey-fact t)]
+         [:li (:authority-fact t)]
+         [:li (:package-fact t)]
+         [:li (:rail-fact t)]])]
       [:section {:class "kc-identity" :id "identity" :hidden true
-                 :aria-label (if (= locale :en)
-                               "Signed-in identity"
-                               "ログイン中の Identity")}
+                 :aria-label (:identity-label t)}
        (dds/container
         [:div {:class "kc-identity__grid"}
          [:div
@@ -543,75 +378,101 @@
      [locale path-key title description]
      (let [t (translation locale)
            path (path-key t)
-           ja-href (str "https://kotoba.cloud" (get-in copy [:ja path-key]))
-           en-href (str "https://kotoba.cloud" (get-in copy [:en path-key]))]
-       [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
-        [:script {:src "/js/language-selector.js" :defer true}]
-        [:script {:src "/js/session.js" :defer true}]
-        [:link {:rel "alternate" :hreflang "ja" :href ja-href}]
-        [:link {:rel "alternate" :hreflang "en" :href en-href}]
-        [:link {:rel "alternate" :hreflang "x-default" :href en-href}]
-        [:link {:rel "alternate" :type "text/markdown" :href "https://kotoba.cloud/agent-quickstart.md" :title "AI agent quickstart"}]
-        [:meta {:property "og:site_name" :content "Kotoba Cloud"}]
-        [:meta {:property "og:image" :content "https://kotoba.cloud/og.png"}]
-        [:meta {:property "og:image:width" :content "1731"}]
-        [:meta {:property "og:image:height" :content "909"}]
-        [:meta {:property "og:image:alt" :content "Kotoba Cloud - controlled execution for AI-generated software"}]
-        [:meta {:name "twitter:card" :content "summary_large_image"}]
-        [:meta {:name "twitter:title" :content title}]
-        [:meta {:name "twitter:description" :content description}]
-        [:meta {:name "twitter:image" :content "https://kotoba.cloud/og.png"}]
-        [:script {:type "application/ld+json"} "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"@id\":\"https://kotoba.cloud/#website\",\"url\":\"https://kotoba.cloud/\",\"name\":\"Kotoba Cloud\",\"publisher\":{\"@type\":\"Organization\",\"name\":\"Kotoba Labs Inc.\"},\"inLanguage\":[\"en\",\"ja\"]}"]
-        [:meta {:property "og:type" :content "website"}]
-        [:meta {:property "og:title" :content title}]
-        [:meta {:property "og:description" :content description}]
-        [:meta {:property "og:locale" :content (:og-locale t)}]
-        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]])))
+           en-href (str "https://kotoba.cloud" (get-in copy [:en path-key]))
+           langs (mapv #(get-in copy [% :html-lang]) published-locales)
+           json-ld (str "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"@id\":\"https://kotoba.cloud/#website\",\"url\":\"https://kotoba.cloud/\",\"name\":\"Kotoba Cloud\",\"publisher\":{\"@type\":\"Organization\",\"name\":\"Kotoba Labs Inc.\"},\"inLanguage\":["
+                        (apply str (interpose "," (map #(str "\"" % "\"") langs)))
+                        "]}")]
+       (into
+        [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+         [:script {:src "/js/language-selector.js" :defer true}]
+         [:script {:src "/js/session.js" :defer true}]]
+        (concat
+         (when (:draft t)
+           [[:meta {:name "robots" :content "noindex, nofollow"}]])
+         (map (fn [loc]
+                [:link {:rel "alternate"
+                        :hreflang (get-in copy [loc :hreflang])
+                        :href (str "https://kotoba.cloud" (get-in copy [loc path-key]))}])
+              published-locales)
+         [[:link {:rel "alternate" :hreflang "x-default" :href en-href}]
+          [:link {:rel "alternate" :type "text/markdown" :href "https://kotoba.cloud/agent-quickstart.md" :title "AI agent quickstart"}]
+          [:meta {:property "og:site_name" :content "Kotoba Cloud"}]
+          [:meta {:property "og:image" :content "https://kotoba.cloud/og.png"}]
+          [:meta {:property "og:image:width" :content "1731"}]
+          [:meta {:property "og:image:height" :content "909"}]
+          [:meta {:property "og:image:alt" :content "Kotoba Cloud - controlled execution for AI-generated software"}]
+          [:meta {:name "twitter:card" :content "summary_large_image"}]
+          [:meta {:name "twitter:title" :content title}]
+          [:meta {:name "twitter:description" :content description}]
+          [:meta {:name "twitter:image" :content "https://kotoba.cloud/og.png"}]
+          [:script {:type "application/ld+json"} json-ld]
+          [:meta {:property "og:type" :content "website"}]
+          [:meta {:property "og:title" :content title}]
+          [:meta {:property "og:description" :content description}]
+          [:meta {:property "og:locale" :content (:og-locale t)}]
+          [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]])))))
+
+#?(:clj
+   (defn apply-document-attrs
+     [locale html]
+     (let [t (translation locale)
+           lang (:html-lang t)
+           open (str "<html lang=\"" lang "\">")]
+       (if (= "rtl" (:dir t))
+         (.replace html open (str "<html lang=\"" lang "\" dir=\"rtl\">"))
+         html))))
 
 #?(:clj
    (defn page-html
      ([] (page-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
-               {:title (:title t)
-                :description (:description t)
-                :lang (:html-lang t)
-                :css (document-css)
-                :app-css (str tokens/skin-css app-css)
-                :head (document-head locale :path (:title t) (:description t))}
-               (view locale))))))
+        (apply-document-attrs
+         locale
+         (apply page/->page
+                {:title (:title t)
+                 :description (:description t)
+                 :lang (:html-lang t)
+                 :css (document-css)
+                 :app-css (str tokens/skin-css app-css)
+                 :head (document-head locale :path (:title t) (:description t))}
+                (view locale)))))))
 
 #?(:clj
    (defn legal-html
      ([] (legal-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
-               {:title (:legal-title t)
-                :description (operator-lead locale)
-                :lang (:html-lang t)
-                :css (document-css)
-                :app-css (str tokens/skin-css app-css)
-                :head (document-head locale :legal-path (:legal-title t)
-                                     (operator-lead locale))}
-               (legal-view locale))))))
+        (apply-document-attrs
+         locale
+         (apply page/->page
+                {:title (:legal-title t)
+                 :description (operator-lead locale)
+                 :lang (:html-lang t)
+                 :css (document-css)
+                 :app-css (str tokens/skin-css app-css)
+                 :head (document-head locale :legal-path (:legal-title t)
+                                      (operator-lead locale))}
+                (legal-view locale)))))))
 
 #?(:clj
    (defn tokushoho-html
      ([] (tokushoho-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
-               {:title (:tokushoho-title t)
-                :description (operator-lead locale)
-                :lang (:html-lang t)
-                :css (document-css)
-                :app-css (str tokens/skin-css app-css)
-                :head (document-head locale :tokushoho-path
-                                     (:tokushoho-title t)
-                                     (operator-lead locale))}
-               (tokushoho-view locale))))))
+        (apply-document-attrs
+         locale
+         (apply page/->page
+                {:title (:tokushoho-title t)
+                 :description (operator-lead locale)
+                 :lang (:html-lang t)
+                 :css (document-css)
+                 :app-css (str tokens/skin-css app-css)
+                 :head (document-head locale :tokushoho-path
+                                      (:tokushoho-title t)
+                                      (operator-lead locale))}
+                (tokushoho-view locale)))))))
 
 #?(:clj
    (defn not-found-html
@@ -619,55 +480,56 @@
      ([locale]
       (let [t (translation locale)
             dds-css (slurp (io/resource "jp_go_dds/dds.css"))]
-        (page/->page
-         {:title (:not-found-title t) :description (:not-found-lead t)
-          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css)}
-         (dds/container
-          [:main {:id "main"}
-           [:section {:class "kc-hero"}
-            [:p {:class "kc-eyebrow"} "404 / NOT FOUND"]
-            (dds/heading 1 (:not-found-heading t) {:size "45"})
-            [:p {:class "kc-lead"} (:not-found-lead t)]
-            (dds/button (:not-found-cta t) {:href (:path t) :size "lg"})]])
-         (site-footer t))))))
+        (apply-document-attrs
+         locale
+         (page/->page
+          {:title (:not-found-title t) :description (:not-found-lead t)
+           :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css)}
+          (dds/container
+           [:main {:id "main"}
+            [:section {:class "kc-hero"}
+             [:p {:class "kc-eyebrow"} "404 / NOT FOUND"]
+             (dds/heading 1 (:not-found-heading t) {:size "45"})
+             [:p {:class "kc-lead"} (:not-found-lead t)]
+             (dds/button (:not-found-cta t) {:href (:path t) :size "lg"})]])
+          (site-footer t)))))))
+
+#?(:clj
+   (defn- locale-output-dir
+     [root locale]
+     (let [path (get-in copy [locale :path])]
+       (if (= path "/")
+         root
+         (io/file root (subs path 1 (dec (count path))))))))
+
+#?(:clj
+   (defn- write-locale-tree
+     [dir locale]
+     (let [legal (io/file dir "legal")
+           tokushoho (io/file legal "tokushoho")]
+       (.mkdirs tokushoho)
+       (spit (io/file dir "index.html") (page-html locale))
+       (spit (io/file dir "404.html") (not-found-html locale))
+       (spit (io/file legal "index.html") (legal-html locale))
+       (spit (io/file tokushoho "index.html") (tokushoho-html locale)))))
 
 #?(:clj
    (defn -main [& _]
      (let [root (io/file "public")
-           ja-dir (io/file root "ja")
-           en-dir (io/file root "en")
            js-dir (io/file root "js")
            ipfs-source (io/file "assets" "ipfs")
            ipfs-target (io/file root "ipfs")
            registry-source (io/file "assets" "kotoba-package-registry.edn")
            registry-target (io/file root ".well-known" "kotoba-package-registry.edn")]
        (.mkdirs root)
-       (.mkdirs ja-dir)
-       (.mkdirs en-dir)
        (.mkdirs js-dir)
-       (doseq [dir [(io/file root "legal")
-                    (io/file root "legal" "tokushoho")
-                    (io/file ja-dir "legal")
-                    (io/file ja-dir "legal" "tokushoho")
-                    (io/file en-dir "legal")
-                    (io/file en-dir "legal" "tokushoho")]]
-         (.mkdirs dir))
        (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png"]]
          (io/copy (io/file "assets" name) (io/file root name)))
-       (spit (io/file root "index.html") (page-html :en))
-       (spit (io/file root "404.html") (not-found-html :en))
-       (spit (io/file root "legal" "index.html") (legal-html :en))
-       (spit (io/file root "legal" "tokushoho" "index.html") (tokushoho-html :en))
-       (spit (io/file ja-dir "index.html") (page-html :ja))
-       (spit (io/file ja-dir "404.html") (not-found-html :ja))
-       (spit (io/file ja-dir "legal" "index.html") (legal-html :ja))
-       (spit (io/file ja-dir "legal" "tokushoho" "index.html") (tokushoho-html :ja))
-       ;; Keep the old English URL addressable while canonical English moves
-       ;; to the apex. Existing links should not become a language regression.
-       (spit (io/file en-dir "index.html") (page-html :en))
-       (spit (io/file en-dir "404.html") (not-found-html :en))
-       (spit (io/file en-dir "legal" "index.html") (legal-html :en))
-       (spit (io/file en-dir "legal" "tokushoho" "index.html") (tokushoho-html :en))
+       (doseq [locale supported-locales]
+         (write-locale-tree (locale-output-dir root locale) locale))
+       ;; Keep the old English URL addressable while canonical English stays
+       ;; at the apex. Existing links should not become a language regression.
+       (write-locale-tree (io/file root "en") :en)
        (spit (io/file js-dir "language-selector.js") behavior/language-selector-script)
        (doseq [source (file-seq ipfs-source) :when (.isFile ^java.io.File source)]
          (let [target (io/file ipfs-target (.getName ^java.io.File source))]
@@ -693,4 +555,4 @@
        (let [headers (io/file "assets" "_headers")]
          (when (.isFile headers)
            (io/copy headers (io/file root "_headers"))))
-       (println "rendered English-first root, Japanese pages, legal/tokushoho documents, and localized 404s"))))
+       (println "rendered English-first root, localized pages, legal/tokushoho documents, and localized 404s"))))

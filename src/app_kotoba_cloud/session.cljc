@@ -12,12 +12,16 @@
   default way in is a Base Account (smart-contract wallet) since 2026-09-07,
   with passkey, wallet and recovery-phrase sign-in on the same page. The name
   predates that and is kept so callers need not change."
-  [locale]
-  (str profile/identity-sign-in
-       "?return_to="
-       (if (= locale :en)
-         "https%3A%2F%2Fkotoba.cloud%2F"
-         "https%3A%2F%2Fkotoba.cloud%2Fja%2F")))
+  ([locale]
+   (passkey-href locale ({:en "/" :ja "/ja/" :hi "/hi/" :ta "/ta/"
+                          :zh-Hans "/zh-Hans/" :ar "/ar/" :uk "/uk/"
+                          :es "/es/" :fr "/fr/"}
+                         locale "/")))
+  ([locale path]
+   (str profile/identity-sign-in
+        "?return_to="
+        "https%3A%2F%2Fkotoba.cloud"
+        (str/replace path #"/" "%2F"))))
 
 (defn apex-sign-in-location
   "Send mistaken apex login paths to the live Passkey RP, keeping any query."

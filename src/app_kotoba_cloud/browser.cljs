@@ -10,12 +10,17 @@
 
 (defn- signed-in! [payload]
   (let [username (:username payload)
-        english? (= "en" (.-lang (.-documentElement js/document)))]
+        action (element "kc-session-action")
+        status (element "kc-session-status")
+        signed-in-action (or (and action (.getAttribute action "data-signed-in-label"))
+                             "View identity")
+        signed-in-status (or (and status (.getAttribute status "data-signed-in-status"))
+                             "Signed-in session confirmed")]
     (when-let [nav (element "kc-session-nav")]
       (set! (.-textContent nav) (str "@" username))
       (.setAttribute nav "href" "#identity"))
-    (when-let [action (element "kc-session-action")]
-      (set! (.-textContent action) (if english? "View identity" "Identity を確認"))
+    (when action
+      (set! (.-textContent action) signed-in-action)
       (.setAttribute action "href" "#identity"))
     (when-let [panel (element "identity")]
       (set! (.-hidden panel) false))
@@ -28,8 +33,7 @@
            ;; The session may be a Base Account, a passkey, a wallet or a
            ;; recovery phrase (auth.kotoba.cloud, 2026-09-07); the projection
            ;; does not say which, so neither does this line.
-           (str (if english? "Signed-in session confirmed" "ログイン済みの session を確認しました")
-                " · @" username))))
+           (str signed-in-status " · @" username))))
 
 (defn- decode-fragment [prefix]
   (let [hash (.-hash js/location)]

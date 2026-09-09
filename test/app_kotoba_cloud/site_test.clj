@@ -2,17 +2,25 @@
   (:require [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.site :as site]
             [kotoba.lang.text :as str]
+            [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]))
 
 (deftest locale-catalogs-have-the-same-contract
   (let [catalogs (map site/copy site/supported-locales)
         keysets (map (comp set keys) catalogs)]
-    (is (= (first keysets) (second keysets)))
-    (is (= [:en :ja] site/supported-locales))
+    (doseq [keys keysets]
+      (is (= (first keysets) keys)))
+    (is (= [:en :ja :hi :ta :zh-Hans :ar :uk :es :fr] site/supported-locales))
+    (is (= [:en :ja :ta :zh-Hans :uk :es :fr] site/published-locales))
+    (is (= [:hi :ar] site/draft-locales))
     (doseq [catalog catalogs]
       (is (= 3 (count (:planes catalog))))
       (is (= 4 (count (:steps catalog))))
-      (is (= 3 (count (:library-steps catalog)))))))
+      (is (= 3 (count (:library-steps catalog))))
+      (is (contains? catalog :passkey-fact))
+      (is (contains? catalog :authority-fact))
+      (is (contains? catalog :package-fact))
+      (is (contains? catalog :rail-fact)))))
 
 (deftest japanese-page-matches-the-language-concept
   (let [html (site/page-html :ja)]
@@ -51,9 +59,9 @@
             sign-in (site/passkey-href locale)
             href-of (fn [url] (str "href=\"" url "\""))]
         (is (= sign-in (str "https://auth.kotoba.cloud/sign-in?return_to="
-                            (if (= locale :en)
-                              "https%3A%2F%2Fkotoba.cloud%2F"
-                              "https%3A%2F%2Fkotoba.cloud%2Fja%2F"))))
+                            "https%3A%2F%2Fkotoba.cloud"
+                            (str/replace
+                             (get-in site/copy [locale :path]) #"/" "%2F"))))
         (is (str/includes? html (href-of profile/identity-href)))
         (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
         (is (= 2 (count (re-seq (re-pattern
@@ -78,6 +86,8 @@
     (is (str/includes? html "Post-quantum signatures are mandatory"))
     (is (str/includes? html "https://kotoba.cloud/"))
     (is (str/includes? html "hreflang=\"ja\""))
+    (is (str/includes? html "hreflang=\"fr\""))
+    (is (str/includes? html "hreflang=\"zh-Hans\""))
     (is (str/includes? html "return_to=https%3A%2F%2Fkotoba.cloud%2F"))
     (is (= 1 (count (re-seq #"<h1" html))))
     (is (= 1 (count (re-seq #"<nav" html))))))
@@ -132,5 +142,65 @@
           needle ["Gftd Japan" "gftd.co.jp" "gftdcojp" "mailer.gftd.ai" "ai-gftd"
                   "河崎" "Kawasaki" "com-junkawasaki" "10704996"
                   "AWAI Network" "j@awai.network" "@agentmail.to" "@kotobalabs.com"
-                  "hello@kotoba.cloud" "info@kotoba.cloud"]]
+                  "hello@kotoba.cloud" "info@kotoba.cloud"
+                  "GMV" "paying customers" "waitlist"]]
     (is (not (str/includes? html needle)) needle)))
+
+(deftest every-locale-public-page-states-required-facts
+  (doseq [locale site/supported-locales]
+    (let [html (site/page-html locale)
+          t (get site/copy locale)]
+      (is (str/includes? html (str "<html lang=\"" (:html-lang t) "\"")))
+      (is (str/includes? html (:path t)))
+      (is (str/includes? html (:live t)))
+      (is (str/includes? html (:passkey-fact t)))
+      (is (str/includes? html (:authority-fact t)))
+      (is (str/includes? html (:package-fact t)))
+      (is (str/includes? html (:rail-fact t)))
+      (is (str/includes? html "Kotoba Cloud"))
+      (is (str/includes? html "Kotobase"))
+      (is (str/includes? html "Murakumo"))
+      (is (str/includes? html "Itonami"))
+      (is (str/includes? html "Passkey"))
+      (is (str/includes? html "Base Account"))
+      (is (str/includes? html "Principal"))
+      (is (str/includes? html "Hosted apply"))
+      (is (str/includes? html "auth.kotobase.net"))
+      (is (str/includes? html "Kotoba Labs Inc"))
+      (is (str/includes? html "support@kotoba.cloud"))
+      (is (str/includes? html "/.well-known/x402"))
+      (is (str/includes? html "x402.nexus"))
+      (is (str/includes? html "dry-run"))
+      (is (str/includes? html "reference-package")))))
+
+(deftest arabic-public-pages-are-rtl
+  (doseq [render [site/page-html site/legal-html site/tokushoho-html site/not-found-html]]
+    (let [html (render :ar)]
+      (is (str/includes? html "<html lang=\"ar\" dir=\"rtl\">"))
+      (is (str/includes? html "dir=\"rtl\"")))))
+
+(deftest hindi-and-arabic-pages-are-review-drafts
+  (testing "draft catalogs stay labeled and are not treated as published"
+    (is (true? (get-in site/copy [:hi :draft])))
+    (is (true? (get-in site/copy [:ar :draft])))
+    (is (str/includes? (site/page-html :hi) "Draft for Jun to review. Not published."))
+    (is (str/includes? (site/page-html :ar) "Draft for Jun to review. Not published."))
+    (is (str/includes? (site/page-html :hi) "noindex, nofollow"))
+    (is (str/includes? (site/page-html :ar) "noindex, nofollow"))
+    (is (not (str/includes? (site/page-html :en) "noindex")))
+    (is (not (str/includes? (site/page-html :fr) "Draft for Jun to review")))
+    (is (str/includes? (site/page-html :en) "हिन्दी (draft)"))
+    (is (str/includes? (site/page-html :en) "العربية (draft)")))
+  (testing "published alternate links omit draft locales"
+    (let [html (site/page-html :en)]
+      (is (str/includes? html "rel=\"alternate\" hreflang=\"fr\""))
+      (is (not (str/includes? html "rel=\"alternate\" hreflang=\"hi\"")))
+      (is (not (str/includes? html "rel=\"alternate\" hreflang=\"ar\""))))))
+
+(deftest sitemap-lists-published-locales-only
+  (let [xml (slurp (io/file "assets/sitemap.xml"))]
+    (doseq [path ["/" "/ja/" "/ta/" "/zh-Hans/" "/uk/" "/es/" "/fr/"
+                  "/legal/" "/ja/legal/" "/fr/legal/tokushoho/"]]
+      (is (str/includes? xml (str "https://kotoba.cloud" path))))
+    (is (not (str/includes? xml "https://kotoba.cloud/hi/")))
+    (is (not (str/includes? xml "https://kotoba.cloud/ar/")))))

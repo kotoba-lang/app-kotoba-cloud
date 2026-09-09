@@ -25,6 +25,7 @@ Post-quantum signatures remain mandatory for library publication. The authentica
 - Language performance and safety evidence: https://kotoba-lang.org/#proof
 - Graph documentation: https://kotobase.net/llms-full.txt
 - Japanese site: https://kotoba.cloud/ja/
+- Other published locales: https://kotoba.cloud/ta/ https://kotoba.cloud/zh-Hans/ https://kotoba.cloud/uk/ https://kotoba.cloud/es/ https://kotoba.cloud/fr/
 
 Public operator: Kotoba Labs Inc. Contact: support@kotoba.cloud.
 
