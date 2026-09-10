@@ -11,3 +11,10 @@
 
 # nbb dependency cache -- a build artifact, not source
 .nbb/
+
+# The rule above says `.maint_*`, but the directory the cron actually writes is
+# `.maint/` -- an underscore where a slash belongs, so it has never matched.
+/.maint/
+# Scratch capture from the same maintenance runs. The repo root tracks only
+# .edn/.json/.jsonc/.md.
+/out*.txt
