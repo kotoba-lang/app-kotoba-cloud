@@ -452,4 +452,57 @@ assert.equal(bootPost.status, 405);
 const bootUnknown = await route(new Request("https://boot.kotoba.cloud/unknown"), env);
 assert.equal(bootUnknown.status, 404);
 
-console.log("worker Passkey/PQ publication and hash-addressed AIUEOS boot smoke passed");
+const assetReads = [];
+env.ASSETS = {
+  fetch: async (request) => {
+    assetReads.push(String(request.url));
+    return new Response("<html lang=\"en\">home</html>", {
+      status: 200, headers: { "content-type": "text/html; charset=utf-8" }
+    });
+  }
+};
+
+const beforeAssets = assetReads.length;
+const idFromHeader = await route(new Request("https://kotoba.cloud/?utm=1", {
+  headers: { "accept-language": "id,en;q=0.8" }
+}), env);
+assert.equal(idFromHeader.status, 302);
+assert.equal(idFromHeader.headers.get("location"), "/id/?utm=1");
+assert.equal(idFromHeader.headers.get("cache-control"), "private, no-store");
+assert.equal(assetReads.length, beforeAssets, "locale redirect happens before Static Assets HIT");
+
+const idFromCountry = await route(new Request("https://kotoba.cloud/", {
+  headers: { "cf-ipcountry": "ID" }
+}), env);
+assert.equal(idFromCountry.headers.get("location"), "/id/");
+assert.notEqual(idFromCountry.headers.get("location"), "/jv/");
+assert.notEqual(idFromCountry.headers.get("location"), "/su/");
+
+const heFromCountry = await route(new Request("https://kotoba.cloud/", {
+  headers: { "cf-ipcountry": "IL" }
+}), env);
+assert.equal(heFromCountry.headers.get("location"), "/he/");
+
+const headerBeatsCountry = await route(new Request("https://kotoba.cloud/", {
+  headers: { "accept-language": "en", "cf-ipcountry": "ID" }
+}), env);
+assert.equal(headerBeatsCountry.status, 200);
+assert.equal(headerBeatsCountry.headers.get("location"), null);
+
+const cookieBeatsCountry = await route(new Request("https://kotoba.cloud/", {
+  headers: { cookie: "kb_locale=jv", "cf-ipcountry": "ID" }
+}), env);
+assert.equal(cookieBeatsCountry.headers.get("location"), "/jv/");
+
+const pathWins = await route(new Request("https://kotoba.cloud/su/", {
+  headers: { cookie: "kb_locale=he", "accept-language": "it", "cf-ipcountry": "IL" }
+}), env);
+assert.equal(pathWins.status, 200);
+assert.equal(pathWins.headers.get("location"), null);
+assert.match(pathWins.headers.get("set-cookie") || "", /^kb_locale=su;/);
+
+const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/session"), env);
+assert.equal(sessionUntouched.status, 200);
+assert.equal(sessionUntouched.headers.get("location"), null);
+
+console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negotiate smoke passed");

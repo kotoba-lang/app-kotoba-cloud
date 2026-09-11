@@ -1,0 +1,155 @@
+(ns app-kotoba-cloud.locale
+  "Origin locale negotiation shared with kotobase.net.
+
+  Order: path > kb_locale cookie > Accept-Language > request.cf.country > en.
+  Country never selects jv or su; those stay path, cookie, or Accept-Language."
+  (:require [app-kotoba-cloud.public-locales :as locales]
+            [kotoba.lang.text :as str]))
+
+(def cookie-name "kb_locale")
+(def default-locale :en)
+(def country-never #{:jv :su})
+
+(def aliases
+  {"zh" :zh-Hans
+   "zh-cn" :zh-Hans
+   "zh-hans" :zh-Hans
+   "zh-sg" :zh-Hans
+   "cmn" :zh-Hans
+   "iw" :he
+   "in" :id
+   "ar-eg" :arz
+   "ar-ma" :ar-MA
+   "ary" :ar-MA})
+
+(def country-locales
+  {"id" :id
+   "il" :he
+   "kr" :ko
+   "es" :es
+   "it" :it
+   "de" :de
+   "ma" :ar-MA
+   "eg" :arz})
+
+(def supported-set (set locales/locale-order))
+
+(defn normalize-tag [value]
+  (when (string? value)
+    (let [norm (-> value str/trim str/lower (str/replace #"_" "-"))]
+      (when (and (seq norm)
+                 (not= "*" norm)
+                 (re-matches #"[a-z]{1,8}(?:-[a-z0-9]{1,8})*" norm))
+        norm))))
+
+(defn- known-locale [norm]
+  (when norm
+    (let [found (or (get aliases norm)
+                    (first (filter #(= (str/lower (name %)) norm)
+                                   locales/locale-order)))]
+      (when (contains? supported-set found) found))))
+
+(defn parse-locale
+  "Resolve one BCP 47 tag or cookie/path code onto the public catalog."
+  [value]
+  (when-let [norm (normalize-tag value)]
+    (or (known-locale norm)
+        (known-locale (first (str/split norm #"-"))))))
+
+(defn path-locale
+  "First path segment wins when it is a public locale or alias. /legal stays nil."
+  [path]
+  (when (string? path)
+    (parse-locale (first (remove str/blank? (str/split path #"/"))))))
+
+(defn apex-path? [path]
+  (or (str/blank? path) (= path "/") (= path "/index.html")))
+
+(defn locale-path [locale]
+  (if (= locale :en)
+    "/"
+    (str "/" (name locale) "/")))
+
+(defn- parse-quality [param]
+  (let [p (str/trim (or param ""))]
+    (when (str/starts-with? p "q=")
+      (let [n (subs p 2)]
+        (cond
+          (re-matches #"1(?:\.0+)?" n) 1.0
+          (re-matches #"0(?:\.\d+)?" n)
+          #?(:clj (Double/parseDouble n)
+             :cljs (js/parseFloat n)
+             :default nil))))))
+
+(defn accept-language-locale
+  "First q-weighted tag that maps onto the catalog."
+  [header]
+  (when (string? header)
+    (->> (str/split header #",")
+         (keep (fn [part]
+                 (let [bits (str/split (str/trim part) #";")
+                       tag (parse-locale (first bits))
+                       q (or (first (keep parse-quality (rest bits))) 1.0)]
+                   (when (and tag (number? q) (<= 0 q 1))
+                     {:locale tag :q q}))))
+         (sort-by (comp - :q))
+         first
+         :locale)))
+
+(defn country-locale
+  "Cloudflare ISO 3166-1 alpha-2. Never returns jv or su."
+  [country]
+  (when (string? country)
+    (let [code (str/lower (str/trim country))
+          loc (get country-locales code)
+          loc (if (and (= loc :ar-MA) (not (contains? supported-set :ar-MA)))
+                :ar
+                loc)]
+      (when (and loc
+                 (contains? supported-set loc)
+                 (not (country-never loc)))
+        loc))))
+
+(defn negotiate
+  "path > cookie > Accept-Language > country > en."
+  [{:keys [path cookie accept-language country]}]
+  (or (path-locale path)
+      (parse-locale cookie)
+      (accept-language-locale accept-language)
+      (country-locale country)
+      default-locale))
+
+(defn static-decision
+  "Worker decision before Static Assets HIT.
+
+  An explicit locale path is served in place. The English apex stays at `/`
+  unless a weaker signal selects another catalog locale, in which case the
+  Worker 302s to that emit directory."
+  [{:keys [path] :as opts}]
+  (let [from-path (path-locale path)
+        locale (negotiate opts)]
+    (cond
+      from-path {:locale from-path :set-cookie? true}
+      (and (apex-path? path) (not= locale :en))
+      {:locale locale :redirect (locale-path locale)}
+      :else {:locale locale})))
+
+(defn cookie-header [locale]
+  (str cookie-name "=" (name locale)
+       "; Path=/; Max-Age=31536000; SameSite=Lax; Secure"))
+
+(def language-cookie-script
+  "Persists an explicit language-selector choice as kb_locale."
+  (str
+   "(()=>{'use strict';"
+   "document.addEventListener('click',event=>{"
+   "const item=event.target.closest('[data-language-selector-item]');"
+   "if(!item)return;"
+   "const href=item.getAttribute('href')||'';"
+   "const path=href.replace(/^https?:\\/\\/[^/]+/,'');"
+   "const seg=(path.split('/').filter(Boolean)[0]||'en');"
+   "const locale=seg==='zh'?'zh-Hans':seg;"
+   "document.cookie='" cookie-name "='+encodeURIComponent(locale)"
+   "+'; Path=/; Max-Age=31536000; SameSite=Lax; Secure';"
+   "});"
+   "})();"))

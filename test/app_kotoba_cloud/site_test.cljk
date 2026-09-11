@@ -9,7 +9,9 @@
   (let [catalogs (map site/translation site/supported-locales)
         keysets (map (comp set #(remove #{:translation-note} %) keys) catalogs)]
     (is (apply = keysets))
-    (is (= [:en :zh-Hans :hi :es :ar :fr :bn :pt :id :ur :ru :de :ja :ko :pcm :arz :mr] site/supported-locales))
+    (is (= [:en :zh-Hans :hi :es :ar :fr :bn :pt :id :ur :ru :de :ja :ko :pcm :arz :mr
+            :jv :su :he :it :ar-MA]
+           site/supported-locales))
     (doseq [catalog catalogs]
       (is (= 3 (count (:planes catalog))))
       (is (= 4 (count (:steps catalog))))
@@ -165,7 +167,7 @@
     (is (= "Connect this Principal" (get-in site/copy [:en :signed-in-action])))
     (is (str/includes? (get-in site/copy [:en :signed-in-status]) "connect this Principal to Kotobase"))))
 
-(deftest seventeen-real-entry-locales-preserve-authority-boundaries
+(deftest public-entry-locales-preserve-authority-boundaries-and-hreflang
   (doseq [[locale t] locales/copy]
     (let [html (site/page-html locale)]
       (is (str/includes? html (str "<html lang=\"" (name locale) "\" dir=\"" (locales/direction locale) "\">")))
@@ -176,9 +178,9 @@
       (is (str/includes? html (str "rel=\"canonical\" href=\"https://kotoba.cloud/" (name locale) "/\"")))
       (is (str/includes? html "lang=\"en\" dir=\"ltr\""))
       (doseq [loc site/supported-locales]
-        (is (str/includes? html (str "hreflang=\"" (name loc) "\""))))))
-
-)
+        (is (str/includes? html (str "hreflang=\"" (name loc) "\""))))
+      (is (str/includes? html "\"inLanguage\":[\"en\",\"zh-Hans\""))
+      (is (str/includes? html "\"jv\",\"su\",\"he\",\"it\",\"ar-MA\"]")))))
 
 (deftest awai-billing-entry-keeps-service-purchases-explicit
   (doseq [locale [:en :ja]]

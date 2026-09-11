@@ -1,0 +1,79 @@
+(ns app-kotoba-cloud.locale-test
+  (:require [app-kotoba-cloud.locale :as locale]
+            [app-kotoba-cloud.public-locales :as locales]
+            [clojure.test :refer [deftest is testing]]))
+
+(deftest catalog-keeps-prior-locales-and-adds-origin-set
+  (is (= [:en :zh-Hans :hi :es :ar :fr :bn :pt :id :ur :ru :de :ja :ko :pcm :arz :mr
+          :jv :su :he :it :ar-MA]
+         locales/locale-order))
+  (doseq [loc [:jv :su :he :it :ar-MA]]
+    (is (contains? locales/copy loc))
+    (is (string? (get locales/native-names loc))))
+  (is (= "rtl" (locales/direction :he)))
+  (is (= "rtl" (locales/direction :ar-MA)))
+  (is (= "ltr" (locales/direction :jv)))
+  (is (= "ltr" (locales/direction :it))))
+
+(deftest path-wins-over-cookie-header-and-country
+  (is (= :su (locale/negotiate {:path "/su/" :cookie "he"
+                                :accept-language "it" :country "IL"})))
+  (is (= :he (locale/negotiate {:path "/he" :cookie "it" :country "IT"})))
+  (is (= :zh-Hans (locale/negotiate {:path "/zh/" :cookie "id"})))
+  (is (= :ar-MA (locale/negotiate {:path "/ar-MA/" :country "EG"})))
+  (is (nil? (locale/path-locale "/legal/")))
+  (is (nil? (locale/path-locale "/billing/")))
+  (is (nil? (locale/path-locale "/js/language-selector.js"))))
+
+(deftest cookie-beats-accept-language-and-country
+  (is (= :jv (locale/negotiate {:path "/" :cookie "jv"
+                                :accept-language "id" :country "ID"})))
+  (is (= :en (locale/negotiate {:path "/" :cookie "en" :country "ID"})))
+  (is (= :it (locale/parse-locale "it-IT"))))
+
+(deftest accept-language-beats-country-and-can-select-jv-su
+  (is (= :id (locale/negotiate {:path "/" :accept-language "id,en;q=0.8"
+                                :country "IT"})))
+  (is (= :he (locale/negotiate {:path "/" :accept-language "he-IL,he;q=0.9,en;q=0.4"
+                                :country "DE"})))
+  (is (= :jv (locale/negotiate {:path "/" :accept-language "jv;q=0.9,id;q=0.8"
+                                :country "ID"})))
+  (is (= :su (locale/accept-language-locale "su-ID,su;q=0.8")))
+  (is (= :ar-MA (locale/accept-language-locale "ar-MA,ar;q=0.8")))
+  (is (= :arz (locale/accept-language-locale "ar-EG,ar;q=0.5")))
+  (is (= :zh-Hans (locale/accept-language-locale "zh-CN,zh;q=0.8,en;q=0.2")))
+  (is (= :he (locale/accept-language-locale "iw")))
+  (is (= :ar (locale/accept-language-locale "ar"))))
+
+(deftest country-map-never-selects-jv-or-su
+  (doseq [[country loc] [["ID" :id] ["IL" :he] ["KR" :ko] ["ES" :es]
+                         ["IT" :it] ["DE" :de] ["MA" :ar-MA] ["EG" :arz]]]
+    (is (= loc (locale/country-locale country)) country)
+    (is (= loc (locale/negotiate {:path "/" :country country}))))
+  (is (= :en (locale/negotiate {:path "/" :country "US"})))
+  (is (nil? (locale/country-locale "JV")))
+  (is (not= :jv (locale/country-locale "ID")))
+  (is (not= :su (locale/country-locale "ID")))
+  (is (empty? (filter locale/country-never (vals locale/country-locales)))))
+
+(deftest apex-redirects-except-english
+  (is (= {:locale :en}
+         (locale/static-decision {:path "/"})))
+  (is (= {:locale :id :redirect "/id/"}
+         (locale/static-decision {:path "/" :country "ID"})))
+  (is (= {:locale :he :redirect "/he/"}
+         (locale/static-decision {:path "/" :accept-language "he"})))
+  (is (= {:locale :jv :redirect "/jv/"}
+         (locale/static-decision {:path "/" :cookie "jv" :country "ID"})))
+  (is (= {:locale :su :set-cookie? true}
+         (locale/static-decision {:path "/su/" :cookie "he"})))
+  (is (= {:locale :en :set-cookie? true}
+         (locale/static-decision {:path "/en/" :country "ID"})))
+  (is (true? (locale/apex-path? "/")))
+  (is (false? (locale/apex-path? "/id/"))))
+
+(deftest cookie-header-is-host-scoped
+  (is (= "kb_locale" locale/cookie-name))
+  (is (re-find #"^kb_locale=he; Path=/; Max-Age=31536000; SameSite=Lax; Secure$"
+               (locale/cookie-header :he)))
+  (is (re-find #"kb_locale=" locale/language-cookie-script)))
