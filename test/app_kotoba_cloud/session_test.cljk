@@ -14,6 +14,19 @@
          "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Fja%2F"))
   (is (= (session/passkey-href :en)
          "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"))
+  (is (= (session/passkey-href :en "?bfcid=test123")
+         "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F%3Fbfcid%3Dtest123"))
+  (is (= (session/passkey-href :ja "?bfcid=test123&utm_source=freebuff")
+         (str "https://auth.kotoba.cloud/sign-in?return_to="
+              "https%3A%2F%2Fkotoba.cloud%2Fja%2F%3Fbfcid%3Dtest123%26utm_source%3Dfreebuff")))
+  (is (= (session/apply-attribution
+          (session/passkey-href :en)
+          "?bfcid=test123")
+         (session/passkey-href :en "?bfcid=test123")))
+  (is (= (session/passkey-href :en)
+         (session/apply-attribution (session/passkey-href :en) "")))
+  (is (= (session/passkey-href :en)
+         (session/apply-attribution (session/passkey-href :en) "?other=1")))
   (is (= "https://auth.kotoba.cloud/sign-in"
          (session/apex-sign-in-location "/sign-in" "")))
   (is (= "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
@@ -44,3 +57,19 @@
     (is (= {:valid false}
            (session/viewer-model {:valid true :principalId principal
                                   :accountDid account :activeDid "wallet"})))))
+
+(deftest freebuff-conversion-fires-once-and-only-with-bfcid
+  (testing "landing search and Freebuff cookie are the only measured click-id sources"
+    (is (= "test123" (session/click-id "?bfcid=test123" nil)))
+    (is (= "bfc_cookie" (session/click-id "" "other=1; bfcid=bfc_cookie; x=2")))
+    (is (= "from-url" (session/click-id "?bfcid=from-url" "bfcid=from-cookie")))
+    (is (nil? (session/click-id "" nil)))
+    (is (nil? (session/click-id "?utm_source=freebuff" nil))))
+  (testing "signup_completed conversion is guarded and never invented"
+    (is (nil? (session/signup-completed-conversion nil false)))
+    (is (nil? (session/signup-completed-conversion "" false)))
+    (is (nil? (session/signup-completed-conversion "test123" true)))
+    (is (= {:command "conversion"
+            :event-type "signup_completed"
+            :event-id "test123:signup_completed"}
+           (session/signup-completed-conversion "test123" false)))))

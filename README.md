@@ -95,6 +95,7 @@ compiler, verifier, host enforcement, or service-specific authority.
 ## Public routes
 
 - `GET https://kotoba.cloud/.well-known/kotoba-cloud.json`
+- `GET https://kotoba.cloud/.well-known/agent.json` — redirect to the same discovery profile; kotoba.cloud does not publish MCP here
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
 - `GET /v1/session` — credential-free projection of the current Passkey session

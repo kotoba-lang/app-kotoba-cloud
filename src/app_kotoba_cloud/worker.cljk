@@ -8,7 +8,7 @@
 
 (def security-headers
   {"content-security-policy"
-   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
    "cross-origin-opener-policy" "same-origin"
    "referrer-policy" "no-referrer"
    "x-content-type-options" "nosniff"
@@ -441,6 +441,9 @@
 
       (= path "/v1/session")
       (route-session request)
+
+      (= path "/.well-known/agent.json")
+      (redirect "/.well-known/kotoba-cloud.json")
 
       (or (= path "/.well-known/kotoba-cloud.json")
           (= path "/v1/control-plane"))

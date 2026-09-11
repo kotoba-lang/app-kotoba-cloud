@@ -627,6 +627,8 @@
                      [:link {:rel "alternate" :hreflang (name loc)
                              :href (str "https://kotoba.cloud/" (name loc) "/")}]))
        [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+        [:script session/freebuff-bootstrap-script]
+        [:script session/attribution-preserve-script]
         [:script {:src "/js/language-selector.js" :defer true}]
         [:script {:src "/js/session.js" :defer true}]
         [:link {:rel "alternate" :hreflang "ja" :href ja-href}]

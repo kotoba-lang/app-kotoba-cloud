@@ -6,18 +6,155 @@
 (def cookie-name "gftd_session")
 (def viewer-url (str profile/identity-origin "/v1/session"))
 (def apex-sign-in-paths #{"/sign-in" "/login"})
+(def freebuff-tag-src "https://freebuff.com/freebuff-tag.js")
+(def attribution-keys ["bfcid" "utm_source" "utm_medium" "utm_campaign" "utm_content"])
+(def signup-completed-event "signup_completed")
+(def signup-completed-guard-key "kc-freebuff-signup-completed")
+
+(defn- encode-component [s]
+  (-> (str s)
+      (str/replace "%" "%25")
+      (str/replace ":" "%3A")
+      (str/replace "/" "%2F")
+      (str/replace "?" "%3F")
+      (str/replace "=" "%3D")
+      (str/replace "&" "%26")
+      (str/replace "#" "%23")
+      (str/replace "+" "%2B")
+      (str/replace " " "%20")))
+
+(defn- decode-component [s]
+  (-> (str s)
+      (str/replace "+" " ")
+      (str/replace "%20" " ")
+      (str/replace "%2B" "+")
+      (str/replace "%23" "#")
+      (str/replace "%26" "&")
+      (str/replace "%3D" "=")
+      (str/replace "%3F" "?")
+      (str/replace "%2F" "/")
+      (str/replace "%3A" ":")
+      (str/replace "%25" "%")))
+
+(defn- safe-param? [value]
+  (and (string? value)
+       (= value (str/trim value))
+       (not (str/blank? value))
+       (<= (count value) 512)
+       (not (re-find #"[\r\n]" value))))
+
+(defn- parse-query [qs]
+  (into {}
+        (keep (fn [part]
+                (let [[k v] (str/split part #"=" 2)]
+                  (when (and (string? k) (not (str/blank? k)))
+                    [k (decode-component (or v ""))]))))
+        (when (and (string? qs) (not (str/blank? qs)))
+          (str/split qs #"&"))))
+
+(defn attribution-params
+  "Measured attribution keys from a landing search string. Never invents values."
+  [search]
+  (let [qs (cond
+             (not (string? search)) ""
+             (str/starts-with? search "?") (subs search 1)
+             :else search)
+        parsed (parse-query qs)]
+    (into []
+          (keep (fn [k]
+                  (when-let [v (get parsed k)]
+                    (when (safe-param? v)
+                      [k v]))))
+          attribution-keys)))
+
+(defn- format-attribution [params]
+  (->> params
+       (map (fn [[k v]] (str k "=" (encode-component v))))
+       (str/join "&")))
+
+(defn- with-attribution-query [url params]
+  (if (empty? params)
+    url
+    (let [[base qs] (str/split url #"\?" 2)
+          known (set attribution-keys)
+          existing (parse-query qs)
+          extras (->> existing
+                      (remove (fn [[k _]] (known k)))
+                      (map (fn [[k v]] (str k "=" (encode-component v))))
+                      (str/join "&"))
+          q (->> [ (format-attribution params) extras]
+                 (remove str/blank?)
+                 (str/join "&"))]
+      (if (str/blank? q) base (str base "?" q)))))
+
+(defn apply-attribution
+  "Copy landing attribution onto an auth.kotoba.cloud sign-in href's return_to.
+
+  auth.kotoba.cloud drops non-allowlisted return_to hosts; kotoba.cloud is
+  allowed. The click id must therefore ride on the apex return_to URL so it
+  survives the Passkey round-trip."
+  [href search]
+  (let [params (attribution-params search)
+        marker (str profile/identity-sign-in "?return_to=")]
+    (cond
+      (empty? params) href
+      (not (and (string? href) (str/starts-with? href marker))) href
+      :else
+      (let [return-to (decode-component (subs href (count marker)))]
+        (str marker (encode-component (with-attribution-query return-to params)))))))
+
+(defn locale-return-to
+  [locale]
+  (if (= locale :en)
+    "https://kotoba.cloud/"
+    "https://kotoba.cloud/ja/"))
 
 (defn passkey-href
   "Public sign-in CTA. Live auth.kotoba.cloud serves HTML at /sign-in; its
   default way in is a Base Account (smart-contract wallet) since 2026-09-07,
   with passkey, wallet and recovery-phrase sign-in on the same page. The name
-  predates that and is kept so callers need not change."
-  [locale]
-  (str profile/identity-sign-in
-       "?return_to="
-       (if (= locale :en)
-         "https%3A%2F%2Fkotoba.cloud%2F"
-         "https%3A%2F%2Fkotoba.cloud%2Fja%2F")))
+  predates that and is kept so callers need not change.
+
+  Optional `search` is the current page's query (location.search). Measured
+  bfcid/utm_* values are copied onto the kotoba.cloud return_to URL."
+  ([locale]
+   (passkey-href locale nil))
+  ([locale search]
+   (apply-attribution
+    (str profile/identity-sign-in "?return_to=" (encode-component (locale-return-to locale)))
+    search)))
+
+(defn signup-completed-conversion
+  "Once-only Freebuff conversion payload. Nil without a measured bfcid or after fire."
+  [bfcid already-fired?]
+  (when (and (safe-param? bfcid) (not already-fired?))
+    {:command "conversion"
+     :event-type signup-completed-event
+     :event-id (str bfcid ":" signup-completed-event)}))
+
+(def freebuff-bootstrap-script
+  (str "(function(){try{var clickId=new URLSearchParams(location.search).get('bfcid');"
+       "if(!clickId)return;"
+       "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments);};"
+       "var script=document.createElement('script');script.async=true;"
+       "script.src='" freebuff-tag-src "';"
+       "document.head.appendChild(script);}catch(error){}})();"))
+
+(def attribution-preserve-script
+  (str "(function(){document.addEventListener('DOMContentLoaded',function(){try{"
+       "var incoming=new URLSearchParams(location.search);var keep=new URLSearchParams();"
+       "['bfcid','utm_source','utm_medium','utm_campaign','utm_content'].forEach(function(key){"
+       "var value=incoming.get(key);if(value)keep.set(key,value);});"
+       "if(!keep.toString())return;"
+       "Array.prototype.forEach.call(document.querySelectorAll('a[href]'),function(link){"
+       "var href=link.getAttribute('href')||'';"
+       "if(href.indexOf('https://auth.kotoba.cloud/sign-in')!==0)return;"
+       "var target=new URL(href,location.origin);"
+       "var returnTo=target.searchParams.get('return_to')||(location.origin+'/');"
+       "var dest=new URL(returnTo,location.origin);"
+       "keep.forEach(function(value,key){dest.searchParams.set(key,value);});"
+       "target.searchParams.set('return_to',dest.toString());"
+       "link.href=target.toString();});}catch(error){}});})();"))
 
 (defn apex-sign-in-location
   "Send mistaken apex login paths to the live Passkey RP, keeping any query."
@@ -38,6 +175,13 @@
                          (not (re-find #"[\r\n;]" value)))
                 value)))
           (str/split header #";"))))
+
+(defn click-id
+  "bfcid from the landing search or the Freebuff cookie. Absent unless measured."
+  [search cookie-header]
+  (or (some (fn [[k v]] (when (= k "bfcid") v)) (attribution-params search))
+      (let [from-cookie (cookie-value cookie-header "bfcid")]
+        (when (safe-param? from-cookie) from-cookie))))
 
 (defn- identity-value [value]
   (when (and (string? value)

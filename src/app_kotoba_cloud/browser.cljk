@@ -13,6 +13,49 @@
       (.setAttribute el "lang" "en")
       (.setAttribute el "dir" "ltr"))))
 
+(defonce ^:private signup-conversion-fired? (atom false))
+
+(defn- install-freebuff-stub! []
+  (js* "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments);}"))
+
+(defn- load-freebuff-tag! []
+  (when-not (.querySelector js/document (str "script[src=\"" session/freebuff-tag-src "\"]"))
+    (let [el (.createElement js/document "script")]
+      (set! (.-async el) true)
+      (set! (.-src el) session/freebuff-tag-src)
+      (.appendChild (.-head js/document) el))))
+
+(defn- already-fired-signup-conversion? []
+  (or @signup-conversion-fired?
+      (try
+        (boolean (.getItem js/sessionStorage session/signup-completed-guard-key))
+        (catch :default _ false))))
+
+(defn- mark-signup-conversion-fired! [event-id]
+  (reset! signup-conversion-fired? true)
+  (try
+    (.setItem js/sessionStorage session/signup-completed-guard-key event-id)
+    (catch :default _ nil)))
+
+(defn- fire-signup-completed! []
+  (let [bfcid (session/click-id (.-search js/location) (.-cookie js/document))
+        event (session/signup-completed-conversion bfcid (already-fired-signup-conversion?))]
+    (when event
+      (install-freebuff-stub!)
+      (load-freebuff-tag!)
+      (js* "window.freebuff('conversion', ~{}, ~{})"
+           (:event-type event)
+           #js {:eventId (:event-id event)})
+      (mark-signup-conversion-fired! (:event-id event)))))
+
+(defn- preserve-sign-in-attribution! []
+  (let [search (.-search js/location)]
+    (doseq [link (array-seq (.querySelectorAll js/document "a[href]"))]
+      (let [href (.getAttribute link "href")
+            next (session/apply-attribution href search)]
+        (when (not= href next)
+          (set! (.-href link) next))))))
+
 (defn- signed-in! [payload]
   (let [username (:username payload)
         english? (not= "ja" (.-lang (.-documentElement js/document)))
@@ -46,7 +89,8 @@
     (text! "kc-session-username" (str "@" username))
     (text! "kc-session-principal" (session/abbreviate (:principalId payload)))
     (text! "kc-session-controller" (session/abbreviate (:activeDid payload)))
-    (text! "kc-session-status" (str next-status " · @" username))))
+    (text! "kc-session-status" (str next-status " · @" username))
+    (fire-signup-completed!)))
 
 (defn- decode-fragment [prefix]
   (let [hash (.-hash js/location)]
@@ -144,6 +188,7 @@
                      (text! "pq-key-transition-result" (.-message error))))))))))
 
 (defn init! []
+  (preserve-sign-in-attribution!)
   (when-let [publication (decode-fragment "#publish=")]
     (publication-preview! publication))
   (when-let [transition (decode-fragment "#pq-key-transition=")]
