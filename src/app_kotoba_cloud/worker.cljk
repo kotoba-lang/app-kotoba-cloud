@@ -53,6 +53,8 @@
 
 (defn- session-response [value] (private-json-response value))
 
+(declare fetch-viewer)
+
 ;; Isolate-memory ledger. This Worker has no KV or D1 binding; do not
 ;; invent one. Tests may replace the atom via `reset-funnel-store!`.
 (defonce funnel-store (atom (funnel/empty-state)))
