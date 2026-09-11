@@ -1,0 +1,77 @@
+(ns app-kotoba-cloud.funnel-test
+  (:require [app-kotoba-cloud.funnel :as funnel]
+            [clojure.test :refer [deftest is testing]]
+            [kotoba.lang.text :as str]))
+
+(deftest empty-state-is-zero-and-unseeded
+  (let [state (funnel/empty-state)
+        snap (funnel/snapshot state (funnel/persistence-report "isolate-memory"))]
+    (is (= 0 (:visitors state) (:signups state) (:signup_completed state)))
+    (is (= {:visitors 0 :signups 0 :signup_completed 0} (:funnel snap)))
+    (is (= 0 (:registrations snap)))
+    (is (false? (:seeded snap)))
+    (is (false? (get-in snap [:persistence :durable])))
+    (is (= "isolate-memory" (get-in snap [:persistence :kind])))
+    (is (str/includes? (get-in snap [:persistence :hold]) "No KV or D1"))
+    (is (str/includes? (get-in snap [:persistence :openai_ads]) "HOLD"))
+    (is (false? (str/includes? (pr-str snap) "GMV")))))
+
+(deftest labels-distinguish-intent-from-completed-auth
+  (let [labels (:labels (funnel/snapshot (funnel/empty-state)
+                                         (funnel/persistence-report "isolate-memory")))]
+    (is (str/includes? (:signups labels) "intent"))
+    (is (str/includes? (:signup_completed labels) "completed"))
+    (is (str/includes? (:registrations labels) "alias of signup_completed"))))
+
+(deftest apply-event-records-once-per-dedup-key
+  (let [s0 (funnel/empty-state)
+        v1 (funnel/apply-event s0 {:event "visitor" :dedup-key "sess-1" :source "organic"})
+        v2 (funnel/apply-event (:state v1) {:event "visitor" :dedup-key "sess-1" :source "organic"})
+        s1 (funnel/apply-event (:state v2) {:event "signup" :dedup-key "sess-1" :source "organic"})
+        c1 (funnel/apply-event (:state s1) {:event "signup_completed"
+                                            :dedup-key "urn:kotoba:principal:a"
+                                            :source "organic"})
+        c2 (funnel/apply-event (:state c1) {:event "signup_completed"
+                                            :dedup-key "urn:kotoba:principal:a"
+                                            :source "organic"})
+        other (funnel/apply-event (:state c2) {:event "signup_completed"
+                                               :dedup-key "urn:kotoba:principal:b"
+                                               :source "freebuff"})]
+    (is (true? (:accepted v1)))
+    (is (false? (:accepted v2)))
+    (is (= "duplicate" (:reason v2)))
+    (is (= 1 (get-in v2 [:state :visitors])))
+    (is (= 1 (get-in s1 [:state :signups])))
+    (is (true? (:accepted c1)))
+    (is (false? (:accepted c2)))
+    (is (= 1 (get-in c2 [:state :signup_completed])))
+    (is (= 2 (get-in other [:state :signup_completed])))
+    (is (= 1 (get-in other [:state :by-source :signup_completed "organic"])))
+    (is (= 1 (get-in other [:state :by-source :signup_completed "freebuff"])))))
+
+(deftest unknown-event-and-missing-key-do-not-invent-counts
+  (let [state (funnel/empty-state)]
+    (is (= "unknown-event"
+           (:reason (funnel/apply-event state {:event "purchase" :dedup-key "x"}))))
+    (is (= "unknown-event"
+           (:reason (funnel/apply-event state {:event "gmv" :dedup-key "x"}))))
+    (is (= "dedup-key-required"
+           (:reason (funnel/apply-event state {:event "visitor"}))))
+    (is (= 0 (:visitors (:state (funnel/apply-event state {:event "visitor"}))))))
+  (is (nil? (funnel/event-name "purchase")))
+  (is (nil? (funnel/source-name "openai-ads")))
+  (is (= "freebuff" (funnel/infer-source "bfc_testclick1")))
+  (is (= "organic" (funnel/infer-source nil))))
+
+(deftest registrations-alias-tracks-completed-only
+  (testing "intent without auth does not move registrations"
+    (let [after-intent (-> (funnel/empty-state)
+                           (funnel/apply-event {:event "visitor" :dedup-key "a" :source "organic"})
+                           :state
+                           (funnel/apply-event {:event "signup" :dedup-key "a" :source "organic"})
+                           :state)
+          snap (funnel/snapshot after-intent (funnel/persistence-report "isolate-memory"))]
+      (is (= 1 (get-in snap [:funnel :visitors])))
+      (is (= 1 (get-in snap [:funnel :signups])))
+      (is (= 0 (get-in snap [:funnel :signup_completed])))
+      (is (= 0 (:registrations snap))))))

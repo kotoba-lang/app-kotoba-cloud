@@ -10,6 +10,8 @@
             [app-kotoba-cloud.pq-key-lifecycle-test]
             [app-kotoba-cloud.free-sites-test]
             [app-kotoba-cloud.session-test]
+            [app-kotoba-cloud.funnel-test]
+            [app-kotoba-cloud.attribution-test]
             [app-kotoba-cloud.site-test]
             [app-kotoba-cloud.locale-test]
             [clojure.test :as test]))
@@ -26,6 +28,8 @@
                                'app-kotoba-cloud.pq-key-lifecycle-test
                                'app-kotoba-cloud.free-sites-test
                                'app-kotoba-cloud.session-test
+                               'app-kotoba-cloud.funnel-test
+                               'app-kotoba-cloud.attribution-test
                                'app-kotoba-cloud.site-test
                                'app-kotoba-cloud.locale-test)]
     (when (pos? (+ (:fail result) (:error result)))

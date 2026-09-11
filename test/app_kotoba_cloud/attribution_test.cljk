@@ -1,0 +1,71 @@
+(ns app-kotoba-cloud.attribution-test
+  (:require [app-kotoba-cloud.attribution :as attribution]
+            [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.session :as session]
+            [clojure.test :refer [deftest is testing]]
+            [kotoba.lang.text :as str]))
+
+(def click "test123")
+
+(deftest attribution-reads-only-the-kept-keys
+  (is (= {"bfcid" click
+          "utm_source" "freebuff"
+          "utm_medium" "cpc"
+          "utm_campaign" "149f2633"
+          "utm_content" "signin"}
+         (attribution/attribution-from-search
+          (str "?bfcid=" click
+               "&utm_source=freebuff&utm_medium=cpc&utm_campaign=149f2633"
+               "&utm_content=signin&gclid=ignore-me"))))
+  (is (= {} (attribution/attribution-from-search "")))
+  (is (= {} (attribution/attribution-from-search nil))))
+
+(deftest apply-attribution-keeps-return-to-working
+  (let [href (str "https://auth.kotoba.cloud/sign-in?return_to="
+                  "https%3A%2F%2Fkotoba.cloud%2F")
+        out (attribution/apply-attribution href {"bfcid" click "utm_source" "freebuff"})]
+    (is (str/starts-with? out "https://auth.kotoba.cloud/sign-in?"))
+    (is (str/includes? out (str "bfcid=" click)))
+    (is (str/includes? out "utm_source=freebuff"))
+    (let [params (attribution/parse-query (subs out (.indexOf out "?")))
+          return-to (get params "return_to")]
+      (is (= click (get params "bfcid")))
+      (is (str/includes? return-to click))
+      (is (str/includes? return-to "utm_source=freebuff"))
+      (is (str/starts-with? return-to "https://kotoba.cloud/")))))
+
+(deftest sign-in-location-is-byte-stable-without-attribution
+  (is (= "https://auth.kotoba.cloud/sign-in"
+         (attribution/sign-in-location profile/identity-sign-in "")))
+  (is (= "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
+         (attribution/sign-in-location
+          profile/identity-sign-in
+          "?return_to=https%3A%2F%2Fkotoba.cloud%2F")))
+  (is (= (str "https://auth.kotoba.cloud/sign-in?bfcid=" click)
+         (session/apex-sign-in-location "/signin" (str "?bfcid=" click)))))
+
+(deftest apex-signin-merges-bfcid-into-return-to
+  (let [location (session/apex-sign-in-location
+                  "/signin"
+                  (str "?return_to=https%3A%2F%2Fkotoba.cloud%2F&bfcid=" click))
+        params (attribution/parse-query (subs location (.indexOf location "?")))]
+    (is (str/starts-with? location "https://auth.kotoba.cloud/sign-in?"))
+    (is (= click (get params "bfcid")))
+    (is (str/includes? (get params "return_to") click))))
+
+(deftest conversion-name-is-only-signup-completed
+  (is (= (str click ":signup_completed")
+         (attribution/conversion-event-id click)))
+  (is (nil? (attribution/conversion-event-id "")))
+  (testing "does not invent OpenAI Ads event names"
+    (is (false? (str/includes? (attribution/conversion-event-id click) "purchase")))
+    (is (false? (str/includes? (attribution/conversion-event-id click) "gmv")))))
+
+(deftest target-hrefs-are-the-sign-in-and-principal-connect-path
+  (is (true? (attribution/target-href? "https://auth.kotoba.cloud/sign-in")))
+  (is (true? (attribution/target-href? "https://auth.kotoba.cloud/connect?target=kotobase")))
+  (is (true? (attribution/target-href? "/login")))
+  (is (true? (attribution/target-href? "/sign-in")))
+  (is (true? (attribution/target-href? "/signin")))
+  (is (false? (attribution/target-href? "https://kotoba-lang.org/#start")))
+  (is (false? (attribution/target-href? "/legal/"))))

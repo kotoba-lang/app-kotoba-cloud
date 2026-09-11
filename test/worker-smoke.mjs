@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
-import { route } from "../build/worker.js";
+import { route, resetFunnelStore } from "../build/worker.js";
 
 const calls = [];
 let upstreamStatus = 200;
@@ -505,6 +505,10 @@ const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/sessio
 assert.equal(sessionUntouched.status, 200);
 assert.equal(sessionUntouched.headers.get("location"), null);
 
+const funnelUntouched = await route(new Request("https://kotoba.cloud/api/funnel"), env);
+assert.equal(funnelUntouched.status, 200);
+assert.equal(funnelUntouched.headers.get("location"), null);
+
 console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negotiate smoke passed");
 
 // Research gateway: these tests qualify edge admission only, not a real provider.
@@ -590,3 +594,100 @@ console.log("research gateway identity, evidence, scope, free-only receipts and 
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" }, body: "{broken"
 }), researchEnv)).status, 400);
+
+const signinAlias = await route(new Request("https://kotoba.cloud/signin?bfcid=test123"), env);
+assert.equal(signinAlias.status, 302);
+assert.match(signinAlias.headers.get("location"), /^https:\/\/auth\.kotoba\.cloud\/sign-in\?/);
+assert.match(signinAlias.headers.get("location"), /bfcid=test123/);
+
+resetFunnelStore();
+const emptyFunnel = await route(new Request("https://kotoba.cloud/api/funnel"), env);
+assert.equal(emptyFunnel.status, 200);
+const emptyPayload = await emptyFunnel.json();
+assert.equal(emptyPayload.funnel.visitors, 0);
+assert.equal(emptyPayload.funnel.signups, 0);
+assert.equal(emptyPayload.funnel.signup_completed, 0);
+assert.equal(emptyPayload.registrations, 0);
+assert.equal(emptyPayload.seeded, false);
+assert.equal(emptyPayload.persistence.kind, "isolate-memory");
+assert.equal(emptyPayload.persistence.durable, false);
+assert.match(emptyPayload.persistence.hold, /No KV or D1/);
+assert.match(emptyPayload.persistence.openai_ads, /HOLD/);
+assert.match(emptyPayload.labels.signups, /intent/);
+assert.match(emptyPayload.labels.signup_completed, /completed/);
+assert.equal(emptyPayload.labels.registrations.includes("alias"), true);
+assert.equal(JSON.stringify(emptyPayload).includes("GMV"), false);
+assert.equal(emptyFunnel.headers.get("content-security-policy").includes("https://freebuff.com"), true);
+
+const health = await route(new Request("https://kotoba.cloud/health"), env);
+const healthBody = await health.json();
+assert.equal(healthBody.ok, true);
+assert.equal(Object.hasOwn(healthBody, "registrant"), false);
+assert.equal(Object.hasOwn(healthBody, "registrants"), false);
+
+const visitorOnce = await route(new Request("https://kotoba.cloud/api/funnel/event", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ event: "visitor" })
+}), env);
+assert.equal(visitorOnce.status, 200);
+const visitorOnceBody = await visitorOnce.json();
+assert.equal(visitorOnceBody.ok, true);
+assert.equal(visitorOnceBody.accepted, true);
+assert.equal(visitorOnceBody.funnel.visitors, 1);
+const funnelCookie = visitorOnce.headers.get("set-cookie");
+assert.match(funnelCookie, /^kc_funnel=/);
+
+const visitorAgain = await route(new Request("https://kotoba.cloud/api/funnel/event", {
+  method: "POST",
+  headers: { "content-type": "application/json", cookie: funnelCookie.split(";")[0] },
+  body: JSON.stringify({ event: "visitor" })
+}), env);
+assert.equal((await visitorAgain.json()).accepted, false);
+
+const signupIntent = await route(new Request("https://kotoba.cloud/api/funnel/event", {
+  method: "POST",
+  headers: { "content-type": "application/json", cookie: funnelCookie.split(";")[0] },
+  body: JSON.stringify({ event: "signup" })
+}), env);
+assert.equal((await signupIntent.json()).funnel.signups, 1);
+
+const completedAnonymous = await route(new Request("https://kotoba.cloud/api/funnel/event", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ event: "signup_completed" })
+}), env);
+assert.equal(completedAnonymous.status, 401);
+assert.equal((await completedAnonymous.json()).error, "principal-session-required");
+
+upstreamStatus = 200;
+const completedFirst = await route(new Request("https://kotoba.cloud/v1/session", {
+  headers: { cookie: "gftd_session=funnel-principal" }
+}), env);
+assert.equal((await completedFirst.json()).valid, true);
+const afterSession = await (await route(new Request("https://kotoba.cloud/api/funnel"), env)).json();
+assert.equal(afterSession.funnel.signup_completed, 1);
+assert.equal(afterSession.registrations, 1);
+
+const completedAgain = await route(new Request("https://kotoba.cloud/api/funnel/event", {
+  method: "POST",
+  headers: { "content-type": "application/json", cookie: "gftd_session=funnel-principal" },
+  body: JSON.stringify({ event: "signup_completed" })
+}), env);
+assert.equal(completedAgain.status, 200);
+assert.equal((await completedAgain.json()).accepted, false);
+const afterDedup = await (await route(new Request("https://kotoba.cloud/api/funnel"), env)).json();
+assert.equal(afterDedup.funnel.signup_completed, 1);
+assert.equal(afterDedup.registrations, 1);
+
+const unknownEvent = await route(new Request("https://kotoba.cloud/api/funnel/event", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ event: "purchase" })
+}), env);
+assert.equal(unknownEvent.status, 400);
+
+const apiHostFunnel = await route(new Request("https://api.kotoba.cloud/api/funnel"), env);
+assert.equal(apiHostFunnel.status, 200);
+
+console.log("worker Passkey/PQ publication, AIUEOS boot, origin locale negotiate, and first-party funnel smoke passed");

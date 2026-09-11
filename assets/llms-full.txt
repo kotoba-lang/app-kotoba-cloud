@@ -28,6 +28,7 @@ Existing infrastructure features below retain separate authority boundaries.
 ```sh
 curl -fsS https://kotoba.cloud/health
 curl -fsS https://kotoba.cloud/.well-known/kotoba-cloud.json
+curl -fsS https://kotoba.cloud/api/funnel
 ```
 
 Expect HTTP 200 and inspect the profile's deploy capabilities. Discovery and the

@@ -33,6 +33,8 @@ Safe code. Trusted state. Controlled execution. Kotoba Labs is building toward a
 
 Discovery and the Passkey RP are live. Hosted apply is not yet offered. Consult the machine-readable profile for exact capabilities: https://kotoba.cloud/.well-known/kotoba-cloud.json
 
+First-party signup counters are at GET /api/funnel (visitors, signups as intent, signup_completed / registrations as auth completed). They start at zero. This Worker has no KV/D1 funnel store; isolate-memory counts reset on recycle. No GMV and no OpenAI Ads pixel.
+
 CPU/GPU compute is provided by Murakumo; continuing agent work by Itonami. Each service retains its own authority and operational qualification. Discovery does not grant access.
 
 Post-quantum signatures remain mandatory for library publication. The authenticator itself is a separate trust boundary. See the publication flow and requirements at https://kotoba.cloud/#libraries

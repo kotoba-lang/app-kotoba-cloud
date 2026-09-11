@@ -1,6 +1,8 @@
 (ns app-kotoba-cloud.worker
-  (:require [app-kotoba-cloud.research-gateway :as research-gateway]
+  (:require [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.boot :as boot]
+            [app-kotoba-cloud.funnel :as funnel]
+            [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
@@ -9,8 +11,11 @@
             [goog.object :as gobj]))
 
 (def security-headers
+  ;; connect-src stays 'self' for first-party funnel POSTs. freebuff.com is
+  ;; allowed only so a measured bfcid can load the vendor tag. No OpenAI Ads
+  ;; host is listed.
   {"content-security-policy"
-   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
    "cross-origin-opener-policy" "same-origin"
    "referrer-policy" "no-referrer"
    "x-content-type-options" "nosniff"
@@ -48,6 +53,140 @@
 
 (defn- session-response [value] (private-json-response value))
 
+;; Isolate-memory ledger. This Worker has no KV or D1 binding; do not
+;; invent one. Tests may replace the atom via `reset-funnel-store!`.
+(defonce funnel-store (atom (funnel/empty-state)))
+
+(defn reset-funnel-store!
+  "Test hook. Production never seeds this atom."
+  []
+  (reset! funnel-store (funnel/empty-state)))
+
+(defn- funnel-cookie-header [visitor-id]
+  (str session/funnel-cookie-name "=" visitor-id
+       "; Path=/; Max-Age=31536000; SameSite=Lax; Secure"))
+
+(defn- request-funnel-id [request]
+  (session/cookie-value (.get (.-headers request) "cookie")
+                        session/funnel-cookie-name))
+
+(defn- new-funnel-id []
+  (try
+    (.randomUUID js/crypto)
+    (catch :default _
+      (str "funnel-" (.now js/Date)))))
+
+(defn- record-funnel-event!
+  [event dedup-key source]
+  (let [result (funnel/apply-event @funnel-store
+                                   {:event event
+                                    :dedup-key dedup-key
+                                    :source source})]
+    (reset! funnel-store (:state result))
+    result))
+
+(defn- persistence-for [_env]
+  ;; No FUNNEL KV/D1 binding is declared in wrangler.jsonc. A future
+  ;; binding may flip this; until then the HOLD stays isolate-memory.
+  (funnel/persistence-report "isolate-memory"))
+
+(defn- funnel-snapshot [env]
+  (funnel/snapshot @funnel-store (persistence-for env)))
+
+(defn- request-source [request search]
+  (funnel/infer-source
+   (or (attribution/click-id search)
+       (attribution/click-id (str "?" (or (.get (.-headers request) "referer") ""))))))
+
+(defn- route-funnel-read [env]
+  (response (js/JSON.stringify (clj->js (funnel-snapshot env)) nil 2)
+            200 "application/json; charset=utf-8"
+            {"cache-control" "no-store"}))
+
+(defn- parse-funnel-body [text]
+  (when (and (string? text) (pos? (count text)) (<= (count text) 4096))
+    (try
+      (js->clj (js/JSON.parse text) :keywordize-keys true)
+      (catch :default _ nil))))
+
+(defn- route-funnel-event [request env]
+  (let [content-type (or (.get (.-headers request) "content-type") "")]
+    (cond
+      (not (.startsWith content-type "application/json"))
+      (private-json-response {:ok false :error "content-type-required"} 415)
+
+      :else
+      (-> (.text request)
+          (.then
+           (fn [text]
+             (let [body (parse-funnel-body text)
+                   event (funnel/event-name (or (:event body) (:name body)))
+                   search (.-search (js/URL. (.-url request)))
+                   source (or (funnel/source-name (:source body))
+                              (funnel/infer-source (:bfcid body))
+                              (request-source request search))
+                   existing-id (or (request-funnel-id request)
+                                   (:session body)
+                                   (:visitor body))
+                   visitor-id (or existing-id (new-funnel-id))
+                   extra (when-not existing-id
+                           {"set-cookie" (funnel-cookie-header visitor-id)})]
+               (cond
+                 (nil? event)
+                 (private-json-response {:ok false :error "unknown-event"
+                                         :events (vec funnel/event-names)} 400)
+
+                 (= event "signup_completed")
+                 (-> (fetch-viewer request)
+                     (.then
+                      (fn [viewer]
+                        (if-not (:valid viewer)
+                          (private-json-response
+                           {:ok false
+                            :error "principal-session-required"
+                            :note "signup_completed is counted only after a valid Stable Principal session. A bfcid is not required."}
+                           401)
+                          (let [result (record-funnel-event!
+                                        "signup_completed"
+                                        (:principalId viewer)
+                                        source)]
+                            (response (js/JSON.stringify
+                                       (clj->js {:ok true
+                                                 :accepted (:accepted result)
+                                                 :reason (:reason result)
+                                                 :event "signup_completed"
+                                                 :funnel (:funnel (funnel-snapshot env))}))
+                                      200 "application/json; charset=utf-8"
+                                      (merge {"cache-control" "no-store, private"} extra)))))))
+
+                 :else
+                 (let [result (record-funnel-event! event visitor-id source)]
+                   (response (js/JSON.stringify
+                              (clj->js {:ok true
+                                        :accepted (:accepted result)
+                                        :reason (:reason result)
+                                        :event event
+                                        :funnel (:funnel (funnel-snapshot env))}))
+                             200 "application/json; charset=utf-8"
+                             (merge {"cache-control" "no-store, private"} extra)))))))
+          (.catch
+           (fn [_]
+             (private-json-response {:ok false :error "funnel-event-failed"} 400)))))))
+
+(defn- emit-signup-completed! [request env viewer]
+  (when (:valid viewer)
+    (record-funnel-event! "signup_completed"
+                          (:principalId viewer)
+                          (request-source request (.-search (js/URL. (.-url request)))))))
+
+(defn- emit-signup-intent! [request]
+  (let [existing (request-funnel-id request)
+        visitor-id (or existing (new-funnel-id))
+        search (.-search (js/URL. (.-url request)))
+        _ (record-funnel-event! "signup" visitor-id (request-source request search))]
+    (when-not existing
+      {"set-cookie" (funnel-cookie-header visitor-id)})))
+
 (defn- redirect
   ([location]
    (redirect location {}))
@@ -69,9 +208,12 @@
         (.catch (fn [_] nil)))
     (js/Promise.resolve nil)))
 
-(defn- route-session [request]
+(defn- route-session [request env]
   (-> (fetch-viewer request)
-      (.then #(session-response (or % {:valid false})))))
+      (.then (fn [viewer]
+               (let [model (or viewer {:valid false})]
+                 (emit-signup-completed! request env model)
+                 (session-response model))))))
 
 (def publication-schema
   "https://kotoba.cloud/schemas/library-publication-request/v3")
@@ -469,17 +611,23 @@
       (and (= path "/v1/pq-keys/revoke") (= method "POST"))
       (route-pq-key-transition request env "revoke")
 
+      (and (= path "/api/funnel/event") (= method "POST"))
+      (route-funnel-event request env)
+
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
 
       sign-in
-      (redirect sign-in)
+      (redirect sign-in (emit-signup-intent! request))
+
+      (and (= path "/api/funnel") (#{"GET" "HEAD"} method))
+      (route-funnel-read env)
 
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})
 
       (= path "/v1/session")
-      (route-session request)
+      (route-session request env)
 
       (or (= path "/.well-known/kotoba-cloud.json")
           (= path "/v1/control-plane"))

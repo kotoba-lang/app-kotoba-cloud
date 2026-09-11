@@ -1,7 +1,69 @@
 (ns app-kotoba-cloud.browser
-  (:require [app-kotoba-cloud.research-browser :as research-browser]
+  (:require [app-kotoba-cloud.attribution :as attribution]
+            [app-kotoba-cloud.research-browser :as research-browser]
             [app-kotoba-cloud.session :as session]
             [goog.object :as gobj]))
+
+(def freebuff-tag-src "https://freebuff.com/freebuff-tag.js")
+(def completed-guard-key "kc-funnel-signup-completed")
+
+(defn- post-funnel-event!
+  "First-party event. Failures are ignored so the page still works."
+  [event extra]
+  (try
+    (js/fetch "/api/funnel/event"
+              #js {:method "POST"
+                   :credentials "same-origin"
+                   :headers #js {"content-type" "application/json"
+                                 "accept" "application/json"}
+                   :body (js/JSON.stringify (clj->js (merge {:event event} extra)))})
+    (catch :default _ nil)))
+
+(defn- storage-get [key]
+  (try (.getItem js/sessionStorage key)
+       (catch :default _ nil)))
+
+(defn- storage-set [key value]
+  (try (.setItem js/sessionStorage key value)
+       (catch :default _ nil)))
+
+(defn- landing-attribution []
+  (attribution/attribution-from-search (.-search js/location)))
+
+(defn- preserve-attribution-links!
+  []
+  (let [keep (landing-attribution)]
+    (when (seq keep)
+      (doseq [link (array-seq (.querySelectorAll js/document "a[href]"))]
+        (let [href (.getAttribute link "href")]
+          (when (attribution/target-href? href)
+            (set! (.-href link) (attribution/apply-attribution href keep))))))))
+
+(defn- load-freebuff-tag!
+  "Vendor tag is extra and loads only with a measured bfcid."
+  [bfcid]
+  (when (and bfcid (.-head js/document)
+             (not (.querySelector js/document (str "script[src=\"" freebuff-tag-src "\"]"))))
+    (when-not (gobj/get js/window "freebuff")
+      (aset js/window "freebuff"
+            (fn [& args]
+              (let [fb (gobj/get js/window "freebuff")]
+                (aset fb "q" (or (gobj/get fb "q") #js []))
+                (.push (gobj/get fb "q") (clj->js args))))))
+    (let [script (.createElement js/document "script")]
+      (set! (.-async script) true)
+      (set! (.-src script) freebuff-tag-src)
+      (.appendChild (.-head js/document) script))))
+
+(defn- fire-freebuff-completed!
+  [bfcid]
+  (when-let [event-id (attribution/conversion-event-id bfcid)]
+    (when-not (= (storage-get completed-guard-key) event-id)
+      (storage-set completed-guard-key event-id)
+      (when (fn? (gobj/get js/window "freebuff"))
+        ((gobj/get js/window "freebuff")
+         "conversion" "signup_completed"
+         #js {:eventId event-id})))))
 
 (defn- element [id] (.getElementById js/document id))
 
@@ -47,7 +109,11 @@
     (text! "kc-session-username" (str "@" username))
     (text! "kc-session-principal" (session/abbreviate (:principalId payload)))
     (text! "kc-session-controller" (session/abbreviate (:activeDid payload)))
-    (text! "kc-session-status" (str next-status " · @" username))))
+    (text! "kc-session-status" (str next-status " · @" username))
+    (preserve-attribution-links!)
+    (let [bfcid (get (landing-attribution) "bfcid")]
+      (post-funnel-event! "signup_completed" (cond-> {} bfcid (assoc :bfcid bfcid)))
+      (when bfcid (fire-freebuff-completed! bfcid)))))
 
 (defn- decode-fragment [prefix]
   (let [hash (.-hash js/location)]
@@ -144,8 +210,25 @@
                      (set! (.-disabled button) false)
                      (text! "pq-key-transition-result" (.-message error))))))))))
 
+(defn- listen-signup-intent! []
+  (doseq [link (array-seq (.querySelectorAll js/document "a[href]"))]
+    (let [href (.getAttribute link "href")]
+      (when (attribution/target-href? href)
+        (.addEventListener
+         link "click"
+         (fn []
+           (let [bfcid (get (landing-attribution) "bfcid")]
+             (post-funnel-event! "signup" (cond-> {} bfcid (assoc :bfcid bfcid))))))))))
+
 (defn init! []
   (research-browser/init!)
+  (let [bfcid (get (landing-attribution) "bfcid")]
+    (when bfcid (load-freebuff-tag! bfcid))
+    (preserve-attribution-links!)
+    (listen-signup-intent!)
+    (when-not (storage-get "kc-funnel-visitor")
+      (storage-set "kc-funnel-visitor" "1")
+      (post-funnel-event! "visitor" (cond-> {} bfcid (assoc :bfcid bfcid)))))
   (when-let [publication (decode-fragment "#publish=")]
     (publication-preview! publication))
   (when-let [transition (decode-fragment "#pq-key-transition=")]

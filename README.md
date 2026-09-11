@@ -107,6 +107,8 @@ compiler, verifier, host enforcement, or service-specific authority.
 - `GET https://kotoba.cloud/.well-known/kotoba-cloud.json`
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
+- `GET /api/funnel` — first-party visitor / sign-in-intent / completed-registration counters. Starts at zero. Isolate memory until KV/D1 exists (HOLD).
+- `POST /api/funnel/event` — `visitor`, `signup`, or `signup_completed`. Completed events require a valid Principal session.
 - `GET /v1/session` — credential-free projection of the current Passkey session
 - `POST /v1/libraries/publish` — same-origin Passkey + Principal-pinned
   ML-DSA-65 approval relay for a bounded, locally signed Kotobase head record
@@ -152,7 +154,7 @@ Locale smoke after render + Worker:
 - `GET /` with `Accept-Language: en` and `CF-IPCountry: ID` stays English
 - `GET /su/` with `kb_locale=he` stays Sundanese (path wins) and refreshes
   the cookie
-- `GET /health` and `/v1/session` are not locale-redirected
+- `GET /health`, `/v1/session`, and `/api/funnel` are not locale-redirected
 
 ## Nearest-repository boundary
 
