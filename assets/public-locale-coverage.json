@@ -1,6 +1,6 @@
 {
   "adr": "ADR-2609091700",
-  "date": "2026-09-09",
+  "date": "2026-09-11",
   "default": "en",
   "requested": [
     "en",
@@ -19,15 +19,24 @@
     "ko",
     "pcm",
     "arz",
-    "mr"
+    "mr",
+    "jv",
+    "su",
+    "he",
+    "it",
+    "ar-MA"
   ],
   "alias": {
-    "zh": "zh-Hans"
+    "zh": "zh-Hans",
+    "ary": "ar-MA",
+    "iw": "he"
   },
   "rtl": [
     "ar",
     "arz",
-    "ur"
+    "ur",
+    "he",
+    "ar-MA"
   ],
   "scope": [
     "landing",
@@ -411,6 +420,106 @@
         "@kotoba-…",
         "STABLE PRINCIPAL",
         "ACTIVE CONTROLLER",
+        "Kotoba Cloud",
+        "auth.kotoba.cloud",
+        "·  api.kotoba.cloud",
+        "Kotobase",
+        "kotobase.net ↗",
+        "Murakumo",
+        "murakumo.cloud ↗",
+        "Itonami",
+        "itonami.cloud ↗",
+        "support@kotoba.cloud"
+      ]
+    },
+    "jv": {
+      "source_segments": 92,
+      "translated_segments": 70,
+      "untranslated_or_invariant": [
+        "KOTOBA CLOUD",
+        "@kotoba-…",
+        "Kotoba Cloud",
+        "auth.kotoba.cloud",
+        "·  api.kotoba.cloud",
+        "Kotobase",
+        "kotobase.net ↗",
+        "Murakumo",
+        "murakumo.cloud ↗",
+        "Itonami",
+        "itonami.cloud ↗",
+        "Operator: Kotoba Labs Inc",
+        "support@kotoba.cloud"
+      ]
+    },
+    "su": {
+      "source_segments": 92,
+      "translated_segments": 70,
+      "untranslated_or_invariant": [
+        "KOTOBA CLOUD",
+        "@kotoba-…",
+        "Kotoba Cloud",
+        "auth.kotoba.cloud",
+        "·  api.kotoba.cloud",
+        "Kotobase",
+        "kotobase.net ↗",
+        "Murakumo",
+        "murakumo.cloud ↗",
+        "Itonami",
+        "itonami.cloud ↗",
+        "Operator: Kotoba Labs Inc",
+        "support@kotoba.cloud"
+      ]
+    },
+    "he": {
+      "source_segments": 92,
+      "translated_segments": 78,
+      "untranslated_or_invariant": [
+        "KOTOBA CLOUD",
+        "@kotoba-…",
+        "Kotoba Cloud",
+        "auth.kotoba.cloud",
+        "·  api.kotoba.cloud",
+        "Kotobase",
+        "kotobase.net ↗",
+        "Murakumo",
+        "murakumo.cloud ↗",
+        "Itonami",
+        "itonami.cloud ↗",
+        "support@kotoba.cloud"
+      ]
+    },
+    "it": {
+      "source_segments": 92,
+      "translated_segments": 74,
+      "untranslated_or_invariant": [
+        "KOTOBA CLOUD",
+        "English",
+        "Español",
+        "Français",
+        "Português",
+        "Bahasa Indonesia",
+        "Deutsch",
+        "Italiano",
+        "Naijá",
+        "@kotoba-…",
+        "Kotoba Cloud",
+        "auth.kotoba.cloud",
+        "·  api.kotoba.cloud",
+        "Kotobase",
+        "kotobase.net ↗",
+        "Murakumo",
+        "murakumo.cloud ↗",
+        "Itonami",
+        "itonami.cloud ↗",
+        "support@kotoba.cloud"
+      ]
+    },
+    "ar-MA": {
+      "source_segments": 92,
+      "translated_segments": 78,
+      "untranslated_or_invariant": [
+        "KOTOBA CLOUD",
+        "@kotoba-…",
         "Kotoba Cloud",
         "auth.kotoba.cloud",
         "·  api.kotoba.cloud",

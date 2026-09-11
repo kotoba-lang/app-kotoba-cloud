@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.worker
   (:require [app-kotoba-cloud.boot :as boot]
+            [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
             [app-kotoba-cloud.pqc :as pqc]
@@ -46,8 +47,12 @@
 
 (defn- session-response [value] (private-json-response value))
 
-(defn- redirect [location]
-  (response "" 302 "text/plain; charset=utf-8" {"location" location}))
+(defn- redirect
+  ([location]
+   (redirect location {}))
+  ([location extra-headers]
+   (response "" 302 "text/plain; charset=utf-8"
+             (merge {"location" location} extra-headers))))
 
 (defn- fetch-viewer [request]
   (if-let [token (session/cookie-value (.get (.-headers request) "cookie")
@@ -353,13 +358,43 @@
                      {:ok false :error (or (.-message error) "publication-failed")}
                      (or (:status (ex-data error)) 400))))))))
 
-(defn with-security-headers [asset]
-  (let [headers (js/Headers. (.-headers asset))]
-    (doseq [[k v] security-headers] (.set headers k v))
-    (js/Response. (.-body asset)
-                  #js {:status (.-status asset)
-                       :statusText (.-statusText asset)
-                       :headers headers})))
+(defn with-security-headers
+  ([asset] (with-security-headers asset {}))
+  ([asset extra-headers]
+   (let [headers (js/Headers. (.-headers asset))]
+     (doseq [[k v] security-headers] (.set headers k v))
+     (doseq [[k v] extra-headers] (when v (.set headers k v)))
+     (js/Response. (.-body asset)
+                   #js {:status (.-status asset)
+                        :statusText (.-statusText asset)
+                        :headers headers}))))
+
+(defn- request-country [^js request]
+  (or (when-let [cf (gobj/get request "cf")] (gobj/get cf "country"))
+      (.get (.-headers request) "cf-ipcountry")))
+
+(defn- locale-redirect [location]
+  (redirect location {"cache-control" "private, no-store"
+                      "vary" "Accept-Language, Cookie, CF-IPCountry"}))
+
+(defn- route-static [request env path]
+  (let [url (js/URL. (.-url request))
+        decision (locale/static-decision
+                  {:path path
+                   :cookie (session/cookie-value (.get (.-headers request) "cookie")
+                                                 locale/cookie-name)
+                   :accept-language (.get (.-headers request) "accept-language")
+                   :country (request-country request)})]
+    (if-let [target (:redirect decision)]
+      (locale-redirect (str target (.-search url)))
+      (-> (.fetch ^js (gobj/get env "ASSETS") request)
+          (.then (fn [asset]
+                   (with-security-headers
+                    asset
+                    (cond-> {"vary" (when (locale/apex-path? path)
+                                      "Accept-Language, Cookie, CF-IPCountry")}
+                      (:set-cookie? decision)
+                      (assoc "set-cookie" (locale/cookie-header (:locale decision)))))))))))
 
 (defn- boot-error [error status]
   (response (js/JSON.stringify (clj->js {:ok false :error error}))
@@ -488,8 +523,7 @@
                       :constSchema transition-schema})
 
       :else
-      (-> (.fetch ^js (gobj/get env "ASSETS") request)
-          (.then with-security-headers)))))
+      (route-static request env path))))
 
 (def app
   #js {:fetch (fn [request env _ctx]

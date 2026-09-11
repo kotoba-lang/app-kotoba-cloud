@@ -3,6 +3,7 @@
   Worker Static Assets for every supported locale."
   (:require [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.public-locales :as locales]
+            [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.extended-translations :as extended]
             [kotoba.lang.text :as str]
             [app-kotoba-cloud.session :as session]
@@ -668,7 +669,10 @@
         [:meta {:name "twitter:title" :content title}]
         [:meta {:name "twitter:description" :content description}]
         [:meta {:name "twitter:image" :content "https://kotoba.cloud/og.png"}]
-        [:script {:type "application/ld+json"} "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"@id\":\"https://kotoba.cloud/#website\",\"url\":\"https://kotoba.cloud/\",\"name\":\"Kotoba Cloud\",\"publisher\":{\"@type\":\"Organization\",\"name\":\"Kotoba Labs Inc.\"},\"inLanguage\":[\"en\",\"ja\"]}"]
+        [:script {:type "application/ld+json"}
+         (str "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"@id\":\"https://kotoba.cloud/#website\",\"url\":\"https://kotoba.cloud/\",\"name\":\"Kotoba Cloud\",\"publisher\":{\"@type\":\"Organization\",\"name\":\"Kotoba Labs Inc.\"},\"inLanguage\":["
+              (apply str (interpose "," (map #(str "\"" (name %) "\"") supported-locales)))
+              "]}")]
         [:meta {:property "og:type" :content "website"}]
         [:meta {:property "og:title" :content title}]
         [:meta {:property "og:description" :content description}]
@@ -826,7 +830,8 @@
        (spit (io/file en-dir "404.html") (not-found-html :en))
        (spit (io/file en-dir "legal" "index.html") (legal-html :en))
        (spit (io/file en-dir "legal" "tokushoho" "index.html") (tokushoho-html :en))
-       (spit (io/file js-dir "language-selector.js") behavior/language-selector-script)
+       (spit (io/file js-dir "language-selector.js")
+             (str behavior/language-selector-script "\n" locale/language-cookie-script))
        (doseq [source (file-seq ipfs-source) :when (.isFile ^java.io.File source)]
          (let [target (io/file ipfs-target (.getName ^java.io.File source))]
            (.mkdirs (.getParentFile target))
@@ -851,4 +856,4 @@
        (let [headers (io/file "assets" "_headers")]
          (when (.isFile headers)
            (io/copy headers (io/file root "_headers"))))
-       (println "rendered English-first root, Japanese pages, legal/tokushoho documents, and localized 404s"))))
+       (println "rendered English-first root, locale emit dirs, legal/tokushoho documents, and localized 404s"))))

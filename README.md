@@ -81,11 +81,21 @@ The public webpage is generated from pure CLJC using the workspace DADS
 (`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
 control/identity entrance feeding three separately governed planes rather than
 presenting the four domains as interchangeable products. `public/` is a build
-artifact: `npm run render` produces Japanese `/`, English `/en/`, and
-localized finite 404 documents, then Wrangler ships them as Static Assets
+artifact: `npm run render` produces English `/`, Japanese `/ja/`, and one
+emit directory per catalog locale, then Wrangler ships them as Static Assets
 beside the discovery Worker. Locale catalogs share one key contract and the
-page publishes canonical and `hreflang` links, so another locale is an
-explicit catalog-and-route addition rather than a second handwritten page.
+page publishes canonical, `hreflang`, and JSON-LD `inLanguage` links, so
+another locale is an explicit catalog-and-route addition rather than a
+second handwritten page.
+
+Origin language switching runs in the Worker **before** the Static Assets
+HIT and follows the kotobase.net detection contract:
+
+`path > kb_locale cookie > Accept-Language > request.cf.country > en`
+
+Country map: `ID→id`, `IL→he`, `KR→ko`, `ES→es`, `IT→it`, `DE→de`,
+`MA→ar-MA` (else `ar`), `EG→arz`. Country never selects `jv` or `su`;
+those stay explicit path, cookie, or `Accept-Language` choices.
 
 Public copy follows the language authority's current thesis:
 **“AI writes freely. Kotoba draws the boundary.”** The Cloud surface carries
@@ -102,8 +112,12 @@ compiler, verifier, host enforcement, or service-specific authority.
   ML-DSA-65 approval relay for a bounded, locally signed Kotobase head record
 - `GET /schemas/library-publication-request/v3` — single-use, epoch-bound
   publication request contract
-- `GET /` — Japanese public architecture and CLI entrance
-- `GET /en/` — English public architecture and CLI entrance
+- `GET /` — English public architecture and CLI entrance; 302 to a catalog
+  locale when cookie, `Accept-Language`, or `request.cf.country` negotiate
+  one
+- `GET /ja/`, `/id/`, `/jv/`, `/su/`, `/he/`, `/it/`, `/ar-MA/`, and the
+  rest of the catalog — finite localized entry documents
+- `GET /en/` — English alias of the apex document
 
 The control-plane document also includes the library catalog, storage,
 commands, current publication mode, default dry-run behavior, and hosted
@@ -127,6 +141,18 @@ Deploy only after those checks pass:
 ```bash
 npm run deploy
 ```
+
+Locale smoke after render + Worker:
+
+- `GET /id/` is `200` with `lang=id`; `/jv/`, `/su/`, `/he/`, `/it/`,
+  `/ar-MA/` are the same shape (no 404)
+- `GET /` with `Accept-Language: id` is `302` `/id/`
+- `GET /` with `CF-IPCountry: ID` and no language header is `302` `/id/`
+  (never `/jv/` or `/su/`)
+- `GET /` with `Accept-Language: en` and `CF-IPCountry: ID` stays English
+- `GET /su/` with `kb_locale=he` stays Sundanese (path wins) and refreshes
+  the cookie
+- `GET /health` and `/v1/session` are not locale-redirected
 
 ## Nearest-repository boundary
 
