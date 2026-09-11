@@ -1,0 +1,120 @@
+(ns app-kotoba-cloud.research-site
+  (:require [app-kotoba-cloud.research :as research]
+            [jp-go-dds.core :as dds]))
+
+(defn copy [locale]
+  (if (= locale :ja)
+    {:title "ホワイトハットのための、セキュリティ AI。"
+     :lead "許可されたコードを調べ、脆弱性の根拠を確かめ、修正へつなげる。本人確認済みの研究者に、セキュリティ特化 LLM の無料推論枠を提供します。"
+     :description "ホワイトハット向けの脆弱性調査と修正支援。eKYC と AML・CTF 審査を経た研究者向けの無料推論サービスを準備中。"
+     :start "研究者登録へ" :explore "モデルを見る" :models "調査のためのモデル"
+     :pending "提供準備中 — eKYC・審査事業者と推論基盤の接続待ちです。現在は本人確認や推論を実行できません。"
+     :model-note "採用候補。提供元のモデルカードを公開し、実機評価を通過した構成のみ公開します。"
+     :uses [["01 / 調べる" "コードレビュー" "所有・許可されたコードから、認可漏れや入力検証の問題を調べます。"]
+            ["02 / 確かめる" "脆弱性の整理" "到達条件、影響、誤検知の可能性を整理し、根拠を伴う所見にします。"]
+            ["03 / 直す" "修正と再検証" "修正案、回帰テスト、責任ある開示のための報告書をまとめます。"]]
+     :register "本人確認から、無料の研究環境へ。"
+     :steps [["アカウント" "既存のアカウントでログイン。ウォレット接続だけでは本人確認済みになりません。"]
+             ["eKYC" "新規の本人確認、または信頼できる発行元の有効な確認結果を再利用。再利用には同意と発行元の検証が必要です。"]
+             ["AML / CTF" "制裁・PEP 等の照合、リスク審査、必要な追加確認。保留・期限切れ・停止中は推論できません。"]
+             ["無料で調査" "調査権限と対象範囲を確認後、無料枠を利用。確認後も継続的な再審査を行います。"]]
+     :fee "本人確認済みの研究者は $0"
+     :quota "提供開始後の無料枠：1 日 50 リクエスト、1 回最大 2,048 出力トークン。上限で停止し、自動課金はしません。"
+     :login "まずログイン" :refresh "利用資格を確認" :new "新しく本人確認" :reuse "確認済みの結果を再利用"
+     :purpose "調査目的" :scope "許可された対象と権限の根拠" :issuer "確認結果の発行元（再利用時）" :reference "発行元の参照番号（再利用時）"
+     :consent "利用条件・個人情報の取り扱いを確認し、本人確認と審査に必要な処理に同意します。"
+     :authority "自分が所有する、または明示的に調査を許可された対象だけを扱います。"
+     :submit "審査を申し込む" :privacy "本人確認書類、顔写真、秘密鍵、API キーをこのフォームに入力しないでください。接続前の申請内容は送信・保存されません。"
+     :workbench "研究ワークスペース" :scope-id "承認済みのスコープ ID" :task "調査の種類" :input "調査するコード・所見（秘密情報を除く）" :run "無料枠で調査する"
+     :terms "利用条件とデータの取り扱い"
+     :terms-body "許可されたコードのレビュー、脆弱性の整理、修正支援に限定します。不正侵入、認証情報の窃取、破壊行為、無許可の第三者調査には使えません。本人確認は調査権限を意味しません。"
+     :data "書類と生体情報は契約した確認事業者で処理し、推論モデルには送りません。こちらには確認状態、有効期限、証跡参照、審査と利用の記録を最小限保持する設計です。事業者、保存期間、移転先、削除・異議申立て窓口を確定・公開するまで、本人確認の受付を開始しません。"
+     :review "PEP や同姓同名の候補一致は自動的な違反認定ではありません。追加確認と再審査を行う運用を準備します。AML／CTF の法的適用範囲は運営主体・提供地域に応じて確認します。"
+     :source "モデルカード"}
+    {:title "Security intelligence.\nFor the people who defend."
+     :lead "Investigate authorized code. Validate the finding. Ship the fix. Specialized LLM inference for verified white-hat researchers, with a free research allowance."
+     :description "White-hat vulnerability research and remediation. Free inference for researchers after eKYC and AML/CTF review. Provider onboarding in progress."
+     :start "Researcher onboarding" :explore "Explore the model" :models "A model built for investigation"
+     :pending "Preparing for launch — identity verification, screening and inference providers are not connected. Verification and inference are not available yet."
+     :model-note "Candidate model. We publish its source and will enable only a configuration that passes our deployment evaluation."
+     :uses [["01 / INVESTIGATE" "Review the code" "Inspect code you own or are authorized to review for authorization gaps and input validation issues."]
+            ["02 / VALIDATE" "Ground the finding" "Work through reachability, impact and false positives to produce evidence-backed findings."]
+            ["03 / REMEDIATE" "Close the loop" "Prepare fixes, regression tests and reports for responsible disclosure."]]
+     :register "One verified identity. A free research workspace."
+     :steps [["Account" "Sign in with your existing account. A connected wallet alone is not verified identity."]
+             ["eKYC" "Complete identity verification, or reuse a valid result from a trusted issuer with consent and issuer verification."]
+             ["AML / CTF" "Sanctions and PEP screening, risk review and additional checks where needed. Pending, expired or suspended records cannot infer."]
+             ["Free research" "Confirm authorization and research scope, then use the free allowance. Ongoing review keeps eligibility current."]]
+     :fee "$0 for verified researchers"
+     :quota "Planned launch allowance: 50 requests per day, up to 2,048 output tokens per request. Usage stops at the limit. No automatic charges."
+     :login "Sign in first" :refresh "Check eligibility" :new "Verify my identity" :reuse "Reuse existing verification"
+     :purpose "Research purpose" :scope "Authorized scope and basis of permission" :issuer "Verification issuer (for reuse)" :reference "Issuer reference (for reuse)"
+     :consent "I have read the terms and data notice and consent to the processing needed for verification and review."
+     :authority "I will only research systems I own or have explicit permission to assess."
+     :submit "Apply for review" :privacy "Do not enter identity documents, face images, private keys or API keys here. Before provider setup, application data is not sent or saved."
+     :workbench "Research workspace" :scope-id "Approved scope ID" :task "Research task" :input "Code or findings to review (remove secrets)" :run "Run with free allowance"
+     :terms "Research terms & data notice"
+     :terms-body "For authorized code review, vulnerability triage and remediation. No unauthorized intrusion, credential theft, destructive activity or third-party research without permission. Identity verification does not grant research authorization."
+     :data "Identity documents and biometric data will be processed by contracted verification providers, never sent to the inference model. The service is designed to retain minimal verification status, expiry, evidence references, review and usage records. Verification intake remains closed until providers, retention periods, transfer destinations, deletion and appeal contacts are finalized and published."
+     :review "PEP status or a possible name match is not automatically a finding of wrongdoing. Additional checks and human review are planned. Legal AML/CTF obligations depend on the operator and service jurisdictions."
+     :source "Model card"}))
+
+(def css
+  ".kc-research-hero{padding-block:clamp(3rem,8vw,7rem)}.kc-research-hero h1{max-width:18ch;white-space:pre-line;letter-spacing:-.04em;line-height:1.12}.kc-research-hero .kc-lead{max-width:52rem}.kc-research-section{padding-block:var(--hig-spacing-8)}.kc-research-form{display:grid;gap:var(--hig-spacing-4);max-width:48rem}.kc-research-form label{display:grid;gap:var(--hig-spacing-2)}.kc-research-form input:not([type=checkbox]),.kc-research-form textarea,.kc-research-form select{box-sizing:border-box;width:100%;min-height:44px;padding:var(--hig-spacing-3);font:inherit;color:inherit;background:var(--hig-color-system-background);border:1px solid var(--hig-color-label);border-radius:var(--hig-radius-sm)}.kc-research-form textarea{min-height:8rem}.kc-research-form .kc-check{display:flex;align-items:start;gap:var(--hig-spacing-3)}.kc-check input{min-width:24px;min-height:24px}.kc-research-result{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}.kc-research-model{overflow-wrap:anywhere}@media(max-width:48rem){.kc-research-hero .dads-heading[data-size='64']{font-size:var(--hig-text-large-title-font-size);line-height:var(--hig-text-large-title-line-height)}.kc-nav .dads-button{white-space:nowrap}}.kc-research-note{padding:var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-label)}")
+
+(defn sections [locale sign-in]
+  (let [t (copy locale)]
+    [[:section {:class "kc-research-hero" :id "research"}
+      (dds/container
+       [:p {:class "kc-eyebrow"} "KOTOBA CLOUD / WHITE HAT RESEARCH"]
+       (dds/heading 1 (:title t) {:size "64"})
+       [:p {:class "kc-lead"} (:lead t)]
+       (dds/row (dds/button (:start t) {:href "#research-register" :size "lg"})
+                (dds/button (:explore t) {:href "#research-models" :type :outline :size "lg"}))
+       [:p {:class "kc-research-note"} (:pending t)])]
+     [:section {:class "kc-research-section"}
+      (dds/container
+       (into [:div {:class "dds-ext-grid" :style {:--dds-ext-grid-min "16rem"}}]
+             (map (fn [[n title body]] (dds/card [:p {:class "kc-eyebrow"} n]
+                                               (dds/heading 2 title {:size "24"}) [:p body])) (:uses t))))]
+     [:section {:class "kc-research-section" :id "research-models"}
+      (dds/container (dds/heading 2 (:models t) {:size "36"})
+       (dds/card [:article {:class "kc-research-model"}
+                  [:p "TEXT / SECURITY / FP8"]
+                  (dds/heading 3 "GLM-5.3 CYBERSECURITY" {:size "24"})
+                  [:p (:model-note t)]
+                  [:code research/model-id]
+                  [:p [:a {:href "https://huggingface.co/dealignai/GLM-5.3-CYBERSECURITY-FP8"} (:source t) " ↗"]]
+                  [:p "Dealign.ai · "] [:a {:href "https://dealign.ai/"} "Research ↗"]]))]
+     [:section {:class "kc-research-section" :id "research-register"}
+      (dds/container (dds/heading 2 (:register t) {:size "36"})
+       (into [:ol] (map (fn [[title body]] [:li [:strong title] [:p body]]) (:steps t)))
+       (dds/card (dds/heading 3 (:fee t) {:size "24"}) [:p (:quota t)])
+       (dds/row (dds/button (:login t) {:href sign-in :type :outline})
+                (dds/button (:refresh t) {:id "research-refresh" :type :outline}))
+       [:p {:id "research-status" :role "status" :aria-live "polite"} (:pending t)]
+       [:form {:id "research-application" :class "kc-research-form"}
+        [:label (if (= locale :ja) "本人確認の方法" "Verification method") [:select {:id "research-mode"} [:option {:value "new"} (:new t)] [:option {:value "reuse"} (:reuse t)]]]
+        [:label (:purpose t) [:textarea {:id "research-purpose" :required true :maxlength 2000}]]
+        [:label (:scope t) [:textarea {:id "research-scope" :required true :maxlength 2000}]]
+        [:label (:issuer t) [:input {:id "research-issuer" :maxlength 200}]]
+        [:label (:reference t) [:input {:id "research-reference" :maxlength 512}]]
+        [:label {:class "kc-check"} [:input {:id "research-consent" :type "checkbox" :required true}] (:consent t)]
+        [:label {:class "kc-check"} [:input {:id "research-authorized" :type "checkbox" :required true}] (:authority t)]
+        [:p [:a {:href "#research-terms"} (:terms t)]]
+        [:p (:privacy t)]
+        (dds/button (:submit t) {:id "research-apply" :submit? true :disabled true})] )]
+     [:section {:class "kc-research-section" :id "research-workspace"}
+      (dds/container (dds/heading 2 (:workbench t) {:size "36"})
+       [:form {:id "research-completion" :class "kc-research-form"}
+        [:label (:scope-id t) [:input {:id "research-scope-id" :required true :maxlength 256}]]
+        [:label (:task t) [:select {:id "research-task"}
+                          [:option {:value "code-review"} (if (= locale :ja) "コードレビュー" "Code review")]
+                          [:option {:value "vulnerability-triage"} (if (= locale :ja) "脆弱性の整理" "Vulnerability triage")]
+                          [:option {:value "remediation"} (if (= locale :ja) "修正支援" "Remediation")]]]
+        [:label (:input t) [:textarea {:id "research-input" :required true :maxlength 24000}]]
+        (dds/button (:run t) {:id "research-run" :submit? true :disabled true})]
+       [:p {:id "research-output" :class "kc-research-result" :role "status" :aria-live "polite"}])]
+     [:section {:class "kc-research-section" :id "research-terms"}
+      (dds/container (dds/heading 2 (:terms t) {:size "36"})
+       [:p (:terms-body t)] [:p (:data t)] [:p (:review t)])]]))

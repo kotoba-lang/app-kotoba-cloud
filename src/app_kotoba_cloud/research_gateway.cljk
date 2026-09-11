@@ -1,0 +1,126 @@
+(ns app-kotoba-cloud.research-gateway
+  "Private service-binding seam. No public upstream URL, identity evidence or prompt logs."
+  (:require [app-kotoba-cloud.research :as policy]))
+
+(def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"})
+(def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"})
+
+(defn bounded-json [message limit]
+  (if-not (.-body message)
+    (js/Promise.reject (ex-info "invalid-json" {:status 400}))
+    (let [reader (.getReader (.-body message)) chunks (array)]
+      (letfn [(step [size]
+                (-> (.read reader)
+                    (.then (fn [part]
+                             (if (.-done part)
+                               (-> (.text (js/Blob. chunks))
+                                   (.then #(js->clj (js/JSON.parse %) :keywordize-keys true)))
+                               (let [next-size (+ size (.-byteLength (.-value part)))]
+                                 (if (> next-size limit)
+                                   (-> (.cancel reader)
+                                       (.then (fn [] (throw (ex-info "body-too-large" {:status 413})))))
+                                   (do (.push chunks (.-value part)) (step next-size)))))))))]
+        (-> (step 0)
+            (.catch (fn [error]
+                      (if (ex-data error) (throw error)
+                          (throw (ex-info "invalid-json" {:status 400}))))))))))
+
+(defn- service [binding path payload]
+  (-> (.fetch binding (str "https://research.internal" path)
+              #js {:method "POST" :redirect "error"
+                   :signal (js/AbortSignal.timeout 60000)
+                   :headers #js {"content-type" "application/json"}
+                   :body (js/JSON.stringify (clj->js payload))})
+      (.then (fn [r]
+               (if (.-ok r)
+                 (bounded-json r 131072)
+                 (throw (ex-info "research-service-unavailable" {:status (if (= 429 (.-status r)) 429 503)})))))))
+
+(defn- status-response [record principal respond]
+  (let [reason (policy/eligibility principal record (js/Date.now))]
+    (respond {:status (if reason "pending" "eligible") :reason reason
+              :freeTier policy/free-limits :policyVersion policy/policy-version
+              :scopes (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record))}
+             200)))
+
+(defn- complete [binding principal body respond]
+  (-> (service binding "/status" {:principalId principal})
+      (.then
+       (fn [record]
+         (let [now (js/Date.now) reason (policy/eligibility principal record now)]
+           (cond
+             reason (respond {:error {:code reason}} 403)
+             (not (policy/scope-approved? record body now))
+             (respond {:error {:code "research-scope-required"}} 403)
+             :else
+             ;; The private authority MUST atomically recheck status/scope, reserve
+             ;; free quota, apply input/output policy and persist an audit receipt
+             ;; before replying. A read-only /status result never grants execution.
+             (let [request-id (str (random-uuid))]
+               (-> (service binding "/complete"
+                            {:principalId principal :requestId request-id
+                             :policyVersion policy/policy-version :billing "free-only"
+                             :limits policy/free-limits :request body})
+                   (.then
+                    (fn [result]
+                      (if (and (= request-id (:requestId result))
+                               (= principal (:principalId result))
+                               (= policy/policy-version (:policyVersion result))
+                               (= "free" (:billing result))
+                               (= "allowed" (:policyDecision result))
+                               (policy/text? (:receiptId result) 512)
+                               (= policy/model-id (:model result))
+                               (policy/text? (:content result) 65536))
+                        (respond {:id request-id :object "chat.completion"
+                                  :created (js/Math.floor (/ (js/Date.now) 1000))
+                                  :model policy/model-id
+                                  :choices [{:index 0 :finish_reason "stop"
+                                             :message {:role "assistant" :content (:content result)}}]
+                                  :receiptId (:receiptId result) :billing "free"} 200)
+                        (respond {:error {:code "invalid-inference-receipt"}} 502))))))))))))
+
+(defn route [request ^js env fetch-viewer respond]
+  (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
+        post? (= method "POST") binding (.-RESEARCH_AUTHORITY env)]
+    (cond
+      (not= method (if (#{"/v1/research/applications" "/v1/chat/completions"} path) "POST" "GET"))
+      (respond {:error {:code "method-not-allowed"}} 405)
+      (= path "/v1/models") (respond policy/catalog 200)
+      (and post? (not (contains? origins (.get (.-headers request) "origin"))))
+      (respond {:error {:code "origin-not-allowed"}} 403)
+      (and post? (not (re-find #"(?i)^application/json(?:;|$)" (or (.get (.-headers request) "content-type") ""))))
+      (respond {:error {:code "json-required"}} 415)
+      :else
+      (-> (fetch-viewer request)
+          (.then
+           (fn [viewer]
+             (cond
+               (not (true? (:valid viewer))) (respond {:error {:code "sign-in-required"}} 401)
+               (nil? binding) (respond {:error {:code "verification-provider-not-configured"}
+                                       :status "pending-provider-setup" :freeTier policy/free-limits} 503)
+               :else
+               (let [principal (:principalId viewer)]
+                 (if (= path "/v1/research/status")
+                   (-> (service binding "/status" {:principalId principal})
+                       (.then #(status-response % principal respond)))
+                   (-> (bounded-json request 98304)
+                       (.then
+                        (fn [body]
+                          (if (= path "/v1/research/applications")
+                            (if-not (policy/application? body)
+                              (respond {:error {:code "invalid-application"}} 400)
+                              (-> (service binding "/applications"
+                                           {:principalId principal :requestId (str (random-uuid))
+                                            :application body})
+                                  (.then (fn [result]
+                                           (if (and (= principal (:principalId result))
+                                                    (policy/text? (:applicationId result) 256))
+                                             (respond {:status "pending-review" :applicationId (:applicationId result)} 202)
+                                             (respond {:error {:code "invalid-application-receipt"}} 502))))))
+                            (if-not (policy/completion? body)
+                              (respond {:error {:code "invalid-research-request"}} 400)
+                              (complete binding principal body respond)))))))))))
+          (.catch (fn [e]
+                    (let [status (or (:status (ex-data e)) 503)]
+                      (respond {:error {:code (case status 413 "body-too-large" 400 "invalid-json"
+                                                   429 "free-quota-exhausted" "research-service-unavailable")}} status))))))))

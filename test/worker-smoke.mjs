@@ -506,3 +506,87 @@ assert.equal(sessionUntouched.status, 200);
 assert.equal(sessionUntouched.headers.get("location"), null);
 
 console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negotiate smoke passed");
+
+// Research gateway: these tests qualify edge admission only, not a real provider.
+upstreamStatus = 200;
+const researchPrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111";
+const researchModel = "dealignai/GLM-5.3-CYBERSECURITY-FP8";
+const researchPolicy = "whitehat-2026-09-12-v1";
+const researchBody = { model: researchModel, task: "code-review", scopeId: "owned-code",
+  max_tokens: 512, messages: [{ role: "user", content: "Review my authorization checks." }] };
+const researchCalls = [];
+const researchNow = Date.now();
+let researchRecord = { principalId: researchPrincipal, policyVersion: researchPolicy, status: "active",
+  ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
+  screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
+  scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 60000 }] };
+let corruptReceipt = false;
+let exhausted = false;
+const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => {
+  const body = JSON.parse(init.body);
+  const path = new URL(url).pathname;
+  researchCalls.push({ path, body, headers: new Headers(init.headers) });
+  assert.equal(new Headers(init.headers).get("cookie"), null);
+  if (path === "/status") return Response.json(researchRecord);
+  if (path === "/applications") return Response.json({ principalId: body.principalId, applicationId: "application-1" });
+  assert.equal(path, "/complete");
+  assert.equal(body.principalId, researchPrincipal);
+  assert.equal(body.billing, "free-only");
+  if (exhausted) return new Response("limit", { status: 429 });
+  return Response.json({ principalId: body.principalId, requestId: body.requestId,
+    policyVersion: body.policyVersion, billing: corruptReceipt ? "paid" : "free",
+    policyDecision: "allowed", model: researchModel, receiptId: "audit-1", content: "Check ownership before returning the record." });
+}} };
+function researchRequest(path, body, headers = {}) {
+  return new Request(`https://kotoba.cloud${path}`, { method: body === undefined ? "GET" : "POST",
+    headers: { cookie: "gftd_session=research-session", origin: "https://kotoba.cloud", "content-type": "application/json", ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body) });
+}
+assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status"), researchEnv)).status, 401);
+assert.equal((await route(researchRequest("/v1/research/status"), env)).status, 503);
+assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, { origin: "https://evil.example" }), researchEnv)).status, 403);
+assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, { "content-type": "text/plain" }), researchEnv)).status, 415);
+assert.equal(researchCalls.length, 0);
+const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
+assert.equal((await modelCatalog.json()).data[0].availability, "pending-provider-qualification");
+const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
+assert.equal((await eligibleStatus.json()).status, "eligible");
+assert.match(eligibleStatus.headers.get("cache-control"), /no-store/);
+for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 9999 }]) {
+  assert.equal((await route(researchRequest("/v1/chat/completions", { ...researchBody, ...extra }), researchEnv)).status, 400);
+}
+const beforeDenials = researchCalls.filter(c => c.path === "/complete").length;
+for (const mutate of [r => { r.principalId = "another"; }, r => { r.status = "suspended"; },
+  r => { r.ekyc.expiresAt = 1; }, r => { r.screening.status = "review"; },
+  r => { r.screening.checkedAt = Date.now() - 86400001; }, r => { r.scopes = []; }]) {
+  const saved = structuredClone(researchRecord);
+  mutate(researchRecord);
+  assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 403);
+  researchRecord = saved;
+}
+assert.equal(researchCalls.filter(c => c.path === "/complete").length, beforeDenials);
+const researchOk = await route(researchRequest("/v1/chat/completions", researchBody), researchEnv);
+assert.equal(researchOk.status, 200);
+assert.equal((await researchOk.json()).billing, "free");
+corruptReceipt = true;
+assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
+corruptReceipt = false; exhausted = true;
+assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 429);
+exhausted = false;
+const application = { verificationMode: "new", policyVersion: researchPolicy, purpose: "Review owned code",
+  scope: "My repository", consent: true, authorizedResearch: true };
+assert.equal((await route(researchRequest("/v1/research/applications", application), researchEnv)).status, 202);
+assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verified: true }), researchEnv)).status, 400);
+assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse" }), researchEnv)).status, 400);
+assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse", issuer: "trusted", reference: "existing-record" }), researchEnv)).status, 202);
+const overLimitStream = new ReadableStream({ start(controller) {
+  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(100000) + '"')); controller.close();
+} });
+assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+  method: "POST", duplex: "half", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" },
+  body: overLimitStream
+}), researchEnv)).status, 413);
+console.log("research gateway identity, evidence, scope, free-only receipts and streamed limits passed");
+assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+  method: "POST", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" }, body: "{broken"
+}), researchEnv)).status, 400);

@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.worker
-  (:require [app-kotoba-cloud.boot :as boot]
+  (:require [app-kotoba-cloud.research-gateway :as research-gateway]
+            [app-kotoba-cloud.boot :as boot]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
@@ -455,6 +456,9 @@
     (cond
       (= hostname "boot.kotoba.cloud")
       (route-boot-host request env path)
+
+      (contains? research-gateway/paths path)
+      (research-gateway/route request env fetch-viewer private-json-response)
 
       (and (= path "/v1/libraries/publish") (= method "POST"))
       (route-library-publish request env)

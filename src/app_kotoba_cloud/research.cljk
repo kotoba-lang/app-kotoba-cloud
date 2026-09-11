@@ -1,0 +1,64 @@
+(ns app-kotoba-cloud.research
+  "White-hat admission contract. Existing CLJS host integration; not a Q9 migration.
+  Evidence is supplied only by the private research authority, never the browser.")
+
+(def policy-version "whitehat-2026-09-12-v1")
+(def model-id "dealignai/GLM-5.3-CYBERSECURITY-FP8")
+(def tasks #{"code-review" "vulnerability-triage" "remediation"})
+(def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
+(def catalog
+  {:object "list"
+   :data [{:id model-id :object "model" :owned_by "dealignai"
+           :availability "pending-provider-qualification"
+           :source "https://huggingface.co/dealignai/GLM-5.3-CYBERSECURITY-FP8"}]
+   :policyVersion policy-version :freeTier free-limits
+   :requirements ["authenticated-principal" "verified-ekyc" "current-aml-ctf-clearance"
+                  "approved-research-scope" "available-free-quota"]})
+
+(defn text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))
+(defn fresh? [start end now max-age]
+  (and (number? start) (number? end) (<= 0 start now) (< now end)
+       (<= (- now start) max-age)))
+
+(defn eligibility [principal record now]
+  (cond
+    (not= principal (:principalId record)) "identity-mismatch"
+    (not= policy-version (:policyVersion record)) "policy-acceptance-required"
+    (not= "active" (:status record)) "review-required"
+    (not= "verified" (get-in record [:ekyc :status])) "verification-required"
+    (not (text? (get-in record [:ekyc :evidenceRef]) 512)) "verification-required"
+    (not (fresh? (get-in record [:ekyc :verifiedAt]) (get-in record [:ekyc :expiresAt]) now (* 365 86400000))) "verification-expired"
+    (not= "clear" (get-in record [:screening :status])) "review-required"
+    (not (text? (get-in record [:screening :evidenceRef]) 512)) "review-required"
+    (not (fresh? (get-in record [:screening :checkedAt]) (get-in record [:screening :expiresAt]) now 86400000)) "screening-expired"
+    :else nil))
+
+(defn application? [body]
+  (and (#{"new" "reuse"} (:verificationMode body))
+       (= policy-version (:policyVersion body))
+       (true? (:consent body))
+       (true? (:authorizedResearch body))
+       (text? (:purpose body) 2000)
+       (text? (:scope body) 2000)
+       (if (= "reuse" (:verificationMode body))
+         (and (text? (:issuer body) 200) (text? (:reference body) 512)) true)
+       (every? #{:verificationMode :policyVersion :consent :authorizedResearch
+                 :purpose :scope :issuer :reference} (keys body))))
+
+(defn completion? [body]
+  (and (= model-id (:model body))
+       (contains? tasks (:task body))
+       (text? (:scopeId body) 256)
+       (vector? (:messages body)) (<= 1 (count (:messages body)) 12)
+       (every? #(and (map? %) (#{"user" "assistant"} (:role %))
+                      (text? (:content %) 24000)
+                      (every? #{:role :content} (keys %))) (:messages body))
+       (= "user" (:role (last (:messages body))))
+       (<= (reduce + (map #(count (:content %)) (:messages body))) 24000)
+       (integer? (:max_tokens body)) (<= 1 (:max_tokens body) 2048)
+       (every? #{:model :task :scopeId :messages :max_tokens} (keys body))))
+
+(defn scope-approved? [record body now]
+  (some #(and (= (:scopeId body) (:id %)) (= "approved" (:status %))
+              (number? (:expiresAt %)) (< now (:expiresAt %))
+              (some #{(:task body)} (:tasks %))) (:scopes record)))

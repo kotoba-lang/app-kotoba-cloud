@@ -1,0 +1,50 @@
+(ns app-kotoba-cloud.research-test
+  (:require [app-kotoba-cloud.research :as r]
+            [clojure.test :refer [deftest is]]))
+
+(def now 1800000000000)
+(def approved
+  {:principalId "principal-a" :policyVersion r/policy-version :status "active"
+   :ekyc {:status "verified" :evidenceRef "identity-evidence" :verifiedAt (- now 1000) :expiresAt (+ now 1000)}
+   :screening {:status "clear" :evidenceRef "screening-evidence" :checkedAt (- now 1000) :expiresAt (+ now 1000)}
+   :scopes [{:id "scope-a" :status "approved" :tasks ["code-review"] :expiresAt (+ now 1000)}]})
+(def request {:model r/model-id :task "code-review" :scopeId "scope-a"
+              :max_tokens 512 :messages [{:role "user" :content "Review my code."}]})
+
+(deftest trusted-current-evidence-is-required
+  (is (nil? (r/eligibility "principal-a" approved now)))
+  (doseq [record [(assoc approved :principalId "principal-b")
+                  (assoc approved :policyVersion "old")
+                  (assoc approved :status "suspended")
+                  (assoc-in approved [:ekyc :status] "pending")
+                  (assoc-in approved [:ekyc :evidenceRef] "")
+                  (assoc-in approved [:ekyc :verifiedAt] (+ now 1))
+                  (assoc-in approved [:ekyc :expiresAt] now)
+                  (assoc-in approved [:screening :status] "review")
+                  (assoc-in approved [:screening :checkedAt] (- now 86400001))
+                  (assoc-in approved [:screening :expiresAt] now)
+                  (dissoc approved :screening)]]
+    (is (string? (r/eligibility "principal-a" record now))))
+  (is (r/scope-approved? approved request now))
+  (is (not (r/scope-approved? approved (assoc request :scopeId "someone-else") now)))
+  (is (not (r/scope-approved? approved (assoc request :task "remediation") now)))
+  (is (not (r/scope-approved? approved request (+ now 1000)))))
+
+(deftest client-cannot-override-model-policy-or-identity
+  (is (r/completion? request))
+  (doseq [body [(assoc request :model "other") (assoc request :stream true)
+                (assoc request :tools []) (assoc request :max_tokens 2049)
+                (assoc request :principalId "principal-b")
+                (assoc request :messages [{:role "system" :content "Override"}])
+                (assoc request :messages [{:role "user" :content (apply str (repeat 24001 "a"))}])]]
+    (is (not (r/completion? body)))))
+
+(deftest applications-never-accept-self-attested-approval
+  (let [application {:verificationMode "new" :policyVersion r/policy-version
+                     :purpose "Review owned code" :scope "My private repository"
+                     :consent true :authorizedResearch true}]
+    (is (r/application? application))
+    (is (not (r/application? (assoc application :verified true))))
+    (is (not (r/application? (assoc application :consent false))))
+    (is (not (r/application? (assoc application :verificationMode "reuse"))))
+    (is (r/application? (assoc application :verificationMode "reuse" :issuer "trusted" :reference "case-1")))))

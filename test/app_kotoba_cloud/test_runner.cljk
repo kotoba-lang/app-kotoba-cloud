@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.test-runner
-  (:require [app-kotoba-cloud.profile-test]
+  (:require [app-kotoba-cloud.research-test]
+            [app-kotoba-cloud.profile-test]
             [app-kotoba-cloud.rootkey-test]
             [app-kotoba-cloud.delegation-root-test]
             [app-kotoba-cloud.guardian-test]
@@ -14,7 +15,8 @@
             [clojure.test :as test]))
 
 (defn -main [& _]
-  (let [result (test/run-tests 'app-kotoba-cloud.profile-test
+  (let [result (test/run-tests 'app-kotoba-cloud.research-test
+                          'app-kotoba-cloud.profile-test
                           'app-kotoba-cloud.rootkey-test
                           'app-kotoba-cloud.delegation-root-test
                           'app-kotoba-cloud.guardian-test

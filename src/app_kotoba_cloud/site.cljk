@@ -1,7 +1,8 @@
 (ns app-kotoba-cloud.site
   "Localized public pages for kotoba.cloud. Pure CLJC views render finite
   Worker Static Assets for every supported locale."
-  (:require [app-kotoba-cloud.profile :as profile]
+  (:require [app-kotoba-cloud.research-site :as research-site]
+            [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.public-locales :as locales]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.extended-translations :as extended]
@@ -306,7 +307,7 @@
    "@media(max-width:30rem){.kc-wordmark__text{display:none}.kc-header__inner{gap:var(--hig-spacing-2)}.kc-nav{gap:var(--hig-spacing-2)}}"
    "@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}"))
 
-(defn translation [locale]
+(defn infrastructure-translation [locale]
   (if-let [t (get locales/copy locale)]
     (merge (:en copy)
            {:html-lang (name locale) :og-locale (name locale)
@@ -332,6 +333,10 @@
             :boundary-p1 (:boundary-body t) :boundary-p2 ""
             :contact-label (:contact t) :translation-note (:note t)})
     (or (get copy locale) (get copy :en))))
+
+(defn translation [locale]
+  (let [t (infrastructure-translation locale) r (research-site/copy locale)]
+    (assoc t :title (str "Kotoba Cloud — " (:title r)) :description (:description r))))
 
 (defn passkey-href [locale]
   (session/passkey-href (if (= locale :ja) :ja :en)))
@@ -369,9 +374,9 @@
        [:span {:class "kc-mark" :aria-hidden "true"} "こ"]
        [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]]
       [:nav {:class "kc-nav" :aria-label (:nav-label t)}
-       [:a {:class "kc-nav__secondary" :href (str (:path t) "#architecture")} (:nav-architecture t)]
-       [:a {:class "kc-nav__secondary" :href (str (:path t) "#libraries")} (:nav-libraries t)]
-       [:a {:href (if (= locale :ja) "/ja/billing/" "/billing/")} (if (= locale :ja) "料金・決済" "Billing")]
+       [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-models")} (if (= locale :ja) "モデル" "Models")]
+       [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (if (= locale :ja) "研究者登録" "Researchers")]
+       [:a {:class "kc-nav__secondary" :href (if (= locale :ja) "/ja/billing/" "/billing/")} (if (= locale :ja) "料金・決済" "Billing")]
        (language-links locale (:language-label t)
                        {:ja (or language-ja "/ja/") :en (or language-en "/")})
        ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
@@ -501,31 +506,13 @@
           :href "#main"} (:skip t)]
      (site-header locale t)
      [:main {:id "main"}
-      [:section {:class "kc-hero"}
-       (dds/container
-        [:p {:class "kc-eyebrow"} (:hero-eyebrow t)]
-        (dds/heading 1 (:headline t) {:size "64"})
-        (into [:p {:class "kc-lead"}] (interpose " " (:lead t)))
-        [:p {:class "kc-philosophy"} (:philosophy t)]
-        (when-let [note (:translation-note t)]
-          [:p {:class "kc-live" :data-translation-coverage "core-entry"} note])
-        (dds/row
-         [:div {:class "kc-actions"}
-          (dds/button (:passkey-cta t) {:type :solid-fill :size "lg"
-                                        :id "kc-session-action"
-                                        :href (passkey-href locale)})]
-         [:div {:class "kc-actions"}
-          (dds/button (:cli-cta t) {:type :outline :size "lg"
-                                    :href "https://kotoba-lang.org/#start"})])
-        [:span {:id "kc-session-labels" :hidden true
-                :data-signed-in-action (:signed-in-action t)
-                :data-signed-in-status (:signed-in-status t)
-                :data-signed-in-href kotobase-connect-href}]
-        [:p [:a {:href "/agent-quickstart.md"} "AI agent quickstart"]]
-        [:div {:class "kc-live"}
-         [:span {:class "kc-live__dot" :aria-hidden "true"}]
-         [:span {:id "kc-session-status"} (:live t)]]
-        [:p {:class "kc-next"} (:next-step t)])]
+      (when-let [note (:translation-note t)]
+        [:p {:class "kc-research-note"} note])
+      (into [:div] (research-site/sections locale (passkey-href locale)))
+      [:span {:id "kc-session-labels" :hidden true
+              :data-signed-in-action (:signed-in-action t)
+              :data-signed-in-status (:signed-in-status t)
+              :data-signed-in-href kotobase-connect-href}]
       [:section {:class "kc-identity" :id "identity"
                  :aria-label (:identity-label t)}
        (dds/container
@@ -713,7 +700,7 @@
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css)
+                :app-css (str tokens/skin-css app-css research-site/css)
                 :head (document-head locale :path (:title t) (:description t))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view locale))
@@ -727,7 +714,7 @@
            path (if ja? "/ja/billing/" "/billing/")]
        (apply page/->page
               {:title title :description "AWAI billing for Kotobase storage and Murakumo inference."
-               :lang (if ja? "ja" "en") :css (document-css) :app-css (str tokens/skin-css app-css)
+               :lang (if ja? "ja" "en") :css (document-css) :app-css (str tokens/skin-css app-css research-site/css)
                :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/billing/"}]
                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/billing/"}]
@@ -745,7 +732,7 @@
                 :description (operator-lead locale)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css)
+                :app-css (str tokens/skin-css app-css research-site/css)
                 :head (document-head locale :legal-path (:legal-title t)
                                      (operator-lead locale))}
                (legal-view locale))))))
@@ -760,7 +747,7 @@
                 :description (operator-lead locale)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css)
+                :app-css (str tokens/skin-css app-css research-site/css)
                 :head (document-head locale :tokushoho-path
                                      (:tokushoho-title t)
                                      (operator-lead locale))}
@@ -774,7 +761,7 @@
             dds-css (slurp (io/resource "jp_go_dds/dds.css"))]
         (page/->page
          {:title (:not-found-title t) :description (:not-found-lead t)
-          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css)}
+          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css research-site/css)}
          (dds/container
           [:main {:id "main"}
            [:section {:class "kc-hero"}

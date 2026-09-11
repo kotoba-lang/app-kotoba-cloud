@@ -160,3 +160,26 @@ Locale smoke after render + Worker:
 `kotoba-lang/kotoba` owns the CLI host adapter. This repository owns only the
 network-facing `kotoba.cloud` control/discovery surface; it does not implement
 the compiler, store artifacts, or execute workloads.
+
+## White-hat research launch
+
+The public entry now introduces verified security research. Researcher onboarding
+and a text-only workspace share the existing page and authenticated Principal.
+The proposed free tier is 50 requests/day and at most 2,048 output tokens/request;
+there is no paid fallback. This launch is **pending providers**, not live inference.
+
+The Worker implements `GET /v1/models`, `GET /v1/research/status`,
+`POST /v1/research/applications`, and `POST /v1/chat/completions`. The latter uses
+the Chat Completions envelope plus required `task` and `scopeId`; it is a scoped
+browser-session API, not a drop-in public OpenAI API-key service. It accepts no
+system messages, arbitrary models, tools, streaming, or user-supplied identity.
+
+`RESEARCH_AUTHORITY` is deliberately absent from production bindings. Until a
+qualified service is connected, authenticated research requests return 503,
+anonymous requests return 401, and no application or prompt reaches a provider.
+The identity-library/native-provider stubs do not count as eKYC approval.
+
+The private service contract is in `docs/research-authority-contract.md`. Its
+implementation, provider contracts, actual screening, durable audit, atomic
+quotas, model qualification and independent end-to-end acceptance are launch
+requirements. No configuration flag alone constitutes launch approval.
