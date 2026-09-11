@@ -16,11 +16,7 @@
 (defonce ^:private signup-conversion-fired? (atom false))
 
 (defn- install-freebuff-stub! []
-  (when-not (exists? js/freebuff)
-    (set! js/freebuff
-          (fn [& args]
-            (set! (.-q js/freebuff) (or (.-q js/freebuff) (array)))
-            (.push (.-q js/freebuff) (clj->js args))))))
+  (js* "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments);}"))
 
 (defn- load-freebuff-tag! []
   (when-not (.querySelector js/document (str "script[src=\"" session/freebuff-tag-src "\"]"))
@@ -47,7 +43,9 @@
     (when event
       (install-freebuff-stub!)
       (load-freebuff-tag!)
-      (js/freebuff "conversion" (:event-type event) #js {:eventId (:event-id event)})
+      (js* "window.freebuff('conversion', ~{}, ~{})"
+           (:event-type event)
+           #js {:eventId (:event-id event)})
       (mark-signup-conversion-fired! (:event-id event)))))
 
 (defn- preserve-sign-in-attribution! []

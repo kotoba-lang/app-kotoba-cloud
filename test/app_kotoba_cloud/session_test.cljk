@@ -33,7 +33,7 @@
          (session/apex-sign-in-location
           "/login" "?return_to=https%3A%2F%2Fkotoba.cloud%2F")))
   (is (nil? (session/apex-sign-in-location "/v1/session" "")))
-  (is (nil? (session/apex-sign-in-location "/sign-in/" "")))))
+  (is (nil? (session/apex-sign-in-location "/sign-in/" ""))))
 
 (deftest exact-cookie-forwarding-input
   (is (= "abc==" (session/cookie-value
