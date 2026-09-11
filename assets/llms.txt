@@ -1,3 +1,24 @@
+# Kotoba Cloud — verified white-hat research
+
+Security-focused LLM inference for authorized code review, vulnerability triage and remediation.
+Status: preparing for launch. eKYC, AML/CTF screening and inference providers are not connected.
+No identity verification or real research inference is currently available.
+
+Planned free allowance after verified identity, current review and approved research scope:
+50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
+Existing verification can be reused only with consent, trusted issuer validation,
+subject binding, validity/revocation checks and current screening.
+
+- Researcher onboarding and terms: https://kotoba.cloud/#research-register
+- Candidate model catalog: https://kotoba.cloud/v1/models
+- Candidate: dealignai/GLM-5.3-CYBERSECURITY-FP8 (not yet qualified)
+- GET /v1/research/status: authenticated eligibility, 503 until provider setup.
+- POST /v1/research/applications: authenticated same-origin JSON application; no intake before setup.
+- POST /v1/chat/completions: scoped session API; requires task, scopeId and max_tokens.
+  Not a drop-in API-key service. No tools, arbitrary models or system-message overrides.
+
+Existing infrastructure features below retain separate authority boundaries.
+
 # Kotoba Cloud
 
 > Controlled execution for AI-generated software.

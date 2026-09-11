@@ -20,8 +20,8 @@
 (deftest japanese-page-matches-the-language-concept
   (let [html (site/page-html :ja)]
     (is (str/includes? html "<html lang=\"ja\""))
-    (is (str/includes? html "AIが書くソフトウェアを、制御された実行へ。"))
-    (is (str/includes? html "安全なコード。信頼できる状態。制御された実行。"))
+    (is (str/includes? html "ホワイトハットのための、セキュリティ AI。"))
+    (is (str/includes? html "本人確認済みの研究者"))
     (is (= 1 (count (re-seq #"<h1" html))))
     (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
                     "itonami.cloud" "kotoba-lang.org" "Hosted apply"
@@ -66,7 +66,7 @@
                                 html))))
         (is (not (str/includes? html "href=\"https://auth.kotobase.net")))
         (is (not (str/includes? html "href=\"https://auth.murakumo.cloud")))
-        (is (str/includes? html (:live (site/translation locale)))))))
+        (is (str/includes? html "research-register")))))
   (testing "honest live copy does not invent a hosted apply SKU"
     (is (str/includes? (get-in site/copy [:ja :live]) "Hosted apply はまだ提供していません"))
     (is (str/includes? (get-in site/copy [:en :live]) "Hosted apply is not available yet"))
@@ -75,8 +75,8 @@
 (deftest english-page-is-complete-and-addressable
   (let [html (site/page-html :en)]
     (is (str/includes? html "<html lang=\"en\""))
-    (is (str/includes? html "Controlled execution for AI-generated software."))
-    (is (str/includes? html "Safe code. Trusted state. Controlled execution."))
+    (is (str/includes? html "Security intelligence."))
+    (is (str/includes? html "verified white-hat researchers"))
     (is (str/includes? html "From AI-written code to admitted computation"))
     (is (str/includes? html "One release CID, executable from multiple providers"))
     (is (str/includes? html "Post-quantum signatures are mandatory"))
@@ -149,7 +149,7 @@
     (doseq [locale [:en :ja]]
       (let [html (site/page-html locale)
             t (site/translation locale)]
-        (is (str/includes? html (:philosophy t)))
+        (is (str/includes? html "research-application"))
         (is (str/includes? html (:next-step t)))
         (is (str/includes? html (:identity-waiting t)))
         (is (str/includes? html "id=\"kc-identity-waiting\""))
@@ -159,7 +159,7 @@
         (is (str/includes? html "id=\"kc-identity-next\""))
         (is (str/includes? html (:signed-in-action t)))
         (is (str/includes? html (str "data-signed-in-href=\"" site/kotobase-connect-href "\"")))
-        (is (str/includes? html (:live t)))
+        (is (str/includes? html "research-workspace"))
         (is (false? (str/includes? html "hosted apply is live")))
         (is (false? (str/includes? html "Hosted apply is available"))))))
   (testing "signed-in next step stays the live Kotobase principal handoff"
@@ -171,7 +171,7 @@
   (doseq [[locale t] locales/copy]
     (let [html (site/page-html locale)]
       (is (str/includes? html (str "<html lang=\"" (name locale) "\" dir=\"" (locales/direction locale) "\">")))
-      (doseq [key [:cloud-headline :cloud-lead :cloud-live :philosophy :next-step
+      (doseq [key [:next-step
                    :identity-waiting :identity-done :signed-in-action
                    :boundary-heading :boundary-body :note]]
         (is (str/includes? html (get t key)) (str locale " " key)))

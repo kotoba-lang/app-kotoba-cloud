@@ -1,0 +1,71 @@
+(ns app-kotoba-cloud.research-browser
+  (:require [app-kotoba-cloud.research :as research]))
+
+(defn el [id] (.getElementById js/document id))
+(defn value [id] (.-value (el id)))
+(defn say! [id text] (set! (.-textContent (el id)) text))
+(defn ja? [] (= "ja" (.-lang (.-documentElement js/document))))
+(defn message [code]
+  (get (if (ja?)
+         {"sign-in-required" "まずアカウントにログインしてください。"
+          "verification-provider-not-configured" "本人確認・審査事業者は未接続です。申請は送信・保存されていません。"
+          "free-quota-exhausted" "本日の無料枠に達しました。自動課金はありません。"
+          "research-scope-required" "この調査には有効な承認済みスコープが必要です。"
+          "eligible" "本人確認と審査が有効です。無料枠を利用できます。"}
+         {"sign-in-required" "Please sign in to your account first."
+          "verification-provider-not-configured" "Verification and screening are not connected. No application was sent or saved."
+          "free-quota-exhausted" "Your daily free allowance is exhausted. No automatic charge will occur."
+          "research-scope-required" "A current approved scope is required for this task."
+          "eligible" "Verification and review are current. Your free allowance is available."})
+       code (if (ja?) "確認待ち、または現在利用できません。時間をおいて再確認してください。"
+                         "Pending review or currently unavailable. Please check again later.")))
+
+(defn api [path body]
+  (-> (js/fetch path (clj->js (cond-> {:method (if body "POST" "GET") :credentials "same-origin"
+                                     :headers {"content-type" "application/json"}}
+                              body (assoc :body (js/JSON.stringify (clj->js body))))))
+      (.then (fn [r] (-> (.json r) (.then #(assoc (js->clj % :keywordize-keys true) :httpOk (.-ok r))))))))
+
+(defn refresh! []
+  (set! (.-disabled (el "research-apply")) true)
+  (set! (.-disabled (el "research-run")) true)
+  (-> (api "/v1/research/status" nil)
+      (.then (fn [r]
+               (say! "research-status" (message (or (get-in r [:error :code]) (:reason r) (:status r))))
+               (when (:httpOk r)
+                 (set! (.-disabled (el "research-apply")) false)
+                 (set! (.-disabled (el "research-run")) (not= "eligible" (:status r))))))
+      (.catch (fn [_] (say! "research-status" (message nil))))))
+
+(defn bind-submit! [form button output path body-fn result-fn]
+  (.addEventListener
+   (el form) "submit"
+   (fn [event]
+     (.preventDefault event)
+     (when-not (.-disabled (el button))
+       (set! (.-disabled (el button)) true)
+       (say! output (if (ja?) "確認しています…" "Checking…"))
+       (-> (api path (body-fn))
+           (.then (fn [r]
+                    (say! output (if (:httpOk r) (result-fn r)
+                                    (message (get-in r [:error :code]))))))
+           (.catch (fn [_] (say! output (message nil))))
+           (.finally #(set! (.-disabled (el button)) false)))))))
+
+(defn init! []
+  (when (el "research-application")
+    (.addEventListener (el "research-refresh") "click" refresh!)
+    (bind-submit! "research-application" "research-apply" "research-status" "/v1/research/applications"
+                  #(cond-> {:verificationMode (value "research-mode") :policyVersion research/policy-version
+                             :consent (.-checked (el "research-consent"))
+                             :authorizedResearch (.-checked (el "research-authorized"))
+                             :purpose (value "research-purpose") :scope (value "research-scope")}
+                     (= "reuse" (value "research-mode"))
+                     (assoc :issuer (value "research-issuer") :reference (value "research-reference")))
+                  #(str (if (ja?) "審査待ち：" "Pending review: ") (:applicationId %)))
+    (bind-submit! "research-completion" "research-run" "research-output" "/v1/chat/completions"
+                  #(hash-map :model research/model-id :task (value "research-task")
+                             :scopeId (value "research-scope-id") :max_tokens 2048
+                             :messages [{:role "user" :content (value "research-input")}])
+                  #(get-in % [:choices 0 :message :content]))
+    (refresh!)))

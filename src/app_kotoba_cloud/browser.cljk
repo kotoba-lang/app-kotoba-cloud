@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.browser
-  (:require [app-kotoba-cloud.session :as session]
+  (:require [app-kotoba-cloud.research-browser :as research-browser]
+            [app-kotoba-cloud.session :as session]
             [goog.object :as gobj]))
 
 (defn- element [id] (.getElementById js/document id))
@@ -144,6 +145,7 @@
                      (text! "pq-key-transition-result" (.-message error))))))))))
 
 (defn init! []
+  (research-browser/init!)
   (when-let [publication (decode-fragment "#publish=")]
     (publication-preview! publication))
   (when-let [transition (decode-fragment "#pq-key-transition=")]
