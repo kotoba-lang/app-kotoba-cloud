@@ -373,7 +373,7 @@ contract DelegationRootRegistryTest {
     }
 
     function test_theSelectorTheOffchainReaderHardcodesIsTheRealOne() public pure {
-        // src/app_kotoba_cloud/chain_facts.cljc hard-codes this because it has no
+        // src/app_kotoba_cloud/chain_facts.cljk hard-codes this because it has no
         // keccak. The first value written there was invented, not computed, and a
         // wrong selector fails silently off-chain: eth_call returns empty and the
         // reader reports an unavailable fact instead of a bug.
