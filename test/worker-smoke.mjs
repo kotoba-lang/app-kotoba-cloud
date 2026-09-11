@@ -167,6 +167,12 @@ assert.equal(login.status, 302);
 assert.equal(login.headers.get("location"), "https://auth.kotoba.cloud/sign-in");
 assert.equal(login.headers.get("location").includes("auth.kotobase.net"), false);
 
+const agentDiscovery = await route(new Request("https://kotoba.cloud/.well-known/agent.json"), env);
+assert.equal(agentDiscovery.status, 302);
+assert.equal(agentDiscovery.headers.get("location"), "/.well-known/kotoba-cloud.json");
+assert.equal(agentDiscovery.headers.get("content-security-policy").includes("https://freebuff.com"), true);
+assert.equal(agentDiscovery.headers.get("content-security-policy").includes("connect-src 'self' https://freebuff.com"), true);
+
 upstreamStatus = 200;
 const publication = {
   schema: "https://kotoba.cloud/schemas/library-publication-request/v3",
