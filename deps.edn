@@ -9,7 +9,8 @@
         {:git/url "https://github.com/kotoba-lang/jp-go-digital-design-system.git"
          :git/sha "94ffae44a8e248b196b7d0b8a692f0645c9d34b1"}}
  :aliases
- {:cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.134"}
+ {:cljs {:extra-paths ["test"]
+         :extra-deps {org.clojure/clojurescript {:mvn/version "1.12.134"}
                       thheller/shadow-cljs {:mvn/version "3.5.0"}}}
   :test {:extra-paths ["test"]
          :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}

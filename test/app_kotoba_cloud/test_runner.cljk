@@ -7,6 +7,7 @@
             [app-kotoba-cloud.chain-facts-test]
             [app-kotoba-cloud.boot-test]
             [app-kotoba-cloud.pq-key-lifecycle-test]
+            [app-kotoba-cloud.free-sites-test]
             [app-kotoba-cloud.session-test]
             [app-kotoba-cloud.site-test]
             [app-kotoba-cloud.locale-test]
@@ -21,6 +22,7 @@
                           'app-kotoba-cloud.chain-facts-test
                                'app-kotoba-cloud.boot-test
                                'app-kotoba-cloud.pq-key-lifecycle-test
+                               'app-kotoba-cloud.free-sites-test
                                'app-kotoba-cloud.session-test
                                'app-kotoba-cloud.site-test
                                'app-kotoba-cloud.locale-test)]
