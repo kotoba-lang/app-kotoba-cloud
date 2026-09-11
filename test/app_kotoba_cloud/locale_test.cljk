@@ -23,6 +23,7 @@
   (is (= :ar-MA (locale/negotiate {:path "/ar-MA/" :country "EG"})))
   (is (nil? (locale/path-locale "/legal/")))
   (is (nil? (locale/path-locale "/billing/")))
+  (is (nil? (locale/path-locale "/api/funnel")))
   (is (nil? (locale/path-locale "/js/language-selector.js"))))
 
 (deftest cookie-beats-accept-language-and-country

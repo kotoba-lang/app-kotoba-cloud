@@ -1,0 +1,132 @@
+(ns app-kotoba-cloud.funnel
+  "First-party signup funnel. Honest counters only.
+
+  Event names match the kotobase.net spirit: visitor, signup (intent),
+  signup_completed (auth completed). registrations is an alias of
+  signup_completed, not a second ledger.
+
+  This module is pure. The Worker chooses a store. There is no KV or D1
+  binding on kotoba.cloud today, so production uses isolate memory and
+  must advertise that HOLD. Do not seed GMV, users, or conversions."
+  (:require [kotoba.lang.text :as str]))
+
+(def event-names #{"visitor" "signup" "signup_completed"})
+
+(def counter-for
+  {"visitor" :visitors
+   "signup" :signups
+   "signup_completed" :signup_completed})
+
+(def seen-cap 4096)
+
+(def labels
+  {:visitors "unique first-party visitor sessions (deduped)"
+   :signups "sign-in intent — opened or clicked registration, not completed auth"
+   :signup_completed "auth completed — valid Stable Principal session"
+   :registrations "alias of signup_completed; not a second counter"})
+
+(def openai-ads-hold
+  "HOLD — no OPENAI_ADS_* secrets, pixel, or Ads conversion in this Worker.")
+
+(def isolate-memory-hold
+  (str "No KV or D1 binding is present on this Worker. "
+       "R2 PUBLIC_BLOCKS is IPLD/boot storage, not a counter store. "
+       "PQ_KEY_REGISTRY is a Principal key Durable Object, not a funnel ledger. "
+       "Counters live in isolate memory and reset when the isolate recycles. "
+       "Do not treat these as lifetime totals."))
+
+(defn empty-state
+  "Zeroed ledger. No seed numbers."
+  []
+  {:visitors 0
+   :signups 0
+   :signup_completed 0
+   :seen {"visitor" #{}
+          "signup" #{}
+          "signup_completed" #{}}
+   :by-source {:visitors {}
+               :signups {}
+               :signup_completed {}}})
+
+(defn- bounded-id [value]
+  (when (and (string? value)
+             (= value (str/trim value))
+             (not (str/blank? value))
+             (<= (count value) 256)
+             (not (re-find #"[\r\n]" value)))
+    value))
+
+(defn event-name [value]
+  (when (contains? event-names value) value))
+
+(defn source-name
+  "Only observed sources. freebuff when a measured bfcid is present.
+  Never invents openai-ads."
+  [value]
+  (when (and (string? value)
+             (contains? #{"organic" "freebuff" "other"} value))
+    value))
+
+(defn infer-source [bfcid]
+  (if (bounded-id bfcid) "freebuff" "organic"))
+
+(defn persistence-report
+  "Honest store description. kind is isolate-memory unless a future
+  KV/D1 binding is actually present."
+  [kind]
+  (let [durable? (= kind "durable")]
+    {:kind (if durable? "durable" "isolate-memory")
+     :durable durable?
+     :hold (if durable?
+             "Persisted on an existing Worker binding. Counts are first-party events only."
+             isolate-memory-hold)
+     :openai_ads openai-ads-hold}))
+
+(defn snapshot
+  "Public GET /api/funnel body. registrations aliases signup_completed."
+  [state persistence]
+  (let [completed (long (or (:signup_completed state) 0))
+        visitors (long (or (:visitors state) 0))
+        signups (long (or (:signups state) 0))]
+    {:service "kotoba-cloud"
+     :funnel {:visitors visitors
+              :signups signups
+              :signup_completed completed}
+     :registrations completed
+     :labels labels
+     :by-source (or (:by-source state)
+                    {:visitors {} :signups {} :signup_completed {}})
+     :persistence persistence
+     :seeded false}))
+
+(defn- remember [seen key]
+  (cond
+    (contains? seen key) seen
+    (< (count seen) seen-cap) (conj seen key)
+    :else seen))
+
+(defn apply-event
+  "Increment one event at most once per dedup key. Missing event or key
+  is rejected. Duplicate is accepted=false and does not change counts."
+  [state {:keys [event dedup-key source]}]
+  (let [name (event-name event)
+        key (bounded-id dedup-key)
+        src (source-name source)
+        counter (get counter-for name)]
+    (cond
+      (nil? name)
+      {:state state :accepted false :reason "unknown-event"}
+
+      (nil? key)
+      {:state state :accepted false :reason "dedup-key-required"}
+
+      (contains? (get-in state [:seen name]) key)
+      {:state state :accepted false :reason "duplicate"}
+
+      :else
+      (let [next (-> state
+                     (update counter inc)
+                     (update-in [:seen name] remember key)
+                     (cond-> src
+                       (update-in [:by-source counter src] (fnil inc 0))))]
+        {:state next :accepted true :reason "recorded"}))))

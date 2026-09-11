@@ -1,0 +1,122 @@
+(ns app-kotoba-cloud.attribution
+  "Preserve measured landing attribution on auth.kotoba.cloud return_to.
+
+  Reused from the open sign-in / Freebuff drafts. Does not invent an
+  OpenAI Ads pixel, gtag, GMV, or click ids that were not on the request."
+  (:require [app-kotoba-cloud.profile :as profile]
+            [kotoba.lang.text :as str]))
+
+(def attribution-keys ["bfcid" "utm_source" "utm_medium" "utm_campaign" "utm_content"])
+
+(defn- url-decode [value]
+  #?(:clj (java.net.URLDecoder/decode (str value) "UTF-8")
+     :cljs (js/decodeURIComponent value)))
+
+(defn- url-encode [value]
+  #?(:clj (-> (java.net.URLEncoder/encode (str value) "UTF-8")
+              (str/replace "+" "%20"))
+     :cljs (js/encodeURIComponent value)))
+
+(defn- safe-param? [value]
+  (and (string? value)
+       (= value (str/trim value))
+       (not (str/blank? value))
+       (<= (count value) 512)
+       (not (re-find #"[\r\n]" value))))
+
+(defn parse-query
+  [search]
+  (let [q (cond (or (nil? search) (str/blank? search)) ""
+                (str/starts-with? search "?") (subs search 1)
+                :else search)]
+    (if (str/blank? q)
+      {}
+      (into {}
+            (keep (fn [part]
+                    (when-not (str/blank? part)
+                      (let [[k v] (str/split part #"=" 2)]
+                        (when-not (str/blank? k)
+                          [(url-decode k) (url-decode (or v ""))]))))
+                  (str/split q #"&"))))))
+
+(defn select-attribution
+  [params]
+  (into {}
+        (keep (fn [k]
+                (when-let [v (get params k)]
+                  (when (safe-param? v)
+                    [k v])))
+              attribution-keys)))
+
+(defn attribution-from-search
+  [search]
+  (select-attribution (parse-query search)))
+
+(defn serialize-query
+  [params]
+  (->> (concat attribution-keys (keys params))
+       distinct
+       (keep (fn [k]
+               (when-let [v (get params k)]
+                 (when-not (str/blank? (str v))
+                   (str (url-encode k) "=" (url-encode v))))))
+       (str/join "&")))
+
+(defn- split-href
+  [href]
+  (let [hash-idx (.indexOf href "#")
+        q-idx (.indexOf href "?")
+        cut (cond (and (neg? q-idx) (neg? hash-idx)) (count href)
+                  (neg? q-idx) hash-idx
+                  (neg? hash-idx) q-idx
+                  :else (min q-idx hash-idx))]
+    {:base (subs href 0 cut)
+     :query (if (neg? q-idx)
+              ""
+              (if (neg? hash-idx)
+                (subs href q-idx)
+                (subs href q-idx hash-idx)))
+     :fragment (if (neg? hash-idx) "" (subs href hash-idx))}))
+
+(defn apply-attribution
+  "Merge kept keys onto href. If return_to is present, merge onto that URL too
+  so the click id survives the Passkey RP allowlist (apex host only)."
+  [href attribution]
+  (if (or (not (string? href)) (str/blank? href) (empty? attribution))
+    href
+    (let [{:keys [base query fragment]} (split-href href)
+          params (merge (parse-query query) attribution)
+          return-to (get params "return_to")
+          params (if (and (string? return-to) (not (str/blank? return-to)))
+                   (assoc params "return_to" (apply-attribution return-to attribution))
+                   params)
+          serialized (serialize-query params)]
+      (str base
+           (when-not (str/blank? serialized) (str "?" serialized))
+           fragment))))
+
+(defn sign-in-location
+  "Build the live Passkey URL. Without measured attribution the original
+  query is kept byte-stable."
+  [sign-in-url search]
+  (let [attribution (attribution-from-search search)]
+    (if (empty? attribution)
+      (str sign-in-url (or search ""))
+      (apply-attribution (str sign-in-url (or search "")) attribution))))
+
+(defn click-id
+  [search]
+  (let [id (get (attribution-from-search search) "bfcid")]
+    (when (safe-param? id) id)))
+
+(defn conversion-event-id
+  [id]
+  (when (safe-param? id)
+    (str id ":signup_completed")))
+
+(defn target-href?
+  [href]
+  (when (and (string? href) (not (str/blank? href)))
+    (or (str/starts-with? href profile/identity-origin)
+        (let [path (-> href (str/split #"\?" 2) first (str/split #"#" 2) first)]
+          (contains? #{"/sign-in" "/login" "/signin"} path)))))
