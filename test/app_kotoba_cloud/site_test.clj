@@ -156,7 +156,7 @@
         (is (str/includes? html (str "href=\"" site/kotobase-connect-href "\"")))
         (is (str/includes? html "id=\"kc-identity-next\""))
         (is (str/includes? html (:signed-in-action t)))
-        (is (str/includes? html "data-signed-in-href=\"" site/kotobase-connect-href "\""))
+        (is (str/includes? html (str "data-signed-in-href=\"" site/kotobase-connect-href "\"")))
         (is (str/includes? html (:live t)))
         (is (false? (str/includes? html "hosted apply is live")))
         (is (false? (str/includes? html "Hosted apply is available"))))))
