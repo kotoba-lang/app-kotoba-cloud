@@ -18,6 +18,7 @@
 (def operator-name "Kotoba Labs Inc")
 (def public-contact-email "support@kotoba.cloud")
 (def legal-disclosure "請求があった場合、法令に従い遅滞なく開示します")
+(def kotobase-connect-href "https://auth.kotoba.cloud/connect?target=kotobase")
 
 (def reference-package-command
   (str "# install and run the live Ed25519 + ML-DSA-65 reference package\n"
@@ -53,6 +54,16 @@
     :headline "AIが書くソフトウェアを、制御された実行へ。"
     :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
            "安全なコード。信頼できる状態。制御された実行。Kotoba Labs は、この三つをつなぐ安全で超高速なソフトウェアスタックを目指しています。"]
+    :philosophy "他者の達成を助けるとして、Kotoba Cloud は、すでに存在する場所へ人や end user を含む他者がサインインし work を向けるための扉です。"
+    :next-step "今完了できること: サインインして Stable Principal を確認し、Kotobase へ接続します。"
+    :identity-title "Stable Principal を確認する"
+    :identity-waiting "サインインして Stable Principal を確認してください。それが最初に完了できる手順です。Hosted apply は提供していません。"
+    :identity-done "Stable Principal を確認しました。"
+    :identity-label "ログイン中の Identity"
+    :next-step-hint "この Principal を Kotobase へ向けます。その接続はすでに動作します。"
+    :next-step-alt "または library publish の dry-run を完了し、ここで Passkey + ML-DSA-65 で承認します。"
+    :signed-in-action "同じPrincipalで接続"
+    :signed-in-status "ログイン済みの session を確認しました。次: この Principal を Kotobase へ接続します。"
     :passkey-cta "Base Account で始める" :cli-cta "Kotoba CLI を見る"
     :nav-sign-in "ログイン"
     :live "Discovery と Passkey RP は稼働中。Hosted apply はまだ提供していません。"
@@ -149,6 +160,16 @@
     :headline "Controlled execution for AI-generated software."
     :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
            "Safe code. Trusted state. Controlled execution. Kotoba Labs is building toward a safe and ultra-fast software stack that connects all three."]
+    :philosophy "As 他者の達成を助ける, Kotoba Cloud is the door so another person, including an end user, can sign in and point work at a place that already exists."
+    :next-step "Finishable now: sign in, confirm the Stable Principal, then connect it to Kotobase."
+    :identity-title "Confirm a Stable Principal"
+    :identity-waiting "Sign in to confirm a Stable Principal. That is the first finishable step. Hosted apply is not offered."
+    :identity-done "Stable Principal confirmed."
+    :identity-label "Signed-in identity"
+    :next-step-hint "Point this Principal at Kotobase. That handoff already works."
+    :next-step-alt "Or finish a library publication dry-run, then approve it here with Passkey + ML-DSA-65."
+    :signed-in-action "Connect this Principal"
+    :signed-in-status "Signed-in session confirmed. Next: connect this Principal to Kotobase."
     :passkey-cta "Start with a Base Account" :cli-cta "Explore the Kotoba CLI"
     :nav-sign-in "Sign in"
     :live "Discovery and the Passkey RP are live. Hosted apply is not available yet."
@@ -249,11 +270,16 @@
    ".kc-eyebrow{margin:0 0 var(--hig-spacing-4);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;letter-spacing:.12em;color:var(--hig-color-tint);}"
    ".kc-hero h1{max-width:17ch;text-wrap:balance;}"
    ".kc-lead{max-width:48rem;font-size:var(--hig-text-title3-font-size);line-height:var(--hig-text-title3-line-height);color:var(--hig-color-secondary-label);}"
+   ".kc-philosophy{max-width:48rem;margin:var(--hig-spacing-4) 0 0;color:var(--hig-color-secondary-label);}"
+   ".kc-next{max-width:48rem;margin:var(--hig-spacing-4) 0 0;}"
    ".kc-actions{margin-top:var(--hig-spacing-7);}"
    ".kc-live{margin-top:var(--hig-spacing-5);display:flex;align-items:center;gap:var(--hig-spacing-3);color:var(--hig-color-secondary-label);}"
    ".kc-live__dot{inline-size:.75rem;block-size:.75rem;flex:none;border-radius:var(--hig-radius-capsule);background:var(--hig-palette-green);}"
    ".kc-identity{padding-block:var(--hig-spacing-8);border-bottom:1px solid var(--hig-color-separator);background:var(--hig-color-secondary-system-background);}"
    ".kc-identity[hidden]{display:none;}"
+   ".kc-identity-waiting p,.kc-identity-done p{max-width:48rem;color:var(--hig-color-secondary-label);}"
+   ".kc-identity__done{margin:0 0 var(--hig-spacing-5);font-weight:700;color:var(--hig-color-tint);}"
+   ".kc-identity__next{margin-top:var(--hig-spacing-6);}"
    ".kc-identity__grid{display:grid;grid-template-columns:minmax(12rem,1fr) repeat(2,minmax(0,2fr));gap:var(--hig-spacing-5);align-items:start;}"
    ".kc-identity__label{margin:0 0 var(--hig-spacing-2);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;color:var(--hig-color-secondary-label);}"
    ".kc-identity__value{margin:0;font-family:var(--hig-font-mono);overflow-wrap:anywhere;}"
@@ -291,6 +317,16 @@
             :language-label (:language t) :nav-sign-in (:signin t)
             :headline (:cloud-headline t) :lead [(:cloud-lead t)]
             :passkey-cta (:start t) :cli-cta (:cli t) :live (:cloud-live t)
+            :philosophy (or (:philosophy t) (get-in copy [:en :philosophy]))
+            :next-step (or (:next-step t) (get-in copy [:en :next-step]))
+            :identity-title (or (:identity-title t) (get-in copy [:en :identity-title]))
+            :identity-waiting (or (:identity-waiting t) (get-in copy [:en :identity-waiting]))
+            :identity-done (or (:identity-done t) (get-in copy [:en :identity-done]))
+            :identity-label (or (:identity-label t) (get-in copy [:en :identity-label]))
+            :next-step-hint (or (:next-step-hint t) (get-in copy [:en :next-step-hint]))
+            :next-step-alt (or (:next-step-alt t) (get-in copy [:en :next-step-alt]))
+            :signed-in-action (or (:signed-in-action t) (get-in copy [:en :signed-in-action]))
+            :signed-in-status (or (:signed-in-status t) (get-in copy [:en :signed-in-status]))
             :boundary-heading (:boundary-heading t)
             :boundary-p1 (:boundary-body t) :boundary-p2 ""
             :contact-label (:contact t) :translation-note (:note t)})
@@ -443,6 +479,7 @@
         [:p {:class "kc-eyebrow"} (:hero-eyebrow t)]
         (dds/heading 1 (:headline t) {:size "64"})
         (into [:p {:class "kc-lead"}] (interpose " " (:lead t)))
+        [:p {:class "kc-philosophy"} (:philosophy t)]
         (when-let [note (:translation-note t)]
           [:p {:class "kc-live" :data-translation-coverage "core-entry"} note])
         (dds/row
@@ -453,26 +490,45 @@
          [:div {:class "kc-actions"}
           (dds/button (:cli-cta t) {:type :outline :size "lg"
                                     :href "https://kotoba-lang.org/#start"})])
+        [:span {:id "kc-session-labels" :hidden true
+                :data-signed-in-action (:signed-in-action t)
+                :data-signed-in-status (:signed-in-status t)
+                :data-signed-in-href kotobase-connect-href}]
         [:p [:a {:href "/agent-quickstart.md"} "AI agent quickstart"]]
         [:div {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
-         [:span {:id "kc-session-status"} (:live t)]])]
-      [:section {:class "kc-identity" :id "identity" :hidden true
-                 :aria-label (if (= locale :en)
-                               "Signed-in identity"
-                               "ログイン中の Identity")}
+         [:span {:id "kc-session-status"} (:live t)]]
+        [:p {:class "kc-next"} (:next-step t)])]
+      [:section {:class "kc-identity" :id "identity"
+                 :aria-label (:identity-label t)}
        (dds/container
-        [:div {:class "kc-identity__grid"}
-         [:div
-          [:p {:class "kc-identity__label"} "PASSKEY USERNAME"]
-          [:p {:class "kc-identity__value kc-identity__username"
-               :id "kc-session-username"} "@kotoba-…"]]
-         [:div
-          [:p {:class "kc-identity__label"} "STABLE PRINCIPAL"]
-          [:p {:class "kc-identity__value" :id "kc-session-principal"} "—"]]
-         [:div
-          [:p {:class "kc-identity__label"} "ACTIVE CONTROLLER"]
-          [:p {:class "kc-identity__value" :id "kc-session-controller"} "—"]]])]
+        [:div {:class "kc-identity-waiting" :id "kc-identity-waiting"}
+         (dds/heading 2 (:identity-title t) {:size "24"})
+         [:p (:identity-waiting t)]
+         [:p (:next-step t)]
+         (dds/button (:passkey-cta t) {:type :solid-fill :size "lg"
+                                       :href (passkey-href locale)})]
+        [:div {:class "kc-identity-done" :id "kc-identity-done" :hidden true}
+         [:p {:class "kc-identity__done" :id "kc-identity-done-status"}
+          (:identity-done t)]
+         [:div {:class "kc-identity__grid"}
+          [:div
+           [:p {:class "kc-identity__label"} "PASSKEY USERNAME"]
+           [:p {:class "kc-identity__value kc-identity__username"
+                :id "kc-session-username"} "@kotoba-…"]]
+          [:div
+           [:p {:class "kc-identity__label"} "STABLE PRINCIPAL"]
+           [:p {:class "kc-identity__value" :id "kc-session-principal"} "—"]]
+          [:div
+           [:p {:class "kc-identity__label"} "ACTIVE CONTROLLER"]
+           [:p {:class "kc-identity__value" :id "kc-session-controller"} "—"]]]
+         [:div {:class "kc-identity__next"}
+          [:p (:next-step-hint t)]
+          (dds/button (:signed-in-action t)
+                      {:type :solid-fill :size "lg"
+                       :id "kc-identity-next"
+                       :href kotobase-connect-href})
+          [:p [:a {:href (str (:path t) "#libraries")} (:next-step-alt t)]]]])]
       [:section {:class "kc-architecture" :id "architecture"}
        (dds/container
         (dds/section {:title (:architecture-title t)}
