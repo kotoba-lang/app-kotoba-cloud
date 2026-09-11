@@ -19,8 +19,33 @@
 (deftest hosted-apply-is-not-overclaimed
   (testing "discovery distinguishes the landed control dependency from a future hosted apply API"
     (is (false? (get-in profile/control-plane [:deploy :hostedApply])))
+    (is (false? (:hostedApply profile/agent-entry)))
     (is (= "local-admission-remote-compute"
            (get-in profile/control-plane [:deploy :mode])))))
+
+(deftest agent-entry-is-an-honest-start-card
+  (testing "/.well-known/agent.json points at the finishable Principal path, not hosted apply"
+    (is (profile/valid-agent-entry? profile/agent-entry))
+    (is (= "/.well-known/agent.json" profile/agent-path))
+    (is (= "https://kotoba.cloud/" (:homepage profile/agent-entry)))
+    (is (= "https://kotoba.cloud/llms.txt" (:llmsTxt profile/agent-entry)))
+    (is (= "https://kotoba.cloud/agent-quickstart.md"
+           (:agentQuickstart profile/agent-entry)))
+    (is (= profile/identity-sign-in (:signIn profile/agent-entry)))
+    (is (= profile/kotobase-connect
+           (:principalKotobaseConnect profile/agent-entry)))
+    (is (= "https://auth.kotoba.cloud/connect?target=kotobase"
+           (:principalKotobaseConnect profile/agent-entry)))
+    (is (= "Kotoba Labs Inc." (get-in profile/agent-entry [:operator :name])))
+    (is (= "support@kotoba.cloud"
+           (get-in profile/agent-entry [:operator :contact]))))
+  (testing "claiming hosted apply or inventing a forbidden operator fails the predicate"
+    (is (not (profile/valid-agent-entry?
+              (assoc profile/agent-entry :hostedApply true))))
+    (is (not (profile/valid-agent-entry?
+              (assoc-in profile/agent-entry [:operator :name] "Kawasaki"))))
+    (is (not (profile/valid-agent-entry?
+              (assoc-in profile/agent-entry [:operator :name] "河崎"))))))
 
 (deftest post-quantum-is-the-default-cryptographic-floor
   (let [cryptography (:cryptography profile/control-plane)]

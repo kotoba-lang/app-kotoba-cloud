@@ -46,7 +46,12 @@
     (text! "kc-session-username" (str "@" username))
     (text! "kc-session-principal" (session/abbreviate (:principalId payload)))
     (text! "kc-session-controller" (session/abbreviate (:activeDid payload)))
-    (text! "kc-session-status" (str next-status " · @" username))))
+    (text! "kc-session-status" (str next-status " · @" username))
+    (when-let [api (gobj/get js/window "kotobaCloudFreebuff")]
+      (when-let [preserve (gobj/get api "preserveLinks")]
+        (preserve))
+      (when-let [confirm (gobj/get api "onPrincipalConfirmed")]
+        (confirm)))))
 
 (defn- decode-fragment [prefix]
   (let [hash (.-hash js/location)]

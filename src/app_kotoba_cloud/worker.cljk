@@ -7,8 +7,11 @@
             [goog.object :as gobj]))
 
 (def security-headers
+  ;; script-src/connect-src allow the bfcid-only Freebuff tag at
+  ;; https://freebuff.com. The wrapper itself is same-origin
+  ;; (/js/freebuff-attribution.js). No OpenAI Ads / gtag host is listed.
   {"content-security-policy"
-   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
    "cross-origin-opener-policy" "same-origin"
    "referrer-policy" "no-referrer"
    "x-content-type-options" "nosniff"
@@ -445,6 +448,9 @@
       (or (= path "/.well-known/kotoba-cloud.json")
           (= path "/v1/control-plane"))
       (json-response profile/control-plane)
+
+      (= path profile/agent-path)
+      (json-response profile/agent-entry)
 
       ;; Served, but never as the authority: the genesis digest is pinned by the
       ;; caller, and a plane that reads the pin from here and verifies the log
