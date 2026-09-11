@@ -15,14 +15,30 @@
 
 (defn- signed-in! [payload]
   (let [username (:username payload)
-        english? (not= "ja" (.-lang (.-documentElement js/document)))]
+        english? (not= "ja" (.-lang (.-documentElement js/document)))
+        labels (element "kc-session-labels")
+        next-label (or (when labels (.getAttribute labels "data-signed-in-action"))
+                       (if english? "Connect this Principal" "同じPrincipalで接続"))
+        next-href (or (when labels (.getAttribute labels "data-signed-in-href"))
+                      "https://auth.kotoba.cloud/connect?target=kotobase")
+        next-status (or (when labels (.getAttribute labels "data-signed-in-status"))
+                        (if english?
+                          "Signed-in session confirmed. Next: connect this Principal to Kotobase."
+                          "ログイン済みの session を確認しました。次: この Principal を Kotobase へ接続します。"))]
     (when-let [nav (element "kc-session-nav")]
       (set! (.-textContent nav) (str "@" username))
       (.setAttribute nav "href" "#identity"))
     (when-let [action (element "kc-session-action")]
-      (set! (.-textContent action) (if english? "View identity" "Identity を確認"))
-      (.setAttribute action "href" "#identity")
-      (.setAttribute action "lang" (if english? "en" "ja")))
+      (set! (.-textContent action) next-label)
+      (.setAttribute action "href" next-href)
+      (when-not labels
+        (.setAttribute action "lang" (if english? "en" "ja"))))
+    (when-let [waiting (element "kc-identity-waiting")]
+      (set! (.-hidden waiting) true))
+    (when-let [done (element "kc-identity-done")]
+      (set! (.-hidden done) false))
+    (when-let [next (.querySelector js/document ".kc-next")]
+      (set! (.-hidden next) true))
     (when-let [panel (element "identity")]
       (set! (.-hidden panel) false))
     (doseq [link (array-seq (.querySelectorAll js/document "[data-session-link]"))]
@@ -30,12 +46,7 @@
     (text! "kc-session-username" (str "@" username))
     (text! "kc-session-principal" (session/abbreviate (:principalId payload)))
     (text! "kc-session-controller" (session/abbreviate (:activeDid payload)))
-    (text! "kc-session-status"
-           ;; The session may be a Base Account, a passkey, a wallet or a
-           ;; recovery phrase (auth.kotoba.cloud, 2026-09-07); the projection
-           ;; does not say which, so neither does this line.
-           (str (if english? "Signed-in session confirmed" "ログイン済みの session を確認しました")
-                " · @" username))))
+    (text! "kc-session-status" (str next-status " · @" username))))
 
 (defn- decode-fragment [prefix]
   (let [hash (.-hash js/location)]

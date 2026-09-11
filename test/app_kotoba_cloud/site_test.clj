@@ -8,7 +8,7 @@
 (deftest locale-catalogs-have-the-same-contract
   (let [catalogs (map site/translation site/supported-locales)
         keysets (map (comp set #(remove #{:translation-note} %) keys) catalogs)]
-    (is (= (first keysets) (second keysets)))
+    (is (apply = keysets))
     (is (= [:en :zh-Hans :hi :es :ar :fr :bn :pt :id :ur :ru :de :ja :ko :pcm :arz :mr] site/supported-locales))
     (doseq [catalog catalogs]
       (is (= 3 (count (:planes catalog))))
@@ -57,7 +57,7 @@
                               "https%3A%2F%2Fkotoba.cloud%2F"))))
         (is (str/includes? html (href-of profile/identity-href)))
         (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
-        (is (= 2 (count (re-seq (re-pattern
+        (is (= 3 (count (re-seq (re-pattern
                                  (str "href=\""
                                       (java.util.regex.Pattern/quote sign-in)
                                       "\""))
@@ -67,7 +67,8 @@
         (is (str/includes? html (:live (site/translation locale)))))))
   (testing "honest live copy does not invent a hosted apply SKU"
     (is (str/includes? (get-in site/copy [:ja :live]) "Hosted apply はまだ提供していません"))
-    (is (str/includes? (get-in site/copy [:en :live]) "Hosted apply is not available yet"))))
+    (is (str/includes? (get-in site/copy [:en :live]) "Hosted apply is not available yet"))
+    (is (false? (get-in profile/control-plane [:deploy :hostedApply])))))
 
 (deftest english-page-is-complete-and-addressable
   (let [html (site/page-html :en)]
@@ -136,11 +137,41 @@
                   "hello@kotoba.cloud" "info@kotoba.cloud"]]
     (is (not (str/includes? html needle)) needle)))
 
+(deftest homepage-offers-a-finishable-principal-path
+  (testing "philosophy sentence matches the PR 32 door wording"
+    (is (= "As 他者の達成を助ける, Kotoba Cloud is the door so another person, including an end user, can sign in and point work at a place that already exists."
+           (get-in site/copy [:en :philosophy])))
+    (is (= "他者の達成を助けるとして、Kotoba Cloud は、すでに存在する場所へ人や end user を含む他者がサインインし work を向けるための扉です。"
+           (get-in site/copy [:ja :philosophy]))))
+  (testing "anonymous homepage keeps hosted-apply honesty but is not only a not-yet banner"
+    (doseq [locale [:en :ja]]
+      (let [html (site/page-html locale)
+            t (site/translation locale)]
+        (is (str/includes? html (:philosophy t)))
+        (is (str/includes? html (:next-step t)))
+        (is (str/includes? html (:identity-waiting t)))
+        (is (str/includes? html "id=\"kc-identity-waiting\""))
+        (is (str/includes? html "id=\"kc-identity-done\" hidden"))
+        (is (not (re-find #"id=\"identity\"[^>]*hidden" html)))
+        (is (str/includes? html (str "href=\"" site/kotobase-connect-href "\"")))
+        (is (str/includes? html "id=\"kc-identity-next\""))
+        (is (str/includes? html (:signed-in-action t)))
+        (is (str/includes? html (str "data-signed-in-href=\"" site/kotobase-connect-href "\"")))
+        (is (str/includes? html (:live t)))
+        (is (false? (str/includes? html "hosted apply is live")))
+        (is (false? (str/includes? html "Hosted apply is available"))))))
+  (testing "signed-in next step stays the live Kotobase principal handoff"
+    (is (= "https://auth.kotoba.cloud/connect?target=kotobase" site/kotobase-connect-href))
+    (is (= "Connect this Principal" (get-in site/copy [:en :signed-in-action])))
+    (is (str/includes? (get-in site/copy [:en :signed-in-status]) "connect this Principal to Kotobase"))))
+
 (deftest seventeen-real-entry-locales-preserve-authority-boundaries
   (doseq [[locale t] locales/copy]
     (let [html (site/page-html locale)]
       (is (str/includes? html (str "<html lang=\"" (name locale) "\" dir=\"" (locales/direction locale) "\">")))
-      (doseq [key [:cloud-headline :cloud-lead :cloud-live :boundary-heading :boundary-body :note]]
+      (doseq [key [:cloud-headline :cloud-lead :cloud-live :philosophy :next-step
+                   :identity-waiting :identity-done :signed-in-action
+                   :boundary-heading :boundary-body :note]]
         (is (str/includes? html (get t key)) (str locale " " key)))
       (is (str/includes? html (str "rel=\"canonical\" href=\"https://kotoba.cloud/" (name locale) "/\"")))
       (is (str/includes? html "lang=\"en\" dir=\"ltr\""))
