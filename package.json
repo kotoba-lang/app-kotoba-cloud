@@ -5,15 +5,15 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "render": "clojure -M:render",
-    "build": "npm run render && shadow-cljs release browser app",
-    "test": "clojure -M:test && node test/aiueos-boot-manifest-cli.mjs",
+    "render": "kbb -M:render",
+    "build": "npm run render && amu compile --target wasm32-browser browser app",
+    "test": "kbb -M:test && node test/aiueos-boot-manifest-cli.mjs",
     "test:worker": "node test/worker-smoke.mjs",
     "dry-run": "npm test && npm run build && npm run test:worker && wrangler deploy --dry-run --outdir dist --env=\"\"",
     "deploy": "npm test && npm run build && npm run test:worker && wrangler deploy --env=\"\"",
     "test:contract": "forge test --root contracts",
     "build:contract": "forge build --root contracts",
-    "deploy:registry": "nbb scripts/deploy-registry.cljk"
+    "deploy:registry": "kbb --backend sci scripts/deploy-registry.cljk"
   },
   "devDependencies": {
     "shadow-cljs": "3.5.1",

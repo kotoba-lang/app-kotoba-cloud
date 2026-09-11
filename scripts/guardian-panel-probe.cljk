@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; Ask the live panel one recovery question. ADR-2800011000.
 ;;
 ;; The prompt carries CHAIN FACTS ONLY — never the requester's prose. That is

@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; Deploy DelegationRootRegistry. ADR-2800011000.
 ;;
 ;; Reads its credential from the environment and never from the repo, the way
