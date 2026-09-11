@@ -37,6 +37,8 @@
       (set! (.-hidden waiting) true))
     (when-let [done (element "kc-identity-done")]
       (set! (.-hidden done) false))
+    (when-let [next (.querySelector js/document ".kc-next")]
+      (set! (.-hidden next) true))
     (when-let [panel (element "identity")]
       (set! (.-hidden panel) false))
     (doseq [link (array-seq (.querySelectorAll js/document "[data-session-link]"))]
