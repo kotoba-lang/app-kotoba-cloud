@@ -1,0 +1,53 @@
+(ns app-kotoba-cloud.free-sites-test
+  (:require [app-kotoba-cloud.free-sites :as sites]
+            [clojure.test :refer [deftest is testing]]))
+
+(def alice "urn:kotoba:principal:alice")
+(def bob "urn:kotoba:principal:bob")
+(def at "2026-09-11T12:00:00Z")
+(defn rejected [f]
+  (try (f) nil (catch #?(:clj Exception :cljs :default) e (:reason (ex-data e)))))
+
+(deftest name-validation-does-not-normalize-ambiguous-input
+  (doseq [label ["hana" "my-site" "123" (apply str (repeat 63 "a"))]]
+    (is (sites/valid-name? label)))
+  (doseq [label [nil 1 "" "ab" "Hana" " hana" "hana." "a.b" "a/b" "花"
+                 "-hana" "hana-" "xn--hana" "admin" "auth" "www"
+                 (apply str (repeat 64 "a"))]]
+    (is (not (sites/valid-name? label))))
+  (is (= :invalid-site-name
+         (rejected #(sites/claim-name {:name "hana" :principal alice}))))
+  (is (= :session-required
+         (rejected #(sites/authenticated-principal {:valid false :principalId alice})))))
+
+(deftest quota-ownership-and-repeat-claim
+  (let [plan (sites/plan-claim (sites/empty-registry) alice "hana" at)
+        registry (:registry plan)]
+    (is (= 0 (:expected-revision plan)))
+    (is (= 1 (:revision registry)))
+    (is (= alice (:principal (sites/owner-record registry alice "hana"))))
+    (is (= :name-unavailable (rejected #(sites/plan-claim registry bob "hana" at))))
+    (is (= :site-quota-exceeded (rejected #(sites/plan-claim registry alice "other" at))))
+    (is (= :site-not-found (rejected #(sites/owner-record registry bob "hana"))))
+    (let [again (sites/plan-claim registry alice "hana" "later")]
+      (is (= :existing (:action again)))
+      (is (= registry (:registry again)))
+      (is (= at (get-in again [:record :claimed-at]))))))
+
+(deftest suspended-reservations-cannot-be-reclaimed-or-bypass-quota
+  (let [registry (-> (sites/plan-claim (sites/empty-registry) alice "hana" at)
+                     :registry (assoc-in [:claims "hana" :status] :suspended))]
+    (is (= :site-suspended (rejected #(sites/plan-claim registry alice "hana" at))))
+    (is (= :name-unavailable (rejected #(sites/plan-claim registry bob "hana" at))))
+    (is (= :site-quota-exceeded (rejected #(sites/plan-claim registry alice "other" at))))))
+
+(deftest missing-corrupt-and-full-storage-fail-closed
+  (doseq [registry [nil {} (assoc (sites/empty-registry) :version 2)
+                    (assoc (sites/empty-registry) :revision -1)
+                    (assoc (sites/empty-registry) :claims {"hana" {:principal alice}})]]
+    (is (= :registry-unavailable (rejected #(sites/plan-claim registry alice "hana" at)))))
+  (let [full (reduce (fn [registry i]
+                       (:registry (sites/plan-claim registry (str alice i) (str "site-" i) at)))
+                     (sites/empty-registry) (range 100))]
+    (is (= :pilot-full (rejected #(sites/plan-claim full bob "overflow" at))))
+    (is (= :existing (:action (sites/plan-claim full (str alice 0) "site-0" at))))))

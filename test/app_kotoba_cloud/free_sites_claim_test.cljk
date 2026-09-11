@@ -1,0 +1,122 @@
+(ns app-kotoba-cloud.free-sites-claim-test
+  (:require [app-kotoba-cloud.free-sites :as sites]
+            [app-kotoba-cloud.free-sites-claim :as claim]
+            [cljs.test :refer [deftest is async]]))
+
+(def alice {:valid true :principalId "urn:kotoba:principal:alice"})
+(def bob {:valid true :principalId "urn:kotoba:principal:bob"})
+
+(defn memory-provider
+  "TEST ONLY: models one atomic CAS; not Kotobase qualification evidence."
+  []
+  (let [store (atom {:basis "basis-0" :registry (sites/empty-registry)})
+        writes (atom 0)]
+    {:store store :writes writes :now! (constantly "2026-09-11T12:00:00Z")
+     :load! (fn [] @store)
+     :commit! (fn [{:keys [expected-basis expected-revision registry]}]
+                (swap! writes inc)
+                (let [current @store]
+                  (if (and (= expected-basis (:basis current))
+                           (= expected-revision (get-in current [:registry :revision])))
+                    (let [next-snapshot {:basis (str "basis-" (:revision registry)) :registry registry}]
+                      (reset! store next-snapshot)
+                      {:status :committed :snapshot next-snapshot})
+                    {:status :conflict})))}))
+
+(defn outcome [p]
+  (-> p (.catch (fn [e]
+                 ;; SCI adds a transport wrapper when a promise rejects;
+                 ;; compiled CLJS exposes the original ExceptionInfo directly.
+                 {:error (:reason (ex-data (if (= :sci/error (:type (ex-data e)))
+                                            (ex-cause e) e)))}))))
+
+(deftest concurrent-name-race-has-one-winner
+  (async done
+    (let [provider (memory-provider)]
+      (-> (js/Promise.all
+           #js [(outcome (claim/claim! provider alice {:name "hana"}))
+                (outcome (claim/claim! provider bob {:name "hana"}))])
+          (.then (fn [results]
+                   (let [results (vec (array-seq results))]
+                     (is (= 1 (count (filter :ok results))))
+                     (is (= [:name-unavailable] (vec (keep :error results))))
+                     (is (= 1 (count (get-in @(:store provider) [:registry :claims])))))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))
+
+(deftest concurrent-owner-quota-race-and-controller-change
+  (async done
+    (let [provider (memory-provider)]
+      (-> (js/Promise.all
+           #js [(outcome (claim/claim! provider alice {:name "hana"}))
+                (outcome (claim/claim! provider (assoc alice :activeDid "did:key:new") {:name "other"}))])
+          (.then (fn [results]
+                   (is (= 1 (count (filter :ok (array-seq results)))))
+                   (is (= [:site-quota-exceeded] (vec (keep :error (array-seq results)))))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))
+
+(deftest independent-claims-retry-against-the-new-basis-without-lost-updates
+  (async done
+    (let [provider (memory-provider)]
+      (-> (js/Promise.all
+           #js [(claim/claim! provider alice {:name "hana"})
+                (claim/claim! provider bob {:name "other"})])
+          (.then (fn [results]
+                   (is (every? :ok (array-seq results)))
+                   (is (= #{"hana" "other"}
+                          (set (keys (get-in @(:store provider) [:registry :claims])))))
+                   (is (= 2 (get-in @(:store provider) [:registry :revision])))
+                   (is (= 3 @(:writes provider)))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))
+
+(deftest lost-commit-response-is-recovered-by-idempotent-repeat
+  (async done
+    (let [provider (memory-provider)
+          lost (assoc provider :commit! (fn [command]
+                                          ((:commit! provider) command)
+                                          (js/Promise.reject (ex-info "timeout" {:reason :timeout}))))]
+      (-> (outcome (claim/claim! lost alice {:name "hana"}))
+          (.then (fn [result]
+                   (is (= :timeout (:error result)))
+                   (is (= 1 @(:writes provider)))
+                   (claim/claim! provider alice {:name "hana"})))
+          (.then (fn [result]
+                   (is (= "existing" (:disposition result)))
+                   (is (= "hana.sites.itonami.app" (:hostname result)))
+                   (is (false? (:publicationReady result)))
+                   (is (= 1 @(:writes provider)))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))
+
+(deftest invalid-authority-and-body-do-not-touch-storage
+  (async done
+    (let [reads (atom 0)
+          provider (assoc (memory-provider) :load! (fn [] (swap! reads inc)))]
+      (-> (js/Promise.all
+           #js [(outcome (claim/claim! provider (assoc alice :valid false) {:name "hana"}))
+                (outcome (claim/claim! provider alice {:name "hana" :principalId (:principalId bob)}))
+                (outcome (claim/claim! {} alice {:name "hana"}))])
+          (.then (fn [results]
+                   (is (= [:session-required :invalid-site-name :registry-unavailable]
+                          (mapv :error (array-seq results))))
+                   (is (zero? @reads))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))
+
+(deftest conflict-retry-is-bounded-and-receipts-must-match
+  (async done
+    (let [provider (memory-provider) attempts (atom 0)
+          conflict (assoc provider :commit! (fn [_] (swap! attempts inc) {:status :conflict}))
+          bad-receipt (assoc provider :commit! (fn [_] {:status :committed :snapshot @(:store provider)}))]
+      (-> (js/Promise.all
+           #js [(outcome (claim/claim! conflict alice {:name "hana"}))
+                (outcome (claim/claim! bad-receipt bob {:name "other"}))
+                (outcome (claim/claim! (assoc provider :load! (constantly nil)) alice {:name "hana"}))])
+          (.then (fn [results]
+                   (is (= [:claim-conflict :registry-unavailable :registry-unavailable]
+                          (mapv :error (array-seq results))))
+                   (is (= claim/max-attempts @attempts))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))

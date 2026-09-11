@@ -1,6 +1,11 @@
 {:deps {:aliases [:cljs]}
  :builds
- {:browser
+ {:free-sites-test
+  {:target :node-test
+   :output-to "build/free-sites-tests.cjs"
+   :ns-regexp "app-kotoba-cloud.free-sites.*-test$"
+   :autorun true}
+  :browser
   {:target :browser
    :output-dir "public/js"
    :asset-path "/js"

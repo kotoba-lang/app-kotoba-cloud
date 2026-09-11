@@ -1,0 +1,73 @@
+(ns app-kotoba-cloud.free-sites-claim
+  "CLJS claim coordinator over explicit persistence capabilities. No default
+  provider: absent Kotobase authority must never fall back to DO/KV/R2 state.
+  Not wired to the public Worker until the provider passes live qualification."
+  (:require [app-kotoba-cloud.free-sites :as sites]))
+
+(def max-attempts 3)
+
+(defn- unavailable! []
+  (throw (ex-info "registry-unavailable" {:reason :registry-unavailable :status 503})))
+
+(defn- snapshot! [snapshot]
+  (when-not (and (map? snapshot) (string? (:basis snapshot))
+                 (<= 1 (count (:basis snapshot)) 256))
+    (unavailable!))
+  (sites/validate-registry (:registry snapshot))
+  snapshot)
+
+(defn- receipt [snapshot record disposition]
+  {:ok true :name (:name record)
+   :hostname (str (:name record) sites/namespace-suffix)
+   :status "claimed" :disposition disposition
+   :revision (get-in snapshot [:registry :revision]) :basis (:basis snapshot)
+   :publicationReady false})
+
+(defn claim!
+  "Provider contract:
+  load! -> authoritative {basis registry}; never cached, nil, or synthesized.
+  commit! {expected-basis expected-revision registry} ->
+    {status :committed snapshot {basis registry}}, or {status :conflict}.
+  Commit must use one durable CAS for ALL names and owner quota, with a fresh
+  route-scoped CACAO. It must not convert timeouts/storage errors to conflicts.
+  snapshot is the durable commit receipt, not a reflected request.
+
+  viewer comes from verified auth.kotoba.cloud session, body is untrusted.
+  An ambiguous write rejects; repeating the same claim reads its committed
+  reservation and is idempotent. Only explicit conflicts are retried."
+  [{:keys [load! commit! now!]} viewer body]
+  (-> (js/Promise.resolve nil)
+      (.then
+       (fn [_]
+         (let [principal (sites/authenticated-principal viewer)
+               label (sites/claim-name body)]
+           (when-not (and (fn? load!) (fn? commit!) (fn? now!)) (unavailable!))
+           (letfn [(attempt [remaining]
+                     (-> (js/Promise.resolve nil)
+                         (.then (fn [_] (load!)))
+                         (.then
+                          (fn [loaded]
+                            (let [snapshot (snapshot! loaded)
+                                  plan (sites/plan-claim (:registry snapshot) principal label (now!))]
+                              (if (= :existing (:action plan))
+                                (receipt snapshot (:record plan) "existing")
+                                (-> (js/Promise.resolve nil)
+                                    (.then (fn [_]
+                                             (commit! {:expected-basis (:basis snapshot)
+                                                       :expected-revision (:expected-revision plan)
+                                                       :registry (:registry plan)})))
+                                    (.then
+                                     (fn [result]
+                                       (case (:status result)
+                                         :conflict
+                                         (if (> remaining 1) (attempt (dec remaining))
+                                             (throw (ex-info "claim-conflict"
+                                                             {:reason :claim-conflict :status 409})))
+                                         :committed
+                                         (let [committed (snapshot! (:snapshot result))]
+                                           (when-not (and (= (:registry plan) (:registry committed))
+                                                          (not= (:basis snapshot) (:basis committed)))
+                                             (unavailable!))
+                                           (receipt committed (:record plan) "created"))
+                                         (unavailable!)))))))))))]
+             (attempt max-attempts)))))))

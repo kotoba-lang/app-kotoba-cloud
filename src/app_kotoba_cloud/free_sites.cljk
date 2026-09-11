@@ -1,0 +1,114 @@
+(ns app-kotoba-cloud.free-sites
+  "Free-site claim protocol, executed by the existing CLJS compatibility host.
+  This is not a Q9 migration or a persistence implementation. The whole claim
+  component must qualify with its transactional Kotobase provider before
+  consumer cutover; a decision-only guest is not a substitute.
+
+  The registry is one atomic document for the bounded 100-site pilot. There
+  is deliberately no independent owner index, deletion, transfer or DNS write.")
+
+(def namespace-suffix ".sites.itonami.app")
+(def pilot-capacity 100)
+(def reserved-names
+  #{"www" "api" "auth" "login" "signin" "sign-in" "admin" "administrator"
+    "root" "support" "abuse" "security" "status" "mail" "smtp" "imap"
+    "pop" "pop3" "autodiscover" "autoconfig" "dns" "ns1" "ns2"
+    "ipfs" "ipns" "sites" "console" "account" "accounts" "billing"
+    "kotoba" "kotobase" "itonami" "localhost" "test" "example"})
+
+(defn- fail! [reason status]
+  (throw (ex-info (name reason) {:reason reason :status status})))
+
+(defn valid-name? [value]
+  (boolean
+   (and (string? value) (<= 3 (count value) 63)
+        (re-matches #"[a-z0-9][a-z0-9-]*[a-z0-9]" value)
+        (not (re-find #"^xn--" value))
+        (not (contains? reserved-names value)))))
+
+(defn- valid-principal? [value]
+  (boolean
+   (and (string? value) (<= 5 (count value) 256)
+        (re-matches #"(?:did:|urn:kotoba:principal:)[A-Za-z0-9:._%-]+" value))))
+
+(defn authenticated-principal
+  "Accept only the trusted session projection, never an owner from the body."
+  [viewer]
+  (if (and (true? (:valid viewer)) (valid-principal? (:principalId viewer)))
+    (:principalId viewer)
+    (fail! :session-required 401)))
+
+(defn claim-name [body]
+  (when-not (and (map? body) (= #{:name} (set (keys body)))
+                 (valid-name? (:name body)))
+    (fail! :invalid-site-name 400))
+  (:name body))
+
+(defn empty-registry
+  "Explicit provisioning value. Missing storage must not imply an empty registry."
+  []
+  {:version 1 :revision 0 :claims {}})
+
+(defn- valid-record? [[label record]]
+  (and (valid-name? label) (map? record)
+       (= #{:name :principal :status :claimed-at} (set (keys record)))
+       (= label (:name record)) (valid-principal? (:principal record))
+       (contains? #{:claimed :suspended} (:status record))
+       (string? (:claimed-at record)) (<= 1 (count (:claimed-at record)) 64)))
+
+(defn validate-registry [registry]
+  (when-not
+   (and (map? registry)
+        (= #{:version :revision :claims} (set (keys registry)))
+        (= 1 (:version registry))
+        (integer? (:revision registry)) (<= 0 (:revision registry) 9007199254740990)
+        (map? (:claims registry)) (<= (count (:claims registry)) pilot-capacity)
+        (every? valid-record? (:claims registry))
+        (= (count (:claims registry))
+           (count (set (map :principal (vals (:claims registry)))))))
+    (fail! :registry-unavailable 503))
+  registry)
+
+(defn plan-claim
+  "Return a proposed next document, NOT a successful acquisition receipt.
+  Provider must compare-and-swap the complete registry at expected-revision.
+  Suspended names and Principals retain their reservation and quota."
+  [registry principal label at]
+  (validate-registry registry)
+  (when-not (valid-principal? principal) (fail! :session-required 401))
+  (when-not (valid-name? label) (fail! :invalid-site-name 400))
+  (when-not (and (string? at) (<= 1 (count at) 64))
+    (fail! :clock-unavailable 503))
+  (let [record (get-in registry [:claims label])
+        owned (some #(when (= principal (:principal %)) %) (vals (:claims registry)))]
+    (cond
+      (and record (not= principal (:principal record)))
+      (fail! :name-unavailable 409)
+
+      (and record (= :suspended (:status record)))
+      (fail! :site-suspended 403)
+
+      record
+      {:action :existing :record record :registry registry}
+
+      owned
+      (fail! :site-quota-exceeded 409)
+
+      (>= (count (:claims registry)) pilot-capacity)
+      (fail! :pilot-full 503)
+
+      :else
+      (let [record {:name label :principal principal :status :claimed :claimed-at at}]
+        {:action :commit :expected-revision (:revision registry) :record record
+         :registry (-> registry (update :revision inc)
+                       (assoc-in [:claims label] record))}))))
+
+(defn owner-record
+  "Read an owned reservation. A claim alone never authorizes publishing."
+  [registry principal label]
+  (validate-registry registry)
+  (when-not (valid-principal? principal) (fail! :session-required 401))
+  (when-not (valid-name? label) (fail! :invalid-site-name 400))
+  (let [record (get-in registry [:claims label])]
+    (when-not (= principal (:principal record)) (fail! :site-not-found 404))
+    record))
