@@ -1,0 +1,91 @@
+(ns app-kotoba-cloud.freebuff-test
+  (:require [app-kotoba-cloud.freebuff :as freebuff]
+            [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.session :as session]
+            [clojure.java.io :as io]
+            [clojure.test :refer [deftest is testing]]
+            [kotoba.lang.text :as str]))
+
+(def click "bfc_testclick1")
+
+(deftest click-id-matches-the-live-freebuff-shape
+  (is (= click (freebuff/click-id click)))
+  (is (nil? (freebuff/click-id "not-a-click")))
+  (is (nil? (freebuff/click-id "bfc_")))
+  (is (nil? (freebuff/click-id ""))))
+
+(deftest attribution-reads-only-the-kept-keys
+  (is (= {"bfcid" click
+          "utm_source" "go"
+          "utm_medium" "cpc"
+          "utm_campaign" "cloud"
+          "utm_content" "signin"}
+         (freebuff/attribution-from-search
+          (str "?bfcid=" click
+               "&utm_source=go&utm_medium=cpc&utm_campaign=cloud"
+               "&utm_content=signin&gclid=ignore-me"))))
+  (is (= {} (freebuff/attribution-from-search "?bfcid=not-a-click")))
+  (is (= {} (freebuff/attribution-from-search ""))))
+
+(deftest apply-attribution-keeps-return-to-working
+  (let [href (str "https://auth.kotoba.cloud/sign-in?return_to="
+                  "https%3A%2F%2Fkotoba.cloud%2F")
+        out (freebuff/apply-attribution href {"bfcid" click "utm_source" "go"})]
+    (is (str/starts-with? out "https://auth.kotoba.cloud/sign-in?"))
+    (is (str/includes? out (str "bfcid=" click)))
+    (is (str/includes? out "utm_source=go"))
+    (is (str/includes? out "return_to="))
+    (let [params (freebuff/parse-query (subs out (.indexOf out "?")))
+          return-to (get params "return_to")]
+      (is (= click (get params "bfcid")))
+      (is (str/includes? return-to click))
+      (is (str/includes? return-to "utm_source=go"))
+      (is (str/starts-with? return-to "https://kotoba.cloud/")))))
+
+(deftest sign-in-location-is-byte-stable-without-attribution
+  (is (= "https://auth.kotoba.cloud/sign-in"
+         (freebuff/sign-in-location profile/identity-sign-in "")))
+  (is (= "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
+         (freebuff/sign-in-location
+          profile/identity-sign-in
+          "?return_to=https%3A%2F%2Fkotoba.cloud%2F")))
+  (is (= (str "https://auth.kotoba.cloud/sign-in?bfcid=" click)
+         (session/apex-sign-in-location "/signin" (str "?bfcid=" click)))))
+
+(deftest apex-signin-merges-bfcid-into-return-to
+  (let [location (session/apex-sign-in-location
+                  "/signin"
+                  (str "?return_to=https%3A%2F%2Fkotoba.cloud%2F&bfcid=" click))
+        params (freebuff/parse-query (subs location (.indexOf location "?")))]
+    (is (str/starts-with? location "https://auth.kotoba.cloud/sign-in?"))
+    (is (= click (get params "bfcid")))
+    (is (str/includes? (get params "return_to") click))))
+
+(deftest conversion-name-is-only-signup-completed
+  (is (= "signup_completed" freebuff/conversion-event))
+  (is (= (str click ":signup_completed")
+         (freebuff/conversion-event-id click)))
+  (is (nil? (freebuff/conversion-event-id "not-a-click"))))
+
+(deftest target-hrefs-are-the-sign-in-and-principal-connect-path
+  (is (true? (freebuff/target-href? "https://auth.kotoba.cloud/sign-in")))
+  (is (true? (freebuff/target-href? profile/kotobase-connect)))
+  (is (true? (freebuff/target-href? "/login")))
+  (is (true? (freebuff/target-href? "/sign-in")))
+  (is (true? (freebuff/target-href? "/signin")))
+  (is (false? (freebuff/target-href? "https://kotoba-lang.org/#start")))
+  (is (false? (freebuff/target-href? "/legal/"))))
+
+(deftest wrapper-source-stays-on-the-fix-plan-path
+  (let [source (slurp (io/file "assets" "js" "freebuff-attribution.js"))]
+    (is (str/includes? source "https://freebuff.com/freebuff-tag.js"))
+    (is (str/includes? source "signup_completed"))
+    (is (str/includes? source "sessionStorage"))
+    (is (str/includes? source "bfcid"))
+    (is (str/includes? source "utm_content"))
+    (testing "does not invent OpenAI Ads, gtag, or other conversion names"
+      (is (false? (str/includes? source "gtag")))
+      (is (false? (str/includes? source "googletagmanager")))
+      (is (false? (re-find #"(?i)openai.?ads" source)))
+      (is (false? (str/includes? source "purchase")))
+      (is (false? (str/includes? source "GMV"))))))

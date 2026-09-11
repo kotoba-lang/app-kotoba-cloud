@@ -35,7 +35,11 @@
     (is (str/includes? html "dads-button"))
     (is (str/includes? html "dds-ext-card"))
     (is (str/includes? html "id=\"identity\""))
-    (is (str/includes? html "src=\"/js/session.js\""))))
+    (is (str/includes? html "src=\"/js/session.js\""))
+    (is (str/includes? html "src=\"/js/freebuff-attribution.js\""))
+    (is (not (str/includes? html "gtag")))
+    (is (not (str/includes? html "googletagmanager")))
+    (is (not (re-find #"(?i)openai.?ads" html)))))
 
 (deftest signed-in-product-links-use-the-target-bound-controller-handoff
   (let [html (site/page-html :ja)]
@@ -129,6 +133,13 @@
       (is (str/includes? html "電話番号"))
       (is (<= 4 (count (re-seq #"請求があった場合、法令に従い遅滞なく開示します" html)))))))
 
+(deftest public-html-does-not-invent-openai-or-gtag-pixels
+  (doseq [html public-html-pages]
+    (is (not (str/includes? html "gtag")))
+    (is (not (str/includes? html "googletagmanager")))
+    (is (not (re-find #"(?i)openai.?ads" html)))
+    (is (not (str/includes? html "GMV")))))
+
 (deftest public-copy-does-not-publish-forbidden-operator-or-contact
   (doseq [html public-html-pages
           needle ["Gftd Japan" "gftd.co.jp" "gftdcojp" "mailer.gftd.ai" "ai-gftd"
@@ -162,6 +173,7 @@
         (is (false? (str/includes? html "Hosted apply is available"))))))
   (testing "signed-in next step stays the live Kotobase principal handoff"
     (is (= "https://auth.kotoba.cloud/connect?target=kotobase" site/kotobase-connect-href))
+    (is (= profile/kotobase-connect site/kotobase-connect-href))
     (is (= "Connect this Principal" (get-in site/copy [:en :signed-in-action])))
     (is (str/includes? (get-in site/copy [:en :signed-in-status]) "connect this Principal to Kotobase"))))
 

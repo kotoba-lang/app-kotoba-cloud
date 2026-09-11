@@ -18,6 +18,7 @@ Post-quantum signatures remain mandatory for library publication. The authentica
 
 ## Start
 
+- Agent discovery card: https://kotoba.cloud/.well-known/agent.json
 - Agent onboarding: https://kotoba.cloud/agent-quickstart.md
 - Graph CLI and MCP onboarding: https://kotobase.net/agent-quickstart.md
 

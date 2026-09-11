@@ -18,7 +18,7 @@
 (def operator-name "Kotoba Labs Inc")
 (def public-contact-email "support@kotoba.cloud")
 (def legal-disclosure "請求があった場合、法令に従い遅滞なく開示します")
-(def kotobase-connect-href "https://auth.kotoba.cloud/connect?target=kotobase")
+(def kotobase-connect-href profile/kotobase-connect)
 
 (def reference-package-command
   (str "# install and run the live Ed25519 + ML-DSA-65 reference package\n"
@@ -628,6 +628,7 @@
                              :href (str "https://kotoba.cloud/" (name loc) "/")}]))
        [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
         [:script {:src "/js/language-selector.js" :defer true}]
+        [:script {:src "/js/freebuff-attribution.js" :defer true}]
         [:script {:src "/js/session.js" :defer true}]
         [:link {:rel "alternate" :hreflang "ja" :href ja-href}]
         [:link {:rel "alternate" :hreflang "en" :href en-href}]
@@ -785,6 +786,8 @@
        (spit (io/file en-dir "legal" "index.html") (legal-html :en))
        (spit (io/file en-dir "legal" "tokushoho" "index.html") (tokushoho-html :en))
        (spit (io/file js-dir "language-selector.js") behavior/language-selector-script)
+       (io/copy (io/file "assets" "js" "freebuff-attribution.js")
+                (io/file js-dir "freebuff-attribution.js"))
        (doseq [source (file-seq ipfs-source) :when (.isFile ^java.io.File source)]
          (let [target (io/file ipfs-target (.getName ^java.io.File source))]
            (.mkdirs (.getParentFile target))

@@ -1,11 +1,12 @@
 (ns app-kotoba-cloud.session
   "Pure session projection shared by the Worker and the browser UI."
-  (:require [app-kotoba-cloud.profile :as profile]
+  (:require [app-kotoba-cloud.freebuff :as freebuff]
+            [app-kotoba-cloud.profile :as profile]
             [kotoba.lang.text :as str]))
 
 (def cookie-name "gftd_session")
 (def viewer-url (str profile/identity-origin "/v1/session"))
-(def apex-sign-in-paths #{"/sign-in" "/login"})
+(def apex-sign-in-paths #{"/sign-in" "/login" "/signin"})
 
 (defn passkey-href
   "Public sign-in CTA. Live auth.kotoba.cloud serves HTML at /sign-in; its
@@ -23,7 +24,7 @@
   "Send mistaken apex login paths to the live Passkey RP, keeping any query."
   [path search]
   (when (contains? apex-sign-in-paths path)
-    (str profile/identity-sign-in (or search ""))))
+    (freebuff/sign-in-location profile/identity-sign-in search)))
 
 (defn cookie-value
   "Read one exact cookie name without losing `=` padding from its value."

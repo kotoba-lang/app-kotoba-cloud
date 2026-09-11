@@ -6,13 +6,16 @@
 
 ```sh
 curl -fsS https://kotoba.cloud/health
+curl -fsS https://kotoba.cloud/.well-known/agent.json
 curl -fsS https://kotoba.cloud/.well-known/kotoba-cloud.json
 ```
 
-Expect HTTP 200 and inspect the profile's deploy capabilities. Discovery and the
-Passkey RP are live; hosted apply is not offered. Do not treat a plan, profile or
-health response as a deployment receipt. The profile is the current authority
-for supported operations and related service origins.
+Expect HTTP 200. `agent.json` is the honest start: homepage, `/llms.txt`,
+this quickstart, the Passkey sign-in URL, and the finishable
+Principal→Kotobase connect path. Discovery and the Passkey RP are live;
+hosted apply is not offered (`hostedApply: false`). Do not treat a plan,
+profile or health response as a deployment receipt. The profile is the
+current authority for supported operations and related service origins.
 
 ## 2. Install Kotoba and execute your first program
 

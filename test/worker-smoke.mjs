@@ -167,6 +167,35 @@ assert.equal(login.status, 302);
 assert.equal(login.headers.get("location"), "https://auth.kotoba.cloud/sign-in");
 assert.equal(login.headers.get("location").includes("auth.kotobase.net"), false);
 
+const signin = await route(new Request("https://kotoba.cloud/signin?return_to=https%3A%2F%2Fkotoba.cloud%2F"), env);
+assert.equal(signin.status, 302);
+assert.equal(signin.headers.get("location"),
+  "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F");
+assert.equal(calls.length, 2, "apex /signin redirect does not call the session viewer");
+
+const signinClick = await route(new Request("https://kotoba.cloud/signin?return_to=https%3A%2F%2Fkotoba.cloud%2F&bfcid=bfc_testclick1"), env);
+assert.equal(signinClick.status, 302);
+const signinClickAt = new URL(signinClick.headers.get("location"));
+assert.equal(signinClickAt.origin + signinClickAt.pathname, "https://auth.kotoba.cloud/sign-in");
+assert.equal(signinClickAt.searchParams.get("bfcid"), "bfc_testclick1");
+assert.ok(signinClickAt.searchParams.get("return_to").includes("bfc_testclick1"));
+assert.equal(signinClick.headers.get("content-security-policy").includes("https://freebuff.com"), true);
+
+const agentCard = await route(new Request("https://kotoba.cloud/.well-known/agent.json"), env);
+assert.equal(agentCard.status, 200);
+const agent = await agentCard.json();
+assert.equal(agent.hostedApply, false);
+assert.equal(agent.homepage, "https://kotoba.cloud/");
+assert.equal(agent.llmsTxt, "https://kotoba.cloud/llms.txt");
+assert.equal(agent.agentQuickstart, "https://kotoba.cloud/agent-quickstart.md");
+assert.equal(agent.signIn, "https://auth.kotoba.cloud/sign-in");
+assert.equal(agent.principalKotobaseConnect, "https://auth.kotoba.cloud/connect?target=kotobase");
+assert.equal(agent.operator.name, "Kotoba Labs Inc.");
+assert.equal(agent.operator.contact, "support@kotoba.cloud");
+assert.equal(JSON.stringify(agent).includes("Kawasaki"), false);
+assert.equal(JSON.stringify(agent).includes("河崎"), false);
+assert.equal(calls.length, 2, "agent.json is served from the worker profile, not the session viewer");
+
 upstreamStatus = 200;
 const publication = {
   schema: "https://kotoba.cloud/schemas/library-publication-request/v3",

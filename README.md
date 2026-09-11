@@ -95,6 +95,22 @@ compiler, verifier, host enforcement, or service-specific authority.
 ## Public routes
 
 - `GET https://kotoba.cloud/.well-known/kotoba-cloud.json`
+- `GET https://kotoba.cloud/.well-known/agent.json` — honest agent start
+  (homepage, `/llms.txt`, `/agent-quickstart.md`, Passkey sign-in, and the
+  finishable Principal→Kotobase connect path). `hostedApply` stays `false`.
+- `GET /signin`, `GET /sign-in`, and `GET /login` redirect to
+  `https://auth.kotoba.cloud/sign-in`, keeping any query string.
+  When `bfcid` / `utm_*` are present they are merged onto that
+  redirect and into `return_to` so the Principal path can finish.
+
+Freebuff is bfcid-only. The same-origin wrapper at
+`/js/freebuff-attribution.js` injects `https://freebuff.com/freebuff-tag.js`
+only when a valid `bfcid` is in the URL or sessionStorage. It preserves
+`bfcid`, `utm_source`, `utm_medium`, `utm_campaign`, and `utm_content`
+onto Sign in / Start with a Base Account / Connect this Principal links.
+The only conversion is `signup_completed`, fired once per click id when
+the signed-in UI confirms a Stable Principal. There is no OpenAI Ads
+pixel, gtag, or GMV event. `hostedApply` stays `false`.
 - `GET https://api.kotoba.cloud/v1/control-plane`
 - `GET /health`
 - `GET /v1/session` — credential-free projection of the current Passkey session

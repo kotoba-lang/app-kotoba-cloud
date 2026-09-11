@@ -10,6 +10,30 @@
 (def identity-href (str identity-origin "/"))
 (def identity-sign-in (str identity-origin "/sign-in"))
 (def identity-rp-id "auth.kotoba.cloud")
+(def kotobase-connect (str identity-origin "/connect?target=kotobase"))
+(def public-operator "Kotoba Labs Inc.")
+(def public-contact "support@kotoba.cloud")
+(def homepage "https://kotoba.cloud/")
+(def llms-txt (str homepage "llms.txt"))
+(def agent-quickstart (str homepage "agent-quickstart.md"))
+(def agent-path "/.well-known/agent.json")
+
+(def agent-entry
+  "Honest start card for humans and LLMs that look up /.well-known/agent.json.
+
+  This is discovery, not an A2A RPC endpoint and not a hosted apply API.
+  hostedApply stays false until a remote apply surface exists."
+  {:name "Kotoba Cloud"
+   :description "Identity and deploy-control entrance. Discovery and the Passkey RP are live. Hosted apply is not offered."
+   :operator {:name public-operator
+              :contact public-contact}
+   :homepage homepage
+   :llmsTxt llms-txt
+   :agentQuickstart agent-quickstart
+   :signIn identity-sign-in
+   :principalKotobaseConnect kotobase-connect
+   :profile (str homepage ".well-known/kotoba-cloud.json")
+   :hostedApply false})
 
 (def root-key-log
   "The published root-key log for this apex, or the absence of one.
@@ -225,3 +249,17 @@
        (true? (get-in profile [:libraries :hostedPasskeyPublish]))
        (= "webauthn-session+principal-pinned-ml-dsa-65"
           (get-in profile [:security :passkeyPqMode]))))
+
+(defn valid-agent-entry?
+  [entry]
+  (and (= "Kotoba Cloud" (:name entry))
+       (= homepage (:homepage entry))
+       (= llms-txt (:llmsTxt entry))
+       (= agent-quickstart (:agentQuickstart entry))
+       (= identity-sign-in (:signIn entry))
+       (= kotobase-connect (:principalKotobaseConnect entry))
+       (= public-operator (get-in entry [:operator :name]))
+       (= public-contact (get-in entry [:operator :contact]))
+       (false? (:hostedApply entry))
+       (false? (get-in control-plane [:deploy :hostedApply]))
+       (not (re-find #"(?i)河崎|Kawasaki" (pr-str entry)))))
