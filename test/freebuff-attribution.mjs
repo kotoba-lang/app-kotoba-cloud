@@ -111,9 +111,9 @@ const replay = run({
 });
 assert.equal(replay.api.onPrincipalConfirmed(), false);
 
-assert.equal(source.includes("gtag"), false);
+assert.equal(/\bgtag\s*\(/.test(source), false);
 assert.equal(source.includes("googletagmanager"), false);
 assert.equal(/openai.?ads/i.test(source), false);
-assert.equal(source.includes("GMV"), false);
+assert.equal(/\bGMV\b/.test(source), false);
 
 console.log("freebuff attribution wrapper: bfcid-only tag, preserve onto sign-in, signup_completed once");

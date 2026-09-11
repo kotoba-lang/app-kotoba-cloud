@@ -3,7 +3,7 @@
  * FIX-PLAN path only: load the tag when a valid bfcid is present (URL or
  * sessionStorage), preserve bfcid + utm_* onto Sign in / Base Account /
  * Connect this Principal links, and fire signup_completed once when a
- * Stable Principal is confirmed. No OpenAI Ads pixel, no gtag, no GMV,
+ * Stable Principal is confirmed. No third-party ad pixel besides Freebuff,
  * no other event names.
  */
 (function () {

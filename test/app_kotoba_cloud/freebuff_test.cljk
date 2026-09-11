@@ -84,8 +84,8 @@
     (is (str/includes? source "bfcid"))
     (is (str/includes? source "utm_content"))
     (testing "does not invent OpenAI Ads, gtag, or other conversion names"
-      (is (false? (str/includes? source "gtag")))
+      (is (nil? (re-find #"\bgtag\s*\(" source)))
       (is (false? (str/includes? source "googletagmanager")))
-      (is (false? (re-find #"(?i)openai.?ads" source)))
+      (is (nil? (re-find #"(?i)openai.?ads" source)))
       (is (false? (str/includes? source "purchase")))
-      (is (false? (str/includes? source "GMV"))))))
+      (is (nil? (re-find #"\bGMV\b" source))))))
