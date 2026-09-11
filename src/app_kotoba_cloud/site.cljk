@@ -370,6 +370,7 @@
       [:nav {:class "kc-nav" :aria-label (:nav-label t)}
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#architecture")} (:nav-architecture t)]
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#libraries")} (:nav-libraries t)]
+       [:a {:href (if (= locale :ja) "/ja/billing/" "/billing/")} (if (= locale :ja) "料金・決済" "Billing")]
        (language-links locale (:language-label t)
                        {:ja (or language-ja "/ja/") :en (or language-en "/")})
        ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
@@ -391,6 +392,31 @@
      [:span (:contact-label t) ": " (contact-mailto)]
      [:a {:href (:legal-path t)} (:legal-link t)]
      [:a {:href (:tokushoho-path t)} (:tokushoho-link t)]])])
+
+(defn billing-view [locale]
+  (let [t (translation locale) ja? (= locale :ja)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:a {:class "kc-skip" :href "#main"} (:skip t)]
+     (site-header locale t {:language-ja "/ja/billing/" :language-en "/billing/"})
+     [:main {:id "main"}
+      (dds/container
+       (dds/section {:title (txt "料金と決済" "Plans and billing")}
+        [:p {:class "kc-lead"} (txt "ストレージとAI推論の決済を、AWAIで。" "Storage and AI inference, billed through AWAI.")]
+        [:p "AWAI Network, L.L.C. · Stripe Checkout"]
+        [:p (txt "使うサービスを選んで、購入内容と料金を確認できます。契約と利用枠はサービスごとに管理されます。" "Choose a service to review its plan and price. Subscriptions and usage allowances are managed per service.")]
+        (dds/grid {}
+         (dds/card
+          (dds/heading 2 "Kotobase" {:size "28"})
+          [:p (txt "アプリのデータを保存する" "Store your application's data")]
+          [:p (txt "Freeから開始。StarterとProfessionalの月額プランは、Kotobaseで内容を確認して購入できます。" "Start with Free. Review and subscribe to the monthly Starter or Professional plan on Kotobase.")]
+          (dds/button (txt "ストレージのプランを確認" "View storage plans") {:type :solid-fill :size "md" :href "https://kotobase.net/signup"}))
+         (dds/card
+          (dds/heading 2 "Murakumo" {:size "28"})
+          [:p (txt "分散ノードでAI推論を使う" "Run AI inference on distributed nodes")]
+          [:p (txt "推論用クレジットを購入。購入画面で、付与されるクレジットと支払額を確認できます。" "Buy inference credits. Review the credit allowance and payment amount before checkout.")]
+          (dds/button (txt "推論用クレジットを確認" "View inference credits") {:type :solid-fill :size "md" :href "https://murakumo.cloud/portal/#store"})))
+        [:p {:class "kc-legal__note"} (txt "Kotoba Cloudの制御・発見機能自体に、新たな月額課金はありません。請求のご相談は、購入したサービスの窓口へお問い合わせください。" "Kotoba Cloud's control and discovery features have no new monthly charge. For billing support, contact the service where you purchased.")]))]
+     (site-footer t)]))
 
 (defn legal-rows [t]
   [[(:operator-label t) operator-name]
@@ -692,6 +718,20 @@
          (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">"))))))
 
 #?(:clj
+   (defn billing-html [locale]
+     (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
+           path (if ja? "/ja/billing/" "/billing/")]
+       (apply page/->page
+              {:title title :description "AWAI billing for Kotobase storage and Murakumo inference."
+               :lang (if ja? "ja" "en") :css (document-css) :app-css (str tokens/skin-css app-css)
+               :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+                      [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/billing/"}]
+                      [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/billing/"}]
+                      [:script {:src "/js/language-selector.js" :defer true}]
+                      [:script {:src "/js/session.js" :defer true}]]}
+              (billing-view locale)))))
+
+#?(:clj
    (defn legal-html
      ([] (legal-html :en))
      ([locale]
@@ -770,6 +810,8 @@
        ;; Simplified Chinese compatibility alias uses the canonical document.
        (.mkdirs (io/file root "zh"))
        (spit (io/file root "zh" "index.html") (page-html :zh-Hans))
+       (doseq [[path locale] [["billing/index.html" :en] ["ja/billing/index.html" :ja] ["en/billing/index.html" :en]]]
+         (let [out (io/file root path)] (io/make-parents out) (spit out (billing-html locale))))
        (spit (io/file root "index.html") (page-html :en))
        (spit (io/file root "404.html") (not-found-html :en))
        (spit (io/file root "legal" "index.html") (legal-html :en))

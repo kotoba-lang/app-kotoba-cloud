@@ -179,3 +179,11 @@
         (is (str/includes? html (str "hreflang=\"" (name loc) "\""))))))
 
 )
+
+(deftest awai-billing-entry-keeps-service-purchases-explicit
+  (doseq [locale [:en :ja]]
+    (let [html (site/billing-html locale)]
+      (is (str/includes? html "AWAI Network, L.L.C."))
+      (is (str/includes? html "https://kotobase.net/signup"))
+      (is (str/includes? html "https://murakumo.cloud/portal/#store"))
+      (is (not (str/includes? html "sk_live_"))))))
