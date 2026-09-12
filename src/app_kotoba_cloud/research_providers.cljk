@@ -66,7 +66,7 @@
           (<= (:createdAt challenge) verified-at now)
           (< now (:expiresAt challenge))
           (<= (- now verified-at) 900000)
-          (= "backend" (:verification_mode event))
+          (or (nil? (:verification_mode event)) (= "backend" (:verification_mode event)))
           (true? (get-in event [:proof_attributes :ofac]))
           (= 18 (get-in event [:proof_attributes :minimumAge]))
           (policy/text? (:nullifier event) 512)

@@ -8,6 +8,7 @@ const event={type:'verification.completed',environment:'live',status:'valid',pro
 function envelope(value) {const raw=JSON.stringify(value),id='msg_fixture',date=new Date();return {raw,headers:{'svix-id':id,'svix-timestamp':String(Math.floor(date.getTime()/1000)),'svix-signature':new Webhook(secret).sign(id,date,raw)}};}
 const signed=envelope(event);
 assert.equal(verifyEvent(config,challenge,signed.raw,signed.headers,now).reviewRequired,true);
+const legacyBackend={...event};delete legacyBackend.verification_mode;const backendSigned=envelope(legacyBackend);assert.equal(verifyEvent(config,challenge,backendSigned.raw,backendSigned.headers,now).reviewRequired,true);
 for(const patch of [{environment:'test'},{status:'invalid'},{product:'age_verification'},{flow_version_id:'other'},{external_uuid:'other'},{nullifier:null},{proof_attributes:{ofac:false,minimumAge:18}},{proof_attributes:{ofac:true,minimumAge:0}},{verification_mode:'onchain'}]) {
  const e=envelope({...event,...patch});assert.throws(()=>verifyEvent(config,challenge,e.raw,e.headers,now));
 }
