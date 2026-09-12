@@ -3,6 +3,7 @@
             [app-kotoba-cloud.boot :as boot]
             [app-kotoba-cloud.funnel :as funnel]
             [app-kotoba-cloud.research-gateway :as research-gateway]
+            [app-kotoba-cloud.research :as research]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
@@ -578,6 +579,9 @@
       (not (contains? #{"GET" "HEAD"} method))
       (boot-error "method-not-allowed" 405)
 
+      (= path "/.well-known/kotoba-identity.json")
+      (json-response research/identity-profile)
+
       (= path "/health")
       (boot-json-response {:ok true :service "kotoba-cloud-aiueos-boot"
                            :channel "k16-candidate" :status "candidate"})
@@ -624,6 +628,9 @@
 
       (and (= path "/api/funnel") (#{"GET" "HEAD"} method))
       (route-funnel-read env)
+
+      (= path "/.well-known/kotoba-identity.json")
+      (json-response research/identity-profile)
 
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})

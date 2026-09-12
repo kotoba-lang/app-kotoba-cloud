@@ -63,3 +63,15 @@
   (some #(and (= (:scopeId body) (:id %)) (= "approved" (:status %))
               (number? (:expiresAt %)) (< now (:expiresAt %))
               (some #{(:task body)} (:tasks %))) (:scopes record)))
+
+
+(def identity-profile
+  {:provider "kotoba" :profile "kotoba-identity-2026-09-v1"
+   :status "components-tested-enrollment-closed" :enrollmentEnabled false
+   :source "https://github.com/kotoba-lang/ekyc"
+   :documentProfile "ICAO-TD3-LDS0-SHA2"
+   :holderVerification "supervised-live-document-comparison"
+   :credentialProfile "kotoba-identity+jwt" :zeroKnowledge false
+   :captureHosts ["ios-native-bridge"]
+   :pending ["production-trust-bundle" "physical-passport-qualification"
+             "private-canonical-storage-host" "review-operations" "signed-phone-app"]})

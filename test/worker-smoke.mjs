@@ -691,3 +691,11 @@ const apiHostFunnel = await route(new Request("https://api.kotoba.cloud/api/funn
 assert.equal(apiHostFunnel.status, 200);
 
 console.log("worker Passkey/PQ publication, AIUEOS boot, origin locale negotiate, and first-party funnel smoke passed");
+
+const identityCapabilities = await route(new Request('https://kotoba.cloud/.well-known/kotoba-identity.json'), env);
+assert.equal(identityCapabilities.status, 200);
+const identityProfile = await identityCapabilities.json();
+assert.equal(identityProfile.provider, 'kotoba');
+assert.equal(identityProfile.enrollmentEnabled, false);
+assert.equal(identityProfile.zeroKnowledge, false);
+assert.equal(identityProfile.status, 'components-tested-enrollment-closed');
