@@ -8,8 +8,8 @@
      :lead "許可されたコードを調べ、脆弱性の根拠を確かめ、修正へつなげる。本人確認済みの研究者に、セキュリティ特化 LLM の無料推論枠を提供します。"
      :description "ホワイトハット向けの脆弱性調査と修正支援。eKYC と AML・CTF 審査を経た研究者向けの無料推論サービスを準備中。"
      :start "研究者登録へ" :explore "モデルを見る" :models "調査のためのモデル"
-     :pending "提供準備中 — eKYC・審査事業者と推論基盤の接続待ちです。現在は本人確認や推論を実行できません。"
-     :model-note "採用候補。提供元のモデルカードを公開し、実機評価を通過した構成のみ公開します。"
+     :pending "提供準備中 — Murakumo の指定モデルから実応答を確認しました。本人確認・審査の接続完了まで、このサイトの推論は利用できません。"
+     :model-note "Murakumo で実応答を確認したモデルです。初回起動に数分かかる場合があります。本人確認・審査後の提供に向けて接続を進めています。"
      :uses [["01 / 調べる" "コードレビュー" "所有・許可されたコードから、認可漏れや入力検証の問題を調べます。"]
             ["02 / 確かめる" "脆弱性の整理" "到達条件、影響、誤検知の可能性を整理し、根拠を伴う所見にします。"]
             ["03 / 直す" "修正と再検証" "修正案、回帰テスト、責任ある開示のための報告書をまとめます。"]]
@@ -35,8 +35,8 @@
      :lead "Investigate authorized code. Validate the finding. Ship the fix. Specialized LLM inference for verified white-hat researchers, with a free research allowance."
      :description "White-hat vulnerability research and remediation. Free inference for researchers after eKYC and AML/CTF review. Provider onboarding in progress."
      :start "Researcher onboarding" :explore "Explore the model" :models "A model built for investigation"
-     :pending "Preparing for launch — identity verification, screening and inference providers are not connected. Verification and inference are not available yet."
-     :model-note "Candidate model. We publish its source and will enable only a configuration that passes our deployment evaluation."
+     :pending "Preparing for launch — the selected Murakumo model returned a real response. Site inference remains closed until identity verification and review are connected."
+     :model-note "A real response has been verified through Murakumo. Cold startup can take several minutes. Access remains gated while identity verification and review are connected."
      :uses [["01 / INVESTIGATE" "Review the code" "Inspect code you own or are authorized to review for authorization gaps and input validation issues."]
             ["02 / VALIDATE" "Ground the finding" "Work through reachability, impact and false positives to produce evidence-backed findings."]
             ["03 / REMEDIATE" "Close the loop" "Prepare fixes, regression tests and reports for responsible disclosure."]]
@@ -80,11 +80,11 @@
      [:section {:class "kc-research-section" :id "research-models"}
       (dds/container (dds/heading 2 (:models t) {:size "36"})
        (dds/card [:article {:class "kc-research-model"}
-                  [:p "TEXT / SECURITY / FP8"]
-                  (dds/heading 3 "GLM-5.3 CYBERSECURITY" {:size "24"})
+                  [:p "TEXT / SECURITY / NVFP4"]
+                  (dds/heading 3 "Qwen3.8 Flash Next Cybersecurity" {:size "24"})
                   [:p (:model-note t)]
                   [:code research/model-id]
-                  [:p [:a {:href "https://huggingface.co/dealignai/GLM-5.3-CYBERSECURITY-FP8"} (:source t) " ↗"]]
+                  [:p [:a {:href "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"} (:source t) " ↗"]]
                   [:p "Dealign.ai · "] [:a {:href "https://dealign.ai/"} "Research ↗"]]))]
      [:section {:class "kc-research-section" :id "research-register"}
       (dds/container (dds/heading 2 (:register t) {:size "36"})

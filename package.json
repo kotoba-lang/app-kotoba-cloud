@@ -13,13 +13,15 @@
     "deploy": "npm test && npm run build && npm run test:worker && wrangler deploy --env=\"\"",
     "test:contract": "forge test --root contracts",
     "build:contract": "forge build --root contracts",
-    "deploy:registry": "kbb --backend sci scripts/deploy-registry.cljk"
+    "deploy:registry": "kbb --backend sci scripts/deploy-registry.cljk",
+    "test:providers": "node test/research-providers.mjs"
   },
   "devDependencies": {
     "shadow-cljs": "3.5.1",
     "wrangler": "^4.131.0"
   },
   "dependencies": {
-    "@noble/post-quantum": "0.7.1"
+    "@noble/post-quantum": "0.7.1",
+    "svix": "1.92.2"
   }
 }

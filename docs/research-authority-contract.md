@@ -96,7 +96,7 @@ retry. The edge deliberately does not retry completion requests.
 
 ## Inference qualification before launch
 
-Candidate: `dealignai/GLM-5.3-CYBERSECURITY-FP8`. Treat all model-card benchmark
+Candidate: `qwen3.8-flash-next-cybersecurity-nvfp4`. Treat all model-card benchmark
 and hardware claims as provider claims until independently measured. The linked
 card describes reduced refusals; identity checks and a system prompt alone are
 not sufficient content controls. The private authority must enforce input/output
@@ -125,7 +125,54 @@ prove this full process is live.
 ## Reference sources (checked 2026-09-12)
 
 - https://www.orcarouter.ai/ — model discovery and gateway experience; no integration assumed.
-- https://huggingface.co/dealignai/GLM-5.3-CYBERSECURITY-FP8 — candidate model card.
+- https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4 — candidate model card.
 - https://dealign.ai/ — source research; no model modifications are performed here.
 - https://docs.sumsub.com/docs/reusable-kyc — example of contractual verification reuse, not a selected vendor.
 - https://www.fatf-gafi.org/content/dam/fatf/documents/recommendations/pdfs/Guidance-on-Digital-Identity-report.pdf — risk-based digital identity guidance.
+
+## Selected production transports (2026-09-12)
+
+`research-providers` supplies the concrete private-authority transports:
+
+- `create-session`: Self Enterprise REST API, pinned live flow/version, a 15-minute
+  opaque challenge, live verification URL validation. Keys are server secrets.
+- `verify-event`: official Svix verification of raw bytes, followed by exact live
+  flow/version, pre-KYC product, challenge/session, time and predicate checks.
+  Returns **identity evidence requiring review**, never blanket AML clearance.
+- `infer`: exactly `https://api.murakumo.cloud/v1/chat/completions`, model
+  `qwen3.8-flash-next-cybersecurity-nvfp4`. No fallback model; rejects mismatched
+  response attribution. This uses the upstream's supported public inference path.
+
+These transports are buildable and tested separately from the public Worker.
+They are **not yet attached to a production authority**. No application may call
+`infer` without the canonical atomic quota reservation described above. Self
+session URLs are bearer capabilities: return only to the authenticated applicant;
+never place them or raw proofs in logs, analytics, public blocks or datoms.
+
+Before activation the authority must atomically consume `eventId`, challenge and
+scoped `nullifier`, write minimal encrypted/private evidence to Kotobase, run the
+configured sanctions/PEP/manual review workflow, and issue a scope grant. The
+`consumed` value comes from this canonical record, never request JSON. Self OFAC
+coverage alone does not establish comprehensive sanctions, PEP or AML/CTF review.
+A reused identity needs a fresh service-bound proof and current screening.
+
+Cold startup is advertised up to 2,000 seconds by Murakumo's model inventory.
+The transport permits up to 2,100 seconds; the public gateway's 60-second binding
+call is deliberately unchanged. The authority needs a durable asynchronous job
+and authenticated polling route before exposing cold inference to researchers.
+A queued job must reserve free quota once, recheck revocation before dispatch,
+record the actual model receipt, and never automatically rebill or silently retry
+an unknown execution outcome.
+
+Self's new-integration path requires a dashboard account and a live Pre-KYC flow,
+plus `SELF_API_KEY`, `SELF_FLOW_ID`, `SELF_FLOW_VERSION_ID` and
+`SELF_WEBHOOK_SECRET`. Test keys are rejected. Establish the privacy/retention
+notice and review operator permissions before opening document verification.
+No customer identity has been verified by these fixture tests.
+
+References: https://docs.self.xyz/docs/self-enterprise/sdk/nodejs/ and
+https://docs.self.xyz/docs/self-enterprise/webhooks/verify-webhooks/ . Wire fields
+were checked against the official `@selfxyz/enterprise-sdk` 0.4.1 package. The
+small REST surface is used directly because installing the complete SDK pulls a
+legacy core Git dependency whose preparation fails under the workspace npm policy;
+Svix 1.92.2 remains the unmodified signature verifier.

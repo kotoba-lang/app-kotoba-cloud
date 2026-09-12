@@ -11,7 +11,7 @@ subject binding, validity/revocation checks and current screening.
 
 - Researcher onboarding and terms: https://kotoba.cloud/#research-register
 - Candidate model catalog: https://kotoba.cloud/v1/models
-- Candidate: dealignai/GLM-5.3-CYBERSECURITY-FP8 (not yet qualified)
+- Selected: qwen3.8-flash-next-cybersecurity-nvfp4 via https://api.murakumo.cloud (real upstream response verified; site access remains gated)
 - GET /v1/research/status: authenticated eligibility, 503 until provider setup.
 - POST /v1/research/applications: authenticated same-origin JSON application; no intake before setup.
 - POST /v1/chat/completions: scoped session API; requires task, scopeId and max_tokens.
