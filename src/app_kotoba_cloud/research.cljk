@@ -111,6 +111,9 @@
              :verification "ICAO-TD3-LDS0-SHA2-and-holder-review"
              :status "capture-bridge-tested-app-pending"}]
    :credentialProfile "kotoba-identity+jwt" :zeroKnowledge false
-   :captureHosts ["browser-planned" "ios-native-bridge"]
-   :pending ["private-canonical-storage-host" "browser-capture-and-review-host" "review-operations"]
+   :captureHosts ["browser-capture-implemented-intake-closed" "ios-native-bridge"]
+   :intake {:policyVersion "kotoba-web-intake-2026-09-v1" :console "/identity"
+            :storage "encrypted-vault-tested-private-ports-unconnected"
+            :review "queue-view-and-signed-decisions-implemented-operator-enrollment-pending"}
+   :pending ["private-canonical-storage-host" "production-key-management" "reviewer-signing-enrollment" "review-operations" "published-retention-and-contact-notice"]
    :additionalRoutePending ["production-trust-bundle" "physical-passport-qualification" "signed-phone-app"]})

@@ -1,0 +1,71 @@
+(ns app-kotoba-cloud.identity-gateway
+  "First-party identity transport. Dedicated private binding, no public evidence URL."
+  (:require [app-kotoba-cloud.research-gateway :as shared]))
+(def operations #{"status" "start" "submit" "claim" "decision" "delete" "upload" "evidence"})
+(defn operation [path] (when-let [[_ op] (re-matches #"/v1/identity/([a-z]+)" path)] (when (operations op) op)))
+(defn bounded-bytes [message limit]
+  (if-not (.-body message) (js/Promise.reject (ex-info "empty" {:status 400}))
+    (let [reader (.getReader (.-body message)) chunks (array)]
+      (letfn [(step [size]
+                (-> (.read reader)
+                    (.then (fn [part]
+                             (if (.-done part)
+                               (-> (.arrayBuffer (js/Blob. chunks)) (.then #(js/Uint8Array. %)))
+                               (let [n (+ size (.-byteLength (.-value part)))]
+                                 (if (> n limit)
+                                   (-> (.cancel reader) (.then #(throw (ex-info "too-large" {:status 413}))))
+                                   (do (.push chunks (.-value part)) (step n)))))))))]
+        (step 0)))))
+(defn- fail [respond status code] (respond {:error {:code code}} status))
+(defn route [request ^js env viewer! respond]
+  (let [url (js/URL. (.-url request)) op (operation (.-pathname url)) method (.-method request)
+        read? (contains? #{"status" "evidence"} op) upload? (= op "upload")
+        type (.get (.-headers request) "content-type") binding (.-IDENTITY_AUTHORITY env)
+        id (.get (.-searchParams url) "id") slot (.get (.-searchParams url) "slot")]
+    (cond
+      (nil? op) (fail respond 404 "not-found")
+      (not= method (cond read? "GET" upload? "PUT" :else "POST")) (fail respond 405 "method-not-allowed")
+      (and (not read?) (not (shared/origins (.get (.-headers request) "origin")))) (fail respond 403 "origin-not-allowed")
+      (and (not read?) (not upload?) (not= "application/json" type)) (fail respond 415 "json-required")
+      (and upload? (not (contains? #{"image/jpeg" "video/webm" "video/mp4"} type))) (fail respond 415 "media-type-not-supported")
+      (and (contains? #{"upload" "evidence"} op)
+           (not (and (string? id) (re-matches #"[a-f0-9-]{36}" id) (contains? #{"document" "live-video"} slot))))
+      (fail respond 400 "invalid-evidence-reference")
+      :else
+      (-> (viewer! request)
+          (.then (fn [viewer]
+                   (cond
+                     (not (true? (:valid viewer))) (fail respond 401 "sign-in-required")
+                     (nil? binding) (fail respond 503 "private-identity-storage-not-connected")
+                     :else
+                     (-> (cond upload? (bounded-bytes request (if (= slot "document") 2097152 6291456))
+                               read? (js/Promise.resolve nil)
+                               :else (shared/bounded-json request 32768))
+                         (.then (fn [body]
+                                  (.fetch binding (str "https://identity.internal/" op)
+                                          (clj->js {:method "POST" :redirect "error" :signal (js/AbortSignal.timeout 60000)
+                                                    :headers {"content-type" (if upload? type "application/json")
+                                                              "x-kotoba-principal" (:principalId viewer)
+                                                              "x-kotoba-case" (or id "") "x-kotoba-slot" (or slot "")}
+                                                    :body (if upload? body
+                                                            (js/JSON.stringify (clj->js (if read? {:id id :slot slot}
+                                                                                         (select-keys body [:id :proof :holderJwk])))))}))))
+                         (.then (fn [r]
+                                  (if-not (.-ok r)
+                                    (fail respond (if (contains? #{400 403 404 409 413 429} (.-status r)) (.-status r) 503) "identity-request-not-accepted")
+                                    (if (= op "evidence")
+                                      (let [mime (.get (.-headers r) "content-type")]
+                                        (if-not (contains? #{"image/jpeg" "video/webm" "video/mp4"} mime)
+                                          (fail respond 502 "invalid-evidence-response")
+                                          (-> (bounded-bytes r 6291456)
+                                              (.then #(js/Response. % #js {:status 200 :headers #js {"content-type" mime "cache-control" "no-store, private"
+                                                                                                  "x-content-type-options" "nosniff" "content-security-policy" "default-src 'none'; sandbox"
+                                                                                                  "cross-origin-resource-policy" "same-origin"}})))))
+                                      (-> (shared/bounded-json r 65536)
+                                          (.then (fn [payload]
+                                                   (if (and (= op "status") (not= (:principalId viewer) (:principalId payload)))
+                                                     (fail respond 502 "invalid-identity-response")
+                                                     (respond (select-keys payload [:policyVersion :principalId :intakeEnabled :cases :reviewer :queue
+                                                                                    :id :nonce :expiresAt :receiptId :status :revision]) 200)))))))))))))
+          (.catch (fn [e] (fail respond (or (:status (ex-data e)) 503) "identity-request-unavailable"))))))
+)

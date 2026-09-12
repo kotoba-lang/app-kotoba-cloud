@@ -721,3 +721,41 @@ assert.equal(identityProfile.trustPolicy.weights['web-reviewed'], 60);
 assert.equal(identityProfile.trustPolicy.weights['app-passport'], 80);
 assert.equal(identityProfile.trustPolicy.ceiling, 100);
 assert.equal(identityProfile.status, 'components-tested-enrollment-closed');
+
+// Browser capture uses a dedicated private service; no authenticated fallback.
+const intakeId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+const identityCalls = [];
+const identityEnv = { ...env, IDENTITY_AUTHORITY: { fetch: async (url, init) => {
+  const headers = new Headers(init.headers);
+  assert.equal(headers.get('x-kotoba-principal'), researchPrincipal);
+  assert.equal(headers.get('cookie'), null);
+  const op = new URL(url).pathname;
+  identityCalls.push(op);
+  if (op === '/upload') {
+    assert.equal(headers.get('x-kotoba-case'), intakeId);
+    assert.deepEqual([...init.body], [1, 2, 3]);
+    return Response.json({ receiptId: 'private:stored' });
+  }
+  const body = JSON.parse(init.body);
+  assert.equal(body.principal, undefined);
+  assert.equal(body.authenticated, undefined);
+  assert.equal(body['operator-signature-verified'], undefined);
+  return Response.json({ principalId: researchPrincipal, intakeEnabled: false, cases: [], reviewer: false, queue: [] });
+}}};
+assert.equal((await route(new Request('https://kotoba.cloud/v1/identity/status'), identityEnv)).status, 401);
+assert.equal((await route(researchRequest('/v1/identity/status'), env)).status, 503);
+assert.equal((await route(researchRequest('/v1/identity/start', { proof: 'signature', principal: 'forged', authenticated: true, 'operator-signature-verified': true }), identityEnv)).status, 200);
+assert.equal((await route(researchRequest('/v1/identity/start', {}, {origin: 'https://evil.example'}), identityEnv)).status, 403);
+const uploadIdentity = (bytes, type='image/jpeg') => new Request(`https://kotoba.cloud/v1/identity/upload?id=${intakeId}&slot=document`, {
+  method:'PUT', headers: { cookie:'gftd_session=research-session', origin:'https://kotoba.cloud', 'content-type':type }, body:bytes });
+assert.equal((await route(uploadIdentity(new Uint8Array([1,2,3])), identityEnv)).status, 200);
+const beforeOversize = identityCalls.length;
+assert.equal((await route(uploadIdentity(new Uint8Array(2097153)), identityEnv)).status, 413);
+assert.equal(identityCalls.length, beforeOversize);
+assert.equal((await route(uploadIdentity(new Uint8Array([1]), 'image/svg+xml'), identityEnv)).status, 415);
+const capturePage = await route(new Request('https://kotoba.cloud/identity'), env);
+assert.equal(capturePage.headers.get('permissions-policy'), 'camera=(self), microphone=(), geolocation=(), payment=()');
+assert.equal(capturePage.headers.get('cache-control'), 'no-store, private');
+assert(!capturePage.headers.get('content-security-policy').includes('freebuff'));
+assert(capturePage.headers.get('content-security-policy').includes('media-src blob:'));
+console.log('private identity gateway authorization, bounds and camera isolation checks passed');

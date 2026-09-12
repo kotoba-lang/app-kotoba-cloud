@@ -1,0 +1,45 @@
+(ns app-kotoba-cloud.identity-site (:require [jp-go-dds.core :as dds]))
+(defn section [locale]
+  (let [ja? (= locale :ja) t (fn [ja en] (if ja? ja en))]
+    [:section {:id "identity-console" :class "kc-research-section" :hidden true}
+     (dds/container
+      (dds/heading 2 (t "本人確認" "Identity verification") {:size "36" :id "identity-heading"})
+      [:p (t "撮影 → 非公開の提出 → 担当者による確認" "Capture → private submission → operator review")]
+      [:p {:id "identity-status" :role "status" :aria-live "polite"}
+       (t "保管・審査基盤への接続を確認しています。本物の書類はまだ撮影しないでください。"
+          "Checking private storage and review availability. Do not capture real documents yet.")]
+      (dds/row (dds/button (t "撮影・提出" "Capture & submit") {:href "#capture"})
+               (dds/button (t "担当案件" "Review queue") {:href "#review"})
+               (dds/button (t "状態を更新" "Refresh") {:id "identity-refresh" :type :outline}))
+      [:div {:id "identity-capture-view"}
+       [:p (t "写真・動画は、提出するまでこの画面のメモリだけに置きます。ページを閉じると消えます。撮影は自動承認やライブ本人確認の完了を意味しません。"
+              "Photos and video stay in this page’s memory until submission and disappear when you leave. Capture is not automatic approval or completed live verification.")]
+       [:form {:id "identity-begin-form" :class "kc-research-form"}
+        [:label (t "利用目的" "Purpose") [:textarea {:id "identity-purpose" :required true :maxlength 512}]]
+        [:label (t "調査対象と許可の根拠" "Research scope and authorization") [:textarea {:id "identity-scope" :required true :maxlength 512}]]
+        [:label {:class "kc-check"} [:input {:id "identity-consent" :type "checkbox" :required true}]
+         (t "公開された取扱説明に同意して申請します。" "I consent to the published data handling notice.")]
+        [:p (t "受付開始前に、保存期間・削除窓口・運営主体をこの画面に公開します。現在は受付停止中です。"
+               "Retention, deletion contacts and operator details must be published here before intake opens. Intake is currently closed.")]
+        (dds/button (t "申請を開始" "Start application") {:id "identity-begin" :submit? true :disabled true})]
+       [:p {:id "identity-challenge"}]
+       [:video {:id "identity-camera" :hidden true :autoplay true :playsinline true :muted true :style {:width "100%" :max-width "32rem"}}]
+       (dds/row
+        (dds/button (t "カメラを開始" "Start camera") {:id "identity-camera-start" :disabled true})
+        (dds/button (t "書類を撮影" "Capture document") {:id "identity-photo" :disabled true})
+        (dds/button (t "確認動画を撮影（10秒）" "Record verification video (10 seconds)") {:id "identity-video" :disabled true})
+        (dds/button (t "カメラを停止" "Stop camera") {:id "identity-camera-stop" :type :outline}))
+       [:img {:id "identity-photo-preview" :alt (t "提出前の書類写真" "Document preview before submission") :hidden true :style {:max-width "100%"}}]
+       [:video {:id "identity-video-preview" :controls true :playsinline true :hidden true :style {:max-width "100%"}}]
+       (dds/row (dds/button (t "確認して提出" "Confirm & submit") {:id "identity-submit" :disabled true})
+                (dds/button (t "申請・撮影データを削除" "Delete application & captures") {:id "identity-delete" :type :outline :disabled true}))]
+      [:div {:id "identity-review-view" :hidden true}
+       (dds/heading 2 (t "担当する審査" "Assigned reviews") {:size "24"})
+       [:p (t "担当登録済みの審査員だけが案件を引き受け、書類を閲覧できます。承認には別途ライブ面談・スクリーニング・対象の許可確認と審査署名が必要です。"
+              "Only registered reviewers can claim cases and view evidence. Approval also requires a live interview, screening, scope review and a registered review signature.")]
+       [:div {:id "identity-queue"}]
+       [:p {:id "identity-review-status" :role "status"}]
+       [:img {:id "identity-review-document" :hidden true :alt (t "担当案件の書類" "Assigned case document") :style {:max-width "100%"}}]
+       [:video {:id "identity-review-video" :hidden true :controls true :playsinline true :style {:max-width "100%"}}]
+       [:p (t "署名済み審査票の検証処理は用意済みです。ブラウザでの承認・却下は審査員と署名鍵の登録後に接続します。"
+              "Signed review verification is implemented. Browser approval and rejection require reviewer and signing-key enrollment.")]])]))
