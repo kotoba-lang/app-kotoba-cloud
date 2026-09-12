@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { route, resetFunnelStore } from "../build/worker.js";
 
@@ -520,7 +521,10 @@ const researchBody = { model: researchModel, task: "code-review", scopeId: "owne
   max_tokens: 512, messages: [{ role: "user", content: "Review my authorization checks." }] };
 const researchCalls = [];
 const researchNow = Date.now();
+const researchSessionRef = createHash('sha256').update(JSON.stringify(['kotoba-research-session-v1', 'https://kotoba.cloud', researchPrincipal, 'research-session'])).digest('hex');
 let researchRecord = { principalId: researchPrincipal, policyVersion: researchPolicy, status: "active",
+  continuous: { policyVersion: "kotoba-session-evidence-2026-09-v1", sessionRef: researchSessionRef, action: 'code-review', decision: 'allow',
+    opinion: { belief: .9, disbelief: 0, uncertainty: .1, calibrated: false }, evaluatedAt: researchNow, expiresAt: researchNow + 15000 },
   trust: { policyVersion: "kotoba-trust-routes-2026-09-v1", score: 60, routes: ["web-reviewed"], evaluatedAt: researchNow, expiresAt: researchNow + 60000 },
   ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
   screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
@@ -539,9 +543,12 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
   assert.equal(body.principalId, researchPrincipal);
   assert.equal(body.billing, "free-only");
   assert.equal(body.trustPolicyVersion, "kotoba-trust-routes-2026-09-v1");
+  assert.equal(body.sessionPolicyVersion, "kotoba-session-evidence-2026-09-v1");
+  assert.equal(body.sessionRef, researchSessionRef);
   if (exhausted) return new Response("limit", { status: 429 });
   return Response.json({ principalId: body.principalId, requestId: body.requestId,
-    policyVersion: body.policyVersion, trustPolicyVersion: oldTrustReceipt ? undefined : body.trustPolicyVersion, billing: corruptReceipt ? "paid" : "free",
+    policyVersion: body.policyVersion, trustPolicyVersion: oldTrustReceipt ? undefined : body.trustPolicyVersion,
+    sessionRef: body.sessionRef, sessionPolicyVersion: body.sessionPolicyVersion, billing: corruptReceipt ? "paid" : "free",
     policyDecision: "allowed", model: researchModel, receiptId: "audit-1", content: "Check ownership before returning the record." });
 }} };
 function researchRequest(path, body, headers = {}) {
@@ -568,6 +575,8 @@ for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: []
 }
 const beforeDenials = researchCalls.filter(c => c.path === "/complete").length;
 for (const mutate of [r => { r.principalId = "another"; }, r => { r.status = "suspended"; },
+  r => { r.continuous.sessionRef = 'other-session'; }, r => { r.continuous.decision = 'deny'; },
+  r => { r.continuous.expiresAt = 1; }, r => { r.continuous.action = 'remediation'; },
   r => { r.ekyc.expiresAt = 1; }, r => { r.screening.status = "review"; },
   r => { r.screening.checkedAt = Date.now() - 86400001; }, r => { r.scopes = []; }]) {
   const saved = structuredClone(researchRecord);

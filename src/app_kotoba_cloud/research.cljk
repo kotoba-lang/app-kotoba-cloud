@@ -8,6 +8,8 @@
 (def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
 (def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
                    :threshold 60 :ceiling 100 :defaultRoute "web-reviewed" :provisional true})
+(def session-policy {:version "kotoba-session-evidence-2026-09-v1" :calibrated false :maxProjectionAgeMs 15000
+                     :minBelief 0.85 :maxDisbelief 0.05 :maxUncertainty 0.20})
 (def catalog
   {:object "list"
    :data [{:id model-id :object "model" :owned_by "murakumo"
@@ -17,7 +19,7 @@
    :policyVersion policy-version :freeTier free-limits
    :requirements ["authenticated-principal" "verified-ekyc" "current-aml-ctf-clearance"
                   "current-trust-route" "approved-research-scope" "available-free-quota"]
-   :trustPolicy trust-policy})
+   :trustPolicy trust-policy :sessionPolicy session-policy})
 
 (defn text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))
 (defn fresh? [start end now max-age]
@@ -51,6 +53,19 @@
     (not (text? (get-in record [:screening :evidenceRef]) 512)) "review-required"
     (not (fresh? (get-in record [:screening :checkedAt]) (get-in record [:screening :expiresAt]) now 86400000)) "screening-expired"
     :else nil))
+
+(defn unit? [n] (and (number? n) (<= 0 n 1)))
+(defn session-current? [reference action projection now]
+  (let [{:keys [belief disbelief uncertainty calibrated]} (:opinion projection)]
+    (and (text? reference 512) (= reference (:sessionRef projection))
+         (= (:version session-policy) (:policyVersion projection))
+         (contains? tasks action) (= action (:action projection)) (= "allow" (:decision projection))
+         (= false calibrated) (every? unit? [belief disbelief uncertainty])
+         (<= 0.999999999 (+ belief disbelief uncertainty) 1.000000001)
+         (>= belief (:minBelief session-policy)) (<= disbelief (:maxDisbelief session-policy))
+         (<= uncertainty (:maxUncertainty session-policy))
+         (fresh? (:evaluatedAt projection) (:expiresAt projection) now 15000)
+         (<= (- (:expiresAt projection) (:evaluatedAt projection)) 15000))))
 
 (defn application? [body]
   (and (#{"new" "reuse"} (:verificationMode body))
@@ -88,6 +103,7 @@
    :status "components-tested-enrollment-closed" :enrollmentEnabled false
    :source "https://github.com/kotoba-lang/ekyc"
    :defaultRoute "web-reviewed" :trustPolicy trust-policy
+   :sessionPolicy session-policy :continuousMonitoring "policy-tested-observers-not-connected"
    :routes [{:id "web-reviewed" :weight 60 :role "initial-trust-root"
              :verification "browser-document-and-supervised-live-video-review"
              :status "policy-tested-enrollment-closed"}
