@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.research-site
   (:require [app-kotoba-cloud.research :as research]
+            [app-kotoba-cloud.identity-site :as identity-site]
             [jp-go-dds.core :as dds]))
 
 (defn copy [locale]
@@ -64,7 +65,8 @@
 
 (defn sections [locale sign-in]
   (let [t (copy locale)]
-    [[:section {:class "kc-research-hero" :id "research"}
+    [(identity-site/section locale)
+     [:section {:class "kc-research-hero" :id "research"}
       (dds/container
        [:p {:class "kc-eyebrow"} "KOTOBA CLOUD / WHITE HAT RESEARCH"]
        (dds/heading 1 (:title t) {:size "64"})
@@ -91,7 +93,8 @@
        (into [:ol] (map (fn [[title body]] [:li [:strong title] [:p body]]) (:steps t)))
        (dds/card (dds/heading 3 (:fee t) {:size "24"}) [:p (:quota t)])
        (dds/row (dds/button (:login t) {:href sign-in :type :outline})
-                (dds/button (:refresh t) {:id "research-refresh" :type :outline}))
+                (dds/button (:refresh t) {:id "research-refresh" :type :outline})
+                (dds/button (if (= locale :ja) "本人確認画面（準備中）" "Identity console (preparing)") {:href "/identity" :type :outline}))
        [:p {:id "research-status" :role "status" :aria-live "polite"} (:pending t)]
        [:form {:id "research-application" :class "kc-research-form"}
         [:label (if (= locale :ja) "本人確認の方法" "Verification method") [:select {:id "research-mode"} [:option {:value "new"} (:new t)] [:option {:value "reuse"} (:reuse t)]]]

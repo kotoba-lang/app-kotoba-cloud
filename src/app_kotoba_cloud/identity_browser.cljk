@@ -1,0 +1,183 @@
+(ns app-kotoba-cloud.identity-browser
+  "Existing browser host boundary. No persistent browser storage, analytics, file
+  picker or automatic camera activation. Uploads require confirmed private intake."
+  (:require [app-kotoba-cloud.research-browser :as api]))
+(defonce state (atom {}))
+(defn el [id] (.getElementById js/document id))
+(defn say! [s] (set! (.-textContent (el "identity-status")) s))
+(defn disabled! [id value] (set! (.-disabled (el id)) value))
+(defn revoke! [id]
+  (when-let [url (get-in @state [:urls id])] (.revokeObjectURL js/URL url))
+  (swap! state update :urls dissoc id)
+  (set! (.-hidden (el id)) true)
+  (.removeAttribute (el id) "src"))
+(defn preview! [id blob]
+  (revoke! id)
+  (let [url (.createObjectURL js/URL blob)]
+    (swap! state assoc-in [:urls id] url)
+    (set! (.-src (el id)) url) (set! (.-hidden (el id)) false)))
+(defn stop! []
+  (swap! state update :camera-generation (fnil inc 0))
+  (when-let [recording (:recorder @state)]
+    (when (= "recording" (.-state recording)) (.stop recording)))
+  (when-let [stream (:stream @state)] (doseq [track (array-seq (.getTracks stream))] (.stop track)))
+  (swap! state dissoc :stream :recorder)
+  (set! (.-srcObject (el "identity-camera")) nil)
+  (set! (.-hidden (el "identity-camera")) true)
+  (doseq [id ["identity-photo" "identity-video"]] (disabled! id true)))
+(defn clear! []
+  (stop!)
+  (doseq [id ["identity-photo-preview" "identity-video-preview" "identity-review-document" "identity-review-video"]] (revoke! id))
+  (swap! state dissoc :document :video :keys :case)
+  (disabled! "identity-submit" true))
+(defn b64 [bytes]
+  (-> (js/btoa (apply str (map #(js/String.fromCharCode %) (array-seq (js/Uint8Array. bytes)))))
+      (.replaceAll "+" "-") (.replaceAll "/" "_") (.replace #"=+$" "")))
+(defn part [x] (b64 (.encode (js/TextEncoder.) (js/JSON.stringify (clj->js x)))))
+(defn sign! [claims]
+  (let [sec (js/Math.floor (/ (js/Date.now) 1000))
+        input (str (part {:alg "EdDSA" :typ "kotoba-intake+jwt" :kid "holder"}) "."
+                   (part (assoc claims :principal (:principal @state) :aud "https://kotoba.cloud" :iat sec :exp (+ sec 120))))]
+    (-> (.sign (.-subtle js/crypto) "Ed25519" (.-privateKey (:keys @state)) (.encode (js/TextEncoder.) input))
+        (.then #(str input "." (b64 %))))))
+(defn checked! [result]
+  (when-not (:httpOk result) (throw (js/Error. "private intake rejected request"))) result)
+(defn refresh! []
+  (-> (api/api "/v1/identity/status" nil)
+      (.then (fn [r]
+               (let [ready (and (:httpOk r) (true? (:intakeEnabled r)))]
+                 (swap! state assoc :ready ready :principal (:principalId r))
+                 (disabled! "identity-begin" (or (not ready) (some? (:case @state))))
+                 (disabled! "identity-camera-start" (or (not ready) (nil? (:case @state))))
+                 (say! (cond ready "非公開保管への接続を確認しました。取扱説明を確認して申請してください。"
+                             (= "sign-in-required" (get-in r [:error :code])) "先にKotobaにログインしてください。撮影・提出はまだ開始していません。"
+                             :else "撮影画面は準備済みです。非公開保管・審査員の接続待ちのため、現在は撮影・提出できません。"))
+                 (when (and (:httpOk r) (seq (:cases r)) (nil? (:case @state)))
+                   (say! "既存の申請があります。再開用の鍵はこの画面にありません。担当窓口で確認してください。")
+                   (disabled! "identity-begin" true))
+                 (.replaceChildren (el "identity-queue"))
+                 (doseq [r (:queue r)]
+                   (let [row (.createElement js/document "p") button (.createElement js/document "button")]
+                     (set! (.-textContent row) (str (:id r) " / " (:status r) " "))
+                     (set! (.-textContent button) "担当して確認")
+                     (.addEventListener button "click"
+                       (fn []
+                         (-> (if (= "pending-review" (:status r))
+                               (-> (api/api "/v1/identity/claim" {:id (:id r)}) (.then checked!))
+                               (js/Promise.resolve nil))
+                             (.then (fn [_]
+                                      (doseq [[slot target] [["document" "identity-review-document"] ["live-video" "identity-review-video"]]]
+                                        (-> (js/fetch (str "/v1/identity/evidence?id=" (js/encodeURIComponent (:id r)) "&slot=" slot) #js {:credentials "same-origin" :cache "no-store"})
+                                            (.then (fn [response] (when-not (.-ok response) (throw (js/Error. "denied"))) (.blob response)))
+                                            (.then #(preview! target %))
+                                            (.catch #(say! "担当案件の閲覧が許可されていないか、証跡を取得できません。"))))))
+                             (.catch #(say! "担当登録に失敗しました。権限と案件の状態を確認してください。")))))
+                     (.append row button) (.append (el "identity-queue") row))))))
+      (.catch (fn [_] (swap! state assoc :ready false) (stop!)
+                (doseq [id ["identity-begin" "identity-camera-start" "identity-submit"]] (disabled! id true))
+                (say! "接続を確認できません。撮影・提出は停止しています。")))))
+(defn camera! []
+  (when (and (:ready @state) (:case @state))
+    (stop!)
+    (let [generation (:camera-generation @state)]
+    (-> (.getUserMedia (.-mediaDevices js/navigator) #js {:video #js {:width #js {:ideal 1280} :height #js {:ideal 720}} :audio false})
+        (.then (fn [stream]
+                 (if (or (.-hidden js/document) (not= generation (:camera-generation @state)) (nil? (:case @state))) (doseq [track (array-seq (.getTracks stream))] (.stop track))
+                   (do (swap! state assoc :stream stream) (set! (.-srcObject (el "identity-camera")) stream) (set! (.-hidden (el "identity-camera")) false)
+                       (disabled! "identity-photo" false) (disabled! "identity-video" false)))))
+        (.catch #(say! "カメラを開始できません。ブラウザのカメラ許可を確認してください。"))))))
+(defn photo! []
+  (let [video (el "identity-camera") canvas (.createElement js/document "canvas")]
+    (when (and (:stream @state) (:case @state) (pos? (.-videoWidth video)))
+      (set! (.-width canvas) (.-videoWidth video)) (set! (.-height canvas) (.-videoHeight video))
+      (.drawImage (.getContext canvas "2d") video 0 0)
+      (.toBlob canvas (fn [blob]
+                        (if (and (:case @state) (not (.-hidden js/document)) blob (<= (.-size blob) 2097152))
+                          (do (swap! state assoc :document blob) (preview! "identity-photo-preview" blob)
+                              (disabled! "identity-submit" (nil? (:video @state))))
+                          (say! "写真が大きすぎます。解像度を下げて撮り直してください。"))) "image/jpeg" 0.85))))
+(defn record! []
+  (when (:stream @state)
+    (let [mime (first (filter #(js/MediaRecorder.isTypeSupported %) ["video/webm" "video/mp4"]))]
+      (if-not mime (say! "このブラウザでは動画撮影に対応していません。")
+        (let [chunks (array) total (atom 0) started (js/Date.now)
+              recorder (js/MediaRecorder. (:stream @state) #js {:mimeType mime :videoBitsPerSecond 1500000})]
+          (swap! state assoc :recorder recorder) (disabled! "identity-video" true)
+          (set! (.-ondataavailable recorder)
+                (fn [e] (swap! total + (.-size (.-data e)))
+                  (if (<= @total 6291456) (.push chunks (.-data e))
+                      (when (= "recording" (.-state recorder)) (.stop recorder)))))
+          (set! (.-onstop recorder)
+                (fn []
+                  (swap! state dissoc :recorder)
+                  (if (and (:case @state) (not (.-hidden js/document)) (<= 9000 (- (js/Date.now) started)) (<= 1 @total 6291456))
+                    (let [blob (js/Blob. chunks #js {:type mime})]
+                      (swap! state assoc :video blob) (preview! "identity-video-preview" blob)
+                      (disabled! "identity-submit" (nil? (:document @state)))
+                      (say! "録画が中断されたか容量を超えました。撮り直してください。"))
+                  (stop!)))
+          (.start recorder 250)
+          (js/setTimeout #(when (= "recording" (.-state recorder)) (.stop recorder)) 10000))))))
+)
+(defn upload! [slot blob]
+  (-> (js/fetch (str "/v1/identity/upload?id=" (js/encodeURIComponent (get-in @state [:case :id])) "&slot=" slot)
+               #js {:method "PUT" :credentials "same-origin" :headers #js {"content-type" (.-type blob)} :body blob})
+      (.then (fn [r] (when-not (.-ok r) (throw (js/Error. "upload failed"))) (.arrayBuffer blob)))
+      (.then #(.digest (.-subtle js/crypto) "SHA-256" %))
+      (.then #(apply str (map (fn [b] (.padStart (.toString b 16) 2 "0")) (array-seq (js/Uint8Array. %)))))))
+(defn submit! []
+  (when (and (:ready @state) (:case @state) (:document @state) (:video @state))
+    (disabled! "identity-submit" true) (stop!) (say! "暗号化保管と読み戻し確認を待っています…")
+    (-> (upload! "document" (:document @state))
+        (.then (fn [document-digest]
+                 (-> (upload! "live-video" (:video @state))
+                     (.then #(sign! {:action "submit" :id (get-in @state [:case :id]) :nonce (get-in @state [:case :nonce])
+                                     :document-digest document-digest :video-digest %})))))
+        (.then #(api/api "/v1/identity/submit" {:id (get-in @state [:case :id]) :proof %}))
+        (.then checked!)
+        (.then (fn [_] (clear!) (say! "提出を受け付けました。審査待ちです。本人確認の承認ではありません。")))
+        (.catch #(say! "提出の完了を確認できません。再送せず、状態を更新してください。")))))
+(defn begin! [event]
+  (.preventDefault event)
+  (when (and (:ready @state) (.-checked (el "identity-consent")))
+    (disabled! "identity-begin" true)
+    (-> (.generateKey (.-subtle js/crypto) "Ed25519" false #js ["sign" "verify"])
+        (.then (fn [keys] (swap! state assoc :keys keys) (.exportKey (.-subtle js/crypto) "jwk" (.-publicKey keys))))
+        (.then (fn [jwk]
+                 (let [public (select-keys (js->clj jwk :keywordize-keys true) [:kty :crv :x])]
+                   (-> (sign! {:action "start" :consent true :notice-version "kotoba-web-intake-2026-09-v1"
+                               :purpose (.-value (el "identity-purpose")) :scope (.-value (el "identity-scope"))})
+                       (.then #(api/api "/v1/identity/start" {:holderJwk public :proof %}))))))
+        (.then checked!)
+        (.then (fn [r] (swap! state assoc :case r)
+                 (set! (.-textContent (el "identity-challenge")) (str "撮影時に次の確認番号を示してください：" (:nonce r)))
+                 (disabled! "identity-camera-start" false) (disabled! "identity-delete" false)
+                 (say! "書類写真と、確認番号・顔・書類が確認できる動画を撮影してください。別途担当者とのライブ確認が必要です。")))
+        (.catch #(say! "申請を開始できません。状態を更新してください。")))))
+(defn view! []
+  (stop!)
+  (doseq [id ["identity-review-document" "identity-review-video"]] (revoke! id))
+  (let [review? (= "#review" (.-hash js/location))]
+    (set! (.-hidden (el "identity-capture-view")) review?)
+    (set! (.-hidden (el "identity-review-view")) (not review?))))
+(defn init! []
+  (when-let [section (el "identity-console")]
+    (when-let [main (.querySelector js/document "main")] (.replaceChildren main section))
+    (set! (.-hidden section) false)
+    (when-let [heading (.querySelector section "h2")] (.setAttribute heading "aria-level" "1"))
+    (when-let [login (el "kc-session-nav")]
+      (let [url (js/URL. (.-href login))]
+        (.set (.-searchParams url) "return_to" "https://kotoba.cloud/identity")
+        (set! (.-href login) (.toString url))))
+    (.addEventListener (el "identity-begin-form") "submit" begin!)
+    (doseq [[id f] [["identity-refresh" refresh!] ["identity-camera-start" camera!] ["identity-photo" photo!]
+                    ["identity-video" record!] ["identity-camera-stop" stop!] ["identity-submit" submit!]
+                    ["identity-delete" (fn [] (when-let [id (get-in @state [:case :id])]
+                                              (-> (api/api "/v1/identity/delete" {:id id}) (.then checked!)
+                                                  (.then (fn [_] (clear!) (say! "削除処理と鍵破棄の完了を確認しました。")))
+                                                  (.catch #(say! "削除完了は未確認です。担当窓口で確認してください。")))))]]]
+      (.addEventListener (el id) "click" f))
+    (.addEventListener js/window "pagehide" clear!)
+    (.addEventListener js/document "visibilitychange" #(when (.-hidden js/document) (stop!)))
+    (.addEventListener js/window "hashchange" view!)
+    (view!) (refresh!)))

@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.browser
-  (:require [app-kotoba-cloud.attribution :as attribution]
+  (:require [app-kotoba-cloud.identity-browser :as identity-browser]
+            [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.research-browser :as research-browser]
             [app-kotoba-cloud.session :as session]
             [goog.object :as gobj]))
@@ -221,6 +222,9 @@
              (post-funnel-event! "signup" (cond-> {} bfcid (assoc :bfcid bfcid))))))))))
 
 (defn init! []
+  (if (= "/identity" (.-pathname js/location))
+    (identity-browser/init!)
+    (do
   (research-browser/init!)
   (let [bfcid (get (landing-attribution) "bfcid")]
     (when bfcid (load-freebuff-tag! bfcid))
@@ -243,3 +247,4 @@
                                (js->clj payload :keywordize-keys true))]
                    (when (:valid viewer) (signed-in! viewer))))))
       (.catch (fn [_] nil))))
+))

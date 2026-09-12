@@ -251,3 +251,30 @@ The initial actions are code-review, vulnerability-triage and remediation; this
 release does not enable higher-privilege operations, learned behavioral profiling,
 Conformal prediction or confidence-interval claims. No production observer or
 private authority is provisioned by this release; enrollment remains closed.
+
+## Browser capture and assigned-review console
+
+`/identity` serves the existing app document/bundle as an isolated identity view.
+It removes marketing content from the active main view and skips analytics setup.
+CSP permits only same-origin script/connect and local Blob media; camera is allowed
+only on this document response, microphone remains disabled, and caching is disabled.
+Capture requires an authenticated, enabled private intake status; no automatic camera
+request or persistent browser storage is used. Photo/video stay in page memory before
+submission; camera tracks stop on hiding/leaving the view, previews revoke Blob URLs.
+
+`/v1/identity/*` uses a separate `IDENTITY_AUTHORITY` private service binding.
+The gateway supplies `x-kotoba-principal` from the existing auth viewer, strips JSON
+identity/signature flags, bounds JPEG uploads at 2 MiB and video at 6 MiB, and does not
+forward the auth cookie. Evidence responses use no-store and same-origin isolation.
+The private adapter is `ekyc.identity-intake-service/handler`; its injected persistent
+ports are specified in the eKYC intake/vault documentation. No binding is configured
+by this release, so unauthenticated calls are 401 and authenticated calls are 503.
+
+The browser supports case start, document capture, 10-second video, signed submission,
+explicit case deletion, assigned review queue/claim and protected evidence viewing.
+Operator approval/rejection is implemented in the signature-verifying authority;
+browser signing-key enrollment and decision entry remain pending. Page reload loses
+the temporary holder key, so resume/reconciliation must be connected before opening
+intake. Seven-day case access is not a running automatic deletion schedule. Intake
+remains closed pending private Kotobase/KMS qualification, reviewer identity/key
+registration, live review operations and the published data notice.
