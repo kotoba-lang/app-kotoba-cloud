@@ -521,6 +521,7 @@ const researchBody = { model: researchModel, task: "code-review", scopeId: "owne
 const researchCalls = [];
 const researchNow = Date.now();
 let researchRecord = { principalId: researchPrincipal, policyVersion: researchPolicy, status: "active",
+  trust: { policyVersion: "kotoba-trust-routes-2026-09-v1", score: 60, routes: ["web-reviewed"], evaluatedAt: researchNow, expiresAt: researchNow + 60000 },
   ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
   screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
   scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 60000 }] };
@@ -554,7 +555,11 @@ assert.equal(researchCalls.length, 0);
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
 assert.equal((await modelCatalog.json()).data[0].availability, "upstream-tested-access-gated");
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
-assert.equal((await eligibleStatus.json()).status, "eligible");
+const eligibleStatusBody = await eligibleStatus.json();
+assert.equal(eligibleStatusBody.status, "eligible");
+assert.equal(eligibleStatusBody.trust.score, 60);
+assert.deepEqual(eligibleStatusBody.trust.routes, ['web-reviewed']);
+assert.equal(eligibleStatusBody.trust.evidenceRef, undefined);
 assert.match(eligibleStatus.headers.get("cache-control"), /no-store/);
 for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 9999 }]) {
   assert.equal((await route(researchRequest("/v1/chat/completions", { ...researchBody, ...extra }), researchEnv)).status, 400);
@@ -698,4 +703,8 @@ const identityProfile = await identityCapabilities.json();
 assert.equal(identityProfile.provider, 'kotoba');
 assert.equal(identityProfile.enrollmentEnabled, false);
 assert.equal(identityProfile.zeroKnowledge, false);
+assert.equal(identityProfile.defaultRoute, 'web-reviewed');
+assert.equal(identityProfile.trustPolicy.weights['web-reviewed'], 60);
+assert.equal(identityProfile.trustPolicy.weights['app-passport'], 80);
+assert.equal(identityProfile.trustPolicy.ceiling, 100);
 assert.equal(identityProfile.status, 'components-tested-enrollment-closed');

@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.research-browser
-  (:require [app-kotoba-cloud.research :as research]))
+  (:require [app-kotoba-cloud.research :as research] [clojure.string :as str]))
 
 (defn el [id] (.getElementById js/document id))
 (defn value [id] (.-value (el id)))
@@ -8,12 +8,14 @@
 (defn message [code]
   (get (if (ja?)
          {"sign-in-required" "まずアカウントにログインしてください。"
-          "verification-provider-not-configured" "本人確認・審査事業者は未接続です。申請は送信・保存されていません。"
+          "verification-provider-not-configured" "本人確認・審査基盤は準備中です。申請は送信・保存されていません。"
+          "trust-route-required" "有効な本人確認経路を確認できません。確認状態を更新してください。"
           "free-quota-exhausted" "本日の無料枠に達しました。自動課金はありません。"
           "research-scope-required" "この調査には有効な承認済みスコープが必要です。"
           "eligible" "本人確認と審査が有効です。無料枠を利用できます。"}
          {"sign-in-required" "Please sign in to your account first."
-          "verification-provider-not-configured" "Verification and screening are not connected. No application was sent or saved."
+          "verification-provider-not-configured" "Verification and review infrastructure is being prepared. No application was sent or saved."
+          "trust-route-required" "No current identity trust route is available. Refresh verification status."
           "free-quota-exhausted" "Your daily free allowance is exhausted. No automatic charge will occur."
           "research-scope-required" "A current approved scope is required for this task."
           "eligible" "Verification and review are current. Your free allowance is available."})
@@ -31,7 +33,14 @@
   (set! (.-disabled (el "research-run")) true)
   (-> (api "/v1/research/status" nil)
       (.then (fn [r]
-               (say! "research-status" (message (or (get-in r [:error :code]) (:reason r) (:status r))))
+               (say! "research-status"
+                     (str (message (or (get-in r [:error :code]) (:reason r) (:status r)))
+                          (when (research/trust-current? (:trust r) (js/Date.now))
+                            (str (if (ja?) " 直近の信頼スコア：" " Last checked trust score: ")
+                                 (get-in r [:trust :score]) "/100 ("
+                                 (str/join " + " (map (if (ja?) {"web-reviewed" "Web審査" "app-passport" "アプリ旅券確認"}
+                                                            {"web-reviewed" "Web review" "app-passport" "App passport"})
+                                                      (get-in r [:trust :routes]))) ")"))))
                (when (:httpOk r)
                  (set! (.-disabled (el "research-apply")) false)
                  (set! (.-disabled (el "research-run")) (not= "eligible" (:status r))))))

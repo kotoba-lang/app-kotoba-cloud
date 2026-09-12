@@ -15,7 +15,7 @@
             ["03 / 直す" "修正と再検証" "修正案、回帰テスト、責任ある開示のための報告書をまとめます。"]]
      :register "本人確認から、無料の研究環境へ。"
      :steps [["アカウント" "既存のアカウントでログイン。ウォレット接続だけでは本人確認済みになりません。"]
-             ["eKYC" "Kotoba Identity の電子パスポート署名検証と所持者確認を開発中。既存の確認結果も、発行元と失効状態を検証したうえで再利用します。"]
+             ["eKYC" "ブラウザで書類撮影とライブ本人照合を行う経路を準備中。審査完了で信頼スコア60点。アプリのIC旅券確認は別経路として後から加点できます。"]
              ["AML / CTF" "制裁・PEP 等の照合、リスク審査、必要な追加確認。保留・期限切れ・停止中は推論できません。"]
              ["無料で調査" "調査権限と対象範囲を確認後、無料枠を利用。確認後も継続的な再審査を行います。"]]
      :fee "本人確認済みの研究者は $0"
@@ -28,7 +28,7 @@
      :workbench "研究ワークスペース" :scope-id "承認済みのスコープ ID" :task "調査の種類" :input "調査するコード・所見（秘密情報を除く）" :run "無料枠で調査する"
      :terms "利用条件とデータの取り扱い"
      :terms-body "許可されたコードのレビュー、脆弱性の整理、修正支援に限定します。不正侵入、認証情報の窃取、破壊行為、無許可の第三者調査には使えません。本人確認は調査権限を意味しません。"
-     :data "Kotoba 独自の電子パスポート確認を開発しています。書類・顔画像・氏名・生年月日を推論モデルには送りません。こちらには確認状態、有効期限、証跡参照、審査と利用の記録を最小限保持する設計です。事業者、保存期間、移転先、削除・異議申立て窓口を確定・公開するまで、本人確認の受付を開始しません。"
+     :data "Webで完結するKotoba独自の本人確認を開発しています。書類・顔画像・氏名・生年月日を推論モデルには送りません。こちらには確認状態、有効期限、証跡参照、審査と利用の記録を最小限保持する設計です。事業者、保存期間、移転先、削除・異議申立て窓口を確定・公開するまで、本人確認の受付を開始しません。"
      :review "PEP や同姓同名の候補一致は自動的な違反認定ではありません。追加確認と再審査を行う運用を準備します。AML／CTF の法的適用範囲は運営主体・提供地域に応じて確認します。"
      :source "モデルカード"}
     {:title "Security intelligence.\nFor the people who defend."
@@ -42,7 +42,7 @@
             ["03 / REMEDIATE" "Close the loop" "Prepare fixes, regression tests and reports for responsible disclosure."]]
      :register "One verified identity. A free research workspace."
      :steps [["Account" "Sign in with your existing account. A connected wallet alone is not verified identity."]
-             ["eKYC" "Kotoba Identity passport signature verification and holder review are in development. Reuse requires verification of the issuer and current revocation status."]
+             ["eKYC" "Browser document capture and supervised live identity review are in development. Approved Web review contributes 60 trust points. App passport verification can add an independent route later."]
              ["AML / CTF" "Sanctions and PEP screening, risk review and additional checks where needed. Pending, expired or suspended records cannot infer."]
              ["Free research" "Confirm authorization and research scope, then use the free allowance. Ongoing review keeps eligibility current."]]
      :fee "$0 for verified researchers"
@@ -55,7 +55,7 @@
      :workbench "Research workspace" :scope-id "Approved scope ID" :task "Research task" :input "Code or findings to review (remove secrets)" :run "Run with free allowance"
      :terms "Research terms & data notice"
      :terms-body "For authorized code review, vulnerability triage and remediation. No unauthorized intrusion, credential theft, destructive activity or third-party research without permission. Identity verification does not grant research authorization."
-     :data "First-party passport verification is in development. Documents, face images, names and birth dates will never be sent to the inference model. The service is designed to retain minimal verification status, expiry, evidence references, review and usage records. Verification intake remains closed until providers, retention periods, transfer destinations, deletion and appeal contacts are finalized and published."
+     :data "First-party browser identity verification is in development. Documents, face images, names and birth dates will never be sent to the inference model. The service is designed to retain minimal verification status, expiry, evidence references, review and usage records. Verification intake remains closed until providers, retention periods, transfer destinations, deletion and appeal contacts are finalized and published."
      :review "PEP status or a possible name match is not automatically a finding of wrongdoing. Additional checks and human review are planned. Legal AML/CTF obligations depend on the operator and service jurisdictions."
      :source "Model card"}))
 

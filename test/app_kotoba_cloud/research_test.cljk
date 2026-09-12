@@ -5,6 +5,7 @@
 (def now 1800000000000)
 (def approved
   {:principalId "principal-a" :policyVersion r/policy-version :status "active"
+   :trust {:policyVersion (:version r/trust-policy) :score 60 :routes ["web-reviewed"] :evaluatedAt now :expiresAt (+ now 1000)}
    :ekyc {:status "verified" :evidenceRef "identity-evidence" :verifiedAt (- now 1000) :expiresAt (+ now 1000)}
    :screening {:status "clear" :evidenceRef "screening-evidence" :checkedAt (- now 1000) :expiresAt (+ now 1000)}
    :scopes [{:id "scope-a" :status "approved" :tasks ["code-review"] :expiresAt (+ now 1000)}]})
@@ -29,6 +30,19 @@
   (is (not (r/scope-approved? approved (assoc request :scopeId "someone-else") now)))
   (is (not (r/scope-approved? approved (assoc request :task "remediation") now)))
   (is (not (r/scope-approved? approved request (+ now 1000)))))
+
+(deftest trust-routes-are-current-distinct-and-server-weighted
+  (doseq [trust [(dissoc (:trust approved) :policyVersion)
+                 (assoc (:trust approved) :routes ["web-reviewed" "web-reviewed"] :score 100)
+                 (assoc (:trust approved) :routes ["unknown"])
+                 (assoc (:trust approved) :score 100)
+                 (assoc (:trust approved) :evaluatedAt (- now 60001))
+                 (assoc (:trust approved) :expiresAt (+ now 60001))
+                 (assoc (:trust approved) :expiresAt now)]]
+    (is (= "trust-route-required" (r/eligibility "principal-a" (assoc approved :trust trust) now))))
+  (is (nil? (r/eligibility "principal-a" (update approved :trust assoc :routes ["app-passport"] :score 80) now)))
+  (is (nil? (r/eligibility "principal-a" (update approved :trust assoc :routes ["web-reviewed" "app-passport"] :score 100) now)))
+  (is (string? (r/eligibility "principal-a" (assoc-in approved [:screening :status] "review") now))))
 
 (deftest client-cannot-override-model-policy-or-identity
   (is (r/completion? request))

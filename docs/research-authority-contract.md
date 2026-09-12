@@ -192,3 +192,25 @@ bundle, physical passport qualification, review operations and signed phone app
 are not supplied by the component release. No client-side test/fixture result can
 open enrollment. ZK proof generation is a later phase and is not advertised as
 implemented. The Murakumo model and existing fail-closed research gates remain.
+
+
+## Web-first trust routes (identity v2)
+
+The initial route is browser document capture plus supervised live video review.
+It contributes 60 points after signed operator approval. App passport verification
+is a separate later route worth 80 points; combined score is capped at 100, with
+a threshold of 60. Weights are provisional assurance points, not probabilities.
+App distribution and physical NFC qualification are not Web launch prerequisites.
+
+The authority must supply a current `trust` projection with `policyVersion`
+`kotoba-trust-routes-2026-09-v1`, `score`, distinct `routes`, `evaluatedAt` and
+`expiresAt`. The ekyc library's `identity-trust/projection` computes this from
+canonical evidence and caps freshness at 60 seconds or the earliest contributing
+evidence expiry. The gateway recomputes the fixed-policy score and rejects stale,
+unknown, duplicate or inconsistent route claims. It never accepts browser scores.
+The `/complete` authority rechecks source revocation and all admission gates before
+dispatch, including after queueing. Screening, account suspension, scope and quota
+cannot be bypassed by any score. Linked source revocation removes its points.
+
+Browser capture/review host and protected storage remain unimplemented; this
+release changes tested policy and API admission, not live customer intake.

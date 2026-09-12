@@ -37,10 +37,13 @@
                  (throw (ex-info "research-service-unavailable" {:status (if (= 429 (.-status r)) 429 503)})))))))
 
 (defn- status-response [record principal respond]
-  (let [reason (policy/eligibility principal record (js/Date.now))]
+  (let [now (js/Date.now) reason (policy/eligibility principal record now)
+        same-principal? (= principal (:principalId record))]
     (respond {:status (if reason "pending" "eligible") :reason reason
               :freeTier policy/free-limits :policyVersion policy/policy-version
-              :scopes (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record))}
+              :trust (when (and same-principal? (policy/trust-current? (:trust record) now))
+                       (select-keys (:trust record) [:policyVersion :score :routes :evaluatedAt :expiresAt]))
+              :scopes (if same-principal? (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record)) [])}
              200)))
 
 (defn- complete [binding principal body respond]
