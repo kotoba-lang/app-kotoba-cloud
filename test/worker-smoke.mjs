@@ -526,6 +526,7 @@ let researchRecord = { principalId: researchPrincipal, policyVersion: researchPo
   screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
   scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 60000 }] };
 let corruptReceipt = false;
+let oldTrustReceipt = false;
 let exhausted = false;
 const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => {
   const body = JSON.parse(init.body);
@@ -537,9 +538,10 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
   assert.equal(path, "/complete");
   assert.equal(body.principalId, researchPrincipal);
   assert.equal(body.billing, "free-only");
+  assert.equal(body.trustPolicyVersion, "kotoba-trust-routes-2026-09-v1");
   if (exhausted) return new Response("limit", { status: 429 });
   return Response.json({ principalId: body.principalId, requestId: body.requestId,
-    policyVersion: body.policyVersion, billing: corruptReceipt ? "paid" : "free",
+    policyVersion: body.policyVersion, trustPolicyVersion: oldTrustReceipt ? undefined : body.trustPolicyVersion, billing: corruptReceipt ? "paid" : "free",
     policyDecision: "allowed", model: researchModel, receiptId: "audit-1", content: "Check ownership before returning the record." });
 }} };
 function researchRequest(path, body, headers = {}) {
@@ -579,7 +581,9 @@ assert.equal(researchOk.status, 200);
 assert.equal((await researchOk.json()).billing, "free");
 corruptReceipt = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
-corruptReceipt = false; exhausted = true;
+corruptReceipt = false; oldTrustReceipt = true;
+assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
+oldTrustReceipt = false; exhausted = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 429);
 exhausted = false;
 const application = { verificationMode: "new", policyVersion: researchPolicy, purpose: "Review owned code",

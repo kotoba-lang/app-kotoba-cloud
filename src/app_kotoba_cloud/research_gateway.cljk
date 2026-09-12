@@ -63,12 +63,14 @@
                (-> (service binding "/complete"
                             {:principalId principal :requestId request-id
                              :policyVersion policy/policy-version :billing "free-only"
+                             :trustPolicyVersion (:version policy/trust-policy)
                              :limits policy/free-limits :request body})
                    (.then
                     (fn [result]
                       (if (and (= request-id (:requestId result))
                                (= principal (:principalId result))
                                (= policy/policy-version (:policyVersion result))
+                               (= (:version policy/trust-policy) (:trustPolicyVersion result))
                                (= "free" (:billing result))
                                (= "allowed" (:policyDecision result))
                                (policy/text? (:receiptId result) 512)

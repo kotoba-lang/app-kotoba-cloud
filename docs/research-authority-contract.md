@@ -211,6 +211,8 @@ unknown, duplicate or inconsistent route claims. It never accepts browser scores
 The `/complete` authority rechecks source revocation and all admission gates before
 dispatch, including after queueing. Screening, account suspension, scope and quota
 cannot be bypassed by any score. Linked source revocation removes its points.
+Both the private completion request and its committed receipt must carry the exact
+`trustPolicyVersion`; a receipt from an older authority contract is rejected.
 
 Browser capture/review host and protected storage remain unimplemented; this
 release changes tested policy and API admission, not live customer intake.
