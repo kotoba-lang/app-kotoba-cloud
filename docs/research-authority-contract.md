@@ -216,3 +216,38 @@ Both the private completion request and its committed receipt must carry the exa
 
 Browser capture/review host and protected storage remain unimplemented; this
 release changes tested policy and API admission, not live customer intake.
+
+## Continuous session evidence
+
+The gateway now requires a separate `continuous` record from the private authority
+for the exact `sessionRef` and research `action`. Its policy version is
+`kotoba-session-evidence-2026-09-v1`. `opinion` includes belief, disbelief,
+uncertainty and `calibrated=false`; all masses are in [0,1] and sum to one.
+Admission requires b>=0.85, d<=0.05, u<=0.20 and `decision=allow`. Projections
+expire within 15 seconds. These policy masses are not calibrated fraud odds.
+
+The gateway derives the reference after authenticating the viewer, as lowercase
+hex SHA-256 of the UTF-8 JSON array
+`["kotoba-research-session-v1","https://kotoba.cloud",principalId,sessionCookie]`.
+It never forwards the raw cookie or returns the reference in public status.
+The auth observer must derive the same scoped reference from the authenticated
+session. Hashing does not detect a stolen cookie or establish holder presence.
+
+Private status and completion requests carry the reference and action. The
+completion request/receipt must bind `sessionRef` and `sessionPolicyVersion`, in
+addition to existing principal/request/trust-policy/model/free-only bindings.
+Wrong-session, wrong-action, expired, high-uncertainty, denied and legacy receipts
+are not accepted. Final dispatch must recompute the decision from canonical
+observer/session evidence; a 15-second snapshot is not a reusable permission.
+
+The eKYC library supplies `identity-authority/observe-session`, which verifies
+registered observer signatures and commits through canonical CAS, and
+`identity-session/decision`, which checks current key status, time-discounted
+support, unresolved alerts and hard revocation. Quota reservation invokes that
+check. The source integration must enforce telemetry-loss/lag limits and protect
+revocation tombstones until source credentials can no longer be replayed.
+
+The initial actions are code-review, vulnerability-triage and remediation; this
+release does not enable higher-privilege operations, learned behavioral profiling,
+Conformal prediction or confidence-interval claims. No production observer or
+private authority is provisioned by this release; enrollment remains closed.

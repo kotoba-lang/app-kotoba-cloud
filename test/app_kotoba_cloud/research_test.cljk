@@ -44,6 +44,20 @@
   (is (nil? (r/eligibility "principal-a" (update approved :trust assoc :routes ["web-reviewed" "app-passport"] :score 100) now)))
   (is (string? (r/eligibility "principal-a" (assoc-in approved [:screening :status] "review") now))))
 
+(deftest session-opinions-are-bound-and-fresh
+  (let [projection {:policyVersion (:version r/session-policy) :sessionRef "session" :action "code-review" :decision "allow"
+                    :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}
+                    :evaluatedAt now :expiresAt (+ now 15000)}]
+    (is (r/session-current? "session" "code-review" projection now))
+    (doseq [bad [(assoc projection :sessionRef "another") (assoc projection :action "remediation")
+                 (assoc projection :decision "deny") (assoc projection :expiresAt now)
+                 (assoc projection :expiresAt (+ now 15001))
+                 (assoc-in projection [:opinion :belief] 1.1)
+                 (assoc-in projection [:opinion :uncertainty] 0.3)
+                 (assoc projection :opinion {:belief 0.7 :disbelief 0.1 :uncertainty 0.2 :calibrated false})
+                 (assoc-in projection [:opinion :calibrated] true)]]
+      (is (not (r/session-current? "session" "code-review" bad now))))))
+
 (deftest client-cannot-override-model-policy-or-identity
   (is (r/completion? request))
   (doseq [body [(assoc request :model "other") (assoc request :stream true)
