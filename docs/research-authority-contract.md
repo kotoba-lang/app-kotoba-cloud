@@ -176,3 +176,19 @@ were checked against the official `@selfxyz/enterprise-sdk` 0.4.1 package. The
 small REST surface is used directly because installing the complete SDK pulls a
 legacy core Git dependency whose preparation fails under the workspace npm policy;
 Svix 1.92.2 remains the unmodified signature verifier.
+
+
+## First-party Kotoba Identity direction
+
+Primary implementation now lives in `kotoba-lang/ekyc`: TD3 passive authentication,
+review state machine, holder-bound Ed25519 credentials, revocation, free reservation
+and a commit-gated authority coordinator. An iPhone CoreNFC capture bridge compiles
+for iOS. These components do not depend on a Self subscription. Self transports
+remain an optional alternative, not a requirement for the first-party path.
+
+`/.well-known/kotoba-identity.json` advertises the actual profile and keeps
+`enrollmentEnabled=false`. The private canonical storage host, production trust
+bundle, physical passport qualification, review operations and signed phone app
+are not supplied by the component release. No client-side test/fixture result can
+open enrollment. ZK proof generation is a later phase and is not advertised as
+implemented. The Murakumo model and existing fail-closed research gates remain.
