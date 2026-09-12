@@ -514,7 +514,7 @@ console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negot
 // Research gateway: these tests qualify edge admission only, not a real provider.
 upstreamStatus = 200;
 const researchPrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111";
-const researchModel = "dealignai/GLM-5.3-CYBERSECURITY-FP8";
+const researchModel = "qwen3.8-flash-next-cybersecurity-nvfp4";
 const researchPolicy = "whitehat-2026-09-12-v1";
 const researchBody = { model: researchModel, task: "code-review", scopeId: "owned-code",
   max_tokens: 512, messages: [{ role: "user", content: "Review my authorization checks." }] };
@@ -552,7 +552,7 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, { "content-type": "text/plain" }), researchEnv)).status, 415);
 assert.equal(researchCalls.length, 0);
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
-assert.equal((await modelCatalog.json()).data[0].availability, "pending-provider-qualification");
+assert.equal((await modelCatalog.json()).data[0].availability, "upstream-tested-access-gated");
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 assert.equal((await eligibleStatus.json()).status, "eligible");
 assert.match(eligibleStatus.headers.get("cache-control"), /no-store/);

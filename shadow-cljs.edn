@@ -1,6 +1,11 @@
 {:deps {:aliases [:cljs]}
  :builds
- {:free-sites-test
+ {:research-providers {:target :esm :output-dir "build/providers"
+                       :modules {:providers {:exports {createSession app-kotoba-cloud.research-providers/create-session-js
+                                                       verifyEvent app-kotoba-cloud.research-providers/verify-event-js
+                                                       infer app-kotoba-cloud.research-providers/infer-js}}}
+                       :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
+  :free-sites-test
   {:target :node-test
    :output-to "build/free-sites-tests.cjs"
    :ns-regexp "app-kotoba-cloud.free-sites.*-test$"

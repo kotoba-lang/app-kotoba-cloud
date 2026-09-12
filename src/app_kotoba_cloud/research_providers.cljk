@@ -1,0 +1,113 @@
+(ns app-kotoba-cloud.research-providers
+  "Production transports for the private authority. Never browser authority.
+  Caller must persist consent/challenge before create and atomically consume
+  evidence and reserve quota in Kotobase before inference. No storage fallback."
+  (:require [app-kotoba-cloud.research :as policy]
+            [app-kotoba-cloud.research-gateway :as gateway]
+            ["svix" :refer [Webhook]]))
+
+(def self-origin "https://edge.dashboard.self.xyz")
+(def inference-url "https://api.murakumo.cloud/v1/chat/completions")
+
+(defn- fail [code] (throw (ex-info code {:status 503})))
+(defn- self-config! [config]
+  (when-not (and (re-matches #"sk_live_\S+" (or (:apiKey config) ""))
+                 (policy/text? (:flowId config) 128)
+                 (policy/text? (:flowVersionId config) 128))
+    (fail "self-live-flow-not-configured")))
+
+(defn create-session [config external-id fetch!]
+  (self-config! config)
+  (when-not (policy/text? external-id 256) (fail "invalid-verification-challenge"))
+  (-> (fetch! (str self-origin "/v1/sessions")
+              #js {:method "POST" :redirect "error"
+                   :signal (js/AbortSignal.timeout 30000)
+                   :headers #js {"content-type" "application/json"
+                                 "authorization" (str "Bearer " (:apiKey config))}
+                   :body (js/JSON.stringify
+                          #js {:flowId (:flowId config) :externalUuid external-id
+                               :expiresInSeconds 900})})
+      (.then (fn [response]
+               (when-not (.-ok response) (fail "self-session-unavailable"))
+               (gateway/bounded-json response 32768)))
+      (.then (fn [session]
+               (let [url (js/URL. (:verificationUrl session))]
+                 (when-not (and (= "pending" (:status session))
+                                (= external-id (:externalUuid session))
+                                (= (:flowVersionId config) (:flowVersionId session))
+                                (= "https://verify.self.xyz" (.-origin url))
+                                (empty? (.-username url)) (empty? (.-password url))
+                                (re-matches #"/s/verify_live_[A-Za-z0-9_-]+" (.-pathname url))
+                                (policy/text? (:id session) 128)
+                                (< (js/Date.now) (js/Date.parse (:expiresAt session))))
+                   (fail "invalid-self-session"))
+                 (select-keys session [:id :externalUuid :flowVersionId :verificationUrl :expiresAt]))))))
+
+(defn verify-event
+  "Verify raw Svix signature and a persisted, unconsumed challenge. The returned
+  evidence is NOT an AML/CTF clearance. The authority must consume eventId and
+  the scoped nullifier atomically and retain a private canonical audit record."
+  [config challenge raw headers now]
+  (self-config! config)
+  (when (> (count raw) 131072) (fail "self-event-too-large"))
+  (let [event (js->clj (.verify (Webhook. (:webhookSecret config)) raw (clj->js headers))
+                       :keywordize-keys true)
+        verified-at (js/Date.parse (:verified_at event))]
+    (when-not
+     (and (= "verification.completed" (:type event))
+          (= "live" (:environment event)) (= "valid" (:status event))
+          (= "pre_kyc" (:product event))
+          (= (:flowId config) (:flow_id event))
+          (= (:flowVersionId config) (:flow_version_id event))
+          (= (:sessionId challenge) (:verification_id event))
+          (= (:externalId challenge) (:external_uuid event))
+          (= false (:consumed challenge))
+          (number? (:createdAt challenge)) (number? (:expiresAt challenge))
+          (<= (:createdAt challenge) verified-at now)
+          (< now (:expiresAt challenge))
+          (<= (- now verified-at) 900000)
+          (= "backend" (:verification_mode event))
+          (true? (get-in event [:proof_attributes :ofac]))
+          (= 18 (get-in event [:proof_attributes :minimumAge]))
+          (policy/text? (:nullifier event) 512)
+          (policy/text? (get headers "svix-id") 256))
+      (fail "self-evidence-not-admissible"))
+    {:provider "self" :status "verified" :verifiedAt verified-at
+     :sessionId (:verification_id event) :eventId (get headers "svix-id")
+     :nullifier (:nullifier event) :screeningCoverage ["self-ofac"]
+     :reviewRequired true}))
+
+(defn infer
+  "Called only after atomic free-quota reservation by the private authority.
+  No model fallback; no user credentials or identity evidence leave this port."
+  [request fetch!]
+  (when-not (policy/completion? request) (fail "invalid-inference-request"))
+  (-> (fetch! inference-url
+              #js {:method "POST" :redirect "error"
+                   :signal (js/AbortSignal.timeout 2100000)
+                   :headers #js {"content-type" "application/json"}
+                   :body (js/JSON.stringify
+                          (clj->js {:model policy/model-id :stream false
+                                    :messages (:messages request)
+                                    :max_tokens (:max_tokens request)}))})
+      (.then (fn [response]
+               (when-not (.-ok response) (fail "murakumo-inference-unavailable"))
+               (gateway/bounded-json response 131072)))
+      (.then (fn [result]
+               (let [content (get-in result [:choices 0 :message :content])]
+                 (when-not (and (= policy/model-id (:model result))
+                                (= "chat.completion" (:object result))
+                                (policy/text? content 65536))
+                   (fail "unexpected-murakumo-model-or-response"))
+                 {:model policy/model-id :content content
+                  :finishReason (get-in result [:choices 0 :finish_reason])})))))
+
+;; Explicit JS boundary for the private authority integration and transport tests.
+(defn create-session-js [config external-id fetch!]
+  (-> (create-session (js->clj config :keywordize-keys true) external-id fetch!) (.then clj->js)))
+(defn verify-event-js [config challenge raw headers now]
+  (clj->js (verify-event (js->clj config :keywordize-keys true)
+                         (js->clj challenge :keywordize-keys true)
+                         raw (js->clj headers) now)))
+(defn infer-js [request fetch!]
+  (-> (infer (js->clj request :keywordize-keys true) fetch!) (.then clj->js)))

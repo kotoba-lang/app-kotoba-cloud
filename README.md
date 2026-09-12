@@ -185,3 +185,19 @@ The private service contract is in `docs/research-authority-contract.md`. Its
 implementation, provider contracts, actual screening, durable audit, atomic
 quotas, model qualification and independent end-to-end acceptance are launch
 requirements. No configuration flag alone constitutes launch approval.
+
+### Selected Murakumo model and Self integration
+
+The selected model is `qwen3.8-flash-next-cybersecurity-nvfp4` at
+`https://api.murakumo.cloud/v1/chat/completions`. On 2026-09-12 a direct defensive
+request returned the exact model in 251.94 seconds; the compiled private transport
+then returned the same model in 2.52 seconds. These are upstream transport checks,
+not an end-to-end verified-researcher qualification.
+
+`shadow-cljs release research-providers` builds the private Self/Murakumo
+transports; `npm run test:providers` checks signature, environment, challenge,
+screening predicates, and model identity using fixtures. The public Worker does
+not expose these functions. Self account/live-flow provisioning, canonical
+Kotobase review/quota state, human-review operation and durable asynchronous
+inference jobs remain required before public intake can open. See
+`docs/research-authority-contract.md` for the exact activation boundary.
