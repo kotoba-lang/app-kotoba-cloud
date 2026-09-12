@@ -6,6 +6,8 @@
 (def model-id "qwen3.8-flash-next-cybersecurity-nvfp4")
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
 (def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
+(def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
+                   :threshold 60 :ceiling 100 :defaultRoute "web-reviewed" :provisional true})
 (def catalog
   {:object "list"
    :data [{:id model-id :object "model" :owned_by "murakumo"
@@ -14,12 +16,27 @@
            :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}]
    :policyVersion policy-version :freeTier free-limits
    :requirements ["authenticated-principal" "verified-ekyc" "current-aml-ctf-clearance"
-                  "approved-research-scope" "available-free-quota"]})
+                  "current-trust-route" "approved-research-scope" "available-free-quota"]
+   :trustPolicy trust-policy})
 
 (defn text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))
 (defn fresh? [start end now max-age]
   (and (number? start) (number? end) (<= 0 start now) (< now end)
        (<= (- now start) max-age)))
+
+(defn trust-current?
+  "Private authority projection only. Recompute fixed-policy points, reject unknown
+  or repeated routes; authority must recheck canonical revocation before completion."
+  [trust now]
+  (let [routes (:routes trust) weights (:weights trust-policy)]
+    (and (= (:version trust-policy) (:policyVersion trust))
+         (vector? routes) (<= 1 (count routes) 2) (= (count routes) (count (set routes)))
+         (every? #(contains? weights %) routes)
+         (integer? (:score trust))
+         (= (:score trust) (min (:ceiling trust-policy) (reduce + 0 (map weights routes))))
+         (>= (:score trust) (:threshold trust-policy))
+         (fresh? (:evaluatedAt trust) (:expiresAt trust) now 60000)
+         (<= (- (:expiresAt trust) (:evaluatedAt trust)) 60000))))
 
 (defn eligibility [principal record now]
   (cond
@@ -29,6 +46,7 @@
     (not= "verified" (get-in record [:ekyc :status])) "verification-required"
     (not (text? (get-in record [:ekyc :evidenceRef]) 512)) "verification-required"
     (not (fresh? (get-in record [:ekyc :verifiedAt]) (get-in record [:ekyc :expiresAt]) now (* 365 86400000))) "verification-expired"
+    (not (trust-current? (:trust record) now)) "trust-route-required"
     (not= "clear" (get-in record [:screening :status])) "review-required"
     (not (text? (get-in record [:screening :evidenceRef]) 512)) "review-required"
     (not (fresh? (get-in record [:screening :checkedAt]) (get-in record [:screening :expiresAt]) now 86400000)) "screening-expired"
@@ -66,12 +84,17 @@
 
 
 (def identity-profile
-  {:provider "kotoba" :profile "kotoba-identity-2026-09-v1"
+  {:provider "kotoba" :profile "kotoba-identity-2026-09-v2"
    :status "components-tested-enrollment-closed" :enrollmentEnabled false
    :source "https://github.com/kotoba-lang/ekyc"
-   :documentProfile "ICAO-TD3-LDS0-SHA2"
-   :holderVerification "supervised-live-document-comparison"
+   :defaultRoute "web-reviewed" :trustPolicy trust-policy
+   :routes [{:id "web-reviewed" :weight 60 :role "initial-trust-root"
+             :verification "browser-document-and-supervised-live-video-review"
+             :status "policy-tested-enrollment-closed"}
+            {:id "app-passport" :weight 80 :role "additional-trust-route"
+             :verification "ICAO-TD3-LDS0-SHA2-and-holder-review"
+             :status "capture-bridge-tested-app-pending"}]
    :credentialProfile "kotoba-identity+jwt" :zeroKnowledge false
-   :captureHosts ["ios-native-bridge"]
-   :pending ["production-trust-bundle" "physical-passport-qualification"
-             "private-canonical-storage-host" "review-operations" "signed-phone-app"]})
+   :captureHosts ["browser-planned" "ios-native-bridge"]
+   :pending ["private-canonical-storage-host" "browser-capture-and-review-host" "review-operations"]
+   :additionalRoutePending ["production-trust-bundle" "physical-passport-qualification" "signed-phone-app"]})

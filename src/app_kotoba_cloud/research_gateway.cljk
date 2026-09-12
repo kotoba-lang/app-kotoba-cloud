@@ -37,10 +37,13 @@
                  (throw (ex-info "research-service-unavailable" {:status (if (= 429 (.-status r)) 429 503)})))))))
 
 (defn- status-response [record principal respond]
-  (let [reason (policy/eligibility principal record (js/Date.now))]
+  (let [now (js/Date.now) reason (policy/eligibility principal record now)
+        same-principal? (= principal (:principalId record))]
     (respond {:status (if reason "pending" "eligible") :reason reason
               :freeTier policy/free-limits :policyVersion policy/policy-version
-              :scopes (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record))}
+              :trust (when (and same-principal? (policy/trust-current? (:trust record) now))
+                       (select-keys (:trust record) [:policyVersion :score :routes :evaluatedAt :expiresAt]))
+              :scopes (if same-principal? (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record)) [])}
              200)))
 
 (defn- complete [binding principal body respond]
@@ -60,12 +63,14 @@
                (-> (service binding "/complete"
                             {:principalId principal :requestId request-id
                              :policyVersion policy/policy-version :billing "free-only"
+                             :trustPolicyVersion (:version policy/trust-policy)
                              :limits policy/free-limits :request body})
                    (.then
                     (fn [result]
                       (if (and (= request-id (:requestId result))
                                (= principal (:principalId result))
                                (= policy/policy-version (:policyVersion result))
+                               (= (:version policy/trust-policy) (:trustPolicyVersion result))
                                (= "free" (:billing result))
                                (= "allowed" (:policyDecision result))
                                (policy/text? (:receiptId result) 512)
