@@ -1,7 +1,7 @@
 (async()=>{
  const $=id=>document.getElementById('security-'+id);if(!$('results'))return;
  const chat=document.getElementById('chat-view'),view=document.getElementById('security-view');
- if(chat&&view){const toggle=()=>{const open=location.hash==='#security';chat.hidden=open;view.hidden=!open;};window.addEventListener('hashchange',toggle);toggle();view.querySelector('nav a').href='#chat';}
+ if(chat&&view){const toggle=()=>{const open=location.hash==='#security';chat.hidden=open||location.hash.indexOf('#knowledge')===0;view.hidden=!open;};window.addEventListener('hashchange',toggle);toggle();view.querySelector('nav a').href='#chat';}
  if(chat&&view&&location.hash!=='#security')await new Promise(resolve=>{const start=()=>{if(location.hash==='#security'){window.removeEventListener('hashchange',start);resolve();}};window.addEventListener('hashchange',start);});
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
  try{
