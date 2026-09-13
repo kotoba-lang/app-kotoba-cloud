@@ -219,3 +219,11 @@ currently arrive as complete JSON; the UI shows a waiting state, not simulated
 streaming or invented progress.
 
 `kotoba/norbert` is reserved for a later release and is not a currently accepted model ID.
+
+### Public security knowledge
+
+The chat `#security` view and `/ja/security/` expose source-backed public research
+data. `/security-data/index.json` is the discoverable IPLD snapshot; JSON-LD,
+ontology and Hyakka-shaped datoms are projections of the same records. See
+[architecture and scope](docs/security-knowledge-architecture.md). Rebuild with
+`npm run build:security-data`; verify with `npm run test:security-data`.
