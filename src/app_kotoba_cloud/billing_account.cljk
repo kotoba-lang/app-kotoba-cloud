@@ -18,24 +18,48 @@
                      (.then (fn [customer]
                               (let [record {:stripe (.-id customer)}]
                                 (-> (save storage "customer" record) (.then (fn [_] record))))))))))))
+(defn- checkout-window [storage env customer plan request-id]
+  (if (:topup plan) (js/Promise.resolve nil)
+    (-> (.list (.-subscriptions (gateway/client env))
+               #js {:customer (:stripe customer) :status "all" :limit 100})
+        (.then (fn [^js subscriptions]
+                 (when (or (.-has_more subscriptions)
+                           (some #(not (contains? #{"canceled" "incomplete_expired"} (.-status %)))
+                                 (array-seq (.-data subscriptions))))
+                   (throw (ex-info "subscription-already-exists" {})))
+                 (.get storage "pending-subscription")))
+        (.then (fn [saved]
+                 (let [pending (decode saved) now (js/Math.floor (/ (js/Date.now) 1000))]
+                   (cond
+                     (and pending (< now (+ 60 (:expires pending))))
+                     (if (= request-id (:requestId pending))
+                       (js/Promise.resolve (:expires pending))
+                       (throw (ex-info "checkout-already-pending" {})))
+                     (and pending (= request-id (:requestId pending)))
+                     (throw (ex-info "checkout-request-expired" {}))
+                     :else (let [expires (+ now 1800)]
+                             (-> (save storage "pending-subscription" {:requestId request-id :expires expires})
+                                 (.then (fn [_] expires)))))))))))
 (defn- checkout [storage env principal {:keys [sku requestId]}]
   (let [p (billing/plan sku) price (get (config env "STRIPE_PRICE_IDS") sku)]
     (when-not (and p price (string? requestId) (re-matches #"[a-zA-Z0-9-]{16,64}" requestId))
       (throw (ex-info "invalid-checkout" {})))
     (-> (ensure-customer storage env principal)
         (.then (fn [customer]
+                 (-> (checkout-window storage env customer p requestId)
+                     (.then (fn [expires]
                  (let [metadata {:principal principal :sku sku :catalog billing/version}
                        params (cond-> {:customer (:stripe customer) :mode (if (:topup p) "payment" "subscription")
                                        :line_items [{:price price :quantity 1}] :metadata metadata
                                        :integration_identifier "kotoba_cloud_billing_qmxnptvz"
                                        :success_url "https://kotoba.cloud/billing/?checkout=complete"
                                        :cancel_url "https://kotoba.cloud/billing/?checkout=cancelled"}
-                                (not (:topup p)) (assoc :subscription_data {:metadata metadata}))]
+                                (not (:topup p)) (assoc :subscription_data {:metadata metadata} :expires_at expires))]
                    (-> (.create (.. (gateway/client env) -checkout -sessions) (clj->js params)
                                 #js {:idempotencyKey (str "kotoba-checkout:" (:stripe customer) ":" requestId)})
                        (.then (fn [session]
                                 (-> (save storage (str "checkout:" (.-id session)) {:sku sku :customer (:stripe customer)})
-                                    (.then (fn [_] (response {:url (.-url session)} 200)))))))))))))
+                                    (.then (fn [_] (response {:url (.-url session)} 200))))))))))))))))
 (defn- apply-grants [storage grants]
   ;; One durable write commits both bundle allowances and their replay keys.
   (-> (.get storage "limits")

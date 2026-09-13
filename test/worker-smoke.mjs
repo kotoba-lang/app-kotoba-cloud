@@ -836,6 +836,7 @@ const providerCalls=[];
 const oldFetchBilling=globalThis.fetch;
 globalThis.fetch=async(url,init)=>{
  const u=String(url);providerCalls.push({url:u,body:init?.body});
+ if(u.startsWith('https://api.stripe.com/v1/subscriptions?'))return Response.json({data:[],has_more:false});
  if(u==='https://api.stripe.com/v1/customers')return Response.json({id:'cus_fixture'});
  if(u==='https://api.stripe.com/v1/checkout/sessions')return Response.json({id:'cs_fixture',url:'https://checkout.stripe.com/c/pay/fixture'});
  if(u==='https://api.stripe.com/v1/invoices/in_fixture')return Response.json({id:'in_fixture',status:'paid',customer:'cus_fixture',currency:'usd',billing_reason:'subscription_cycle',lines:{has_more:false,data:[{id:'il_fixture',quantity:1,period:{start:1789257600,end:1791849600},pricing:{price_details:{price:'price_fixture'}}}]}});
@@ -847,6 +848,7 @@ try {
  r=await doBill('/checkout',{sku:'pro',requestId:'request-fixture-000000'});
  assert.equal(r.status,200,await r.clone().text());
  assert.equal((await r.json()).url,'https://checkout.stripe.com/c/pay/fixture');
+ r=await doBill('/checkout',{sku:'pro',requestId:'another-checkout-0000'});assert.equal(r.status,503,'second checkout cannot create another subscription');
  const e={type:'invoice.paid',data:{object:{id:'in_fixture',customer:'cus_fixture'}}};
  r=await doBill('/event',{event:e});assert.equal(r.status,200,await r.clone().text());
  r=await doBill('/event',{event:e});assert.equal(r.status,200);
