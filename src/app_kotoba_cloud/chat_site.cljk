@@ -34,6 +34,9 @@
      [:dialog {:id "norbert-settings" :class "norbert-settings" :aria-labelledby "norbert-settings-title"}
       [:form {:method "dialog"} [:button (t "閉じる" "Close")]]
       [:h2 {:id "norbert-settings-title"} (t "会話の設定" "Conversation settings")]
+      [:p {:id "norbert-access" :role "status"} (t "利用状態を確認しています…" "Checking access…")]
+      [:button {:type "button" :id "norbert-access-refresh"} (t "状態を更新" "Refresh status")]
+      [:p [:a {:href "/identity"} (t "本人確認へ進む" "Continue identity verification")]]
       [:label {:for "norbert-scope"} (t "承認済みの研究スコープ ID" "Approved research scope ID")]
       [:input {:id "norbert-scope" :maxlength 256}]
       [:label {:for "norbert-task"} (t "調査の種類" "Research task")]

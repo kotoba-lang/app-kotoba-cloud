@@ -32,7 +32,22 @@
   $('menu').onclick=()=>{const open=$('sidebar').classList.toggle('is-open');$('menu').setAttribute('aria-expanded',String(open));};
   $('close').onclick=closeHistory;
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHistory();});
-  $('settings-open').onclick=()=>$('settings').showModal();
+  async function refreshAccess() {
+    $('access').textContent=t('利用状態を確認しています…','Checking access…');
+    try {
+      const response=await fetch('/v1/research/status',{credentials:'same-origin',headers:{accept:'application/json'}});
+      const result=await response.json(),code=result.error?.code;
+      $('access').textContent=code==='sign-in-required'
+        ? t('Passkeyでログイン → 本人確認・審査 → 生成','Passkey sign-in → identity verification and review → generation')
+        : code==='verification-provider-not-configured'
+        ? t('ログイン済み。本人確認・審査サービスは未接続です。受付開始まで生成は利用できません。','Signed in. Identity verification and review are not connected. Generation remains unavailable until intake opens.')
+        : response.ok && result.status==='eligible'
+        ? t('本人確認・審査が有効です。承認済みの研究スコープを指定して送信できます。','Identity verification and review are current. Send with an approved research scope.')
+        : t('本人確認・審査の完了が必要です。本人確認画面で状態を確認してください。','Identity verification and review are required. Check the identity page.');
+    } catch (_) { $('access').textContent=t('状態を取得できません。再度更新してください。','Could not load access status. Please refresh.'); }
+  }
+  $('access-refresh').onclick=refreshAccess;
+  $('settings-open').onclick=()=>{$('settings').showModal();refreshAccess();};
   $('scope').oninput=()=>active.scope=$('scope').value.trim();
   $('task').onchange=()=>active.task=$('task').value;
   const errors={
@@ -44,7 +59,7 @@
   };
   $('form').onsubmit=async event=>{
     event.preventDefault();const input=$('prompt').value.trim();if(busy||!input)return;
-    if(!active.scope){status(errors['research-scope-required']);$('settings').showModal();$('scope').focus();return;}
+    if(!active.scope){status(errors['research-scope-required']);$('settings').showModal();refreshAccess();$('scope').focus();return;}
     const messages=[...active.messages,{role:'user',content:input}];
     if(messages.length>12||messages.reduce((n,m)=>n+m.content.length,0)>24000){status(t('会話が長くなりました。新しいチャットを始めてください。','Start a new chat to continue within the context limit.'));return;}
     busy=true;$('send').disabled=true;$('new').disabled=true;$('delete').disabled=true;

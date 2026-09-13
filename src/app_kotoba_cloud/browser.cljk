@@ -91,7 +91,7 @@
                           "ログイン済みの session を確認しました。次: この Principal を Kotobase へ接続します。"))]
     (when-let [nav (element "kc-session-nav")]
       (set! (.-textContent nav) (str "@" username))
-      (.setAttribute nav "href" "#identity"))
+      (.setAttribute nav "href" (if (element "kc-identity-done") "#identity" "/identity")))
     (when-let [action (element "kc-session-action")]
       (set! (.-textContent action) next-label)
       (.setAttribute action "href" next-href)

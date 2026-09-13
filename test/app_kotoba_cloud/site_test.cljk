@@ -199,3 +199,10 @@
       (doseq [hook ["norbert-form" "norbert-history" "norbert-prompt" "norbert-settings" "kotoba/norbert" "/js/chat-components.js"]]
         (is (str/includes? html hook) hook))
       (is (not (str/includes? html "id=\"research-completion\""))))))
+
+(deftest identity-route-has-its-own-document
+  (let [html (site/identity-html)]
+    (is (str/includes? html "id=\"identity-console\""))
+    (is (str/includes? html "id=\"identity-refresh\""))
+    (is (not (str/includes? html "norbert-form")))
+    (is (not (str/includes? html "freebuff.com")))))
