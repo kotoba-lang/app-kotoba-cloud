@@ -731,6 +731,7 @@ const identityEnv = { ...env, IDENTITY_AUTHORITY: { fetch: async (url, init) => 
   assert.equal(headers.get('cookie'), null);
   const op = new URL(url).pathname;
   identityCalls.push(op);
+  assert.equal(init.redirect, 'manual');
   if (op === '/upload') {
     assert.equal(headers.get('x-kotoba-case'), intakeId);
     assert.deepEqual([...init.body], [1, 2, 3]);
@@ -759,6 +760,8 @@ const privateProfile = await route(researchRequest(profilePath), identityEnv);
 assert.equal(privateProfile.status, 200);
 assert.match(privateProfile.headers.get('cache-control'), /no-store/);
 assert.deepEqual(await privateProfile.json(), {id: intakeId, revision: 2, researcherProfile: {version: 'synthetic'}});
+const redirectedIdentity = {...env, IDENTITY_AUTHORITY: {fetch: async () => new Response(null, {status:302, headers:{location:'https://untrusted.example'}})}};
+assert.equal((await route(researchRequest('/v1/identity/status'), redirectedIdentity)).status, 503);
 const wrongProfile = {...env, IDENTITY_AUTHORITY: {fetch: async () => Response.json({id: 'another-case', researcherProfile: {private: true}})}};
 assert.equal((await route(researchRequest(profilePath), wrongProfile)).status, 502);
 const uploadIdentity = (bytes, type='image/jpeg') => new Request(`https://kotoba.cloud/v1/identity/upload?id=${intakeId}&slot=document`, {
