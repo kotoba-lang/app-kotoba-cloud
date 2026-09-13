@@ -515,7 +515,7 @@ console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negot
 // Research gateway: these tests qualify edge admission only, not a real provider.
 upstreamStatus = 200;
 const researchPrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111";
-const researchModel = "qwen3.8-flash-next-cybersecurity-nvfp4";
+const researchModel = "qwen3.8-flash-next-whitehacker";
 const researchPolicy = "whitehat-2026-09-12-v1";
 const researchBody = { model: researchModel, task: "code-review", scopeId: "owned-code",
   max_tokens: 512, messages: [{ role: "user", content: "Review my authorization checks." }] };
@@ -753,7 +753,12 @@ const beforeOversize = identityCalls.length;
 assert.equal((await route(uploadIdentity(new Uint8Array(2097153)), identityEnv)).status, 413);
 assert.equal(identityCalls.length, beforeOversize);
 assert.equal((await route(uploadIdentity(new Uint8Array([1]), 'image/svg+xml'), identityEnv)).status, 415);
-const capturePage = await route(new Request('https://kotoba.cloud/identity'), env);
+let identityAssetPath;
+const capturePage = await route(new Request('https://kotoba.cloud/identity'), {...env, ASSETS: {fetch: async request => {identityAssetPath=new URL(request.url).pathname;return new Response('<main id="identity-console"></main>');}}});
+assert.equal(identityAssetPath,'/identity/');
+const slashIdentity=await route(new Request('https://kotoba.cloud/identity/'),env);
+assert.equal(slashIdentity.headers.get('cache-control'),'no-store, private');
+assert(!slashIdentity.headers.get('content-security-policy').includes('freebuff'));
 assert.equal(capturePage.headers.get('permissions-policy'), 'camera=(self), microphone=(), geolocation=(), payment=()');
 assert.equal(capturePage.headers.get('cache-control'), 'no-store, private');
 assert(!capturePage.headers.get('content-security-policy').includes('freebuff'));

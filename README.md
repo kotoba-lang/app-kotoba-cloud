@@ -188,7 +188,8 @@ requirements. No configuration flag alone constitutes launch approval.
 
 ### Selected Murakumo model and Self integration
 
-The selected model is `qwen3.8-flash-next-cybersecurity-nvfp4` at
+The public model is `qwen3.8-flash-next-whitehacker`, mapped exclusively to
+`qwen3.8-flash-next-cybersecurity-nvfp4` at
 `https://api.murakumo.cloud/v1/chat/completions`. On 2026-09-12 a direct defensive
 request returned the exact model in 251.94 seconds; the compiled private transport
 then returned the same model in 2.52 seconds. These are upstream transport checks,
@@ -201,3 +202,20 @@ not expose these functions. Self account/live-flow provisioning, canonical
 Kotobase review/quota state, human-review operation and durable asynchronous
 inference jobs remain required before public intake can open. See
 `docs/research-authority-contract.md` for the exact activation boundary.
+
+### Shared conversation UI
+
+The homepage uses pinned `cloud-kotoba-dds` conversation components, with new
+chat, page-lifetime history, a bottom composer and a mobile history drawer.
+Research scope and task settings are per conversation. Details and applications
+remain at `/about/` and `/ja/about/`. No conversation content is persisted to disk.
+The public `/v1/models` and completion responses use `qwen3.8-flash-next-whitehacker`; only the
+server provider sends the upstream Qwen ID to Murakumo, and rejects other models.
+
+The existing private `RESEARCH_AUTHORITY` binding, current identity evidence,
+approved scope and atomic free-quota receipt remain prerequisites. This change
+does not configure an authority or make unverified inference available. Responses
+currently arrive as complete JSON; the UI shows a waiting state, not simulated
+streaming or invented progress.
+
+`kotoba/norbert` is reserved for a later release and is not a currently accepted model ID.

@@ -1,0 +1,51 @@
+(ns app-kotoba-cloud.chat-site
+  (:require [cloud-kotoba-dds.chat :as chat]
+            [cloud-kotoba-dds.styles :as styles]
+            [cloud-kotoba-dds.browser :as browser]))
+
+(def browser-script browser/script)
+(def css (str styles/css "
+.chat-workspace{height:calc(100dvh - 72px);min-height:0}.go-shell{min-width:0}.norbert-settings{width:min(700px,calc(100% - 24px));max-height:85dvh;overflow:auto;border:1px solid #ddd;border-radius:16px;padding:24px}.norbert-settings::backdrop{background:#0006}.norbert-settings label{display:block;margin:16px 0 6px}.norbert-settings input,.norbert-settings select{width:100%;min-height:44px}.chat-workspace button{border:0;border-radius:10px;padding:8px 14px;cursor:pointer}.chat-workspace button:disabled{opacity:.5;cursor:wait}.chat-workspace button:not([type=submit]){background:var(--color-primitive-gray-50,#f3f4f6);color:inherit}.chat-sidebar button{min-height:44px;text-align:start}.chat-sidebar nav{flex:1;overflow:auto}.chat-sidebar nav button{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.go-compose-actions button{min-height:44px}.norbert-status:empty{display:none}.norbert-status{font-size:14px;margin:8px 0}.go-output{white-space:pre-wrap;overflow-wrap:anywhere}.go-welcome h1{font-size:clamp(24px,5vw,36px)}.go-toolbar{justify-content:space-between}.go-toolbar>span{min-width:0;overflow-wrap:anywhere;font-size:.875rem}.kc-header{min-height:64px}.chat-sidebar a{padding:12px}.norbert-settings button{min-height:44px}.go-conversation{min-height:0}.chat-workspace button:focus-visible{outline:3px solid #005fcc;outline-offset:2px}@media(max-width:767px){.chat-workspace{height:calc(100dvh - 64px)}.kc-header__brand-subtitle{display:none}.norbert-settings{padding:16px}}"))
+
+(defn view [locale login-href]
+  (let [ja? (= locale :ja) t (fn [ja en] (if ja? ja en))]
+    [:div
+     (chat/workspace {:id "main"}
+       (chat/sidebar {:id "norbert-sidebar" :aria-label (t "会話" "Conversations")}
+         [:button {:type "button" :id "norbert-new"} (t "＋ 新しいチャット" "+ New chat")]
+         [:button {:type "button" :id "norbert-close" :data-ck-chat "history-close"} (t "閉じる" "Close")]
+         [:nav {:id "norbert-history" :aria-label (t "会話履歴" "Chat history")}]
+         [:button {:type "button" :id "norbert-delete"} (t "この会話を削除" "Delete conversation")]
+         [:a {:href (if ja? "/ja/billing/" "/billing/")} (t "利用設定" "Usage settings")])
+       (chat/panel {}
+         (chat/toolbar {}
+           [:button {:type "button" :id "norbert-menu" :data-ck-chat "history-toggle" :aria-controls "norbert-sidebar" :aria-expanded "false"} (t "会話" "Chats")]
+           [:span "qwen3.8-flash-next-whitehacker"]
+           [:button {:type "button" :id "norbert-settings-open"} (t "設定" "Settings")])
+         (chat/conversation {:id "norbert-conversation"}
+           (chat/welcome {:id "norbert-welcome"} [:h1 (t "何を調べますか？" "What would you like to investigate?")])
+           (chat/message-list {:id "norbert-messages" :aria-label (t "メッセージ" "Messages")}))
+         (chat/composer {:id "norbert-form"}
+           (chat/prompt {:id "norbert-prompt" :maxlength 24000 :required true :aria-label (t "メッセージ" "Message") :placeholder (t "コードや調べたいことを入力" "Enter code or a research question")})
+           (chat/composer-actions {}
+             [:span {:id "norbert-usage"}]
+             [:button {:type "submit" :id "norbert-send" :class "dads-button" :data-type "solid-fill"} (t "送信 ↑" "Send ↑")])
+           [:p {:id "norbert-status" :class "norbert-status" :role "status"}])) )
+     [:dialog {:id "norbert-settings" :class "norbert-settings" :aria-labelledby "norbert-settings-title"}
+      [:form {:method "dialog"} [:button (t "閉じる" "Close")]]
+      [:h2 {:id "norbert-settings-title"} (t "会話の設定" "Conversation settings")]
+      [:p {:id "norbert-access" :role "status"} (t "利用状態を確認しています…" "Checking access…")]
+      [:button {:type "button" :id "norbert-access-refresh"} (t "状態を更新" "Refresh status")]
+      [:p [:a {:href "/identity"} (t "本人確認へ進む" "Continue identity verification")]]
+      [:label {:for "norbert-scope"} (t "承認済みの研究スコープ ID" "Approved research scope ID")]
+      [:input {:id "norbert-scope" :maxlength 256}]
+      [:label {:for "norbert-task"} (t "調査の種類" "Research task")]
+      [:select {:id "norbert-task"}
+       [:option {:value "code-review"} (t "コードレビュー" "Code review")]
+       [:option {:value "vulnerability-triage"} (t "脆弱性の評価" "Vulnerability triage")]
+       [:option {:value "remediation"} (t "修正の検討" "Remediation")]]
+      [:p (t "履歴はこのページを開いている間だけ保持します。" "History is kept only while this page is open.")]
+      [:p [:a {:href login-href} (t "ログイン・本人確認" "Sign in and verify identity")]]
+      [:p [:a {:href (if ja? "/ja/about/#research-register" "/about/#research-register")} (t "利用条件・研究申請" "Access requirements and research application")]]]
+     [:script {:src "/js/chat-components.js" :defer true}]
+     [:script {:src "/js/norbert-chat.js" :defer true}]]))
