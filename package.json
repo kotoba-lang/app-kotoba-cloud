@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@noble/post-quantum": "0.7.1",
+    "stripe": "22.4.0",
     "svix": "1.92.2"
   }
 }

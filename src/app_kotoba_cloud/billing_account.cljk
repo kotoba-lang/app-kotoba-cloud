@@ -1,0 +1,170 @@
+(ns app-kotoba-cloud.billing-account
+  (:require [cljs.reader :as reader]
+            [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.billing-gateway :as gateway]
+            [app-kotoba-cloud.metronome :as metro]))
+(defn- response [body status]
+  (js/Response. (js/JSON.stringify (clj->js body)) #js {:status status :headers #js {"content-type" "application/json" "cache-control" "no-store, private"}}))
+(defn- decode [s] (when s (reader/read-string s)))
+(defn- config [env key] (js->clj (js/JSON.parse (aget env key))))
+(defn- save [storage key value] (.put storage key (pr-str value)))
+(defn- ensure-customer [storage env principal]
+  (-> (.get storage "customer")
+      (.then (fn [saved]
+               (if saved (js/Promise.resolve (decode saved))
+                 (-> (.create (.-customers (gateway/client env))
+                              #js {:metadata #js {:principal principal :service "kotoba.cloud"}}
+                              #js {:idempotencyKey (str "kotoba-customer:" principal)})
+                     (.then (fn [customer]
+                              (let [record {:stripe (.-id customer)}]
+                                (-> (save storage "customer" record) (.then (fn [_] record))))))))))))
+(defn- ensure-metronome [storage env principal customer]
+  (if (:metronome customer) (js/Promise.resolve customer)
+    (-> (metro/call env "/v1/customers" {:name (:stripe customer) :ingest_aliases [(:stripe customer)]}
+                    (str "kotoba-metro:" (:stripe customer)))
+        (.then (fn [result]
+                 (let [record (assoc customer :metronome (get-in result [:data :id]))]
+                   (-> (save storage "customer" record) (.then (fn [_] record)))))))))
+(defn- checkout [storage env principal {:keys [sku requestId]}]
+  (let [p (billing/plan sku) price (get (config env "STRIPE_PRICE_IDS") sku)]
+    (when-not (and p price (string? requestId) (re-matches #"[a-zA-Z0-9-]{16,64}" requestId))
+      (throw (ex-info "invalid-checkout" {})))
+    (-> (ensure-customer storage env principal)
+        (.then #(ensure-metronome storage env principal %))
+        (.then (fn [customer]
+                 (let [metadata {:principal principal :sku sku :catalog billing/version}
+                       params (cond-> {:customer (:stripe customer) :mode (if (:topup p) "payment" "subscription")
+                                       :line_items [{:price price :quantity 1}] :metadata metadata
+                                       :integration_identifier "kotoba_cloud_billing_qmxnptvz"
+                                       :success_url "https://kotoba.cloud/billing/?checkout=complete"
+                                       :cancel_url "https://kotoba.cloud/billing/?checkout=cancelled"}
+                                (not (:topup p)) (assoc :subscription_data {:metadata metadata}))]
+                   (-> (.create (.. (gateway/client env) -checkout -sessions) (clj->js params)
+                                #js {:idempotencyKey (str "kotoba-checkout:" (:stripe customer) ":" requestId)})
+                       (.then (fn [session]
+                                (-> (save storage (str "checkout:" (.-id session)) {:sku sku :customer (:stripe customer)})
+                                    (.then (fn [_] (response {:url (.-url session)} 200)))))))))))))
+(defn- ensure-contract [storage env customer scope]
+  (let [key (str "contract:" scope)]
+    (-> (.get storage key)
+        (.then (fn [saved]
+                 (if saved (js/Promise.resolve (decode saved))
+                   (-> (metro/call env "/v1/contracts/create"
+                                   {:customer_id (:metronome customer) :rate_card_id (aget env "METRONOME_RATE_CARD_ID")
+                                    :name (str "Kotoba Cloud " scope)
+                                    :starting_at (.toISOString (js/Date.))
+                                    :usage_filters [{:group_key "scope" :group_values [scope]}]
+                                    :uniqueness_key (str "kotoba:" (:stripe customer) ":" scope)}
+                                   (str "kotoba-contract:" (:stripe customer) ":" scope))
+                       (.then (fn [r] (let [id (get-in r [:data :id])]
+                                        (-> (save storage key id) (.then (fn [_] id)))))))))))))
+(defn- apply-grant [storage env customer grant]
+  (let [key (str "grant:" (:id grant)) scope (:scope grant)
+        product (get (config env "METRONOME_CREDIT_PRODUCTS") scope)
+        grant (if (:gib grant) (assoc grant :credits (/ (:gib grant) 5)) grant)]
+    (-> (.get storage key)
+        (.then (fn [seen]
+                 (if seen (js/Promise.resolve nil)
+                   (-> (ensure-contract storage env customer scope)
+                       (.then #(metro/grant env (:metronome customer) % product
+                                           (if (:gib grant) "storage.capacity" scope) grant))
+                       (.then (fn [r]
+                                (save storage key (assoc grant :metronome (get-in r [:data :id]))))))))))))
+(defn- event! [storage env event]
+  (-> (.get storage "customer")
+      (.then (fn [saved]
+               (let [customer (decode saved) object (get-in event [:data :object])]
+                 (when-not (and customer (= (:stripe customer) (:customer object)))
+                   (throw (ex-info "customer-mismatch" {})))
+                 (case (:type event)
+                   "invoice.paid"
+                   (-> (.retrieve (.-invoices (gateway/client env)) (:id object))
+                       (.then (fn [invoice]
+                                (let [i (js->clj invoice :keywordize-keys true)
+                                      prices (into {} (map (fn [[sku price]] [price sku]) (config env "STRIPE_PRICE_IDS")))
+                                      grants (keep #(billing/paid-line i % prices) (get-in i [:lines :data]))]
+                                  (when (get-in i [:lines :has_more]) (throw (ex-info "invoice-pagination-required" {})))
+                                  (reduce (fn [p grant] (.then p #(apply-grant storage env customer grant)))
+                                          (js/Promise.resolve nil) grants)))))
+                   ("checkout.session.completed" "checkout.session.async_payment_succeeded")
+                   (-> (.get storage (str "checkout:" (:id object)))
+                       (.then (fn [record]
+                                (let [sku (:sku (decode record)) p (billing/plan sku)]
+                                  (when (and (:topup p) (= "paid" (:payment_status object))
+                                             (= "payment" (:mode object)) (= "usd" (:currency object))
+                                             (= (:cents p) (:amount_subtotal object)))
+                                    (let [start (:created object)]
+                                      (apply-grant storage env customer
+                                                   {:id (str "checkout:" (:id object)) :sku sku :scope (:scope p)
+                                                    :credits (:credits p) :topup true :start start :end (+ start 31536000)})))))))
+                   ;; Stripe owns subscription state. Allowances are bounded by paid periods;
+                   ;; never grant or extend a period on subscription.updated.
+                   (js/Promise.resolve nil)))))
+      (.then (fn [_] (response {:received true} 200)))))
+(defn- enqueue-usage [state body]
+  (let [storage (aget state "storage")]
+    (-> (.get storage "customer")
+        (.then (fn [saved]
+                 (let [customer (decode saved)
+                       event (case (:kind body)
+                               "inference" (billing/token-event (:receipt body) (:metronome customer))
+                               "storage" (billing/storage-event (:receipt body) (:metronome customer))
+                               (throw (ex-info "unknown-meter" {})))
+                       key (str "usage:" (:transaction_id event))]
+                   (when-not (:metronome customer) (throw (ex-info "customer-not-provisioned" {})))
+                   (-> (.get storage key)
+                       (.then (fn [prior]
+                                (when (and prior (not= (:event (decode prior)) event))
+                                  (throw (ex-info "usage-id-conflict" {})))
+                                (when-not prior
+                                  (save storage key {:event event :pending true :enqueuedAt (js/Date.now)}))))
+                       (.then (fn [_] (js-invoke storage "setAlarm" (+ (js/Date.now) 1000))))
+                       (.then (fn [_] (response {:accepted true :id (:transaction_id event)} 202))))))))))
+(defn- flush-usage [state env]
+  (let [storage (aget state "storage")]
+    (-> (.list storage #js {:prefix "usage:"})
+        (.then (fn [rows]
+                 (let [pending (take 100 (filter (fn [[_ v]] (:pending (decode v))) (array-seq (js/Array.from rows))))]
+                   (when (seq pending)
+                     (when (some (fn [[_ v]] (> (- (js/Date.now) (:enqueuedAt (decode v))) (* 33 86400000))) pending)
+                       (throw (ex-info "usage-reconciliation-required" {})))
+                     (-> (metro/call env "/v1/ingest" (mapv (fn [[_ v]] (:event (decode v))) pending) (str (random-uuid)))
+                         (.then (fn [_]
+                                  (.all js/Promise (clj->js (map (fn [[key v]] (save storage key (assoc (decode v) :pending false))) pending)))))
+                         (.then (fn [_] (js-invoke storage "setAlarm" (+ (js/Date.now) 1000)))))))))
+        (.catch (fn [_] (js-invoke storage "setAlarm" (+ (js/Date.now) 60000)))))))
+(defn- handle [state env path body]
+  (let [storage (aget state "storage") principal (:principal body)]
+    (case path
+      "/usage" (enqueue-usage state body)
+      "/checkout" (checkout storage env principal body)
+      "/event" (event! storage env (:event body))
+      "/portal" (-> (.get storage "customer")
+                      (.then (fn [saved]
+                               (if-not saved (response {:error "no-billing-account"} 404)
+                                 (-> (.create (.. (gateway/client env) -billingPortal -sessions)
+                                              #js {:customer (:stripe (decode saved)) :return_url "https://kotoba.cloud/billing/" :configuration (aget env "STRIPE_PORTAL_CONFIGURATION_ID")})
+                                     (.then #(response {:url (.-url %)} 200)))))))
+      "/status" (-> (.get storage "customer")
+                      (.then (fn [saved]
+                               (if-let [customer (decode saved)]
+                                 (if (:metronome customer)
+                                   (-> (metro/call env "/v1/contracts/customerBalances/list"
+                                                   {:customer_id (:metronome customer) :include_balance true :include_contract_balances true}
+                                                   (str (random-uuid)))
+                                       (.then #(response {:status "connected" :balances (:data %)} 200)))
+                                   (response {:status "pending-metronome"} 200))
+                                 (response {:status "free" :balances []} 200)))))
+      (js/Promise.resolve (response {:error "not-found"} 404)))))
+(deftype BillingAccount [^js state env]
+  Object
+  (alarm [_] (.blockConcurrencyWhile state (fn [] (flush-usage state env))))
+  (fetch [_ request]
+    (if-not (= "https://billing.internal" (.-origin (js/URL. (.-url request))))
+      (js/Promise.resolve (response {:error "not-found"} 404))
+      (-> (.json request)
+          (.then (fn [body]
+                   (.blockConcurrencyWhile state
+                     (fn [] (handle state env (.-pathname (js/URL. (.-url request))) (js->clj body :keywordize-keys true))))))
+          (.catch (fn [_] (response {:error "billing-operation-pending"} 503)))))))
+(defn make-billing-account [state env] (BillingAccount. state env))

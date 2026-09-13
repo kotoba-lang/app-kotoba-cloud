@@ -1,0 +1,24 @@
+(ns app-kotoba-cloud.billing-test
+  (:require [clojure.test :refer [deftest is]] [app-kotoba-cloud.billing :as b]))
+(deftest receipt-metering
+  (let [r {:requestId "r1" :model "security" :inputTokens 100 :cachedInputTokens 40 :outputTokens 10 :occurredAt "2026-09-14T00:00:00Z"}
+        e (b/token-event r "customer")]
+    (is (= 60 (get-in e [:properties :input_tokens])))
+    (is (= 40 (get-in e [:properties :cached_input_tokens])))
+    (is (= "inference:r1" (:transaction_id e)))
+    (is (not (contains? (:properties e) :prompt)))
+    (doseq [bad [(assoc r :inputTokens -1) (assoc r :cachedInputTokens 101) (dissoc r :outputTokens)]]
+      (is (thrown? Exception (b/token-event bad "customer"))))))
+(deftest invoice-grants
+  (let [i {:id "in_1" :status "paid" :currency "usd" :billing_reason "subscription_cycle"}
+        l {:id "il_1" :quantity 1 :period {:start 10 :end 20} :pricing {:price_details {:price "price_1"}}}
+        prices {"price_1" "ai-builder"}]
+    (is (= 24 (:credits (b/paid-line i l prices))))
+    (doseq [bad [(assoc i :status "open") (assoc i :currency "jpy") (assoc i :billing_reason "subscription_update")]]
+      (is (nil? (b/paid-line bad l prices))))
+    (is (nil? (b/paid-line i (assoc l :proration true) prices)))
+    (is (nil? (b/paid-line i (assoc l :quantity 2) prices)))
+    (is (nil? (b/paid-line i l {})))))
+(deftest catalog-separation
+  (is (= 8 (count b/plans)))
+  (is (= "ai" (:scope (b/plan "ai-credits-25")))))

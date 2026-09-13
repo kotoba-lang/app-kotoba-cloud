@@ -1,0 +1,24 @@
+(ns app-kotoba-cloud.billing-browser)
+(defn- status! [message] (when-let [el (.getElementById js/document "billing-status")] (set! (.-textContent el) message)))
+(defn- action! [path sku]
+  (-> (js/fetch path #js {:method "POST" :credentials "same-origin" :headers #js {"content-type" "application/json"}
+                         :body (js/JSON.stringify #js {:sku sku :requestId (.randomUUID js/crypto)})})
+      (.then (fn [r] (if (.-ok r) (.json r) (throw (js/Error. "Billing is not available. Please sign in and try again.")))))
+      (.then (fn [body] (let [url (js/URL. (.-url body))]
+                         (if (and (= "https:" (.-protocol url)) (contains? #{"checkout.stripe.com" "billing.stripe.com"} (.-hostname url)))
+                           (.assign js/location (.-href url)) (throw (js/Error. "Invalid payment destination"))))))
+      (.catch #(status! (.-message %)))))
+(defn init! []
+  (when (.getElementById js/document "billing-status")
+    (-> (js/fetch "/v1/billing/catalog") (.then #(.json %))
+        (.then (fn [catalog]
+                 (if-not (true? (aget catalog "checkoutEnabled"))
+                   (status! "料金は検証中です / Billing setup is pending.")
+                   (do
+                     (doseq [button (array-seq (.querySelectorAll js/document "[data-billing-sku]"))]
+                       (set! (.-disabled button) false) (set! (.-textContent button) "選択 / Select")
+                       (.addEventListener button "click" #(action! "/v1/billing/checkout" (.getAttribute button "data-billing-sku"))))
+                     (let [button (.getElementById js/document "billing-portal")]
+                       (set! (.-disabled button) false)
+                       (.addEventListener button "click" #(action! "/v1/billing/portal" nil)))))))
+        (.catch (fn [_] (status! "料金情報を取得できません / Billing unavailable."))))))

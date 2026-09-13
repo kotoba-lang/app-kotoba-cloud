@@ -1,7 +1,8 @@
 (ns app-kotoba-cloud.site
   "Localized public pages for kotoba.cloud. Pure CLJC views render finite
   Worker Static Assets for every supported locale."
-  (:require [app-kotoba-cloud.chat-site :as chat-site]
+  (:require [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.chat-site :as chat-site]
             [app-kotoba-cloud.knowledge-site :as knowledge-site]
             [cloud-kotoba-dds.graph-workbench :as graph-workbench]
             [app-kotoba-cloud.identity-site :as identity-site]
@@ -406,28 +407,28 @@
      [:a {:href (:tokushoho-path t)} (:tokushoho-link t)]])])
 
 (defn billing-view [locale]
-  (let [t (translation locale) ja? (= locale :ja)
-        txt (fn [ja en] (if ja? ja en))]
+  (let [t (translation locale) ja? (= locale :ja) txt (fn [ja en] (if ja? ja en))]
     [[:a {:class "kc-skip" :href "#main"} (:skip t)]
      (site-header locale t {:language-ja "/ja/billing/" :language-en "/billing/"})
      [:main {:id "main"}
       (dds/container
-       (dds/section {:title (txt "料金と決済" "Plans and billing")}
-        [:p {:class "kc-lead"} (txt "ストレージとAI推論の決済を、AWAIで。" "Storage and AI inference, billed through AWAI.")]
-        [:p "AWAI Network, L.L.C. · Stripe Checkout"]
-        [:p (txt "使うサービスを選んで、購入内容と料金を確認できます。契約と利用枠はサービスごとに管理されます。" "Choose a service to review its plan and price. Subscriptions and usage allowances are managed per service.")]
-        (dds/grid {}
-         (dds/card
-          (dds/heading 2 "Kotobase" {:size "28"})
-          [:p (txt "アプリのデータを保存する" "Store your application's data")]
-          [:p (txt "Freeから開始。StarterとProfessionalの月額プランは、Kotobaseで内容を確認して購入できます。" "Start with Free. Review and subscribe to the monthly Starter or Professional plan on Kotobase.")]
-          (dds/button (txt "ストレージのプランを確認" "View storage plans") {:type :solid-fill :size "md" :href "https://kotobase.net/signup"}))
-         (dds/card
-          (dds/heading 2 "Murakumo" {:size "28"})
-          [:p (txt "分散ノードでAI推論を使う" "Run AI inference on distributed nodes")]
-          [:p (txt "推論用クレジットを購入。購入画面で、付与されるクレジットと支払額を確認できます。" "Buy inference credits. Review the credit allowance and payment amount before checkout.")]
-          (dds/button (txt "推論用クレジットを確認" "View inference credits") {:type :solid-fill :size "md" :href "https://murakumo.cloud/portal/#store"})))
-        [:p {:class "kc-legal__note"} (txt "Kotoba Cloudの制御・発見機能自体に、新たな月額課金はありません。請求のご相談は、購入したサービスの窓口へお問い合わせください。" "Kotoba Cloud's control and discovery features have no new monthly charge. For billing support, contact the service where you purchased.")]))]
+       (dds/section {:title (txt "推論・データベースの料金" "Inference and database plans")}
+        [:p (txt "検証中の料金案です。まだ本番で購入できません。価格は米ドル・税別です。" "Sandbox pricing proposal. Production purchases are not available yet. Prices are in USD, excluding tax.")]
+        [:p (txt "本人確認済みの無料研究枠は継続します。有料プランでも本人確認と研究対象の承認が必要です。" "Verified researchers retain the free research allowance. Paid plans still require identity verification and approved scope.")]
+        [:p (txt "推論とDBは別々に契約できます。1 credit = $1相当。用途別に残高を管理し、自動チャージは初期状態では無効です。" "Subscribe to inference and storage independently. One credit represents $1 of usage; balances are scoped by service. Automatic top-up is off by default.")]
+        (into [:div {:class "kc-billing-plans"}]
+              (for [p billing/plans]
+                (dds/card
+                 (dds/heading 2 (:name p) {:size "28"})
+                 [:p (str "$" (/ (:cents p) 100) (when-not (:topup p) (txt " / 月" " / month")))]
+                 [:p (if (:gib p) (str (:gib p) " GiB") (str (:credits p) " credits"))]
+                 [:button {:type "button" :data-billing-sku (:sku p) :disabled true}
+                  (txt "接続状況を確認中" "Checking availability")])) )
+        [:p {:id "billing-status" :role "status"}]
+        [:button {:id "billing-portal" :type "button" :disabled true} (txt "請求・解約の管理" "Manage billing and cancellation")]
+        (dds/heading 2 "Enterprise" {:size "28"})
+        [:p (txt "月額$1,000からの個別見積。年間コミット、用途別予算、組織の権限管理、監査ログ、専用推論・保管構成を契約に応じて設計します。SLAと専用容量は個別合意後に適用します。" "Custom quotes from $1,000/month: annual commitments, scoped budgets, organization permissions, audit logs, and dedicated inference/storage options. SLA and dedicated capacity require an agreed contract.")]
+        [:p (txt "月額枠は各請求期間末に失効し、追加creditsは購入から12か月有効です。残高不足で新しい有料処理を停止します。保存済みデータは自動削除しません。" "Monthly allowances expire at the end of their billing period; top-up credits last 12 months. New paid work stops when funds run out. Stored data is not automatically deleted.")]))]
      (site-footer t)]))
 
 (defn legal-rows [t]
@@ -744,7 +745,7 @@
      (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
            path (if ja? "/ja/billing/" "/billing/")]
        (apply page/->page
-              {:title title :description "AWAI billing for Kotobase storage and Murakumo inference."
+              {:title title :description "Kotoba Cloud inference, graph and ontology database subscriptions and credits."
                :lang (if ja? "ja" "en") :css (document-css) :app-css (str tokens/skin-css app-css research-site/css)
                :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/billing/"}]

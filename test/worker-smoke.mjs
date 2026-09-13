@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { route, resetFunnelStore } from "../build/worker.js";
 
@@ -815,3 +815,75 @@ assert.equal((await route(dbRequest({authorization:'Bearer fixture'},databasePat
 assert.equal(databaseCalls.length,1);
 assert.equal((await route(dbRequest({authorization:'Bearer fixture'}),{...env,DATABASE_SERVICE:{fetch:async()=>new Response(null,{status:302,headers:{location:'https://kotobase.net'}})}})).status,502);
 console.log('Database ingress CORS, CSRF, credential isolation, route bounds and body limits passed');
+
+// Billing remains closed until metering and mode-specific provider configuration exist.
+const { BillingAccount } = await import('../build/worker.js');
+let bill = await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {});
+assert.equal((await bill.json()).checkoutEnabled, false);
+bill = await route(new Request('https://kotoba.cloud/v1/billing/status'), {});
+assert.equal(bill.status, 401);
+bill = await route(new Request('https://kotoba.cloud/v1/billing/checkout', {method:'POST', headers:{origin:'https://evil.example','content-type':'application/json'},body:'{}'}), {});
+assert.equal(bill.status,403);
+const memory = new Map();
+const billingState = {storage:{get:async k=>memory.get(k), put:async(k,v)=>memory.set(k,v), list:async()=>new Map([...memory].filter(([k])=>k.startsWith('usage:'))),setAlarm:async()=>{}}, blockConcurrencyWhile: f=>f()};
+const billingEnv = {STRIPE_RESTRICTED_KEY:'sk_test_fixture_not_a_real_key', STRIPE_PRICE_IDS:JSON.stringify({'ai-builder':'price_fixture','ai-credits-25':'price_topup'}), METRONOME_API_KEY:'test-fixture',METRONOME_RATE_CARD_ID:'rate_fixture',METRONOME_CREDIT_PRODUCTS:JSON.stringify({ai:'product_fixture',storage:'storage_fixture'}), STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture'};
+const billingDO = BillingAccount(billingState,billingEnv);
+const doBill = async(path,body={})=>billingDO.fetch(new Request('https://billing.internal'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({principal:'principal_fixture',...body})}));
+assert.equal((await doBill('/status')).status,200);
+const providerCalls=[];
+const oldFetchBilling=globalThis.fetch;
+globalThis.fetch=async(url,init)=>{
+ const u=String(url);providerCalls.push({url:u,body:init?.body});
+ if(u==='https://api.stripe.com/v1/customers')return Response.json({id:'cus_fixture'});
+ if(u==='https://api.stripe.com/v1/checkout/sessions')return Response.json({id:'cs_fixture',url:'https://checkout.stripe.com/c/pay/fixture'});
+ if(u==='https://api.stripe.com/v1/invoices/in_fixture')return Response.json({id:'in_fixture',status:'paid',customer:'cus_fixture',currency:'usd',billing_reason:'subscription_cycle',lines:{has_more:false,data:[{id:'il_fixture',quantity:1,period:{start:1789257600,end:1791849600},pricing:{price_details:{price:'price_fixture'}}}]}});
+ if(u==='https://api.metronome.com/v1/customers')return Response.json({data:{id:'metro_fixture'}});
+ if(u==='https://api.metronome.com/v1/contracts/create')return Response.json({data:{id:'contract_fixture'}});
+ if(u==='https://api.metronome.com/v1/contracts/customerCommits/create')return Response.json({data:{id:'commit_fixture'}});
+ if(u==='https://api.metronome.com/v1/ingest')return Response.json({});
+ throw new Error('Unexpected billing provider URL '+u);
+};
+try {
+ let r=await doBill('/checkout',{sku:'ai-builder',requestId:'request_fixture_000000'});
+ assert.equal(r.status,503,'invalid id rejected');
+ r=await doBill('/checkout',{sku:'ai-builder',requestId:'request-fixture-000000'});
+ assert.equal(r.status,200,await r.clone().text());
+ assert.equal((await r.json()).url,'https://checkout.stripe.com/c/pay/fixture');
+ const e={type:'invoice.paid',data:{object:{id:'in_fixture',customer:'cus_fixture'}}};
+ r=await doBill('/event',{event:e});assert.equal(r.status,200,await r.clone().text());
+ r=await doBill('/event',{event:e});assert.equal(r.status,200);
+ assert.equal(providerCalls.filter(c=>c.url.endsWith('customerCommits/create')).length,1,'invoice replay cannot double grant');
+ const grant=JSON.parse(providerCalls.find(c=>c.url.endsWith('customerCommits/create')).body);
+ assert.equal(grant.access_schedule.schedule_items[0].amount,2400);
+ assert.deepEqual(grant.applicable_product_tags,['ai']);assert.equal(grant.invoice_schedule,undefined);
+ r=await doBill('/event',{event:{...e,data:{object:{id:'in_fixture',customer:'cus_other'}}}});assert.equal(r.status,503);
+ const receipt={requestId:'usage-fixture',model:'security',inputTokens:100,cachedInputTokens:40,outputTokens:10,occurredAt:'2026-09-14T00:00:00Z'};
+ r=await doBill('/usage',{kind:'inference',receipt});assert.equal(r.status,202);
+ await billingDO.alarm();
+ const usageCalls=()=>providerCalls.filter(c=>c.url.endsWith('/v1/ingest'));
+ assert.equal(usageCalls().length,1);
+ assert.equal(JSON.parse(usageCalls()[0].body)[0].properties.input_tokens,60);
+ await doBill('/usage',{kind:'inference',receipt});await billingDO.alarm();assert.equal(usageCalls().length,1);
+ r=await doBill('/usage',{kind:'inference',receipt:{...receipt,outputTokens:20}});assert.equal(r.status,503,'conflicting receipt rejected');
+} finally {globalThis.fetch=oldFetchBilling;}
+console.log('billing provider, invoice replay, tenant and durable usage checks passed');
+
+// Raw-body Stripe signature/mode enforcement precedes any account mutation.
+const webhookSecret = 'whsec_fixture_only';
+const webhookCalls = [];
+const webhookEnv = {...billingEnv, STRIPE_WEBHOOK_SECRET:webhookSecret, BILLING_MODE:'test', BILLING_ACCOUNTS:{idFromName:x=>x,get:id=>({fetch:async(url,init)=>{webhookCalls.push({id,body:JSON.parse(init.body)});return Response.json({received:true});}})}};
+const signedEvent = {id:'evt_fixture',livemode:false,type:'invoice.paid',data:{object:{id:'in_fixture',customer:'cus_fixture',parent:{subscription_details:{metadata:{principal:'principal_fixture'}}}}}};
+const rawEvent = JSON.stringify(signedEvent);
+const stamp = Math.floor(Date.now()/1000);
+const signature = (raw,t=stamp)=>`t=${t},v1=${createHmac('sha256',webhookSecret).update(`${t}.${raw}`).digest('hex')}`;
+const webhook = (raw,sig)=>route(new Request('https://api.kotoba.cloud/v1/billing/webhook',{method:'POST',headers:{'stripe-signature':sig},body:raw}),webhookEnv);
+assert.equal((await webhook(rawEvent,'t=0,v1=bad')).status,400);
+assert.equal((await webhook(rawEvent,signature(rawEvent,stamp-600))).status,400);
+assert.equal(webhookCalls.length,0);
+assert.equal((await webhook(rawEvent,signature(rawEvent))).status,200);
+assert.equal(webhookCalls.length,1);
+assert.equal(webhookCalls[0].id,'principal_fixture');
+const liveEvent = JSON.stringify({...signedEvent,livemode:true});
+assert.equal((await webhook(liveEvent,signature(liveEvent))).status,400);
+assert.equal(webhookCalls.length,1);
+console.log('Stripe webhook signature, timestamp and mode checks passed');

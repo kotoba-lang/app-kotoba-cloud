@@ -1,0 +1,55 @@
+{
+  "stripe_account": "acct_1U7sRyITDawH5x8a",
+  "livemode": false,
+  "catalog_version": "2026-09-14-v1",
+  "status": "sandbox-proposal",
+  "products": [
+    {
+      "sku": "ai-builder",
+      "id": "kotoba_cloud_ai_builder_v1",
+      "price": "price_1UFHFoITDawH5x8aAuDgYMRY"
+    },
+    {
+      "sku": "ai-team",
+      "id": "kotoba_cloud_ai_team_v1",
+      "price": "price_1UFHGAITDawH5x8aRYqBYUQb",
+      "error": false
+    },
+    {
+      "sku": "ai-scale",
+      "id": "kotoba_cloud_ai_scale_v1",
+      "price": "price_1UFHGBITDawH5x8a2KVerebT",
+      "error": false
+    },
+    {
+      "sku": "storage-builder",
+      "id": "kotoba_cloud_storage_builder_v1",
+      "price": "price_1UFHGCITDawH5x8aWVxVHkx1",
+      "error": false
+    },
+    {
+      "sku": "storage-team",
+      "id": "kotoba_cloud_storage_team_v1",
+      "price": "price_1UFHGDITDawH5x8aqWAGphEU",
+      "error": false
+    },
+    {
+      "sku": "storage-scale",
+      "id": "kotoba_cloud_storage_scale_v1",
+      "price": "price_1UFHGDITDawH5x8aYSV14JcT",
+      "error": false
+    },
+    {
+      "sku": "ai-credits-25",
+      "id": "kotoba_cloud_ai_credits_25_v1",
+      "price": "price_1UFHGEITDawH5x8arkcNfHgW",
+      "error": false
+    },
+    {
+      "sku": "storage-credits-25",
+      "id": "kotoba_cloud_storage_credits_25_v1",
+      "price": "price_1UFHGFITDawH5x8aAbVBVXhu",
+      "error": false
+    }
+  ]
+}
