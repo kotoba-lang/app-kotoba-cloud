@@ -45,7 +45,7 @@
                                :else (shared/bounded-json request 32768))
                          (.then (fn [body]
                                   (.fetch binding (str "https://identity.internal/" op)
-                                          (clj->js {:method "POST" :redirect "error" :signal (js/AbortSignal.timeout 60000)
+                                          (clj->js {:method "POST" :redirect "manual" :signal (js/AbortSignal.timeout 60000)
                                                     :headers {"content-type" (if upload? type "application/json")
                                                               "x-kotoba-principal" (:principalId viewer)
                                                               "x-kotoba-case" (or id "") "x-kotoba-slot" (or slot "")}
