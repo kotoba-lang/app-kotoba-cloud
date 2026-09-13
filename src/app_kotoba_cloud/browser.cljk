@@ -222,7 +222,7 @@
              (post-funnel-event! "signup" (cond-> {} bfcid (assoc :bfcid bfcid))))))))))
 
 (defn init! []
-  (if (= "/identity" (.-pathname js/location))
+  (if (contains? #{"/identity" "/identity/"} (.-pathname js/location))
     (identity-browser/init!)
     (do
   (research-browser/init!)
