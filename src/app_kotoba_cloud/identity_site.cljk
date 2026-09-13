@@ -1,4 +1,45 @@
 (ns app-kotoba-cloud.identity-site (:require [jp-go-dds.core :as dds]))
+(defn profile-fields [t]
+  [:div
+   (dds/heading 3 (t "所属組織" "Organization affiliation") {:size "24"})
+   [:label (t "所属の区分" "Affiliation type")
+    [:select {:id "identity-affiliation" :required true}
+     [:option {:value ""} (t "選択してください" "Select an option")]
+     [:option {:value "organization"} (t "組織に所属" "Affiliated with an organization")]
+     [:option {:value "independent"} (t "所属なし・個人研究者" "Independent researcher / no affiliation")]]]
+   [:div {:id "identity-organization-fields" :hidden true}
+    [:label (t "組織の正式名称" "Official organization name") [:input {:id "identity-organization-name" :maxlength 160 :required true :disabled true}]]
+    [:label (t "部署・役割" "Department / role") [:input {:id "identity-organization-role" :maxlength 160 :required true :disabled true}]]
+    [:label (t "所属の確認資料・照合先" "Affiliation evidence / verification source")
+     [:textarea {:id "identity-organization-evidence" :maxlength 512 :required true :disabled true
+                 :placeholder (t "公式の在籍者ページ、在籍証明書の参照番号など" "Official staff directory, employment certificate reference, etc.")}]]]
+   (dds/heading 3 (t "保有資格" "Professional qualifications") {:size "24"})
+   [:label (t "資格の有無" "Qualifications to declare")
+    [:select {:id "identity-qualification-status" :required true}
+     [:option {:value ""} (t "選択してください" "Select an option")]
+     [:option {:value "declared"} (t "保有資格を申告する" "Declare qualifications")]
+     [:option {:value "none"} (t "保有資格なし" "No qualifications")]]]
+   [:div {:id "identity-qualification-fields" :hidden true}
+    (into [:div]
+      (for [n (range 1 6) :let [prefix (str "identity-q" n "-")]]
+        [:fieldset {:id (str "identity-qualification-" n) :hidden (> n 1)}
+         [:legend (str (t "資格 " "Qualification ") n)]
+         [:label (t "資格名" "Qualification name") [:input {:id (str prefix "name") :maxlength 160 :required true :disabled true}]]
+         [:label (t "発行団体" "Issuing organization") [:input {:id (str prefix "issuer") :maxlength 160 :required true :disabled true}]]
+         [:label (t "資格番号・登録番号" "Credential / registration number") [:input {:id (str prefix "reference") :maxlength 160 :required true :disabled true}]]
+         [:label (t "確認資料・照合先" "Evidence / verification source")
+          [:textarea {:id (str prefix "evidence") :maxlength 512 :required true :disabled true
+                      :placeholder (t "発行団体の照合ページや証明書の参照番号" "Issuer verification page or certificate reference")}]]
+         [:label (t "有効期限" "Expiry date") [:input {:id (str prefix "expiry") :type "date" :required true :disabled true}]]
+         [:label {:class "kc-check"} [:input {:id (str prefix "no-expiry") :type "checkbox" :disabled true}]
+          (t "有効期限なし" "No expiry date")]]))
+    (dds/row (dds/button (t "資格を追加（最大5件）" "Add qualification (up to 5)") {:id "identity-qualification-add" :type :outline})
+             (dds/button (t "最後の資格を取り除く" "Remove last qualification") {:id "identity-qualification-remove" :type :outline}))]
+   [:p (t "所属・資格は自己申告として受け付け、担当者が在籍・発行元・名義・有効期限を照合します。未確認・期限切れの資格は確認済みとして扱いません。所属や資格だけで調査権限が付与されることはありません。"
+          "Affiliations and qualifications begin as self-declarations. Reviewers check membership, issuer, holder and expiry. Unverified or expired credentials are not treated as verified. Affiliation or qualifications alone do not grant research authorization.")]
+   [:p (t "所属なし・資格なしでも申請できます。資料は審査に必要な参照情報だけを入力し、パスワード・秘密鍵・無関係な個人情報は含めないでください。"
+          "Independent researchers and people without qualifications may apply. Enter only evidence references needed for review, never passwords, private keys or unrelated personal information.")]])
+
 (defn section [locale]
   (let [ja? (= locale :ja) t (fn [ja en] (if ja? ja en))]
     [:section {:id "identity-console" :class "kc-research-section" :hidden true}
@@ -17,11 +58,13 @@
        [:form {:id "identity-begin-form" :class "kc-research-form"}
         [:label (t "利用目的" "Purpose") [:textarea {:id "identity-purpose" :required true :maxlength 512}]]
         [:label (t "調査対象と許可の根拠" "Research scope and authorization") [:textarea {:id "identity-scope" :required true :maxlength 512}]]
+        (profile-fields t)
         [:label {:class "kc-check"} [:input {:id "identity-consent" :type "checkbox" :required true}]
-         (t "公開された取扱説明に同意して申請します。" "I consent to the published data handling notice.")]
+         (t "公開された取扱説明に同意し、所属・資格の申告内容が正確であることを確認して申請します。" "I consent to the published data handling notice and confirm that my affiliation and qualification declarations are accurate.")]
         [:p (t "受付開始前に、保存期間・削除窓口・運営主体をこの画面に公開します。現在は受付停止中です。"
                "Retention, deletion contacts and operator details must be published here before intake opens. Intake is currently closed.")]
         (dds/button (t "申請を開始" "Start application") {:id "identity-begin" :submit? true :disabled true})]
+       [:div {:id "identity-cases" :aria-live "polite"}]
        [:p {:id "identity-challenge"}]
        [:video {:id "identity-camera" :hidden true :autoplay true :playsinline true :muted true :style {:width "100%" :max-width "32rem"}}]
        (dds/row
@@ -35,10 +78,11 @@
                 (dds/button (t "申請・撮影データを削除" "Delete application & captures") {:id "identity-delete" :type :outline :disabled true}))]
       [:div {:id "identity-review-view" :hidden true}
        (dds/heading 2 (t "担当する審査" "Assigned reviews") {:size "24"})
-       [:p (t "担当登録済みの審査員だけが案件を引き受け、書類を閲覧できます。承認には別途ライブ面談・スクリーニング・対象の許可確認と審査署名が必要です。"
-              "Only registered reviewers can claim cases and view evidence. Approval also requires a live interview, screening, scope review and a registered review signature.")]
+       [:p (t "担当登録済みの審査員だけが案件を引き受け、書類を閲覧できます。承認には別途ライブ面談・スクリーニング・対象の許可確認に加え、申告された所属・資格の照合と審査署名が必要です。"
+              "Only registered reviewers can claim cases and view evidence. Approval also requires a live interview, screening, scope review, verification of declared affiliations and qualifications, and a registered review signature.")]
        [:div {:id "identity-queue"}]
        [:p {:id "identity-review-status" :role "status"}]
+       [:pre {:id "identity-review-profile" :hidden true :style {:white-space "pre-wrap" :overflow-wrap "anywhere"}}]
        [:img {:id "identity-review-document" :hidden true :alt (t "担当案件の書類" "Assigned case document") :style {:max-width "100%"}}]
        [:video {:id "identity-review-video" :hidden true :controls true :playsinline true :style {:max-width "100%"}}]
        [:p (t "署名済み審査票の検証処理は用意済みです。ブラウザでの承認・却下は審査員と署名鍵の登録後に接続します。"

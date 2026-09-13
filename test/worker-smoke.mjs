@@ -740,12 +740,27 @@ const identityEnv = { ...env, IDENTITY_AUTHORITY: { fetch: async (url, init) => 
   assert.equal(body.principal, undefined);
   assert.equal(body.authenticated, undefined);
   assert.equal(body['operator-signature-verified'], undefined);
+  assert.equal(body.researcherProfile, undefined);
+  if (op === "/profile") {
+    assert.equal(body.id, intakeId);
+    return Response.json({id: intakeId, revision: 2, researcherProfile: {version: "synthetic"}, privateKey: "never-forward"});
+  }
   return Response.json({ principalId: researchPrincipal, intakeEnabled: false, cases: [], reviewer: false, queue: [] });
 }}};
 assert.equal((await route(new Request('https://kotoba.cloud/v1/identity/status'), identityEnv)).status, 401);
 assert.equal((await route(researchRequest('/v1/identity/status'), env)).status, 503);
 assert.equal((await route(researchRequest('/v1/identity/start', { proof: 'signature', principal: 'forged', authenticated: true, 'operator-signature-verified': true }), identityEnv)).status, 200);
 assert.equal((await route(researchRequest('/v1/identity/start', {}, {origin: 'https://evil.example'}), identityEnv)).status, 403);
+const profilePath = `/v1/identity/profile?id=${intakeId}`;
+assert.equal((await route(new Request(`https://kotoba.cloud${profilePath}`), identityEnv)).status, 401);
+assert.equal((await route(researchRequest('/v1/identity/profile?id=bad'), identityEnv)).status, 400);
+assert.equal((await route(researchRequest(profilePath), env)).status, 503);
+const privateProfile = await route(researchRequest(profilePath), identityEnv);
+assert.equal(privateProfile.status, 200);
+assert.match(privateProfile.headers.get('cache-control'), /no-store/);
+assert.deepEqual(await privateProfile.json(), {id: intakeId, revision: 2, researcherProfile: {version: 'synthetic'}});
+const wrongProfile = {...env, IDENTITY_AUTHORITY: {fetch: async () => Response.json({id: 'another-case', researcherProfile: {private: true}})}};
+assert.equal((await route(researchRequest(profilePath), wrongProfile)).status, 502);
 const uploadIdentity = (bytes, type='image/jpeg') => new Request(`https://kotoba.cloud/v1/identity/upload?id=${intakeId}&slot=document`, {
   method:'PUT', headers: { cookie:'gftd_session=research-session', origin:'https://kotoba.cloud', 'content-type':type }, body:bytes });
 assert.equal((await route(uploadIdentity(new Uint8Array([1,2,3])), identityEnv)).status, 200);
