@@ -3,7 +3,8 @@
   Evidence is supplied only by the private research authority, never the browser.")
 
 (def policy-version "whitehat-2026-09-12-v1")
-(def model-id "qwen3.8-flash-next-cybersecurity-nvfp4")
+(def model-id "kotoba/norbert")
+(def upstream-model-id "qwen3.8-flash-next-cybersecurity-nvfp4")
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
 (def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
 (def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
@@ -12,7 +13,7 @@
                      :minBelief 0.85 :maxDisbelief 0.05 :maxUncertainty 0.20})
 (def catalog
   {:object "list"
-   :data [{:id model-id :object "model" :owned_by "murakumo"
+   :data [{:id model-id :object "model" :owned_by "kotoba"
            :upstream "https://api.murakumo.cloud/v1/chat/completions"
            :availability "upstream-tested-access-gated"
            :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}]

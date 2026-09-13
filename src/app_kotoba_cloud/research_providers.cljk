@@ -87,7 +87,7 @@
                    :signal (js/AbortSignal.timeout 2100000)
                    :headers #js {"content-type" "application/json"}
                    :body (js/JSON.stringify
-                          (clj->js {:model policy/model-id :stream false
+                          (clj->js {:model policy/upstream-model-id :stream false
                                     :messages (:messages request)
                                     :max_tokens (:max_tokens request)}))})
       (.then (fn [response]
@@ -95,7 +95,7 @@
                (gateway/bounded-json response 131072)))
       (.then (fn [result]
                (let [content (get-in result [:choices 0 :message :content])]
-                 (when-not (and (= policy/model-id (:model result))
+                 (when-not (and (= policy/upstream-model-id (:model result))
                                 (= "chat.completion" (:object result))
                                 (policy/text? content 65536))
                    (fail "unexpected-murakumo-model-or-response"))

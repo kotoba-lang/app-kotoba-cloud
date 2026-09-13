@@ -5,6 +5,8 @@
             [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
+(defn infrastructure-html [locale] (site/page-html locale site/infrastructure-view))
+
 (deftest locale-catalogs-have-the-same-contract
   (let [catalogs (map site/translation site/supported-locales)
         keysets (map (comp set #(remove #{:translation-note} %) keys) catalogs)]
@@ -18,7 +20,7 @@
       (is (= 3 (count (:library-steps catalog)))))))
 
 (deftest japanese-page-matches-the-language-concept
-  (let [html (site/page-html :ja)]
+  (let [html (infrastructure-html :ja)]
     (is (str/includes? html "<html lang=\"ja\""))
     (is (str/includes? html "ホワイトハットのための、セキュリティ AI。"))
     (is (str/includes? html "本人確認済みの研究者"))
@@ -40,7 +42,7 @@
     (is (str/includes? html "src=\"/js/session.js\""))))
 
 (deftest signed-in-product-links-use-the-target-bound-controller-handoff
-  (let [html (site/page-html :ja)]
+  (let [html (infrastructure-html :ja)]
     (is (str/includes? html "https://auth.kotoba.cloud/connect?target=kotobase"))
     (is (str/includes? html "https://auth.kotoba.cloud/connect?target=murakumo"))
     (is (str/includes? html "https://auth.kotoba.cloud/connect?target=itonami"))
@@ -50,7 +52,7 @@
 (deftest public-identity-and-passkey-ctas-use-auth-kotoba-cloud
   (testing "identity origin is a link; Passkey CTAs use the live /sign-in path"
     (doseq [locale site/supported-locales]
-      (let [html (site/page-html locale)
+      (let [html (infrastructure-html locale)
             sign-in (site/passkey-href locale)
             href-of (fn [url] (str "href=\"" url "\""))]
         (is (= sign-in (str "https://auth.kotoba.cloud/sign-in?return_to="
@@ -73,7 +75,7 @@
     (is (false? (get-in profile/control-plane [:deploy :hostedApply])))))
 
 (deftest english-page-is-complete-and-addressable
-  (let [html (site/page-html :en)]
+  (let [html (infrastructure-html :en)]
     (is (str/includes? html "<html lang=\"en\""))
     (is (str/includes? html "Security intelligence."))
     (is (str/includes? html "verified white-hat researchers"))
@@ -102,7 +104,7 @@
 
 (def public-html-pages
   (for [locale site/supported-locales
-        render [site/page-html site/legal-html site/tokushoho-html site/not-found-html]]
+        render [infrastructure-html site/legal-html site/tokushoho-html site/not-found-html]]
     (render locale)))
 
 (deftest public-operator-is-kotoba-labs-inc
@@ -147,7 +149,7 @@
            (get-in site/copy [:ja :philosophy]))))
   (testing "anonymous homepage keeps hosted-apply honesty but is not only a not-yet banner"
     (doseq [locale [:en :ja]]
-      (let [html (site/page-html locale)
+      (let [html (infrastructure-html locale)
             t (site/translation locale)]
         (is (str/includes? html "research-application"))
         (is (str/includes? html (:next-step t)))
@@ -169,7 +171,7 @@
 
 (deftest public-entry-locales-preserve-authority-boundaries-and-hreflang
   (doseq [[locale t] locales/copy]
-    (let [html (site/page-html locale)]
+    (let [html (infrastructure-html locale)]
       (is (str/includes? html (str "<html lang=\"" (name locale) "\" dir=\"" (locales/direction locale) "\">")))
       (doseq [key [:next-step
                    :identity-waiting :identity-done :signed-in-action
@@ -189,3 +191,11 @@
       (is (str/includes? html "https://kotobase.net/signup"))
       (is (str/includes? html "https://murakumo.cloud/portal/#store"))
       (is (not (str/includes? html "sk_live_"))))))
+
+(deftest home-is-a-shared-conversation-workspace
+  (doseq [locale [:ja :en]]
+    (let [html (site/page-html locale)]
+      (is (= 1 (count (re-seq #"<h1" html))))
+      (doseq [hook ["norbert-form" "norbert-history" "norbert-prompt" "norbert-settings" "kotoba/norbert" "/js/chat-components.js"]]
+        (is (str/includes? html hook) hook))
+      (is (not (str/includes? html "id=\"research-completion\""))))))
