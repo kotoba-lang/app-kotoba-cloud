@@ -863,6 +863,13 @@ try {
  const checkoutParams=new URLSearchParams(providerCalls.find(c=>c.url.endsWith('/checkout/sessions')).body);
  assert.equal(checkoutParams.get('line_items[0][price]'),'price_fixture');
  assert.equal(checkoutParams.has('line_items[1][price]'),false,'one recurring item includes both balances');
+ r=await doBill('/reserve',{id:'reserved-one',scope:'ai',maximum:10000000});assert.equal(r.status,200,await r.clone().text());
+ r=await doBill('/reserve',{id:'reserved-two',scope:'ai',maximum:3000000});assert.equal(r.status,402);
+ r=await doBill('/settle',{id:'reserved-one',actual:8000000,receiptId:'receipt-fixture'});assert.equal(r.status,200);
+ r=await doBill('/reserve',{id:'reserved-two',scope:'ai',maximum:3000000});assert.equal(r.status,200);
+ r=await doBill('/reserve',{id:'storage-one',scope:'storage.capacity',maximum:4000000});assert.equal(r.status,200);
+ r=await doBill('/reserve',{id:'storage-two',scope:'storage.capacity',maximum:1});assert.equal(r.status,402);
+ r=await doBill('/reserve',{id:'egress-one',scope:'storage',maximum:1});assert.equal(r.status,402,'included capacity cannot fund egress');
  r=await doBill('/event',{event:{...e,data:{object:{id:'in_fixture',customer:'cus_other'}}}});assert.equal(r.status,503);
  const receipt={requestId:'usage-fixture',model:'security',inputTokens:100,cachedInputTokens:40,outputTokens:10,occurredAt:'2026-09-14T00:00:00Z'};
  r=await doBill('/usage',{kind:'inference',receipt});assert.equal(r.status,202);

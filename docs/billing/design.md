@@ -1,6 +1,6 @@
 # Kotoba Cloud billing v2 — sandbox proposal
 
-Status: implementation and sandbox catalog; not production billing. Stacked on the first-party database integration PR. Metronome organization/environment and targeted API credential are awaiting owner input. Usage producers, admission reservations, refund reconciliation and end-to-end payment qualification must be completed before BILLING_METERING_READY is set. No existing research entitlement is removed or widened by payment.
+Status: implementation and sandbox catalog; not production billing. Stacked on the first-party database integration PR. Metronome is not configured (owner clarification); the existing Stripe account is available. Usage producers, admission reservations, refund reconciliation and end-to-end payment qualification must be completed before BILLING_METERING_READY is set. No existing research entitlement is removed or widened by payment.
 
 ## One platform subscription (USD, exclusive of tax)
 

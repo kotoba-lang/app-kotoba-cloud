@@ -1,6 +1,7 @@
 (ns app-kotoba-cloud.billing-account
   (:require [cljs.reader :as reader]
             [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.billing-limits :as limits]
             [app-kotoba-cloud.billing-gateway :as gateway]
             [app-kotoba-cloud.metronome :as metro]))
 (defn- response [body status]
@@ -58,18 +59,40 @@
                                    (str "kotoba-contract:" (:stripe customer) ":" scope))
                        (.then (fn [r] (let [id (get-in r [:data :id])]
                                         (-> (save storage key id) (.then (fn [_] id)))))))))))))
+(defn- mirror-grant [storage grant]
+  (-> (.get storage "limits")
+      (.then (fn [saved]
+               (save storage "limits"
+                     (limits/grant (or (decode saved) limits/empty-ledger)
+                                   {:id (:id grant) :scope (if (:gib grant) "storage.capacity" (:scope grant))
+                                    :amount (* 1000000 (:credits grant)) :topup (boolean (:topup grant))
+                                    :start (:start grant) :end (:end grant)}))))))
 (defn- apply-grant [storage env customer grant]
   (let [key (str "grant:" (:id grant)) scope (:scope grant)
         product (get (config env "METRONOME_CREDIT_PRODUCTS") scope)
         grant (if (:gib grant) (assoc grant :credits (/ (:gib grant) 5)) grant)]
     (-> (.get storage key)
         (.then (fn [seen]
-                 (if seen (js/Promise.resolve nil)
+                 (if seen (mirror-grant storage grant)
                    (-> (ensure-contract storage env customer scope)
                        (.then #(metro/grant env (:metronome customer) % product
                                            (if (:gib grant) "storage.capacity" scope) grant))
                        (.then (fn [r]
-                                (save storage key (assoc grant :metronome (get-in r [:data :id]))))))))))))
+                                (save storage key (assoc grant :metronome (get-in r [:data :id])))))
+                       (.then (fn [_] (mirror-grant storage grant))))))))))
+(defn- admission [storage operation body]
+  (-> (.get storage "limits")
+      (.then (fn [saved]
+               (let [ledger (or (decode saved) limits/empty-ledger)
+                     next ((if (= operation "/reserve") limits/reserve limits/settle)
+                           ledger (assoc body :now (js/Math.floor (/ (js/Date.now) 1000))))]
+                 (-> (save storage "limits" next)
+                     (.then (fn [_]
+                              (response (if (:frozen next) {:error "billing-reconciliation-required"}
+                                            (get-in next [:reservations (:id body)]))
+                                        (if (:frozen next) 503 200))))))))
+      (.catch (fn [e] (response {:error (or (ex-message e) "admission-unavailable")}
+                               (if (= "usage-limit-exceeded" (ex-message e)) 402 503))))))
 (defn- event! [storage env event]
   (-> (.get storage "customer")
       (.then (fn [saved]
@@ -137,6 +160,7 @@
 (defn- handle [state env path body]
   (let [storage (aget state "storage") principal (:principal body)]
     (case path
+      ("/reserve" "/settle") (admission storage path body)
       "/usage" (enqueue-usage state body)
       "/checkout" (checkout storage env principal body)
       "/event" (event! storage env (:event body))

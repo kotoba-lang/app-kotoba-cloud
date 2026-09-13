@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.billing-test
-  (:require [clojure.test :refer [deftest is]] [app-kotoba-cloud.billing :as b]))
+  (:require [clojure.test :refer [deftest is]] [app-kotoba-cloud.billing :as b] [app-kotoba-cloud.billing-limits :as limits]))
 (deftest receipt-metering
   (let [r {:requestId "r1" :model "security" :inputTokens 100 :cachedInputTokens 40 :outputTokens 10 :occurredAt "2026-09-14T00:00:00Z"}
         e (b/token-event r "customer")]
@@ -37,3 +37,30 @@
     (is (= [ai storage] (b/allowance-grants line))))
   (is (nil? (b/plan "ai-builder")))
   (is (every? #(and (:gib %) (:credits %) (= "platform" (:scope %))) (remove :topup b/plans))))
+
+(deftest admission-reservations
+  (let [g {:id "included" :scope "ai" :amount 100 :start 10 :end 20 :topup false}
+        l (limits/grant limits/empty-ledger g)
+        r {:id "one" :scope "ai" :maximum 80 :now 15}
+        held (limits/reserve l r)
+        settled (limits/settle held {:id "one" :actual 50 :receiptId "receipt1"})]
+    (is (= l (limits/grant l g)))
+    (is (= held (limits/reserve held r)))
+    (is (thrown? Exception (limits/reserve held (assoc r :id "two" :maximum 30))))
+    (is (thrown? Exception (limits/reserve l (assoc r :scope "storage"))))
+    (is (thrown? Exception (limits/reserve l (assoc r :now 20))))
+    (is (thrown? Exception (limits/reserve held (assoc r :maximum 50))))
+    (is (= 50 (get-in settled [:spent "included"])))
+    (is (= settled (limits/settle settled {:id "one" :actual 50 :receiptId "receipt1"})))
+    (is (thrown? Exception (limits/settle settled {:id "one" :actual 49 :receiptId "receipt1"})))
+    (is (limits/reserve settled (assoc r :id "two" :maximum 50)))
+    (is (:frozen (limits/settle held {:id "one" :actual 81 :receiptId "receipt1"})))
+    (is (thrown? Exception (limits/reserve (assoc held :frozen true) (assoc r :id "two"))))))
+(deftest included-before-topup
+  (let [l (-> limits/empty-ledger
+              (limits/grant {:id "z-included" :scope "ai" :amount 30 :start 10 :end 20 :topup false})
+              (limits/grant {:id "a-topup" :scope "ai" :amount 100 :start 10 :end 50 :topup true})
+              (limits/reserve {:id "r" :scope "ai" :maximum 80 :now 15})
+              (limits/settle {:id "r" :actual 40 :receiptId "receipt"}))]
+    (is (= 30 (get-in l [:spent "z-included"])))
+    (is (= 10 (get-in l [:spent "a-topup"])))))

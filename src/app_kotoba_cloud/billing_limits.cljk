@@ -1,0 +1,55 @@
+(ns app-kotoba-cloud.billing-limits
+  "Fail-closed local admission mirror. Amounts are integer micro-USD, never floats.")
+(def empty-ledger {:grants {} :reservations {} :spent {} :frozen false})
+(defn amount? [v] (and (integer? v) (<= 0 v 1000000000000)))
+(defn grant [ledger g]
+  (let [id (:id g)]
+    (when-not (and (string? id) (amount? (:amount g))
+                   (contains? #{"ai" "storage" "storage.capacity"} (:scope g))
+                   (integer? (:start g)) (integer? (:end g)) (< (:start g) (:end g)))
+      (throw (ex-info "invalid-grant" {})))
+    (if-let [prior (get-in ledger [:grants id])]
+      (if (= prior g) ledger (throw (ex-info "grant-conflict" {})))
+      (assoc-in ledger [:grants id] g))))
+(defn- held [ledger id]
+  (reduce + 0 (for [[_ r] (:reservations ledger) :when (= "held" (:status r))]
+                (get (:allocations r) id 0))))
+(defn reserve [ledger {:keys [id scope maximum now] :as request}]
+  (when-not (and (string? id) (<= 1 (count id) 100) (amount? maximum) (pos? maximum)
+                 (contains? #{"ai" "storage" "storage.capacity"} scope) (integer? now))
+    (throw (ex-info "invalid-reservation" {})))
+  (when (:frozen ledger) (throw (ex-info "billing-frozen" {})))
+  (if-let [prior (get-in ledger [:reservations id])]
+    (if (= (select-keys prior [:scope :maximum]) (select-keys request [:scope :maximum]))
+      ledger (throw (ex-info "reservation-conflict" {})))
+    (let [eligible (sort-by (juxt :topup :end :id)
+                           (filter #(and (or (= scope (:scope %))
+                                              (and (= scope "storage.capacity") (= "storage" (:scope %))))
+                                         (<= (:start %) now) (< now (:end %)))
+                                   (vals (:grants ledger))))
+          [remaining allocations]
+          (reduce (fn [[remaining allocations] g]
+                    (let [id (:id g) available (max 0 (- (:amount g) (get (:spent ledger) id 0) (held ledger id)))
+                          take (min remaining available)]
+                      [(- remaining take) (cond-> allocations (pos? take) (assoc id take))]))
+                  [maximum {}] eligible)]
+      (when (pos? remaining) (throw (ex-info "usage-limit-exceeded" {})))
+      (assoc-in ledger [:reservations id] {:scope scope :maximum maximum :allocations allocations :allocationOrder (mapv :id eligible) :status "held"}))))
+(defn settle [ledger {:keys [id actual receiptId]}]
+  (when-not (and (amount? actual) (string? receiptId) (<= 1 (count receiptId) 200))
+    (throw (ex-info "invalid-settlement" {})))
+  (let [r (get-in ledger [:reservations id])]
+    (when-not r (throw (ex-info "reservation-required" {})))
+    (if (= "settled" (:status r))
+      (if (= [actual receiptId] [(:actual r) (:receiptId r)]) ledger
+          (throw (ex-info "settlement-conflict" {})))
+      ;; An underestimated provider receipt must freeze further admission without
+      ;; releasing the hold or pretending the excess cost was paid.
+      (if (> actual (:maximum r))
+        (assoc ledger :frozen true :reconciliation {:id id :actual actual :receiptId receiptId})
+        (let [[_ spent] (reduce (fn [[remaining spent] [grant-id held]]
+                                 (let [used (min remaining held)]
+                                   [(- remaining used) (update spent grant-id (fnil + 0) used)]))
+                               [actual (:spent ledger)] (map (fn [id] [id (get (:allocations r) id 0)]) (:allocationOrder r)))]
+          (-> ledger (assoc :spent spent)
+              (assoc-in [:reservations id] (assoc r :status "settled" :actual actual :receiptId receiptId))))))))

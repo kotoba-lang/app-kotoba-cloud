@@ -21,3 +21,11 @@ Required Metronome product tags: ai for token usage; storage for DB usage, and s
 Previous v1 local validation: 86 tests / 3112 assertions, zero failures; compiled Worker smoke exercises checkout adapter, invoice replay, customer mismatch, stable usage IDs, conflicting receipts, webhook signature/timestamp/mode; Wrangler 4.131.1 dry-run passes. Provider calls in the Worker smoke are fixtures. No real payment, Metronome grant, runtime secret change, or production deployment has occurred.
 
 V2 validation: 87 tests / 3123 assertions pass; compiled Worker tests verify one recurring line grants both the AI and storage capacity balances, with distinct replay IDs and unchanged paid periods. Browser preview shows the three bundled plans. Build and Wrangler dry-run pass. Verification uses the explicit JVM compatibility build, not native qualification. Provider lifecycle calls are fixtures; the three bundled Stripe Products/Prices were created in the real test-mode account. No production billing was enabled.
+
+## Connection findings (2026-09-14)
+
+Owner clarified Metronome is not configured; an existing Stripe account did not imply a Metronome organization or API token. No Metronome connection or live end-to-end payment qualification is claimed.
+
+Read-only Stripe live checks for acct_1U7sRyITDawH5x8a: tax.settings status pending; head_office absent; missing_fields contains head_office. tax.registrations returned an empty list with has_more=false. No settings or registrations were changed. automatic_tax remains disabled. An empty Stripe list does not establish the company's legal registration obligations or registrations outside Stripe.
+
+The local admission mirror now reserves scoped micro-USD amounts under the per-account Durable Object serialization boundary and settles against a terminal receipt ID. Grants are mirrored only after Metronome accepts them; retries can restore a missing mirror. Included funds are used before top-ups. Missing receipts retain holds, over-budget receipts freeze admission, and expired grants cannot fund new reservations. Provider and database producers still need to call this interface before execution, and reconciliation with the remote ledger is still required. Do not enable billing flags based on these unit/fixture checks.
