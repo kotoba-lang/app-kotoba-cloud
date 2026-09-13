@@ -1,6 +1,7 @@
 (ns app-kotoba-cloud.worker
   (:require [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.boot :as boot]
+            [app-kotoba-cloud.knowledge :as knowledge]
             [app-kotoba-cloud.funnel :as funnel]
             [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.research :as research]
@@ -605,6 +606,9 @@
     (cond
       (= hostname "boot.kotoba.cloud")
       (route-boot-host request env path)
+
+      (contains? knowledge/paths path)
+      (knowledge/route request env)
 
       (identity-gateway/operation path)
       (identity-gateway/route request env fetch-viewer private-json-response)
