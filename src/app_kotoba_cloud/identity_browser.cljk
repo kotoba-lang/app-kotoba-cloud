@@ -6,6 +6,68 @@
 (defn el [id] (.getElementById js/document id))
 (defn say! [s] (set! (.-textContent (el "identity-status")) s))
 (defn disabled! [id value] (set! (.-disabled (el id)) value))
+(def profile-version "kotoba-researcher-profile-2026-09-v1")
+(defn value [id] (.trim (.-value (el id))))
+(defn profile-fields! []
+  (let [organization? (= "organization" (value "identity-affiliation"))
+        declared? (= "declared" (value "identity-qualification-status"))
+        n (or (:qualification-count @state) 1) locked? (or (:starting @state) (some? (:case @state)))]
+    (set! (.-hidden (el "identity-organization-fields")) (not organization?))
+    (doseq [field ["name" "role" "evidence"]]
+      (disabled! (str "identity-organization-" field) (or locked? (not organization?))))
+    (set! (.-hidden (el "identity-qualification-fields")) (not declared?))
+    (doseq [i (range 1 6)]
+      (let [active? (and declared? (<= i n)) prefix (str "identity-q" i "-")
+            no-expiry? (.-checked (el (str prefix "no-expiry")))]
+        (set! (.-hidden (el (str "identity-qualification-" i))) (not active?))
+        (doseq [field ["name" "issuer" "reference" "evidence" "no-expiry"]]
+          (disabled! (str prefix field) (or locked? (not active?))))
+        (disabled! (str prefix "expiry") (or locked? (not active?) no-expiry?))))
+    (disabled! "identity-qualification-add" (or locked? (>= n 5)))
+    (disabled! "identity-qualification-remove" (or locked? (<= n 1)))
+    (doseq [id ["identity-affiliation" "identity-qualification-status" "identity-purpose" "identity-scope" "identity-consent"]]
+      (disabled! id locked?))))
+(defn profile-declaration []
+  {:version profile-version
+   :affiliation (if (= "organization" (value "identity-affiliation"))
+                  {:kind "organization" :name (value "identity-organization-name")
+                   :role (value "identity-organization-role") :evidence (value "identity-organization-evidence")}
+                  {:kind (value "identity-affiliation")})
+   :qualification-status (value "identity-qualification-status")
+   :qualifications (if (= "declared" (value "identity-qualification-status"))
+                     (mapv (fn [i]
+                             (let [prefix (str "identity-q" i "-") no-expiry? (.-checked (el (str prefix "no-expiry")))]
+                               {:id (str "q" i) :name (value (str prefix "name")) :issuer (value (str prefix "issuer"))
+                                :reference (value (str prefix "reference")) :evidence (value (str prefix "evidence"))
+                                :no-expiry no-expiry?
+                                :expires-at (when-not no-expiry? (+ 86400000 (js/Date.parse (str (value (str prefix "expiry")) "T00:00:00Z"))))}))
+                           (range 1 (inc (or (:qualification-count @state) 1)))) [] )})
+(defn status-label [s]
+  (get {"verified" "確認済み" "pending" "未確認・審査待ち" "expired" "期限切れ"
+        "revoked" "失効" "declared-none" "なし（自己申告）"} s "未確認"))
+(defn profile-summary [summary]
+  (str "所属：" (status-label (:affiliation summary)) " / 資格："
+       (if (= "declared-none" (:qualificationStatus summary)) "なし（自己申告）"
+         (apply str (interpose "、" (map #(str (:id %) " " (status-label (:status %))) (:qualifications summary)))))))
+(defn review-profile! [id]
+  (-> (api/api (str "/v1/identity/profile?id=" (js/encodeURIComponent id)) nil)
+      (.then (fn [r]
+               (when-not (:httpOk r) (throw (js/Error. "profile unavailable")))
+               (when (= id (:review-case @state))
+               (let [p (:researcherProfile r) org (:affiliation p) target (el "identity-review-profile")]
+                 (set! (.-textContent target)
+                       (str "所属・資格の申告（この表示は検証結果ではありません）\n"
+                            "案件：" id " / revision：" (:revision r) "\n"
+                            (if (= "independent" (:kind org)) "所属なし（自己申告）"
+                              (str "組織：" (:name org) "\n部署・役割：" (:role org) "\n照合先：" (:evidence org)))
+                            "\n"
+                            (if (= "none" (:qualification-status p)) "資格なし（自己申告）"
+                              (apply str (map #(str "\n" (:id %) "：" (:name %) "\n発行元：" (:issuer %)
+                                                   "\n番号：" (:reference %) "\n照合先：" (:evidence %)
+                                                   "\n有効期限：" (if (:no-expiry %) "なし" (.slice (.toISOString (js/Date. (dec (:expires-at %)))) 0 10)) "\n")
+                                              (:qualifications p))))
+                            "\n" (profile-summary (:profileSummary r))))
+                 (set! (.-hidden target) false)))))))
 (defn revoke! [id]
   (when-let [url (get-in @state [:urls id])] (.revokeObjectURL js/URL url))
   (swap! state update :urls dissoc id)
@@ -28,7 +90,10 @@
 (defn clear! []
   (stop!)
   (doseq [id ["identity-photo-preview" "identity-video-preview" "identity-review-document" "identity-review-video"]] (revoke! id))
-  (swap! state dissoc :document :video :keys :case)
+  (swap! state dissoc :document :video :keys :case :review-case :starting)
+  (set! (.-textContent (el "identity-review-profile")) "")
+  (set! (.-hidden (el "identity-review-profile")) true)
+  (profile-fields!)
   (disabled! "identity-submit" true))
 (defn b64 [bytes]
   (-> (js/btoa (apply str (map #(js/String.fromCharCode %) (array-seq (js/Uint8Array. bytes)))))
@@ -45,7 +110,8 @@
 (defn refresh! []
   (-> (api/api "/v1/identity/status" nil)
       (.then (fn [r]
-               (let [ready (and (:httpOk r) (true? (:intakeEnabled r)))]
+               (let [ready (and (:httpOk r) (true? (:intakeEnabled r))
+                                (= profile-version (:profilePolicyVersion r)))]
                  (swap! state assoc :ready ready :principal (:principalId r))
                  (disabled! "identity-begin" (or (not ready) (some? (:case @state))))
                  (disabled! "identity-camera-start" (or (not ready) (nil? (:case @state))))
@@ -55,6 +121,12 @@
                  (when (and (:httpOk r) (seq (:cases r)) (nil? (:case @state)))
                    (say! "既存の申請があります。再開用の鍵はこの画面にありません。担当窓口で確認してください。")
                    (disabled! "identity-begin" true))
+                 (.replaceChildren (el "identity-cases"))
+                 (doseq [record (:cases r)]
+                   (let [row (.createElement js/document "p")]
+                     (set! (.-textContent row) (str (:id record) " / " (:status record) " / "
+                                                   (if (:profileSummary record) (profile-summary (:profileSummary record)) "所属・資格は未確認")))
+                     (.append (el "identity-cases") row)))
                  (.replaceChildren (el "identity-queue"))
                  (doseq [r (:queue r)]
                    (let [row (.createElement js/document "p") button (.createElement js/document "button")]
@@ -62,9 +134,13 @@
                      (set! (.-textContent button) "担当して確認")
                      (.addEventListener button "click"
                        (fn []
+                         (swap! state assoc :review-case (:id r))
+                         (set! (.-textContent (el "identity-review-profile")) "")
+                         (set! (.-hidden (el "identity-review-profile")) true)
                          (-> (if (= "pending-review" (:status r))
                                (-> (api/api "/v1/identity/claim" {:id (:id r)}) (.then checked!))
                                (js/Promise.resolve nil))
+                             (.then (fn [_] (review-profile! (:id r))))
                              (.then (fn [_]
                                       (doseq [[slot target] [["document" "identity-review-document"] ["live-video" "identity-review-video"]]]
                                         (-> (js/fetch (str "/v1/identity/evidence?id=" (js/encodeURIComponent (:id r)) "&slot=" slot) #js {:credentials "same-origin" :cache "no-store"})
@@ -139,23 +215,33 @@
         (.catch #(say! "提出の完了を確認できません。再送せず、状態を更新してください。")))))
 (defn begin! [event]
   (.preventDefault event)
-  (when (and (:ready @state) (.-checked (el "identity-consent")))
+  (when (and (:ready @state) (nil? (:case @state)) (not (:starting @state))
+             (.-checked (el "identity-consent"))
+             (.reportValidity (el "identity-begin-form")))
     (disabled! "identity-begin" true)
+    (swap! state assoc :starting true)
+    (profile-fields!)
     (-> (.generateKey (.-subtle js/crypto) "Ed25519" false #js ["sign" "verify"])
         (.then (fn [keys] (swap! state assoc :keys keys) (.exportKey (.-subtle js/crypto) "jwk" (.-publicKey keys))))
         (.then (fn [jwk]
                  (let [public (select-keys (js->clj jwk :keywordize-keys true) [:kty :crv :x])]
-                   (-> (sign! {:action "start" :consent true :notice-version "kotoba-web-intake-2026-09-v1"
-                               :purpose (.-value (el "identity-purpose")) :scope (.-value (el "identity-scope"))})
+                   (-> (sign! {:action "start" :consent true :notice-version "kotoba-web-intake-2026-09-v2"
+                               :purpose (value "identity-purpose") :scope (value "identity-scope")
+                               :researcher-profile (profile-declaration)})
                        (.then #(api/api "/v1/identity/start" {:holderJwk public :proof %}))))))
         (.then checked!)
-        (.then (fn [r] (swap! state assoc :case r)
+        (.then (fn [r] (swap! state assoc :case r :starting false)
+                 (profile-fields!)
                  (set! (.-textContent (el "identity-challenge")) (str "撮影時に次の確認番号を示してください：" (:nonce r)))
                  (disabled! "identity-camera-start" false) (disabled! "identity-delete" false)
-                 (say! "書類写真と、確認番号・顔・書類が確認できる動画を撮影してください。別途担当者とのライブ確認が必要です。")))
-        (.catch #(say! "申請を開始できません。状態を更新してください。")))))
+                 (say! "所属・資格の申告を確定しました。書類写真と、確認番号・顔・書類が確認できる動画を撮影してください。別途担当者とのライブ確認が必要です。")))
+        (.catch (fn [_] (swap! state dissoc :starting) (profile-fields!)
+                  (say! "申請を開始できません。状態を更新してください。"))))))
 (defn view! []
   (stop!)
+  (swap! state dissoc :review-case)
+  (set! (.-textContent (el "identity-review-profile")) "")
+  (set! (.-hidden (el "identity-review-profile")) true)
   (doseq [id ["identity-review-document" "identity-review-video"]] (revoke! id))
   (let [review? (= "#review" (.-hash js/location))]
     (set! (.-hidden (el "identity-capture-view")) review?)
@@ -170,6 +256,14 @@
         (.set (.-searchParams url) "return_to" "https://kotoba.cloud/identity")
         (set! (.-href login) (.toString url))))
     (.addEventListener (el "identity-begin-form") "submit" begin!)
+    (doseq [id (concat ["identity-affiliation" "identity-qualification-status"]
+                       (map #(str "identity-q" % "-no-expiry") (range 1 6)))]
+      (.addEventListener (el id) "change" profile-fields!))
+    (.addEventListener (el "identity-qualification-add") "click"
+      (fn [] (swap! state update :qualification-count #(min 5 (inc (or % 1)))) (profile-fields!)))
+    (.addEventListener (el "identity-qualification-remove") "click"
+      (fn [] (swap! state update :qualification-count #(max 1 (dec (or % 1)))) (profile-fields!)))
+    (profile-fields!)
     (doseq [[id f] [["identity-refresh" refresh!] ["identity-camera-start" camera!] ["identity-photo" photo!]
                     ["identity-video" record!] ["identity-camera-stop" stop!] ["identity-submit" submit!]
                     ["identity-delete" (fn [] (when-let [id (get-in @state [:case :id])]

@@ -1,7 +1,7 @@
 (ns app-kotoba-cloud.identity-gateway
   "First-party identity transport. Dedicated private binding, no public evidence URL."
   (:require [app-kotoba-cloud.research-gateway :as shared]))
-(def operations #{"status" "start" "submit" "claim" "decision" "delete" "upload" "evidence"})
+(def operations #{"status" "start" "submit" "claim" "decision" "delete" "upload" "evidence" "profile"})
 (defn operation [path] (when-let [[_ op] (re-matches #"/v1/identity/([a-z]+)" path)] (when (operations op) op)))
 (defn bounded-bytes [message limit]
   (if-not (.-body message) (js/Promise.reject (ex-info "empty" {:status 400}))
@@ -19,7 +19,7 @@
 (defn- fail [respond status code] (respond {:error {:code code}} status))
 (defn route [request ^js env viewer! respond]
   (let [url (js/URL. (.-url request)) op (operation (.-pathname url)) method (.-method request)
-        read? (contains? #{"status" "evidence"} op) upload? (= op "upload")
+        read? (contains? #{"status" "evidence" "profile"} op) upload? (= op "upload")
         type (.get (.-headers request) "content-type") binding (.-IDENTITY_AUTHORITY env)
         id (.get (.-searchParams url) "id") slot (.get (.-searchParams url) "slot")]
     (cond
@@ -31,6 +31,8 @@
       (and (contains? #{"upload" "evidence"} op)
            (not (and (string? id) (re-matches #"[a-f0-9-]{36}" id) (contains? #{"document" "live-video"} slot))))
       (fail respond 400 "invalid-evidence-reference")
+      (and (= op "profile") (not (and (string? id) (re-matches #"[a-f0-9-]{36}" id))))
+      (fail respond 400 "invalid-case-reference")
       :else
       (-> (viewer! request)
           (.then (fn [viewer]
@@ -63,9 +65,11 @@
                                                                                                   "cross-origin-resource-policy" "same-origin"}})))))
                                       (-> (shared/bounded-json r 65536)
                                           (.then (fn [payload]
-                                                   (if (and (= op "status") (not= (:principalId viewer) (:principalId payload)))
+                                                   (if (or (and (= op "status") (not= (:principalId viewer) (:principalId payload)))
+                                                           (and (= op "profile") (not= id (:id payload))))
                                                      (fail respond 502 "invalid-identity-response")
-                                                     (respond (select-keys payload [:policyVersion :principalId :intakeEnabled :cases :reviewer :queue
+                                                     (respond (select-keys payload [:policyVersion :profilePolicyVersion :principalId :intakeEnabled :cases :reviewer :queue
+                                                                                    :researcherProfile :profileSummary
                                                                                     :id :nonce :expiresAt :receiptId :status :revision]) 200)))))))))))))
           (.catch (fn [e] (fail respond (or (:status (ex-data e)) 503) "identity-request-unavailable"))))))
 )
