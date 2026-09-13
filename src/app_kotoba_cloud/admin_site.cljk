@@ -1,0 +1,56 @@
+(ns app-kotoba-cloud.admin-site
+  "Operator console for admin.kotoba.cloud. Same identity gateway, same private
+  authority, operator-only surface. Nothing here opens intake or claims
+  verification: the console reflects the authority's own status fields."
+  (:require [jp-go-dds.core :as dds]))
+
+(defn section [locale]
+  (let [ja? (= locale :ja) t (fn [ja en] (if ja? ja en))]
+    [:section {:id "admin-console" :class "kc-research-section"}
+     (dds/container
+      (dds/heading 2 (t "管理者コンソール" "Operator console") {:size "36" :id "admin-heading"})
+      [:p (t "本人確認サービスの接続状態と、担当割当済みの審査案件を扱います。撮影・提出の受付可否はこの画面では変えられません。"
+             "Inspect the identity authority connection and work assigned review cases. Intake availability is decided by the private authority, not by this page.")]
+      [:p {:id "admin-status" :role "status" :aria-live "polite"} (t "状態を確認しています…" "Checking status…")]
+      (dds/row (dds/button (t "状態を更新" "Refresh") {:id "admin-refresh" :type :outline})
+               (dds/button (t "審査員用鍵ペアを生成" "Generate reviewer key pair") {:id "admin-keygen" :type :outline :disabled true}))
+      [:dl {:id "admin-connection"}
+       [:dt "authority"] [:dd {:id "admin-conn-authority"} "—"]
+       [:dt (t "非公開保管" "storage")] [:dd {:id "admin-conn-storage"} "—"]
+       [:dt (t "鍵管理" "key management")] [:dd {:id "admin-conn-keys"} "—"]
+       [:dt (t "審査員・通知方針" "review policy")] [:dd {:id "admin-conn-review"} "—"]
+       [:dt (t "受付" "intake")] [:dd {:id "admin-conn-intake"} "—"]]
+
+      (dds/heading 3 (t "審査員（オペレータ）の登録準備" "Reviewer enrollment preparation") {:size "24"})
+      [:p (t "審査員は運営者が指定します。ここで生成した鍵ペアの秘密鍵はこの画面のメモリだけに置き、ページを閉じると消えます。公開鍵・アカウント・鍵IDを含む登録簿をダウンロードし、審査基盤の運用設定に反映してください。"
+             "Reviewers are designated by the operator, not by login. The private key stays in this page's memory and disappears on reload. Download the registry entry (public key, account, key id) and apply it to the review infrastructure's operational configuration.")]
+      [:form {:id "admin-reviewer-form" :class "kc-research-form"}
+       [:label (t "審査員アカウント (did:…)" "Reviewer account (did:…)")
+        [:input {:id "admin-reviewer-account" :maxlength 256 :placeholder "did:key:…"}]]
+       [:label (t "鍵ID" "Key id") [:input {:id "admin-reviewer-key-id" :maxlength 128 :placeholder "reviewer-2026-09"}]]
+       (dds/row (dds/button (t "審査員登録簿を生成して保存" "Build & download registry entry") {:id "admin-reviewer-download" :type :outline :disabled true}))
+       [:pre {:id "admin-reviewer-artifact" :hidden true :style {:white-space "pre-wrap" :overflow-wrap "anywhere"}}]]
+
+      (dds/heading 3 (t "担当審査案件" "Assigned review cases") {:size "24"})
+      [:p (t "審査員として登録・担当割当が有効な場合だけ案件が表示されます。証跡は同一オリジンからだけ取得します。"
+             "Cases appear only when the authority registers you as a reviewer and assigns them. Evidence is fetched same-origin only.")]
+      [:div {:id "admin-queue"}]
+      [:p {:id "admin-review-status" :role "status"}]
+      [:pre {:id "admin-case-profile" :hidden true :style {:white-space "pre-wrap" :overflow-wrap "anywhere"}}]
+      [:img {:id "admin-case-document" :hidden true :alt (t "担当案件の書類" "Assigned case document") :style {:max-width "100%"}}]
+      [:video {:id "admin-case-video" :hidden true :controls true :playsinline true :style {:max-width "100%"}}]
+      [:div {:id "admin-case-actions" :hidden true}
+       [:label (t "判定根拠" "Decision reason")
+        [:select {:id "admin-decision-reason"}
+         [:option {:value "document-unreadable"} (t "書類が判読できない" "Document unreadable")]
+         [:option {:value "holder-check-required"} (t "本人確認が不足" "Holder check required")]
+         [:option {:value "screening-review"} (t "スクリーニング要審査" "Screening review")]
+         [:option {:value "scope-review"} (t "対象の許可要審査" "Scope review")]
+         [:option {:value "affiliation-review"} (t "所属確認" "Affiliation review")]
+         [:option {:value "qualification-review"} (t "資格確認" "Qualification review")]]]
+       [:label (t "ライブ面談参照番号（承認時のみ）" "Live session reference (approval only)")
+        [:input {:id "admin-live-session-ref" :maxlength 256}]]
+       [:label {:class "kc-check"} [:input {:type "checkbox" :id "admin-live-session-done"}]
+        (t "担当者とのライブ面談を実施済み" "Supervised live session completed")]
+       (dds/row (dds/button (t "承認（署名して送信）" "Approve (signed)") {:id "admin-approve"})
+                (dds/button (t "却下（署名して送信）" "Reject (signed)") {:id "admin-reject" :type :outline}))])]))

@@ -785,6 +785,26 @@ assert.equal(capturePage.headers.get('cache-control'), 'no-store, private');
 assert(!capturePage.headers.get('content-security-policy').includes('freebuff'));
 assert(capturePage.headers.get('content-security-policy').includes('media-src blob:'));
 assert(!capturePage.headers.get('content-security-policy').includes('https://kotobase.net'));
+// Operator console host: admin.kotoba.cloud serves only the console, health and the
+// shared identity gateway. Marketing/discovery paths 404; the document is no-store
+// with a locked-down CSP; gateway ops still require the session and same-origin.
+{
+  const adminDoc = await route(new Request('https://admin.kotoba.cloud/'), {...env, ASSETS: {fetch: async request => {
+    assert.equal(new URL(request.url).pathname, '/admin/');
+    return new Response('<main id="main"></main>', {headers: {'content-type': 'text/html'}});
+  }}});
+  assert.equal(adminDoc.status, 200);
+  assert.equal(adminDoc.headers.get('cache-control'), 'no-store, private');
+  assert.equal(adminDoc.headers.get('x-robots-tag'), 'noindex');
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/ja/'), env)).status, 404);
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/.well-known/kotoba-cloud.json'), env)).status, 404);
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/health'))).status, 200);
+  const adminHealth = await (await route(new Request('https://admin.kotoba.cloud/health'))).json();
+  assert.equal(adminHealth.service, 'kotoba-cloud-operator-console');
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/v1/identity/status'), env)).status, 401);
+  assert.equal((await route(researchRequest('/v1/identity/status'), identityEnv)).status, 200);
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/v1/identity/status', {method:'POST', headers:{cookie:'gftd_session=research-session', origin:'https://admin.kotoba.cloud', 'content-type':'application/json'}, body:'{}'}), identityEnv)).status, 405);
+}
 console.log('private identity gateway authorization, bounds and camera isolation checks passed');
 
 // Billing remains closed until metering and mode-specific provider configuration exist.
@@ -874,3 +894,4 @@ const liveEvent = JSON.stringify({...signedEvent,livemode:true});
 assert.equal((await webhook(liveEvent,signature(liveEvent))).status,400);
 assert.equal(webhookCalls.length,1);
 console.log('Stripe webhook signature, timestamp and mode checks passed');
+console.log('operator console host isolation checks passed');

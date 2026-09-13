@@ -11,33 +11,14 @@
     "not_found_handling": "404-page"
   },
   "routes": [
-    {
-      "pattern": "kotoba.cloud",
-      "custom_domain": true
-    },
-    {
-      "pattern": "www.kotoba.cloud",
-      "custom_domain": true
-    },
-    {
-      "pattern": "api.kotoba.cloud",
-      "custom_domain": true
-    },
-    {
-      "pattern": "console.kotoba.cloud",
-      "custom_domain": true
-    },
-    {
-      "pattern": "boot.kotoba.cloud",
-      "custom_domain": true
-    }
+    { "pattern": "kotoba.cloud", "custom_domain": true },
+    { "pattern": "www.kotoba.cloud", "custom_domain": true },
+    { "pattern": "api.kotoba.cloud", "custom_domain": true },
+    { "pattern": "console.kotoba.cloud", "custom_domain": true },
+    { "pattern": "boot.kotoba.cloud", "custom_domain": true },
+    { "pattern": "admin.kotoba.cloud", "custom_domain": true }
   ],
-  "services": [
-    {
-      "binding": "IDENTITY_AUTHORITY",
-      "service": "kotoba-identity-authority"
-    }
-  ],
+  "services": [{"binding": "IDENTITY_AUTHORITY", "service": "kotoba-identity-authority"}],
   "r2_buckets": [
     {
       "binding": "PUBLIC_BLOCKS",
@@ -46,39 +27,11 @@
   ],
   "durable_objects": {
     "bindings": [
-      {
-        "name": "PQ_KEY_REGISTRY",
-        "class_name": "PqKeyRegistry"
-      },
-      {
-        "name": "BILLING_ACCOUNTS",
-        "class_name": "BillingAccount"
-      }
+      { "name": "PQ_KEY_REGISTRY", "class_name": "PqKeyRegistry" }
     ]
   },
   "migrations": [
-    {
-      "tag": "v1-pq-key-registry",
-      "new_sqlite_classes": [
-        "PqKeyRegistry"
-      ]
-    },
-    {
-      "tag": "v2-billing-accounts",
-      "new_sqlite_classes": [
-        "BillingAccount"
-      ]
-    }
+    { "tag": "v1-pq-key-registry", "new_sqlite_classes": ["PqKeyRegistry"] }
   ],
-  "observability": {
-    "enabled": true
-  },
-  "vars": {
-    "BILLING_ENABLED": "false",
-    "BILLING_METERING_READY": "false",
-    "BILLING_MODE": "test",
-    "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UFI88ITDawH5x8adO7LxkD1",
-    "STRIPE_PRICE_IDS": "{\"pro\":\"price_1UFHkyITDawH5x8a0nH7NXzS\",\"max\":\"price_1UFHkzITDawH5x8aHd8HPjNH\",\"ultra\":\"price_1UFHl0ITDawH5x8ajNZWUO5O\",\"ai-credits-25\":\"price_1UFHGEITDawH5x8arkcNfHgW\",\"storage-credits-25\":\"price_1UFHGFITDawH5x8aAbVBVXhu\"}",
-    "BILLING_SANDBOX_ENABLED": "true"
-  }
+  "observability": { "enabled": true }
 }
