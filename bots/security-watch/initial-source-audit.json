@@ -1,0 +1,44 @@
+{
+  "profile": "kotoba-security-watch",
+  "checkedAt": "2026-09-13T05:49:59.521Z",
+  "publication": "not-attempted",
+  "sources": [
+    {
+      "id": "mitre-enterprise",
+      "status": "changed",
+      "sha256": "dc1639caa5501d720e280cf1cbd8fbe009884a0c9b3e6e9ed9d0c25166c3d8f4",
+      "mode": "current",
+      "actorClusters": 176,
+      "relationships": 21262
+    },
+    {
+      "id": "cisa-kev",
+      "status": "changed",
+      "sha256": "c27673ad6c346c50f573c566f14c11c373e4ae452880d2cdb8f01a364e1e630b",
+      "mode": "current",
+      "records": 1709
+    },
+    {
+      "id": "ransomwatch-groups",
+      "status": "changed",
+      "sha256": "d0985955ff06096092f40fffe6ea4b9c1984a3ddef8e1d35e1e66aa5142d475a",
+      "mode": "historical",
+      "records": 216
+    },
+    {
+      "id": "ransomwatch-posts",
+      "status": "changed",
+      "sha256": "5eb6c1313bf6ace8ab3702e3e8be688cd747821335ec384ad5c5182c8434542e",
+      "mode": "historical",
+      "records": 16072
+    },
+    {
+      "id": "ransomware-live",
+      "status": "pending-access-and-terms"
+    },
+    {
+      "id": "regional-reports",
+      "status": "curated"
+    }
+  ]
+}

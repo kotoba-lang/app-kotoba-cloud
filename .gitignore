@@ -18,3 +18,5 @@
 # Scratch capture from the same maintenance runs. The repo root tracks only
 # .edn/.json/.jsonc/.md.
 /out*.txt
+
+.state/

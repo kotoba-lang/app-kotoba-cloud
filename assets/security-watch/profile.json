@@ -1,0 +1,39 @@
+{
+  "id": "kotoba-security-watch",
+  "name": "Kotoba Security Watch",
+  "version": 1,
+  "purpose": "出典付きセキュリティ公開知識の収集・更新",
+  "scope": {
+    "geography": "global, source-covered regions only",
+    "entities": [
+      "actor activity clusters",
+      "aliases",
+      "campaigns",
+      "techniques",
+      "vulnerabilities",
+      "public lab logs",
+      "ransomware allegations"
+    ],
+    "languages": "preserve source language; translate summaries with provenance"
+  },
+  "schedule": {
+    "intervalHours": 6,
+    "runner": "Codex thread heartbeat",
+    "historicalSourcesIntervalDays": 7,
+    "automationId": "kotoba-security-watch"
+  },
+  "rules": "SOUL.md",
+  "sourceRegistry": "sources.json",
+  "publication": {
+    "repository": "kotoba-lang/app-kotoba-cloud",
+    "url": "https://kotoba.cloud/ja/#security",
+    "format": [
+      "IPLD DAG-JSON",
+      "Hyakka EAV",
+      "JSON-LD ontology"
+    ],
+    "requireLiveReadback": true
+  },
+  "sourceFailurePolicy": "retain-last-good; record failed/blocked/stale separately",
+  "runtimeStatus": "Codex heartbeat registered ACTIVE on 2026-09-13; Itonami registration pending sign-in"
+}
