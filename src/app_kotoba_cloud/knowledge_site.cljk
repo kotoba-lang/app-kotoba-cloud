@@ -12,51 +12,56 @@
      [:header
       [:a {:href "#chat"} (t "← 調査チャット" "← Research chat")]
       (dds/heading 2 "Knowledge Graph" {:size "28"})
-      [:p (t "既存のKotobaseデータベースを管理します。APIはkotobase.netを継続して使用します。"
-             "Manage your existing Kotobase databases using the kotobase.net API.")]
+      [:p (t "Kotoba Cloudのログインでデータベースを管理します。"
+             "Manage databases with your Kotoba Cloud session.")]
       [:p (t "オントロジー画面はデータから観測した属性と型を表示します。宣言オントロジーの編集機能ではありません。"
              "The ontology inspector shows observed attributes and types; it is not a declared ontology editor.")]]
      [:form {:id "knowledge-connect"}
-      (dds/form-field {:label (t "Kotobase認証トークン" "Kotobase access token") :for "knowledge-token"
-                       :support (t "Bearer / Biscuit / CACAO。保存せず、この接続中だけ保持します。Kotoba Cloudの推論キーは使えません。"
-                                   "Bearer / Biscuit / CACAO. Held only for this connection, never saved. Kotoba Cloud inference keys do not apply.")}
-                      (dds/input-text {:id "knowledge-token" :type "password" :autocomplete "off" :required true}))
-      (dds/button (t "データベースに接続" "Connect databases") {:type :solid-fill :submit? true})
-      (dds/button (t "切断して表示を消去" "Disconnect and clear") {:type :outline :attrs {:type "button" :id "knowledge-disconnect" :hidden true}})
-      [:a {:href "https://kotobase.net/admin#keys" :target "_blank" :rel "noopener noreferrer"}
-       (t "Kotobaseで認証・権限を確認" "Manage authentication in Kotobase")]
+      (dds/button (t "データベースを開く" "Open databases") {:type :solid-fill :submit? true})
+      (dds/button (t "表示を閉じる" "Close workbench") {:type :outline :attrs {:type "button" :id "knowledge-disconnect" :hidden true}})
+      [:a {:id "knowledge-sign-in" :href "https://auth.kotoba.cloud/sign-in"} (t "ログイン" "Sign in")]
       [:p {:id "knowledge-state" :role "status"}]]
      [:div {:id "knowledge-mount"}]
      [:template {:id "knowledge-template"}
       [:div {:lang "ja"} (graph/view {:heading-level 2 :title "データベース管理"
-                                    :billing [:p [:a {:href "https://kotobase.net/admin#plan"} "既存のKotobaseプラン・請求を確認"]]})]]
+                                    :billing [:p [:a {:href "/ja/billing/"} "Kotoba Cloudの料金・請求"]]})]]
      [:script {:src "/js/graph-workbench.js" :defer true}]
      [:script {:src "/js/knowledge-host.js" :defer true}]]))
 
 (def script
   "(function(){
   var view=document.getElementById('knowledge-view');if(!view)return;
-  var form=document.getElementById('knowledge-connect'),input=document.getElementById('knowledge-token'),
-    mount=document.getElementById('knowledge-mount'),status=document.getElementById('knowledge-state'),
-    disconnect=document.getElementById('knowledge-disconnect'),controller=null,instance=null,credential='';
-  function clear(){if(controller)controller.abort();if(instance)instance.dispose();controller=null;instance=null;credential='';input.value='';mount.replaceChildren();disconnect.hidden=true;input.disabled=false;form.querySelector('[type=submit]').disabled=false;status.textContent='Disconnected. Display and token cleared.';}
-  form.addEventListener('submit',function(e){e.preventDefault();var token=input.value.trim();if(!token)return;
-    clear();credential=/^(Bearer|Biscuit|CACAO)\\s+/.test(token)?token:'Bearer '+token;token='';input.value='';input.disabled=true;form.querySelector('[type=submit]').disabled=true;
-    controller=new AbortController();var signal=controller.signal;disconnect.hidden=false;
-    mount.appendChild(document.getElementById('knowledge-template').content.cloneNode(true));
-    instance=window.cloudKotobaGraph.mount(mount.querySelector('.kb-console'),{
-      hashPrefix:'knowledge/',blockHref:function(cid){return 'https://kotobase.net/ipld/'+encodeURIComponent(cid);},
-      request:function(path,options){
-        if(signal.aborted)return Promise.reject(new Error('disconnected'));
-        if(!/^\\/(xrpc\\/|pins(?:\\?|$)|v1\\/audit(?:[/?]|$))/.test(path)||path.indexOf('..')!==-1)return Promise.reject(new Error('Unsupported database route'));
-        var headers=new Headers(options&&options.headers);if(!headers.has('authorization'))headers.set('authorization',credential);
-        return fetch('https://kotobase.net'+path,Object.assign({},options,{headers:headers,credentials:'omit',redirect:'error',cache:'no-store',signal:signal}));
-      }
-    });
-    status.textContent='API requests enabled. Authorization results appear in the workbench below.';mount.querySelector('.kb-console').addEventListener('kb:tenant-ready',function(){status.textContent='Kotobase tenant confirmed. Operations remain subject to its permissions.';});
+  var form=document.getElementById('knowledge-connect'),mount=document.getElementById('knowledge-mount'),
+    status=document.getElementById('knowledge-state'),disconnect=document.getElementById('knowledge-disconnect'),
+    signIn=document.getElementById('knowledge-sign-in'),controller=null,instance=null,generation=0;
+  var api='https://api.kotoba.cloud/v1/database';
+  signIn.href='https://auth.kotoba.cloud/sign-in?return_to='+encodeURIComponent(location.origin+location.pathname+'#knowledge/overview');
+  function clear(){generation++;if(controller)controller.abort();if(instance)instance.dispose();controller=null;instance=null;mount.replaceChildren();disconnect.hidden=true;form.querySelector('[type=submit]').disabled=false;status.textContent='Workbench closed.';}
+  form.addEventListener('submit',function(e){e.preventDefault();clear();var run=generation;
+    controller=new AbortController();var signal=controller.signal;form.querySelector('[type=submit]').disabled=true;
+    status.textContent='Checking your Kotoba Cloud session…';
+    fetch('/v1/session',{credentials:'same-origin',cache:'no-store',signal:signal}).then(function(r){if(!r.ok)throw new Error('Session unavailable');return r.json();}).then(function(session){
+      if(signal.aborted||run!==generation)return;
+      if(!session.valid){signIn.hidden=false;throw new Error('Sign in to Kotoba Cloud to continue.');}
+      signIn.hidden=true;disconnect.hidden=false;
+      mount.appendChild(document.getElementById('knowledge-template').content.cloneNode(true));
+      instance=window.cloudKotobaGraph.mount(mount.querySelector('.kb-console'),{
+        hashPrefix:'knowledge/',blockHref:function(cid){return api+'/ipld/'+encodeURIComponent(cid);},
+        request:function(path,options){
+          if(signal.aborted)return Promise.reject(new Error('disconnected'));
+          if(!/^\\/(xrpc\\/|pins(?:[/?]|$)|v1\\/audit(?:[/?]|$)|api\\/)/.test(path)||path.indexOf('..')!==-1)return Promise.reject(new Error('Unsupported database route'));
+          return fetch(api+path,Object.assign({},options,{credentials:'include',redirect:'error',cache:'no-store',signal:signal})).then(function(r){
+            if(r.status===401){clear();signIn.hidden=false;status.textContent='Your session expired. Sign in again.';}
+            if(r.status===503)status.textContent='Database service is not ready. Please try again later.';
+            return r;
+          });
+        }
+      });
+      status.textContent='Connected through api.kotoba.cloud. Each operation checks your database permissions.';
+      mount.querySelector('.kb-console').addEventListener('kb:tenant-ready',function(){status.textContent='Database tenant confirmed.';});
+    }).catch(function(e){if(signal.aborted||run!==generation)return;form.querySelector('[type=submit]').disabled=false;status.textContent=e.message;});
   });
-  disconnect.addEventListener('click',function(){clear();input.focus();});
-  window.addEventListener('pagehide',clear);
+  disconnect.addEventListener('click',clear);window.addEventListener('pagehide',clear);
   function route(){var open=location.hash.indexOf('#knowledge/')===0||location.hash==='#knowledge';view.hidden=!open;
     var chat=document.getElementById('chat-view'),security=document.getElementById('security-view');
     if(chat)chat.hidden=open||location.hash==='#security';if(security)security.hidden=location.hash!=='#security';}

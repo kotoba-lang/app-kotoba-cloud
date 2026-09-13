@@ -1,0 +1,65 @@
+(ns app-kotoba-cloud.database-gateway
+  "First-party database ingress; the private service retains tenant authorization."
+  (:require [app-kotoba-cloud.identity-gateway :as bounds]
+            [app-kotoba-cloud.session :as session]
+            [clojure.string :as str]))
+
+(def prefix "/v1/database")
+(def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud" "https://api.kotoba.cloud"})
+(def xrpc-methods
+  #{"usageGet" "datomic.listDatabases" "datomic.createDatabase" "datomic.deleteDatabase" "datomic.restoreDatabase"
+    "datomic.q" "datomic.transact" "datomic.dbStats" "datomic.asOf" "kg.query"
+    "savedQuery.list" "savedQuery.save" "savedQuery.delete"})
+(def api-methods #{"q" "qseq" "datoms" "db" "db-stats" "pull" "transact" "connect" "list-databases" "create-database" "delete-database" "history" "as-of" "since" "with" "with-db" "sync" "tx-range" "index-range" "index-pull" "seek-datoms" "rseek-datoms"})
+(defn selected? [path] (or (= path prefix) (str/starts-with? path (str prefix "/"))))
+(defn allowed? [path method]
+  (cond
+    (str/starts-with? path "/xrpc/ai.gftd.apps.kotobase.")
+    (and (= method "POST") (contains? xrpc-methods (subs path (count "/xrpc/ai.gftd.apps.kotobase."))))
+    (str/starts-with? path "/api/") (and (= method "POST") (contains? api-methods (subs path 5)))
+    (= path "/pins") (contains? #{"GET" "POST"} method)
+    (re-matches #"/pins/[A-Za-z0-9_-]+" path) (contains? #{"GET" "DELETE"} method)
+    (contains? #{"/v1/audit" "/v1/audit/export"} path) (= method "GET")
+    (re-matches #"/ipld/[a-zA-Z0-9]+" path) (contains? #{"GET" "HEAD"} method)
+    :else false))
+
+(defn route [request ^js env]
+  (let [url (js/URL. (.-url request)) path (subs (.-pathname url) (count prefix))
+        method (.-method request) origin (.get (.-headers request) "origin")
+        cookie (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)
+        authorization (.get (.-headers request) "authorization")
+        service (.-DATABASE_SERVICE env)
+        wrap (fn [r]
+               (let [h (js/Headers.)]
+                 (doseq [k ["content-type" "content-length" "www-authenticate"]]
+                   (when-let [v (.get (.-headers r) k)] (.set h k v)))
+                 (.set h "cache-control" "no-store, private")
+                 (.set h "x-content-type-options" "nosniff")
+                 (.set h "content-security-policy" "default-src 'none'; sandbox")
+                 (.set h "vary" "Origin")
+                 (when (origins origin)
+                   (.set h "access-control-allow-origin" origin)
+                   (.set h "access-control-allow-credentials" "true")
+                   (.set h "access-control-allow-methods" "GET, HEAD, POST, DELETE, OPTIONS")
+                   (.set h "access-control-allow-headers" "authorization, content-type, x-kotobase-tenant, x-datomic-db-name"))
+                 (js/Response. (.-body r) #js {:status (.-status r) :headers h})))
+        fail (fn [status code] (wrap (js/Response. (js/JSON.stringify #js {:error code}) #js {:status status :headers #js {"content-type" "application/json"}})))]
+    (cond
+      (and origin (not (origins origin))) (js/Promise.resolve (fail 403 "origin-not-allowed"))
+      (= method "OPTIONS") (js/Promise.resolve (if (and (origins origin) (allowed? path (.get (.-headers request) "access-control-request-method"))) (wrap (js/Response. nil #js {:status 204})) (fail 403 "preflight-not-allowed")))
+      (not (allowed? path method)) (js/Promise.resolve (fail 404 "database-route-not-found"))
+      (not (or cookie authorization)) (js/Promise.resolve (fail 401 "sign-in-required"))
+      (and cookie (not authorization) (not (contains? #{"GET" "HEAD"} method)) (not (origins origin))) (js/Promise.resolve (fail 403 "origin-required"))
+      (nil? service) (js/Promise.resolve (fail 503 "database-service-not-connected"))
+      (and (= method "POST") (not= "application/json" (first (str/split (or (.get (.-headers request) "content-type") "") #";")))) (js/Promise.resolve (fail 415 "json-required"))
+      :else
+      (-> (if (= method "POST") (bounds/bounded-bytes request 1048576) (js/Promise.resolve nil))
+          (.then (fn [body]
+                   (let [headers (js/Headers.)]
+                     (doseq [k ["authorization" "content-type" "x-kotobase-tenant" "x-datomic-db-name"]]
+                       (when-let [v (.get (.-headers request) k)] (.set headers k v)))
+                     (when cookie (.set headers "cookie" (str session/cookie-name "=" cookie)))
+                     (.fetch service (js/Request. (str "https://database.internal" path (.-search url))
+                                                 #js {:method method :headers headers :body body :redirect "manual" :signal (js/AbortSignal.timeout 60000)})))))
+          (.then (fn [r] (if (<= 300 (.-status r) 399) (fail 502 "unexpected-database-redirect") (wrap r))))
+          (.catch (fn [e] (fail (or (:status (ex-data e)) 503) "database-request-unavailable")))))))

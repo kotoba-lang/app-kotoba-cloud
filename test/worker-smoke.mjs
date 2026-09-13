@@ -502,8 +502,8 @@ assert.equal(pathWins.status, 200);
 assert.equal(pathWins.headers.get("location"), null);
 assert.match(pathWins.headers.get("set-cookie") || "", /^kb_locale=su;/);
 
-assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://kotobase.net"));
-assert(pathWins.headers.get("content-security-policy").includes("connect-src 'self' https://kotobase.net"));
+assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
+assert(pathWins.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 
 const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/session"), env);
 assert.equal(sessionUntouched.status, 200);
@@ -786,3 +786,32 @@ assert(!capturePage.headers.get('content-security-policy').includes('freebuff'))
 assert(capturePage.headers.get('content-security-policy').includes('media-src blob:'));
 assert(!capturePage.headers.get('content-security-policy').includes('https://kotobase.net'));
 console.log('private identity gateway authorization, bounds and camera isolation checks passed');
+
+// First-party database ingress: credentials are verified by the private service,
+// client identity/trust headers never reach it, and cookie writes require origin.
+const databasePath='/v1/database/xrpc/ai.gftd.apps.kotobase.usageGet';
+let databaseCalls=[];
+const databaseEnv={...env,DATABASE_SERVICE:{fetch:async request=>{
+ databaseCalls.push(request);
+ return Response.json({tenantDid:'did:example:fixture'},{headers:{'set-cookie':'must-not-escape=1','access-control-allow-origin':'*'}});
+}}};
+const dbRequest=(headers={},path=databasePath,body='{}')=>new Request('https://api.kotoba.cloud'+path,{method:'POST',headers:{'content-type':'application/json',...headers},body});
+assert.equal((await route(dbRequest(),databaseEnv)).status,401);
+assert.equal((await route(dbRequest({cookie:'gftd_session=fixture'}),databaseEnv)).status,403);
+assert.equal((await route(dbRequest({origin:'https://evil.example',authorization:'Bearer fixture'}),databaseEnv)).status,403);
+assert.equal((await route(dbRequest({authorization:'Bearer fixture'},'/v1/database/xrpc/ai.gftd.apps.kotobase.mail.send'),databaseEnv)).status,404);
+assert.equal(databaseCalls.length,0);
+const dbOK=await route(dbRequest({origin:'https://kotoba.cloud',cookie:'unrelated=private; gftd_session=fixture','x-internal-trust':'forged','x-kotobase-tenant-did':'forged'}),databaseEnv);
+assert.equal(dbOK.status,200);
+assert.equal(dbOK.headers.get('access-control-allow-origin'),'https://kotoba.cloud');
+assert.equal(dbOK.headers.get('access-control-allow-credentials'),'true');
+assert.equal(dbOK.headers.get('set-cookie'),null);
+assert.equal(databaseCalls[0].url,'https://database.internal/xrpc/ai.gftd.apps.kotobase.usageGet');
+assert.equal(databaseCalls[0].headers.get('cookie'),'gftd_session=fixture');
+assert.equal(databaseCalls[0].headers.get('x-internal-trust'),null);
+assert.equal(databaseCalls[0].headers.get('x-kotobase-tenant-did'),null);
+assert.equal((await route(new Request('https://api.kotoba.cloud'+databasePath,{method:'OPTIONS',headers:{origin:'https://kotoba.cloud','access-control-request-method':'POST'}}),databaseEnv)).status,204);
+assert.equal((await route(dbRequest({authorization:'Bearer fixture'},databasePath,'x'.repeat(1048577)),databaseEnv)).status,413);
+assert.equal(databaseCalls.length,1);
+assert.equal((await route(dbRequest({authorization:'Bearer fixture'}),{...env,DATABASE_SERVICE:{fetch:async()=>new Response(null,{status:302,headers:{location:'https://kotobase.net'}})}})).status,502);
+console.log('Database ingress CORS, CSRF, credential isolation, route bounds and body limits passed');
