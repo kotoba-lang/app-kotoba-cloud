@@ -31,7 +31,8 @@
     ]
   },
   "migrations": [
-    { "tag": "v1-pq-key-registry", "new_sqlite_classes": ["PqKeyRegistry"] }
+    { "tag": "v1-pq-key-registry", "new_sqlite_classes": ["PqKeyRegistry"] },
+    { "tag": "v2-billing-accounts", "new_sqlite_classes": ["BillingAccount"] }
   ],
   "observability": { "enabled": true }
 }
