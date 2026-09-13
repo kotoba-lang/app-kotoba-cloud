@@ -16,10 +16,10 @@ assert.throws(()=>verifyEvent(config,{...challenge,consumed:true},signed.raw,sig
 assert.throws(()=>verifyEvent(config,{...challenge,expiresAt:now},signed.raw,signed.headers,now));
 assert.throws(()=>verifyEvent(config,challenge,signed.raw+' ',signed.headers,now));
 assert.throws(()=>verifyEvent({...config,apiKey:'sk_test_fixture'},challenge,signed.raw,signed.headers,now));
-const model='qwen3.8-flash-next-cybersecurity-nvfp4';
+const model='kotoba/norbert', upstreamModel='qwen3.8-flash-next-cybersecurity-nvfp4';
 const request={model,scopeId:'approved-scope',task:'code-review',max_tokens:128,messages:[{role:'user',content:'Review my code.'}]};
 let calls=0;
-const result=await infer(request,async(url,init)=>{calls++;assert.equal(url,'https://api.murakumo.cloud/v1/chat/completions');assert.equal(init.redirect,'error');const body=JSON.parse(init.body);assert.deepEqual(Object.keys(body).sort(),['max_tokens','messages','model','stream']);assert.equal(body.model,model);return Response.json({model,object:'chat.completion',choices:[{message:{content:'Bind SQL parameters.'},finish_reason:'stop'}]});});
+const result=await infer(request,async(url,init)=>{calls++;assert.equal(url,'https://api.murakumo.cloud/v1/chat/completions');assert.equal(init.redirect,'error');const body=JSON.parse(init.body);assert.deepEqual(Object.keys(body).sort(),['max_tokens','messages','model','stream']);assert.equal(body.model,upstreamModel);return Response.json({model:upstreamModel,object:'chat.completion',choices:[{message:{content:'Bind SQL parameters.'},finish_reason:'stop'}]});});
 assert.equal(result.model,model);assert.equal(calls,1);
 await assert.rejects(()=>infer(request,async()=>Response.json({model:'fallback-model',object:'chat.completion',choices:[{message:{content:'Unexpected'}}]})));
 await assert.rejects(()=>infer(request,async()=>new Response('',{status:503})));

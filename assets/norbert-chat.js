@@ -1,0 +1,65 @@
+/* The host owns requests and state; shared DDS owns conversation presentation. */
+(() => {
+  const $ = id => document.getElementById(`norbert-${id}`);
+  if (!$('form')) return;
+  const ja = document.documentElement.lang === 'ja';
+  const t = (a,b) => ja ? a : b;
+  let chats = [], active, busy = false;
+  const status = text => $('status').textContent = text;
+  const closeHistory = () => { $('sidebar').classList.remove('is-open'); $('menu').setAttribute('aria-expanded','false'); };
+  function draw() {
+    $('messages').replaceChildren();
+    $('welcome').hidden = active.messages.length > 0;
+    for (let i=0;i<active.messages.length;i++) {
+      const message=active.messages[i];
+      if (message.role !== 'user') continue;
+      const node=cloudKotobaChat.createMessage({container:$('messages'),input:message.content,role:'kotoba/norbert',userLabel:t('あなた','You'),stages:[]});
+      const answer=active.messages[i+1];
+      if(answer?.role==='assistant') node.output.textContent=answer.content;
+    }
+    $('history').replaceChildren();
+    for(const chat of chats) {
+      const button=document.createElement('button');button.type='button';button.textContent=chat.title;
+      button.setAttribute('aria-current',String(chat===active));button.disabled=busy;
+      button.onclick=()=>{active=chat;draw();closeHistory();};$('history').append(button);
+    }
+    $('scope').value=active.scope;$('task').value=active.task;
+    $('usage').textContent=active.completed ? t(`完了 ${active.completed}件 · 無料`,`Completed ${active.completed} · Free`) : '';
+  }
+  function fresh() {if(busy)return;active={title:t('新しいチャット','New chat'),messages:[],scope:'',task:'code-review',completed:0};chats.unshift(active);draw();status('');closeHistory();$('prompt').focus();}
+  $('new').onclick=fresh;
+  $('delete').onclick=()=>{if(busy)return;chats=chats.filter(c=>c!==active);if(chats.length){active=chats[0];draw();}else fresh();};
+  $('menu').onclick=()=>{const open=$('sidebar').classList.toggle('is-open');$('menu').setAttribute('aria-expanded',String(open));};
+  $('close').onclick=closeHistory;
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHistory();});
+  $('settings-open').onclick=()=>$('settings').showModal();
+  $('scope').oninput=()=>active.scope=$('scope').value.trim();
+  $('task').onchange=()=>active.task=$('task').value;
+  const errors={
+    'sign-in-required':t('ログインしてから送信してください。設定からログインできます。','Sign in through Settings to send a message.'),
+    'verification-provider-not-configured':t('本人確認・審査基盤の準備中のため、現在は生成を利用できません。','Generation is unavailable while identity verification and review are being prepared.'),
+    'research-scope-required':t('設定で承認済みの研究スコープを指定してください。','Choose an approved research scope in Settings.'),
+    'free-quota-exhausted':t('本日の無料枠に達しました。','Your daily free allowance is exhausted.'),
+    'session-reverification-required':t('本人確認を更新してから、再度送信してください。','Refresh your identity verification, then try again.')
+  };
+  $('form').onsubmit=async event=>{
+    event.preventDefault();const input=$('prompt').value.trim();if(busy||!input)return;
+    if(!active.scope){status(errors['research-scope-required']);$('settings').showModal();$('scope').focus();return;}
+    const messages=[...active.messages,{role:'user',content:input}];
+    if(messages.length>12||messages.reduce((n,m)=>n+m.content.length,0)>24000){status(t('会話が長くなりました。新しいチャットを始めてください。','Start a new chat to continue within the context limit.'));return;}
+    busy=true;$('send').disabled=true;$('new').disabled=true;$('delete').disabled=true;
+    active.title=active.messages.length ? active.title : input.slice(0,48);active.messages=messages;draw();
+    status(t('応答を待っています…','Waiting for a response…'));
+    try {
+      const response=await fetch('/v1/chat/completions',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({model:'kotoba/norbert',scopeId:active.scope,task:active.task,messages,max_tokens:2048})});
+      const result=await response.json();
+      if(!response.ok)throw new Error(errors[result.error?.code]||t('現在利用できません。本人確認と研究スコープを確認してください。','Currently unavailable. Check your identity verification and research scope.'));
+      const content=result.choices?.[0]?.message?.content;
+      if(result.model!=='kotoba/norbert'||typeof content!=='string')throw new Error(t('応答を確認できませんでした。','Could not validate the response.'));
+      active.messages.push({role:'assistant',content});active.completed++;$('prompt').value='';status('');
+    }catch(error){active.messages.pop();status(error.message || t('接続できませんでした。再度お試しください。','Connection failed. Please try again.'));}
+    finally{busy=false;$('send').disabled=false;$('new').disabled=false;$('delete').disabled=false;draw();$('messages').scrollTop=$('messages').scrollHeight;}
+  };
+  $('prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&matchMedia('(pointer:fine)').matches){e.preventDefault();$('form').requestSubmit();}});
+  fresh();
+})();
