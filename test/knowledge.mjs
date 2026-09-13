@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {route} from '../build/worker.js';
+const reads=[];
+const env={ASSETS:{fetch:async req=>{const path=new URL(req.url).pathname;reads.push(path);try{return new Response(await readFile('public'+path));}catch{return new Response('',{status:404});}}}};
+const call=(path,method='GET',bindings=env)=>route(new Request('https://kotoba.cloud'+path,{method}),bindings,{});
+let r=await call('/v1/knowledge/search?q=T1018');assert.equal(r.status,200);const found=await r.json();assert.ok(found.results.some(x=>x.id==='security/attack/T1018'));assert.ok(found.results.length<=8);
+r=await call('/v1/knowledge/context?id=security%2Fattack%2FT1018');assert.equal(r.status,200);const ctx=await r.json();assert.equal(ctx.context.itemId,'security/attack/T1018');assert.ok(ctx.context.evidence.length>0);assert.ok(ctx.context.evidence.length<=8);assert.ok(ctx.context.snapshot['/']);assert.ok(ctx.context.evidence.every(e=>e.claim['/']&&e.source['/']&&e.sourceUrl));
+assert.equal((await call('/v1/knowledge/search?q=')).status,400);
+assert.equal((await call('/v1/knowledge/search?q='+'x'.repeat(201))).status,400);
+assert.equal((await call('/v1/knowledge/context?id=absent')).status,404);
+assert.equal((await call('/v1/knowledge/search?q=test','POST')).status,405);
+const bad={ASSETS:{fetch:async()=>Response.json({entries:[{id:'bad',url:'https://evil.invalid/'}]})}};
+assert.equal((await call('/v1/knowledge/context?id=bad','GET',bad)).status,502);
+const huge={ASSETS:{fetch:async()=>new Response(' '.repeat(262145))}};
+assert.equal((await call('/v1/knowledge/search?q=T1018','GET',huge)).status,503);
+assert.ok(reads.every(p=>p.startsWith('/security-data/')));
+console.log('Knowledge: real published search/context, provenance, bounds, unknown IDs, methods and path isolation passed.');

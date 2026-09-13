@@ -55,3 +55,9 @@ Next integrations are a qualified signed Hyakka submission, shared-ref ingestion
 SCAP content import and verified asset-specific analysis. This release has no
 automatic refresh scheduler, IPFS provider/DHT publication or live Datomic query
 endpoint. Model access gates do not block public knowledge reads.
+
+## LLM retrieval and grounded chat
+
+GET `/v1/knowledge/search?q=T1018` searches the published ID/title index (200-character query, eight results maximum). GET `/v1/knowledge/context?id=security%2Fattack%2FT1018` returns a bounded context with snapshot, item, claim and source CIDs, source URLs, evidence layers, and explicit truncation. The context URL is immutable. These read-only endpoints only fetch fixed published assets; they do not call an inference provider or grant research authority.
+
+The explorer's “この根拠で調べる” action attaches one item to the active chat. Its label and remove action remain visible. On first submission the context is fetched and then retained for that chat until changed or removed. The request includes reference data in the final user message, explicitly marked as untrusted data, and asks the model to cite claim CIDs and distinguish facts, assumptions and unknowns. Existing message limits and all identity, scope and review checks remain in force. This is selected-evidence retrieval, not autonomous web browsing or execution. Model adherence to citation instructions is not a factuality guarantee.

@@ -1,0 +1,36 @@
+(ns app-kotoba-cloud.knowledge
+  "Read-only retrieval of published evidence. No model call or research grant."
+  (:require [clojure.string :as str]
+            [app-kotoba-cloud.research-gateway :as shared]))
+(def paths #{"/v1/knowledge/search" "/v1/knowledge/context"})
+(defn reply [body status]
+  (js/Response. (js/JSON.stringify (clj->js body))
+                #js {:status status :headers #js {"content-type" "application/json; charset=utf-8"
+                                                  "access-control-allow-origin" "*" "cache-control" "no-store"
+                                                  "x-content-type-options" "nosniff"}}))
+(defn asset [env origin path limit]
+  (-> (.fetch ^js (aget env "ASSETS") (js/Request. (str origin path)))
+      (.then (fn [r] (when-not (.-ok r) (throw (js/Error. "unavailable"))) (shared/bounded-json r limit)))))
+(defn route [request env]
+  (let [url (js/URL. (.-url request)) search? (= "/v1/knowledge/search" (.-pathname url))
+        q (.get (.-searchParams url) (if search? "q" "id"))]
+    (cond
+      (not= "GET" (.-method request)) (reply {:error "method-not-allowed"} 405)
+      (or (not (string? q)) (str/blank? q) (> (count q) 200)) (reply {:error "query-required-max-200-characters"} 400)
+      :else
+      (-> (asset env (.-origin url) "/security-data/retrieval.json" 262144)
+          (.then (fn [index]
+                   (if search?
+                     (let [terms (str/split (str/lower-case (str/trim q)) #"\s+")
+                           results (->> (:entries index)
+                                        (filter (fn [e] (let [text (str/lower-case (str (:id e) " " (:label e)))]
+                                                         (every? #(str/includes? text %) terms))))
+                                        (take 8) vec)]
+                       (reply {:snapshot (:snapshot index) :results results :limit 8} 200))
+                     (if-let [entry (first (filter #(= q (:id %)) (:entries index)))]
+                       (if (re-matches #"/security-data/blocks/baguq[a-z2-7]+\.json" (:url entry))
+                         (-> (asset env (.-origin url) (:url entry) 65536)
+                             (.then #(reply {:contextCid (:context entry) :contextUrl (:url entry) :context %} 200)))
+                         (reply {:error "invalid-published-context"} 502))
+                       (reply {:error "item-not-found"} 404)))))
+          (.catch (fn [_] (reply {:error "public-knowledge-unavailable"} 503)))))))

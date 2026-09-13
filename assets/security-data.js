@@ -13,6 +13,7 @@
   let selected=0;
   async function detail(record){const request=++selected;const panel=$('detail');panel.hidden=false;panel.replaceChildren(node('h2',record['item/label']),link('このレコードのCID',url(record.record)));
    const r=await fetch(url(record.record));if(!r.ok)throw Error('record unavailable');const value=await r.json();if(request!==selected)return;
+   if(chat){const use=node('button','この根拠で調べる');use.type='button';use.onclick=()=>{window.dispatchEvent(new CustomEvent('kotoba:research-context',{detail:{id:record['item/id'],label:record['item/label']}}));};panel.append(use);}
    if(value.evidence)panel.append(node('p','出典レコードから、元URL・取得日時・原文アーカイブへ辿れます。'),link('出典とアーカイブ',url(value.evidence)));
    if(record.rawLog)panel.append(node('p','公開されたラボの監査ログです。実際の被害事例ではありません。'),link('監査ログを読む',record.rawLog));
    if(value.record)panel.append(node('p','このシナリオは分析の雛形で、観測事実ではありません。'),link('シナリオと仮定',url(value.record)));
