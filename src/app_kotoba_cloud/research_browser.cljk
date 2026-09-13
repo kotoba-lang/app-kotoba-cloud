@@ -5,6 +5,8 @@
 (defn value [id] (.-value (el id)))
 (defn say! [id text] (set! (.-textContent (el id)) text))
 (defn ja? [] (= "ja" (.-lang (.-documentElement js/document))))
+(defonce job-pending? (atom false))
+(defonce poll-timer (atom nil))
 (defn message [code]
   (get (if (ja?)
          {"sign-in-required" "まずアカウントにログインしてください。"
@@ -24,11 +26,13 @@
        code (if (ja?) "確認待ち、または現在利用できません。時間をおいて再確認してください。"
                          "Pending review or currently unavailable. Please check again later.")))
 
-(defn api [path body]
+(defn api
+  ([path body] (api path body {}))
+  ([path body headers]
   (-> (js/fetch path (clj->js (cond-> {:method (if body "POST" "GET") :credentials "same-origin"
-                                     :headers {"content-type" "application/json"}}
+                                     :headers (merge {"content-type" "application/json"} headers)}
                               body (assoc :body (js/JSON.stringify (clj->js body))))))
-      (.then (fn [r] (-> (.json r) (.then #(assoc (js->clj % :keywordize-keys true) :httpOk (.-ok r))))))))
+      (.then (fn [r] (-> (.json r) (.then #(assoc (js->clj % :keywordize-keys true) :httpOk (.-ok r)))))))))
 
 (defn refresh! []
   (set! (.-disabled (el "research-apply")) true)
@@ -45,7 +49,7 @@
                                                       (get-in r [:trust :routes]))) ")"))))
                (when (:httpOk r)
                  (set! (.-disabled (el "research-apply")) false)
-                 (set! (.-disabled (el "research-run")) (not= "eligible" (:status r))))))
+                 (set! (.-disabled (el "research-run")) (or @job-pending? (not= "eligible" (:status r)))))))
       (.catch (fn [_] (say! "research-status" (message nil))))))
 
 (defn bind-submit! [form button output path body-fn result-fn]
@@ -63,6 +67,37 @@
            (.catch (fn [_] (say! output (message nil))))
            (.finally #(set! (.-disabled (el button)) false)))))))
 
+(declare poll-job!)
+(defn stop-poll! [] (when @poll-timer (js/clearTimeout @poll-timer)) (reset! poll-timer nil))
+(defn resume-id []
+  (second (re-matches #"#research-job=([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})" (.-hash js/location))))
+(defn show-job! [id result]
+  (stop-poll!)
+  (cond
+    (not (:httpOk result))
+    (say! "research-output" (if (ja?) "結果を確認できません。ログインと利用資格を確認し、このページを再読み込みしてください。依頼は自動再送しません。"
+                                "Unable to retrieve the result. Check your sign-in and eligibility, then reload this page. The request will not be resubmitted automatically."))
+    (#{"queued" "running"} (:status result))
+    (do (say! "research-output" (if (ja?) "受付済みです。モデルの起動には最大約35分かかる場合があります。このページのURLを保存すると結果の確認を再開できます。"
+                                    "Request accepted. Model startup may take up to about 35 minutes. Save this page URL to return to the result."))
+        (reset! poll-timer (js/setTimeout #(poll-job! id) 5000)))
+    :else
+    (do (reset! job-pending? (= "unknown" (:status result)))
+        (say! "research-output"
+              (case (:status result)
+                "succeeded" (:content result)
+                "unknown" (if (ja?) "処理結果が不明のため、再実行を止めています。サポートにこのページの依頼番号をお知らせください。"
+                                   "The execution outcome is uncertain. Further execution is paused. Give support the request ID in this page URL.")
+                (if (ja?) "利用資格の変化または待機期限により停止しました。利用資格を確認してください。"
+                          "Stopped because eligibility changed or the queue deadline passed. Check your eligibility.")))
+        (refresh!))))
+(defn poll-job! [id]
+  (reset! job-pending? true)
+  (set! (.-disabled (el "research-run")) true)
+  (-> (api (str "/v1/research/job?jobId=" id) nil)
+      (.then #(show-job! id %))
+      (.catch (fn [_] (show-job! id {:httpOk false})))))
+
 (defn init! []
   (when (el "research-application")
     (.addEventListener (el "research-refresh") "click" refresh!)
@@ -74,9 +109,22 @@
                      (= "reuse" (value "research-mode"))
                      (assoc :issuer (value "research-issuer") :reference (value "research-reference")))
                   #(str (if (ja?) "審査待ち：" "Pending review: ") (:applicationId %)))
-    (bind-submit! "research-completion" "research-run" "research-output" "/v1/chat/completions"
-                  #(hash-map :model research/model-id :task (value "research-task")
-                             :scopeId (value "research-scope-id") :max_tokens 2048
-                             :messages [{:role "user" :content (value "research-input")}])
-                  #(get-in % [:choices 0 :message :content]))
+    (.addEventListener (el "research-completion") "submit"
+      (fn [event]
+        (.preventDefault event)
+        (when-not (.-disabled (el "research-run"))
+          (let [id (str (random-uuid))
+                body {:model research/model-id :task (value "research-task") :scopeId (value "research-scope-id")
+                      :max_tokens 2048 :messages [{:role "user" :content (value "research-input")}]}]
+            (stop-poll!) (reset! job-pending? true)
+            (set! (.-disabled (el "research-run")) true)
+            ;; Only an opaque request ID persists in the fragment. Prompts and
+            ;; credentials never enter browser storage or URLs.
+            (.replaceState js/history nil "" (str "#research-job=" id))
+            (say! "research-output" (if (ja?) "依頼を受け付けています…" "Submitting your request…"))
+            (-> (api "/v1/research/jobs" body {"idempotency-key" id})
+                (.then #(show-job! id %))
+                (.catch (fn [_] (show-job! id {:httpOk false}))))))))
+    (.addEventListener js/window "pagehide" stop-poll!)
+    (when-let [id (resume-id)] (poll-job! id))
     (refresh!)))
