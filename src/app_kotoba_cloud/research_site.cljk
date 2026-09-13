@@ -5,9 +5,16 @@
 
 (defn copy [locale]
   (if (= locale :ja)
-    {:title "ホワイトハットのための、セキュリティ AI。"
+    {:title "守る人に、力を。"
+     :vision "仲間の力を結び、世界に光を取り戻す。"
+     :manifesto ["誰かが見過ごした危険に、気づく人がいる。"
+                 "仕組みを深く知り、よりよく変えようとする人がいる。"
+                 "その知恵で、誰かの日常を守る人がいる。"
+                 "kotoba.cloud は、ホワイトハットの探究心と創造力を支える。"
+                 "ひとりの発見を、仲間の力へ。"
+                 "仲間の力を、世界を変える力へ。"]
      :lead "許可されたコードを調べ、脆弱性の根拠を確かめ、修正へつなげる。本人確認済みの研究者に、セキュリティ特化 LLM の無料推論枠を提供します。"
-     :description "ホワイトハット向けの脆弱性調査と修正支援。eKYC と AML・CTF 審査を経た研究者向けの無料推論サービスを準備中。"
+     :description "守る人に、力を。kotoba.cloud は、ホワイトハットの探究心と創造力を支える。仲間の力を結び、世界に光を取り戻す。"
      :start "研究者登録へ" :explore "モデルを見る" :models "調査のためのモデル"
      :pending "提供準備中 — Murakumo の指定モデルから実応答を確認しました。本人確認・審査の接続完了まで、このサイトの推論は利用できません。"
      :model-note "Murakumo で実応答を確認したモデルです。初回起動に数分かかる場合があります。本人確認・審査後の提供に向けて接続を進めています。"
@@ -32,9 +39,16 @@
      :data "Webで完結するKotoba独自の本人確認を開発しています。書類・顔画像・氏名・生年月日を推論モデルには送りません。こちらには確認状態、有効期限、証跡参照、審査と利用の記録を最小限保持する設計です。事業者、保存期間、移転先、削除・異議申立て窓口を確定・公開するまで、本人確認の受付を開始しません。"
      :review "PEP や同姓同名の候補一致は自動的な違反認定ではありません。追加確認と再審査を行う運用を準備します。AML／CTF の法的適用範囲は運営主体・提供地域に応じて確認します。"
      :source "モデルカード"}
-    {:title "Security intelligence.\nFor the people who defend."
+    {:title "Empower those who protect."
+     :vision "Bring our strengths together. Bring light back to the world."
+     :manifesto ["Some notice the dangers others overlook."
+                 "Some look deeper into systems, determined to make them better."
+                 "Some use that knowledge to protect everyday lives."
+                 "kotoba.cloud supports the curiosity and creativity of white hats."
+                 "One person’s discovery becomes a community’s strength."
+                 "Together, that strength can change the world."]
      :lead "Investigate authorized code. Validate the finding. Ship the fix. Specialized LLM inference for verified white-hat researchers, with a free research allowance."
-     :description "White-hat vulnerability research and remediation. Free inference for researchers after eKYC and AML/CTF review. Provider onboarding in progress."
+     :description "Empower those who protect. kotoba.cloud supports the curiosity and creativity of white hats. Bring our strengths together. Bring light back to the world."
      :start "Researcher onboarding" :explore "Explore the model" :models "A model built for investigation"
      :pending "Preparing for launch — the selected Murakumo model returned a real response. Site inference remains closed until identity verification and review are connected."
      :model-note "A real response has been verified through Murakumo. Cold startup can take several minutes. Access remains gated while identity verification and review are connected."
@@ -70,6 +84,8 @@
       (dds/container
        [:p {:class "kc-eyebrow"} "KOTOBA CLOUD / WHITE HAT RESEARCH"]
        (dds/heading 1 (:title t) {:size "64"})
+       [:p {:class "kc-lead"} (:vision t)]
+       (into [:div {:class "kc-brand-story"}] (map (fn [line] [:p line]) (:manifesto t)))
        [:p {:class "kc-lead"} (:lead t)]
        (dds/row (dds/button (:start t) {:href "#research-register" :size "lg"})
                 (dds/button (:explore t) {:href "#research-models" :type :outline :size "lg"}))

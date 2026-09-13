@@ -339,7 +339,8 @@
 
 (defn translation [locale]
   (let [t (infrastructure-translation locale) r (research-site/copy locale)]
-    (assoc t :title (str "Kotoba Cloud — " (:title r)) :description (:description r))))
+    (assoc t :title (str "Kotoba Cloud — " (:title r)) :description (:description r)
+           :footer (str "Kotoba Cloud — " (:title r)))))
 
 (defn passkey-href [locale]
   (session/passkey-href (if (= locale :ja) :ja :en)))
@@ -651,14 +652,9 @@
         [:link {:rel "alternate" :hreflang "x-default" :href en-href}]
         [:link {:rel "alternate" :type "text/markdown" :href "https://kotoba.cloud/agent-quickstart.md" :title "AI agent quickstart"}]
         [:meta {:property "og:site_name" :content "Kotoba Cloud"}]
-        [:meta {:property "og:image" :content "https://kotoba.cloud/og.png"}]
-        [:meta {:property "og:image:width" :content "1731"}]
-        [:meta {:property "og:image:height" :content "909"}]
-        [:meta {:property "og:image:alt" :content "Kotoba Cloud - controlled execution for AI-generated software"}]
-        [:meta {:name "twitter:card" :content "summary_large_image"}]
+        [:meta {:name "twitter:card" :content "summary"}]
         [:meta {:name "twitter:title" :content title}]
         [:meta {:name "twitter:description" :content description}]
-        [:meta {:name "twitter:image" :content "https://kotoba.cloud/og.png"}]
         [:script {:type "application/ld+json"}
          (str "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"@id\":\"https://kotoba.cloud/#website\",\"url\":\"https://kotoba.cloud/\",\"name\":\"Kotoba Cloud\",\"publisher\":{\"@type\":\"Organization\",\"name\":\"Kotoba Labs Inc.\"},\"inLanguage\":["
               (apply str (interpose "," (map #(str "\"" (name %) "\"") supported-locales)))

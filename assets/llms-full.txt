@@ -1,3 +1,11 @@
+# Kotoba Cloud — Empower those who protect.
+
+守る人に、力を。
+仲間の力を結び、世界に光を取り戻す。
+
+kotoba.cloud supports the curiosity and creativity of white hats.
+Bring our strengths together. Bring light back to the world.
+
 # Kotoba Cloud — verified white-hat research
 
 Security-focused LLM inference for authorized code review, vulnerability triage and remediation.
