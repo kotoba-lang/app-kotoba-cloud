@@ -463,6 +463,29 @@ env.ASSETS = {
   }
 };
 
+// HTTPS transport floor: a plaintext request is 301'd to https before any
+// other route runs — including boot host, session, and assets.
+const plainApex = await route(new Request("http://kotoba.cloud/?utm=1"), env);
+assert.equal(plainApex.status, 301);
+assert.equal(plainApex.headers.get("location"), "https://kotoba.cloud/?utm=1");
+assert.equal(assetReads.length, 0, "http request never reaches assets");
+
+const plainBoot = await route(new Request("http://boot.kotoba.cloud/health"), env);
+assert.equal(plainBoot.status, 301);
+assert.equal(plainBoot.headers.get("location"), "https://boot.kotoba.cloud/health");
+
+const plainApi = await route(new Request("http://api.kotoba.cloud/v1/session", {
+  headers: { cookie: "gftd_session=secret" }
+}), env);
+assert.equal(plainApi.status, 301);
+assert.equal(plainApi.headers.get("location"), "https://api.kotoba.cloud/v1/session");
+assert.equal(calls.length, 2, "http session request is redirected, not proxied upstream");
+
+const httpsStillRoutes = await route(new Request("https://kotoba.cloud/?utm=1", {
+  headers: { "accept-language": "en" }
+}), env);
+assert.equal(httpsStillRoutes.status, 200, "https requests are served, not redirected");
+
 const beforeAssets = assetReads.length;
 const idFromHeader = await route(new Request("https://kotoba.cloud/?utm=1", {
   headers: { "accept-language": "id,en;q=0.8" }

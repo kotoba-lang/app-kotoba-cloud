@@ -13,7 +13,11 @@
             [jp-go-dds.css :as dcss]
             [jp-go-dds.page :as page]
             [jp-go-dds.tokens :as tokens]
-            #?(:clj [clojure.java.io :as io])))
+            ;; render runs on the kbb engine (JVM-free): node's fs/path stand in
+            ;; for clojure.java.io (fs/mkdirSync, writeFileSync, copyFileSync,
+            ;; readdirSync; see document-css / -main below).
+            ["fs" :as fs]
+            ["path" :as node-path]))
 
 (def supported-locales locales/locale-order)
 
@@ -624,13 +628,37 @@
                                        :href "https://kotoba-lang.org"}))])))]
      (site-footer t)]))
 
-#?(:clj
-   (defn document-css []
-     (str (slurp (io/resource "jp_go_dds/dds.css"))
-          "\n" (dcss/css-for [:language-selector :menu-list-box :menu-list]))))
+(defn- resource-read
+  "Read a classpath resource the JVM-free way. The kbb engine clones nbb.edn
+  git deps into .nbb/.cache/<hash>/nbb-deps/ (the union of the dep's :paths,
+  measured 2026-09-12: requiring jp-go-dds.core loads core.cljc from there), so
+  a resource is found by scanning those cache roots. First match wins; missing
+  resource throws instead of returning empty bytes."
+  [resource-path]
+  (let [cache (node-path/join (js/process.cwd) ".nbb" ".cache")
+        roots (try (js->clj (fs/readdirSync cache)) (catch :default _ []))
+        hits (for [root roots
+                   :let [p (node-path/join cache root "nbb-deps" resource-path)]
+                   :when (fs/existsSync p)]
+               p)]
+    (if-let [first-hit (first hits)]
+      (str (fs/readFileSync first-hit "utf8"))
+      (throw (ex-info (str "resource-not-found: " resource-path) {})))))
 
-#?(:clj
-   (defn document-head
+(defn- css-for-extras
+  "dcss/css-for の cljs 側代替。上流 dds の css-for は #?(:clj ...) でしか
+   定義されないため、純粋 helper (component-path の :cljs branch /
+   extra-components) を使ってここで連結する。core components は dds.css に
+   束ね済みなので extra-components を通して二重定義を避ける。"
+  [components]
+  (str/join "\n"
+            (map resource-read (map dcss/component-path (dcss/extra-components components)))))
+
+(defn document-css []
+  (str (resource-read "jp_go_dds/dds.css")
+       "\n" (css-for-extras [:language-selector :menu-list-box :menu-list])))
+
+(defn document-head
      [locale path-key title description]
      (let [t (translation locale)
            path (path-key t)
@@ -664,7 +692,7 @@
         [:meta {:property "og:title" :content title}]
         [:meta {:property "og:description" :content description}]
         [:meta {:property "og:locale" :content (:og-locale t)}]
-        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]]))))
+        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]])))
 
 (defn mark-english-fallback
   "Keep assistive technology honest for technical copy awaiting translation."
@@ -689,8 +717,7 @@
                 :else x))]
       (walk node))))
 
-#?(:clj
-   (defn page-html
+(defn page-html
      ([] (page-html :en))
      ([locale]
       (let [t (translation locale)]
@@ -706,10 +733,9 @@
                  (mark-english-fallback locale (view locale))
                  (view locale)))
          (str "<html lang=\"" (:html-lang t) "\">")
-         (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">"))))))
+         (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">")))))
 
-#?(:clj
-   (defn billing-html [locale]
+(defn billing-html [locale]
      (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
            path (if ja? "/ja/billing/" "/billing/")]
        (apply page/->page
@@ -720,10 +746,9 @@
                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/billing/"}]
                       [:script {:src "/js/language-selector.js" :defer true}]
                       [:script {:src "/js/session.js" :defer true}]]}
-              (billing-view locale)))))
+              (billing-view locale))))
 
-#?(:clj
-   (defn legal-html
+(defn legal-html
      ([] (legal-html :en))
      ([locale]
       (let [t (translation locale)]
@@ -735,10 +760,9 @@
                 :app-css (str tokens/skin-css app-css research-site/css)
                 :head (document-head locale :legal-path (:legal-title t)
                                      (operator-lead locale))}
-               (legal-view locale))))))
+               (legal-view locale)))))
 
-#?(:clj
-   (defn tokushoho-html
+(defn tokushoho-html
      ([] (tokushoho-html :en))
      ([locale]
       (let [t (translation locale)]
@@ -751,14 +775,13 @@
                 :head (document-head locale :tokushoho-path
                                      (:tokushoho-title t)
                                      (operator-lead locale))}
-               (tokushoho-view locale))))))
+               (tokushoho-view locale)))))
 
-#?(:clj
-   (defn not-found-html
+(defn not-found-html
      ([] (not-found-html :en))
      ([locale]
       (let [t (translation locale)
-            dds-css (slurp (io/resource "jp_go_dds/dds.css"))]
+            dds-css (resource-read "jp_go_dds/dds.css")]
         (page/->page
          {:title (:not-found-title t) :description (:not-found-lead t)
           :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css research-site/css)}
@@ -769,78 +792,95 @@
             (dds/heading 1 (:not-found-heading t) {:size "45"})
             [:p {:class "kc-lead"} (:not-found-lead t)]
             (dds/button (:not-found-cta t) {:href (:path t) :size "lg"})]])
-         (site-footer t))))))
+         (site-footer t)))))
 
-#?(:clj
-   (defn -main [& _]
-     (let [root (io/file "public")
-           ja-dir (io/file root "ja")
-           en-dir (io/file root "en")
-           js-dir (io/file root "js")
-           ipfs-source (io/file "assets" "ipfs")
-           ipfs-target (io/file root "ipfs")
-           registry-source (io/file "assets" "kotoba-package-registry.edn")
-           registry-target (io/file root ".well-known" "kotoba-package-registry.edn")]
-       (.mkdirs root)
-       (.mkdirs ja-dir)
-       (.mkdirs en-dir)
-       (.mkdirs js-dir)
-       (doseq [dir [(io/file root "legal")
-                    (io/file root "legal" "tokushoho")
-                    (io/file ja-dir "legal")
-                    (io/file ja-dir "legal" "tokushoho")
-                    (io/file en-dir "legal")
-                    (io/file en-dir "legal" "tokushoho")]]
-         (.mkdirs dir))
-       (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
-         (io/copy (io/file "assets" name) (io/file root name)))
-       (doseq [locale supported-locales :when (not (#{:en :ja} locale))]
-         (let [dir (io/file root (name locale))]
-           (.mkdirs dir)
-           (spit (io/file dir "index.html") (page-html locale))))
-       ;; Simplified Chinese compatibility alias uses the canonical document.
-       (.mkdirs (io/file root "zh"))
-       (spit (io/file root "zh" "index.html") (page-html :zh-Hans))
-       (doseq [[path locale] [["billing/index.html" :en] ["ja/billing/index.html" :ja] ["en/billing/index.html" :en]]]
-         (let [out (io/file root path)] (io/make-parents out) (spit out (billing-html locale))))
-       (spit (io/file root "index.html") (page-html :en))
-       (spit (io/file root "404.html") (not-found-html :en))
-       (spit (io/file root "legal" "index.html") (legal-html :en))
-       (spit (io/file root "legal" "tokushoho" "index.html") (tokushoho-html :en))
-       (spit (io/file ja-dir "index.html") (page-html :ja))
-       (spit (io/file ja-dir "404.html") (not-found-html :ja))
-       (spit (io/file ja-dir "legal" "index.html") (legal-html :ja))
-       (spit (io/file ja-dir "legal" "tokushoho" "index.html") (tokushoho-html :ja))
-       ;; Keep the old English URL addressable while canonical English moves
-       ;; to the apex. Existing links should not become a language regression.
-       (spit (io/file en-dir "index.html") (page-html :en))
-       (spit (io/file en-dir "404.html") (not-found-html :en))
-       (spit (io/file en-dir "legal" "index.html") (legal-html :en))
-       (spit (io/file en-dir "legal" "tokushoho" "index.html") (tokushoho-html :en))
-       (spit (io/file js-dir "language-selector.js")
-             (str behavior/language-selector-script "\n" locale/language-cookie-script))
-       (doseq [source (file-seq ipfs-source) :when (.isFile ^java.io.File source)]
-         (let [target (io/file ipfs-target (.getName ^java.io.File source))]
-           (.mkdirs (.getParentFile target))
-           (io/copy source target)))
-       (.mkdirs (.getParentFile registry-target))
-       (io/copy registry-source registry-target)
-       ;; kotoba.cloud's did:webvh root and its did:web alias
-       ;; (net-kotobase/control-plane ADR-2609021500): did.jsonl,
-       ;; did-witness.json and did.json are minted offline by
-       ;; authn/scripts/webvh_root.clj and committed under assets/well-known;
-       ;; they ship verbatim. `_headers` gives the log its JSON Lines content
-       ;; type and lets any resolver fetch it cross-origin.
-       (doseq [source (file-seq (io/file "assets" "well-known")) :when (.isFile ^java.io.File source)]
-         (let [target (io/file root ".well-known" (.getName ^java.io.File source))]
-           (.mkdirs (.getParentFile target))
-           (io/copy source target)
-           ;; `<did>/whois` transforms to `/.well-known/whois` (no extension)
-           ;; while the #whois service names `whois.vp`; a static host has no
-           ;; rewrite, so the same file is published under both names.
-           (when (= "whois.vp" (.getName ^java.io.File source))
-             (io/copy source (io/file root ".well-known" "whois")))))
-       (let [headers (io/file "assets" "_headers")]
-         (when (.isFile headers)
-           (io/copy headers (io/file root "_headers"))))
-       (println "rendered English-first root, locale emit dirs, legal/tokushoho documents, and localized 404s"))))
+(defn- fs-walk-files
+  "file-seq's file filter: absolute paths of every file under dir (recursive).
+   Dirent objects do not survive js->clj, so classify with statSync instead."
+  [dir]
+  (let [out (js/Array.)]
+    (letfn [(walk [d]
+              (doseq [name (js->clj (fs/readdirSync d))]
+                (let [p (node-path/join d name)]
+                  (if (.isDirectory (fs/statSync p))
+                    (walk p)
+                    (.push out p)))))]
+      (walk dir))
+    (vec out)))
+
+(defn- spit-file [path content]
+  (fs/mkdirSync (node-path/dirname path) #js {:recursive true})
+  (fs/writeFileSync path content))
+
+(defn- copy-file [src target]
+  (fs/mkdirSync (node-path/dirname target) #js {:recursive true})
+  (fs/copyFileSync src target))
+
+(defn -main [& _]
+  (let [root (node-path/join (js/process.cwd) "public")
+        ja-dir (node-path/join root "ja")
+        en-dir (node-path/join root "en")
+        js-dir (node-path/join root "js")
+        ipfs-source (node-path/join (js/process.cwd) "assets" "ipfs")
+        ipfs-target (node-path/join root "ipfs")
+        registry-source (node-path/join (js/process.cwd) "assets" "kotoba-package-registry.edn")
+        registry-target (node-path/join root ".well-known" "kotoba-package-registry.edn")]
+      (fs/mkdirSync root #js {:recursive true})
+      (fs/mkdirSync ja-dir #js {:recursive true})
+      (fs/mkdirSync en-dir #js {:recursive true})
+      (fs/mkdirSync js-dir #js {:recursive true})
+      (doseq [dir [(node-path/join root "legal")
+                   (node-path/join root "legal" "tokushoho")
+                   (node-path/join ja-dir "legal")
+                   (node-path/join ja-dir "legal" "tokushoho")
+                   (node-path/join en-dir "legal")
+                   (node-path/join en-dir "legal" "tokushoho")]]
+        (fs/mkdirSync dir #js {:recursive true}))
+      (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
+        (copy-file (node-path/join "assets" name) (node-path/join root name)))
+      (doseq [locale supported-locales :when (not (#{:en :ja} locale))]
+        (let [dir (node-path/join root (name locale))]
+          (fs/mkdirSync dir #js {:recursive true})
+          (spit-file (node-path/join dir "index.html") (page-html locale))))
+      ;; Simplified Chinese compatibility alias uses the canonical document.
+      (fs/mkdirSync (node-path/join root "zh") #js {:recursive true})
+      (spit-file (node-path/join root "zh" "index.html") (page-html :zh-Hans))
+      (doseq [[path locale] [["billing/index.html" :en] ["ja/billing/index.html" :ja] ["en/billing/index.html" :en]]]
+        (spit-file (node-path/join root path) (billing-html locale)))
+      (spit-file (node-path/join root "index.html") (page-html :en))
+      (spit-file (node-path/join root "404.html") (not-found-html :en))
+      (spit-file (node-path/join root "legal" "index.html") (legal-html :en))
+      (spit-file (node-path/join root "legal" "tokushoho" "index.html") (tokushoho-html :en))
+      (spit-file (node-path/join ja-dir "index.html") (page-html :ja))
+      (spit-file (node-path/join ja-dir "404.html") (not-found-html :ja))
+      (spit-file (node-path/join ja-dir "legal" "index.html") (legal-html :ja))
+      (spit-file (node-path/join ja-dir "legal" "tokushoho" "index.html") (tokushoho-html :ja))
+      ;; Keep the old English URL addressable while canonical English moves
+      ;; to the apex. Existing links should not become a language regression.
+      (spit-file (node-path/join en-dir "index.html") (page-html :en))
+      (spit-file (node-path/join en-dir "404.html") (not-found-html :en))
+      (spit-file (node-path/join en-dir "legal" "index.html") (legal-html :en))
+      (spit-file (node-path/join en-dir "legal" "tokushoho" "index.html") (tokushoho-html :en))
+      (spit-file (node-path/join js-dir "language-selector.js")
+                 (str behavior/language-selector-script "\n" locale/language-cookie-script))
+      (doseq [source (fs-walk-files ipfs-source)]
+        (copy-file source (node-path/join ipfs-target (node-path/basename source))))
+      (copy-file registry-source registry-target)
+      ;; kotoba.cloud's did:webvh root and its did:web alias
+      ;; (net-kotobase/control-plane ADR-2609021500): did.jsonl,
+      ;; did-witness.json and did.json are minted offline by
+      ;; authn/scripts/webvh_root.clj and committed under assets/well-known;
+      ;; they ship verbatim. `_headers` gives the log its JSON Lines content
+      ;; type and lets any resolver fetch it cross-origin.
+      (doseq [source (fs-walk-files (node-path/join "assets" "well-known"))]
+        (let [target (node-path/join root ".well-known" (node-path/basename source))]
+          (copy-file source target)
+          ;; `<did>/whois` transforms to `/.well-known/whois` (no extension)
+          ;; while the #whois service names `whois.vp`; a static host has no
+          ;; rewrite, so the same file is published under both names.
+          (when (= "whois.vp" (node-path/basename source))
+            (copy-file source (node-path/join root ".well-known" "whois")))))
+      (let [headers (node-path/join "assets" "_headers")]
+        (when (fs/existsSync headers)
+          (copy-file headers (node-path/join root "_headers"))))
+      (println "rendered English-first root, locale emit dirs, legal/tokushoho documents, and localized 404s")))
