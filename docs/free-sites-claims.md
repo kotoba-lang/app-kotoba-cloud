@@ -1,6 +1,6 @@
 # Free-site ownership protocol v1
 
-Status: implemented and tested as a compatibility library; not connected to a
+Status: coordinator and Datomic adapter implemented as compatibility libraries; not connected to a
 public route, not a live registrar, and not a qualified Q9 component.
 Authority: root ADR `2609112200-free-sites-namespace`.
 
@@ -37,15 +37,24 @@ recover an already committed reservation without writing again. Response fields
 include `publicationReady: false`; reserving a name does not publish a site.
 
 Kotobase must own the durable registry. Its adapter must use the existing
-authorized datom transaction path and fresh route-scoped CACAO with a conditional
+authorized datom transaction path and valid graph-scoped Biscuit with a conditional
 head. A DO may serialize work but cannot be the only authoritative store. No
 direct R2, KV, or memory fallback is permitted. The current memory provider exists
 only in tests and does not demonstrate live atomicity or persistence.
 
-The existing gateway's `datomic.transact`/`expected_parent` path is a candidate,
-not a qualified adapter. Before integration, verify its exact snapshot/read
-contract, conditional conflict response, registry-specific authority, and
-durable commit receipt. Do not grant callers a generic write capability for the
+`free-sites-store/provider` uses the gateway's `datomic.q` and
+`datomic.transact`/`expected_parent` path. It reads exactly one serialized registry
+datom, retracts the exact old value, writes the new value conditionally, and
+acknowledges only after matching the returned commit and document on readback.
+If another writer advances before readback, the result is ambiguous and the
+caller must repeat the claim. No registry is automatically provisioned.
+
+The 2026-09-13 isolated live probe found the deployed backend accepting an
+incorrect `expected_parent` with HTTP 200. The backend conditional-write guard
+must be deployed and independently verified before enabling this adapter.
+Production uses graph-scoped Biscuit authorization; a CACAO alone cannot replace
+that credential. Its trusted issuer is injected through `authorize!`, while
+tenant, graph and database are fixed configuration. Do not grant callers a generic write capability for the
 shared registry or assume a session cookie grants such a capability.
 
 ## Public route gate

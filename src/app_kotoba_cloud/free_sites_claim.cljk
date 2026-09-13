@@ -28,8 +28,9 @@
   load! -> authoritative {basis registry}; never cached, nil, or synthesized.
   commit! {expected-basis expected-revision registry} ->
     {status :committed snapshot {basis registry}}, or {status :conflict}.
-  Commit must use one durable CAS for ALL names and owner quota, with a fresh
-  route-scoped CACAO. It must not convert timeouts/storage errors to conflicts.
+  Commit must use one durable CAS for ALL names and owner quota, with verified
+  graph-scoped authority (Biscuit on the production Datomic facade). It must not
+  convert timeouts/storage errors to conflicts.
   snapshot is the durable commit receipt, not a reflected request.
 
   viewer comes from verified auth.kotoba.cloud session, body is untrusted.

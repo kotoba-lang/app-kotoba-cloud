@@ -1,0 +1,95 @@
+(ns app-kotoba-cloud.free-sites-store-test
+  (:require [app-kotoba-cloud.free-sites :as sites]
+            [app-kotoba-cloud.free-sites-claim :as claim]
+            [app-kotoba-cloud.free-sites-store :as store]
+            [cljs.reader :as reader]
+            [cljs.test :refer [deftest is async]]))
+
+(def viewer {:valid true :principalId "urn:kotoba:principal:alice"})
+(def token (str "Biscuit " (apply str (repeat 80 "a"))))
+(defn response [status body]
+  (js/Response. (js/JSON.stringify (clj->js body)) #js {:status status}))
+
+(defn fixture []
+  (let [state (atom {:basis "basis-0" :document (pr-str (sites/empty-registry))})
+        calls (atom [])
+        fetch! (fn [url init]
+                 (let [body (js->clj (js/JSON.parse (.-body init)) :keywordize-keys true)]
+                   (swap! calls conj {:url url :body body})
+                   (js/Promise.resolve
+                    (if (.endsWith url "datomic.q")
+                      (response 200 {:ok true :graph "graph" :basis_cid (:basis @state)
+                                     :rows_edn [[(pr-str (:document @state))]]})
+                      (if (= (:expected_parent body) (:basis @state))
+                        (let [[retract add] (reader/read-string (:tx_edn body))]
+                          (is (= [:db/retract store/entity store/attribute (:document @state)] retract))
+                          (reset! state {:basis "basis-1" :document (last add)})
+                          (response 200 {:ok true :graph "graph" :commit "basis-1"}))
+                        (response 409 {:ok false :error "PreconditionFailed"}))))))]
+    {:state state :calls calls
+     :config {:graph "graph" :db-name "sites" :tenant-did "did:tenant:sites"
+              :authorize! (fn [action]
+                            (is (contains? #{"data:read" "data:write"} action)) token)
+              :fetch! fetch!}}))
+
+(deftest claim-persists-through-wire-and-reloads-with-a-new-adapter
+  (async done
+    (let [{:keys [config calls]} (fixture)]
+      (-> (claim/claim! (store/provider config) viewer {:name "hana"})
+          (.then (fn [receipt]
+                   (is (= "created" (:disposition receipt)))
+                   (is (= "basis-1" (:basis receipt)))
+                   (claim/claim! (store/provider config) viewer {:name "hana"})))
+          (.then (fn [receipt]
+                   (is (= "existing" (:disposition receipt)))
+                   (is (= 1 (count (filter #(.endsWith (:url %) "datomic.transact") @calls))))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))
+
+(deftest missing-or-ambiguous-document-refuses
+  (doseq [body [{:ok true :graph "graph" :basis_cid "basis" :rows_edn []}
+               {:ok true :graph "other" :basis_cid "basis" :rows_edn [["nil"]]}
+               {:ok true :graph "graph" :rows_edn [["nil"]]}
+               {:ok true :graph "graph" :basis_cid "basis" :rows_edn [["nil"] ["nil"]]}]]
+    (is (thrown? js/Error (store/decode-snapshot "graph" body)))))
+
+(deftest stale-basis-refuses-before-writing
+  (async done
+    (let [{:keys [config calls]} (fixture)
+          next-registry (:registry (sites/plan-claim (sites/empty-registry)
+                                                     (:principalId viewer) "hana" "now"))
+          commit-fn (:commit! (store/provider config))]
+      (-> (js/Promise.resolve nil)
+          (.then (fn [_] (commit-fn {:expected-basis "stale" :expected-revision 0
+                                   :registry next-registry})))
+          (.then (fn [result]
+                   (is (= :conflict (:status result)))
+                   (is (every? #(.endsWith (:url %) "datomic.q") @calls))))
+          (.catch (fn [e] (is false (str e))))
+          (.finally done)))))
+
+(deftest arbitrary-conflict-status-is-not-retried
+  (async done
+    (let [{:keys [config]} (fixture)
+          original (:fetch! config)
+          writes (atom 0)
+          config (assoc config :fetch! (fn [url init]
+                                         (if (.endsWith url "datomic.transact")
+                                           (do (swap! writes inc)
+                                               (js/Promise.resolve (response 409 {:ok false :error "PolicyDenied"})))
+                                           (original url init))))]
+      (-> (claim/claim! (store/provider config) viewer {:name "hana"})
+          (.then (fn [_] (is false "must not acknowledge rejected storage")))
+          (.catch (fn [_] (is (= 1 @writes))))
+          (.finally done)))))
+
+(deftest unscoped-credential-never-reaches-network
+  (async done
+    (let [{:keys [config calls]} (fixture)
+          config (assoc config :authorize! (constantly "Bearer wrong"))
+          load-fn (:load! (store/provider config))]
+      (-> (js/Promise.resolve nil)
+          (.then (fn [_] (load-fn)))
+          (.then (fn [_] (is false "must require a Biscuit")))
+          (.catch (fn [_] (is (empty? @calls))))
+          (.finally done)))))
