@@ -1,7 +1,7 @@
 {
   "profile": "kotoba-security-watch",
   "checkedAt": "2026-09-13T17:51:00.669Z",
-  "publication": "validated-not-yet-published",
+  "publication": "published-live-verified",
   "sources": [
     {
       "id": "mitre-enterprise",
@@ -71,5 +71,17 @@
     "ATT&CK campaign and software relationships not projected",
     "Ransomware.live access/reuse pending"
   ],
-  "coverageNote": "Source language and aliases retained, no translation; no nationality inference or exhaustive global coverage. Existing historical CID files retained."
+  "coverageNote": "Source language and aliases retained, no translation; no nationality inference or exhaustive global coverage. Existing historical CID files retained.",
+  "publishedCommit": "3c037e2a5f94e2b4110d6d6f66a0a97952a297d7",
+  "workerVersion": "52769670-10fd-4892-86b5-cff0d5828d62",
+  "verifiedAt": "2026-09-13T17:56:34.100083+00:00",
+  "readback": {
+    "snapshot": {
+      "/": "baguqeerandytd5gsaouy64pr3uexsj5af3vfpja3sa4orl24k43sxicvrzmq"
+    },
+    "search": "G0010",
+    "aliasSearch": "Fancy Bear -> G0007",
+    "context": "G0010 snapshot matches; immutable public bytes match locally verified CID block"
+  },
+  "manifestPinCommit": "4025d6960a1f9796180ee3556845bcd08ad93679"
 }
