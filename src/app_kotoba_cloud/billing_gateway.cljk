@@ -17,7 +17,7 @@
                  #js {:apiVersion "2026-07-29.dahlia" :maxNetworkRetries 1 :timeout 15000 :httpClient (.createFetchHttpClient Stripe)}))
 (defn account [env principal path payload]
   (let [^js binding (aget env "BILLING_ACCOUNTS")
-        stub (.get binding (.idFromName binding principal))]
+        stub (.get binding (.idFromName binding (str (aget env "BILLING_MODE") ":" principal)))]
     (.fetch stub (str "https://billing.internal" path)
             #js {:method "POST" :headers #js {"content-type" "application/json"}
                  :body (js/JSON.stringify (clj->js (assoc payload :principal principal)))})))

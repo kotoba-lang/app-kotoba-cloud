@@ -869,7 +869,7 @@ assert.equal((await webhook(rawEvent,signature(rawEvent,stamp-600))).status,400)
 assert.equal(webhookCalls.length,0);
 assert.equal((await webhook(rawEvent,signature(rawEvent))).status,200);
 assert.equal(webhookCalls.length,1);
-assert.equal(webhookCalls[0].id,'principal_fixture');
+assert.equal(webhookCalls[0].id,'test:principal_fixture');
 const liveEvent = JSON.stringify({...signedEvent,livemode:true});
 assert.equal((await webhook(liveEvent,signature(liveEvent))).status,400);
 assert.equal(webhookCalls.length,1);
