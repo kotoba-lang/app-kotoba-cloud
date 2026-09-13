@@ -80,6 +80,8 @@
   "vars": {
     "BILLING_ENABLED": "false",
     "BILLING_METERING_READY": "false",
-    "BILLING_MODE": "test"
+    "BILLING_MODE": "test",
+    "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UFI88ITDawH5x8adO7LxkD1",
+    "STRIPE_PRICE_IDS": "{\"pro\":\"price_1UFHkyITDawH5x8a0nH7NXzS\",\"max\":\"price_1UFHkzITDawH5x8aHd8HPjNH\",\"ultra\":\"price_1UFHl0ITDawH5x8ajNZWUO5O\",\"ai-credits-25\":\"price_1UFHGEITDawH5x8arkcNfHgW\",\"storage-credits-25\":\"price_1UFHGFITDawH5x8aAbVBVXhu\"}"
   }
 }

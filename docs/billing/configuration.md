@@ -33,3 +33,11 @@ Cloudflare control-plane Settings shows no Stripe billing key; STRIPE_RESTRICTED
 The recurring Checkout path now checks Stripe subscription state and persists a pending checkout window before calling Stripe. Existing nonterminal subscriptions and a second pending request are rejected. Same-request retries reuse the original expiry and idempotency key; completed/expired flows still require recovery qualification. Focused compiled Worker tests pass, including blocking a second pending checkout. Build passes with zero compiler warnings.
 
 The current research gateway sends free-only execution requests; the database ingress delegates authorization and execution without billing receipts. The paid producer integration is not complete, so both billing enable flags remain false.
+
+## Saved settings (2026-09-14 follow-up)
+
+Owner entered STRIPE_RESTRICTED_KEY in the Cloudflare control-plane Worker; Settings shows Secret / Value encrypted. Its contents, mode, permissions and authenticated Stripe API connectivity have not yet been verified.
+
+Created and read back Stripe test portal bpc_1UFI88ITDawH5x8adO7LxkD1. Payment-method updates, customer information and invoice history are enabled. Cancellation is at period end with no proration; subscription changes/quantity edits and pauses are disabled. The test portal ID and five test Price mappings are now in wrangler.jsonc; billing flags remain false. These configuration changes are not yet deployed.
+
+Latest live GET /v1/billing/catalog returned 404, so the billing endpoint is not deployed. Webhook setup and a real test payment remain incomplete. Tax follow-up: supplied head office was saved and tax.settings became active; default tax behavior is exclusive. Owner stated tax registration is absent. Do not add a registration or enable collection automatically.
