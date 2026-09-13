@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.billing-limits
-  "Fail-closed local admission mirror. Amounts are integer micro-USD, never floats.")
+  "Authoritative local prepaid ledger. Amounts are integer micro-USD, never floats.")
 (def empty-ledger {:grants {} :reservations {} :spent {} :frozen false})
 (defn amount? [v] (and (integer? v) (<= 0 v 1000000000000)))
 (defn grant [ledger g]
@@ -53,3 +53,14 @@
                                [actual (:spent ledger)] (map (fn [id] [id (get (:allocations r) id 0)]) (:allocationOrder r)))]
           (-> ledger (assoc :spent spent)
               (assoc-in [:reservations id] (assoc r :status "settled" :actual actual :receiptId receiptId))))))))
+
+(defn balances [ledger now]
+  (mapv (fn [scope]
+          (let [grants (filter #(and (= scope (:scope %)) (<= (:start %) now) (< now (:end %)))
+                               (vals (:grants ledger)))
+                total (reduce + 0 (map :amount grants))
+                spent (reduce + 0 (map #(get (:spent ledger) (:id %) 0) grants))
+                reserved (reduce + 0 (map #(held ledger (:id %)) grants))]
+            {:scope scope :grantedMicroUSD total :spentMicroUSD spent
+             :reservedMicroUSD reserved :availableMicroUSD (max 0 (- total spent reserved))}))
+        ["ai" "storage.capacity" "storage"]))

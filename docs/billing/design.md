@@ -1,6 +1,6 @@
 # Kotoba Cloud billing v2 — sandbox proposal
 
-Status: implementation and sandbox catalog; not production billing. Stacked on the first-party database integration PR. Metronome is not configured (owner clarification); the existing Stripe account is available. Usage producers, admission reservations, refund reconciliation and end-to-end payment qualification must be completed before BILLING_METERING_READY is set. No existing research entitlement is removed or widened by payment.
+Status: Stripe-only implementation and sandbox catalog, not production billing. The owner explicitly chose not to use Metronome. Kotoba owns the prepaid ledger and usage admission. No existing research entitlement is removed or widened by payment. Usage producers, refund reconciliation, duplicate subscriptions and end-to-end payment qualification remain prerequisites.
 
 ## One platform subscription (USD, exclusive of tax)
 
@@ -35,13 +35,13 @@ Verified Free research continues under the existing identity/scope/quota policy.
 
 ## Collection and rating
 
-Stripe Checkout and Customer Portal collect/manage recurring fees and prepaid top-ups. Metronome owns contracts, rating and scoped prepaid balances. All Metronome usage contracts must be prepaid-only with no extra flat fee: Stripe has already collected the subscription. Externally paid commits have no invoice schedule, preventing a second invoice. Use contract IDs and applicable product tags on grants. Monthly storage capacity grants must use the same time normalization as the retained-byte meter. Enterprise postpaid requires an explicit approved contract.
+Stripe Checkout and Customer Portal collect/manage recurring fees and prepaid top-ups. Kotoba's per-account Durable Object is the authoritative local prepaid ledger; Stripe remains authoritative for payments and subscription state. No Metronome API or credentials are required. Prepaid usage does not generate a second invoice or Stripe metered charge. Enterprise postpaid is disabled until separately implemented and contracted.
 
-The same server-authenticated principal maps to a Stripe Customer and a Metronome Customer. Organization billing requires an authoritative organization-owner role mapping before it is enabled; a client-supplied tenant/customer ID is never sufficient. Current UI operates on the signed-in principal only.
+An authenticated principal maps to one Stripe Customer. Organization billing requires an authoritative owner-role mapping; browser-supplied tenant/customer IDs cannot select the billing account.
 
-Checkout success URLs do not grant funds. Verify raw-body webhook signature, timestamp tolerance, mode and stored customer. Full paid subscription-cycle invoice lines grant one bounded allowance per invoice/line; partial/proration invoices cannot refill the wallet. One-time top-ups require a saved checkout mapping and confirmed paid status. Metronome uniqueness keys prevent duplicate remote grants across crashes. A 409 after uncertain completion remains pending until the existing remote grant is reconciled; do not blindly acknowledge it or generate a new key.
+Checkout return URLs do not grant funds. Verify the raw webhook signature, mode, customer and paid invoice. Full recurring invoice lines grant both bounded allowances in one durable ledger write. Stable invoice/line/scope IDs reject duplicate or conflicting grants. Partial/proration invoices cannot refill the wallet. Top-ups require a saved checkout mapping and confirmed paid status.
 
-The internal usage interface persists server receipts before acknowledgement. An alarm retries Metronome ingestion with stable transaction IDs. Retain receipt hashes/IDs beyond the provider's deduplication window; never resubmit unresolved events older than 33 days without reconciliation. No prompts, outputs, documents or raw graph contents are sent to Stripe/Metronome. Persist invoice/receipt identifiers and numeric measurements only.
+The internal usage interface persists numeric server receipts with stable IDs and rejects conflicting replays. This is an audit record, not an automatic charge. The producer must reserve maximum cost, then settle from an authoritative terminal receipt. No prompts, outputs, documents or raw graph contents are sent to Stripe or another metering provider.
 
 ## Enforcement and failure behavior
 
@@ -49,7 +49,7 @@ Before paid execution, atomically reserve the maximum possible cost against the 
 
 Default: prepaid only, no auto-recharge, no negative-credit execution. Notify at 50/80/100%; a customer-set hard monthly spend limit applies to both reservations and settled spend. Exceeding DB capacity freezes new growth/expensive work, with read/export retained and no automatic deletion. Define the funded grace/read allowance before launch; do not imply unlimited free retention.
 
-Refunds, disputes and cancellations must reconcile the remote allowance and outstanding reservations. Freeze new paid work during uncertain refund/dispute resolution, retaining reads/export; never erase financial history. No production checkout until these paths and duplicate-checkout prevention are qualified.
+Refunds, disputes and cancellations must reconcile the local allowance and outstanding reservations. Freeze new paid work during uncertain refund/dispute resolution, retaining reads/export; never erase financial history. No production checkout until these paths and duplicate-checkout prevention are qualified.
 
 ## Enterprise
 
@@ -59,11 +59,10 @@ Specify organization owner/billing admin/project roles, per-project budgets, aud
 
 ## Launch requirements
 
-- Metronome account/environment verified; rate card/products/tags/credit units checked in sandbox; Stripe and Metronome customer mapping tested.
-- Stripe restricted API key and webhook signing secret in Worker secrets, targeted kagi custody; separate mode-specific price mapping. Cancellation-only Portal configuration.
-- Authoritative usage producers, concurrent reservation/settlement and included-capacity enforcement qualified; recover outbox/remote commit uncertainty, refund/dispute and duplicate checkout scenarios.
-- Full test-mode payment → webhook → allowance → authenticated inference/DB usage → credit drawdown → exhausted balance denial → refund/cancel reconciliation.
-- Stripe Tax registration status reviewed. Do not enable automatic_tax without active registrations; merely enabling the flag does not establish collection.
-- All live routes/source are reconciled with main and the pending DB deployment before publishing.
+- Stripe restricted key, webhook signing secret, correct mode-specific Prices and cancellation-only Portal configured.
+- Integrate authoritative inference/storage producers with reservation/settlement. Qualify concurrent execution, receipt loss, capacity normalization, refunds/disputes, duplicate subscriptions and interrupted checkout recovery.
+- Real sandbox payment → signed webhook → both allowances → authenticated inference/DB usage → debit → exhausted-balance denial → refund/cancel reconciliation.
+- Verify Stripe Tax operational head-office address and actual registrations before enabling automatic_tax.
+- Reconcile source/main and pending DB deployment before publishing. Compilation or fixture success is not a real payment or production release.
 
-References: https://docs.stripe.com/billing/how-metronome-works-with-stripe ; https://docs.metronome.com/api-reference/usage/ingest-events ; https://docs.metronome.com/api-reference/credits-and-commits/create-a-commit .
+References: https://docs.stripe.com/billing/subscriptions/design-an-integration ; https://docs.stripe.com/payments/checkout ; https://docs.stripe.com/tax/settings-api .
