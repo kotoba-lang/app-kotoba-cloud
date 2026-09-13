@@ -515,7 +515,7 @@ console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negot
 // Research gateway: these tests qualify edge admission only, not a real provider.
 upstreamStatus = 200;
 const researchPrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111";
-const researchModel = "kotoba/norbert";
+const researchModel = "qwen3.8-flash-next-whitehacker";
 const researchPolicy = "whitehat-2026-09-12-v1";
 const researchBody = { model: researchModel, task: "code-review", scopeId: "owned-code",
   max_tokens: 512, messages: [{ role: "user", content: "Review my authorization checks." }] };

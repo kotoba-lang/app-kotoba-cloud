@@ -3,7 +3,7 @@
   Evidence is supplied only by the private research authority, never the browser.")
 
 (def policy-version "whitehat-2026-09-12-v1")
-(def model-id "kotoba/norbert")
+(def model-id "qwen3.8-flash-next-whitehacker")
 (def upstream-model-id "qwen3.8-flash-next-cybersecurity-nvfp4")
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
 (def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
