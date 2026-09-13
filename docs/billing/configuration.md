@@ -1,6 +1,6 @@
 # Billing connection checklist
 
-Stripe context verified: Kotoba Labs, Inc. / acct_1U7sRyITDawH5x8a. The eight Products and default Prices in stripe-test-catalog.json exist in test mode only. Do not reuse those price IDs in live mode or change an existing production product.
+Stripe context verified: Kotoba Labs, Inc. / acct_1U7sRyITDawH5x8a. The three bundled recurring Products/Prices and two existing scoped top-ups in stripe-test-catalog.json exist in test mode only. The six superseded separate-service products are historical test artifacts, excluded from the v2 mapping and UI. Do not reuse those price IDs in live mode or change an existing production product.
 
 Required Worker secrets (values via targeted kagi read and Wrangler stdin, never commits/chat):
 - STRIPE_RESTRICTED_KEY: environment-specific restricted key. Checkout Sessions, Customers, Customer Portal, invoice/subscription reads only; no transfers/payouts. Test the SDK operations with the restricted permissions.
@@ -18,4 +18,6 @@ Non-secret configuration:
 
 Required Metronome product tags: ai for token usage; storage for DB usage, and storage.capacity additionally for retained capacity. Per-contract usage filters use the scope event property. Configure actual metering/rates in the specified organization, inspect their IDs and units, and verify one invoice example before setting the rate-card binding. The adapter does not silently invent a provider contract or enable arbitrary postpaid usage.
 
-Observed local validation: 86 tests / 3112 assertions, zero failures; compiled Worker smoke exercises checkout adapter, invoice replay, customer mismatch, stable usage IDs, conflicting receipts, webhook signature/timestamp/mode; Wrangler 4.131.1 dry-run passes. Provider calls in the Worker smoke are fixtures. No real payment, Metronome grant, runtime secret change, or production deployment has occurred.
+Previous v1 local validation: 86 tests / 3112 assertions, zero failures; compiled Worker smoke exercises checkout adapter, invoice replay, customer mismatch, stable usage IDs, conflicting receipts, webhook signature/timestamp/mode; Wrangler 4.131.1 dry-run passes. Provider calls in the Worker smoke are fixtures. No real payment, Metronome grant, runtime secret change, or production deployment has occurred.
+
+V2 validation: 87 tests / 3123 assertions pass; compiled Worker tests verify one recurring line grants both the AI and storage capacity balances, with distinct replay IDs and unchanged paid periods. Browser preview shows the three bundled plans. Build and Wrangler dry-run pass. Verification uses the explicit JVM compatibility build, not native qualification. Provider lifecycle calls are fixtures; the three bundled Stripe Products/Prices were created in the real test-mode account. No production billing was enabled.

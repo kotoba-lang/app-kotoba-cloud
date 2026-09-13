@@ -1,19 +1,33 @@
-# Kotoba Cloud billing v1 — sandbox proposal
+# Kotoba Cloud billing v2 — sandbox proposal
 
 Status: implementation and sandbox catalog; not production billing. Stacked on the first-party database integration PR. Metronome organization/environment and targeted API credential are awaiting owner input. Usage producers, admission reservations, refund reconciliation and end-to-end payment qualification must be completed before BILLING_METERING_READY is set. No existing research entitlement is removed or widened by payment.
 
-## Independent subscriptions (USD, exclusive of tax)
+## One platform subscription (USD, exclusive of tax)
 
-| Service | Builder | Team | Scale |
+| Plan | Monthly fee | Included token budget | Included graph + ontology storage |
 |---|---:|---:|---:|
-| Inference / month | $29, 24 AI credits | $99, 96 AI credits | $279, 288 AI credits |
-| Graph + ontology DB / month | $19, 20 GiB | $79, 200 GiB | $249, 1,000 GiB |
+| Verified Free | $0 | Existing verified research quota | 1 GiB |
+| Pro | $20 | 12 AI credits | 20 GiB |
+| Max | $100 | 60 AI credits (5x Pro) | 100 GiB |
+| Ultra | $200 | 120 AI credits (10x Pro) | 250 GiB |
+| Enterprise | From $1,000, quote | Contracted organization pool | Contracted organization capacity |
 
-Graph and ontology share the retained-byte pool. Viewer and query UI are included. Distinct Stripe Products represent every plan. Customers can independently select one active subscription per service; do not sell multiple same-service subscriptions. Portal v1 must allow cancellation/payment updates only; schedule plan changes at renewal until proration and grant adjustments are qualified.
+Each paid tier is one Stripe Product, one recurring Price, one subscription item and one renewal date. Both allowances are included in that single payment. Graph and ontology share retained capacity, with the viewer included. Web and API use the same AI allowance. Token consumption cannot consume the storage allowance and storage cannot consume the AI allowance. Query compute and egress are separately metered DB usage, not included capacity.
 
-One credit represents $1 of usage. AI credits and DB credits are separate balances, not money, transferable value, or a withdrawal facility. $25 scoped top-ups have no discount and last 12 months. Monthly included credits expire at the actual paid invoice line period end, without rollover. AI included credits are flexible between token types, not an unqualified number of tokens. At the proposed rate, 24 credits covers 20 million uncached input plus 5 million output tokens, or an equivalent mix.
+One credit represents $1 of usage. AI credits and DB credits are separate balances, not money, transferable value, or a withdrawal facility. Optional $25 scoped top-ups last 12 months. Monthly allowances expire at the paid period end with no rollover. Consume included allowance before purchased credits. There is no automatic top-up or default postpaid bill. The Pro allowance covers, for example, 10 million uncached input plus 2.5 million output tokens; this is a mixed-use example, not two independent token quotas. Max and Ultra scale this token budget 5x and 10x, respectively.
 
-Proposed rate card (version 2026-09-14-v1): uncached input $0.60/million; cached input $0.15/million; output $2.40/million. Storage overage $0.20/GiB-month; customer egress $0.09/GiB; measured query compute $0.06/vCPU-hour. These are launch proposals, not measured margins or provider prices. Qualify Modal GPU cost, utilization, cache accounting, actual query CPU and storage costs before offering them live. Never estimate billable CPU from wall time.
+Use one active platform subscription per billing owner. Portal v2 must allow cancellation/payment updates only; schedule plan changes at renewal until proration and grant adjustments are qualified. Upgrades do not instantly refill either allowance. Duplicate active subscription and pending checkout prevention remains a production release gate, as in v1.
+
+A paid recurring invoice line fans out into two grants with distinct stable IDs (invoice:line:ai and invoice:line:storage), identical paid periods and independent replay records. If one grant fails, retry only the unfinished grant. Do not treat the bundle's storage as an alternative to its AI grant.
+
+The structure follows Claude and Codex's included-plan-usage plus optional paid-credits approach, not their proprietary token limits, models or exact rates. Kotoba prices and margins are proposals requiring cost qualification. Five-hour/weekly throttles may protect shared capacity separately; they must not silently reset or charge the monthly budget. We do not advertise unlimited usage or an unimplemented rolling window.
+
+References checked 2026-09-14:
+- https://claude.com/pricing
+- https://support.claude.com/en/articles/12429409-manage-usage-credits-for-paid-claude-plans
+- https://help.openai.com/en/articles/12642688-using-credits-for-flexible-usage-in-chatgpt-freego-pluspro-sora
+
+Proposed rate card (version 2026-09-14-v2): uncached input $0.60/million; cached input $0.15/million; output $2.40/million. Storage overage $0.20/GiB-month; customer egress $0.09/GiB; measured query compute $0.06/vCPU-hour. These are launch proposals, not measured margins or provider prices. Qualify Modal GPU cost, utilization, cache accounting, actual query CPU and storage costs before offering them live. Never estimate billable CPU from wall time.
 
 Storage is time-integrated customer-retained bytes, including customer-selected history and indexes; internal replication and deduplication are not separate customer charges. Use GiB = 2^30 bytes. Monthly included capacity is integrated over that customer's actual billing period (not a fixed 30 days). Hourly or shorter signed server snapshots become retained-byte × elapsed-second measures. Subtract the integrated included allowance once, before rating overage. Do not sum snapshots as cumulative byte counts. Missing snapshots mean reconciliation is required, not zero usage. DB included credits apply only to storage.capacity, not egress/query compute.
 

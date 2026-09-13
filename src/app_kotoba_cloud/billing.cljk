@@ -1,13 +1,10 @@
 (ns app-kotoba-cloud.billing
   "Versioned prices and measurement contracts. Money is integer micro-USD.")
-(def version "2026-09-14-v1")
+(def version "2026-09-14-v2")
 (def plans
-  [{:sku "ai-builder" :name "AI Builder" :scope "ai" :cents 2900 :credits 24}
-   {:sku "ai-team" :name "AI Team" :scope "ai" :cents 9900 :credits 96}
-   {:sku "ai-scale" :name "AI Scale" :scope "ai" :cents 27900 :credits 288}
-   {:sku "storage-builder" :name "Database Builder" :scope "storage" :cents 1900 :gib 20}
-   {:sku "storage-team" :name "Database Team" :scope "storage" :cents 7900 :gib 200}
-   {:sku "storage-scale" :name "Database Scale" :scope "storage" :cents 24900 :gib 1000}
+  [{:sku "pro" :name "Pro" :scope "platform" :cents 2000 :credits 12 :gib 20}
+   {:sku "max" :name "Max" :scope "platform" :cents 10000 :credits 60 :gib 100}
+   {:sku "ultra" :name "Ultra" :scope "platform" :cents 20000 :credits 120 :gib 250}
    {:sku "ai-credits-25" :name "AI Credits 25" :scope "ai" :cents 2500 :credits 25 :topup true}
    {:sku "storage-credits-25" :name "Database Credits 25" :scope "storage" :cents 2500 :credits 25 :topup true}])
 (defn plan [sku] (first (filter #(= sku (:sku %)) plans)))
@@ -18,6 +15,7 @@
               :creditValueUSD 1 :plans plans :ratesMicroUSD rates
               :free {:identityRequired true :existingResearchQuotaUnchanged true :storageGiB 1}
               :enterprise {:minimumMonthlyUSD 1000 :quoteRequired true :postpaidDefault false}
+              :subscriptionScope "platform" :includedBalances ["ai" "storage.capacity"]
               :automaticTopup false :taxIncluded false})
 (defn natural? [x] (and (integer? x) (<= 0 x 1000000000000)))
 (defn token-event [receipt customer]
@@ -56,3 +54,11 @@
                (string? (:id invoice)) (string? (:id line)))
       {:id (str (:id invoice) ":" (:id line)) :sku sku :scope (:scope p)
        :credits (:credits p) :gib (:gib p) :start start :end end})))
+
+(defn allowance-grants
+  "Fan out one paid subscription line into independently replay-safe balances."
+  [line]
+  (if (= "platform" (:scope line))
+    [(-> line (assoc :id (str (:id line) ":ai") :scope "ai") (dissoc :gib))
+     (-> line (assoc :id (str (:id line) ":storage") :scope "storage") (dissoc :credits))]
+    [line]))

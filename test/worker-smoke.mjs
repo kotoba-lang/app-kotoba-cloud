@@ -826,7 +826,7 @@ bill = await route(new Request('https://kotoba.cloud/v1/billing/checkout', {meth
 assert.equal(bill.status,403);
 const memory = new Map();
 const billingState = {storage:{get:async k=>memory.get(k), put:async(k,v)=>memory.set(k,v), list:async()=>new Map([...memory].filter(([k])=>k.startsWith('usage:'))),setAlarm:async()=>{}}, blockConcurrencyWhile: f=>f()};
-const billingEnv = {STRIPE_RESTRICTED_KEY:'sk_test_fixture_not_a_real_key', STRIPE_PRICE_IDS:JSON.stringify({'ai-builder':'price_fixture','ai-credits-25':'price_topup'}), METRONOME_API_KEY:'test-fixture',METRONOME_RATE_CARD_ID:'rate_fixture',METRONOME_CREDIT_PRODUCTS:JSON.stringify({ai:'product_fixture',storage:'storage_fixture'}), STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture'};
+const billingEnv = {STRIPE_RESTRICTED_KEY:'sk_test_fixture_not_a_real_key', STRIPE_PRICE_IDS:JSON.stringify({'pro':'price_fixture','ai-credits-25':'price_topup'}), METRONOME_API_KEY:'test-fixture',METRONOME_RATE_CARD_ID:'rate_fixture',METRONOME_CREDIT_PRODUCTS:JSON.stringify({ai:'product_fixture',storage:'storage_fixture'}), STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture'};
 const billingDO = BillingAccount(billingState,billingEnv);
 const doBill = async(path,body={})=>billingDO.fetch(new Request('https://billing.internal'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({principal:'principal_fixture',...body})}));
 assert.equal((await doBill('/status')).status,200);
@@ -844,18 +844,25 @@ globalThis.fetch=async(url,init)=>{
  throw new Error('Unexpected billing provider URL '+u);
 };
 try {
- let r=await doBill('/checkout',{sku:'ai-builder',requestId:'request_fixture_000000'});
+ let r=await doBill('/checkout',{sku:'pro',requestId:'request_fixture_000000'});
  assert.equal(r.status,503,'invalid id rejected');
- r=await doBill('/checkout',{sku:'ai-builder',requestId:'request-fixture-000000'});
+ r=await doBill('/checkout',{sku:'pro',requestId:'request-fixture-000000'});
  assert.equal(r.status,200,await r.clone().text());
  assert.equal((await r.json()).url,'https://checkout.stripe.com/c/pay/fixture');
  const e={type:'invoice.paid',data:{object:{id:'in_fixture',customer:'cus_fixture'}}};
  r=await doBill('/event',{event:e});assert.equal(r.status,200,await r.clone().text());
  r=await doBill('/event',{event:e});assert.equal(r.status,200);
- assert.equal(providerCalls.filter(c=>c.url.endsWith('customerCommits/create')).length,1,'invoice replay cannot double grant');
+ assert.equal(providerCalls.filter(c=>c.url.endsWith('customerCommits/create')).length,2,'invoice replay cannot duplicate either bundled grant');
  const grant=JSON.parse(providerCalls.find(c=>c.url.endsWith('customerCommits/create')).body);
- assert.equal(grant.access_schedule.schedule_items[0].amount,2400);
+ assert.equal(grant.access_schedule.schedule_items[0].amount,1200);
  assert.deepEqual(grant.applicable_product_tags,['ai']);assert.equal(grant.invoice_schedule,undefined);
+ const storageGrant=JSON.parse(providerCalls.filter(c=>c.url.endsWith('customerCommits/create'))[1].body);
+ assert.deepEqual(storageGrant.applicable_product_tags,['storage.capacity']);
+ assert.equal(storageGrant.access_schedule.schedule_items[0].amount,400);
+ assert.notEqual(storageGrant.uniqueness_key,grant.uniqueness_key);
+ const checkoutParams=new URLSearchParams(providerCalls.find(c=>c.url.endsWith('/checkout/sessions')).body);
+ assert.equal(checkoutParams.get('line_items[0][price]'),'price_fixture');
+ assert.equal(checkoutParams.has('line_items[1][price]'),false,'one recurring item includes both balances');
  r=await doBill('/event',{event:{...e,data:{object:{id:'in_fixture',customer:'cus_other'}}}});assert.equal(r.status,503);
  const receipt={requestId:'usage-fixture',model:'security',inputTokens:100,cachedInputTokens:40,outputTokens:10,occurredAt:'2026-09-14T00:00:00Z'};
  r=await doBill('/usage',{kind:'inference',receipt});assert.equal(r.status,202);

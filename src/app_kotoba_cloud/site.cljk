@@ -415,15 +415,18 @@
        (dds/section {:title (txt "推論・データベースの料金" "Inference and database plans")}
         [:p (txt "検証中の料金案です。まだ本番で購入できません。価格は米ドル・税別です。" "Sandbox pricing proposal. Production purchases are not available yet. Prices are in USD, excluding tax.")]
         [:p (txt "本人確認済みの無料研究枠は継続します。有料プランでも本人確認と研究対象の承認が必要です。" "Verified researchers retain the free research allowance. Paid plans still require identity verification and approved scope.")]
-        [:p (txt "推論とDBは別々に契約できます。1 credit = $1相当。用途別に残高を管理し、自動チャージは初期状態では無効です。" "Subscribe to inference and storage independently. One credit represents $1 of usage; balances are scoped by service. Automatic top-up is off by default.")]
+        [:p (txt "1つの月額プランにtoken利用枠とDB保存容量が含まれます。残量は別々に表示し、枠を超える利用は用途別の追加creditsで支払います。1 credit = $1相当。自動チャージは無効です。" "One monthly plan includes token usage and database storage. Each has its own allowance; optional scoped credits cover extra usage. One credit represents $1 of usage. Automatic top-up is off.")]
         (into [:div {:class "kc-billing-plans"}]
               (for [p billing/plans]
                 (dds/card
                  (dds/heading 2 (:name p) {:size "28"})
                  [:p (str "$" (/ (:cents p) 100) (when-not (:topup p) (txt " / 月" " / month")))]
-                 [:p (if (:gib p) (str (:gib p) " GiB") (str (:credits p) " credits"))]
+                 [:p (str (:credits p) (if (:topup p) " credits" (txt " AI credits / 月" " AI credits / month")))]
+                 (when (:gib p) [:p (str (:gib p) (txt " GiB のGraph・Ontology保存容量" " GiB graph and ontology storage"))])
                  [:button {:type "button" :data-billing-sku (:sku p) :disabled true}
                   (txt "接続状況を確認中" "Checking availability")])) )
+        [:p (txt "Proのtoken枠を基準にMaxは5倍、Ultraは10倍。Proの12 creditsは、通常入力1,000万＋出力250万tokensに相当します（混合例）。入力・キャッシュ・出力の構成により利用可能なtoken数は変わります。" "Max includes 5× and Ultra 10× the Pro token allowance. Pro's 12 credits cover, for example, 10 million uncached input plus 2.5 million output tokens. Actual token capacity varies with the input, cache and output mix.")]
+        [:p (txt "WebとAPIで同じtoken枠を共有します。保存容量は推論では消費されません。Viewerは付属し、query処理・外部転送・保存超過はDB creditsの対象です。" "Web and API share the token allowance. Inference does not consume storage capacity. The viewer is included; query compute, egress and excess storage use DB credits.")]
         [:p {:id "billing-status" :role "status"}]
         [:button {:id "billing-portal" :type "button" :disabled true} (txt "請求・解約の管理" "Manage billing and cancellation")]
         (dds/heading 2 "Enterprise" {:size "28"})

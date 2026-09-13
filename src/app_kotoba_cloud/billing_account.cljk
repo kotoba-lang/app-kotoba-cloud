@@ -82,7 +82,8 @@
                        (.then (fn [invoice]
                                 (let [i (js->clj invoice :keywordize-keys true)
                                       prices (into {} (map (fn [[sku price]] [price sku]) (config env "STRIPE_PRICE_IDS")))
-                                      grants (keep #(billing/paid-line i % prices) (get-in i [:lines :data]))]
+                                      grants (mapcat billing/allowance-grants
+                                                     (keep #(billing/paid-line i % prices) (get-in i [:lines :data])))]
                                   (when (get-in i [:lines :has_more]) (throw (ex-info "invoice-pagination-required" {})))
                                   (reduce (fn [p grant] (.then p #(apply-grant storage env customer grant)))
                                           (js/Promise.resolve nil) grants)))))
