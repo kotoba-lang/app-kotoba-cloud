@@ -13,7 +13,7 @@
     for (let i=0;i<active.messages.length;i++) {
       const message=active.messages[i];
       if (message.role !== 'user') continue;
-      const node=cloudKotobaChat.createMessage({container:$('messages'),input:message.content,role:'kotoba/norbert',userLabel:t('あなた','You'),stages:[]});
+      const node=cloudKotobaChat.createMessage({container:$('messages'),input:message.content,role:'qwen3.8-flash-next-whitehacker',userLabel:t('あなた','You'),stages:[]});
       const answer=active.messages[i+1];
       if(answer?.role==='assistant') node.output.textContent=answer.content;
     }
@@ -66,11 +66,11 @@
     active.title=active.messages.length ? active.title : input.slice(0,48);active.messages=messages;draw();
     status(t('応答を待っています…','Waiting for a response…'));
     try {
-      const response=await fetch('/v1/chat/completions',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({model:'kotoba/norbert',scopeId:active.scope,task:active.task,messages,max_tokens:2048})});
+      const response=await fetch('/v1/chat/completions',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({model:'qwen3.8-flash-next-whitehacker',scopeId:active.scope,task:active.task,messages,max_tokens:2048})});
       const result=await response.json();
       if(!response.ok)throw new Error(errors[result.error?.code]||t('現在利用できません。本人確認と研究スコープを確認してください。','Currently unavailable. Check your identity verification and research scope.'));
       const content=result.choices?.[0]?.message?.content;
-      if(result.model!=='kotoba/norbert'||typeof content!=='string')throw new Error(t('応答を確認できませんでした。','Could not validate the response.'));
+      if(result.model!=='qwen3.8-flash-next-whitehacker'||typeof content!=='string')throw new Error(t('応答を確認できませんでした。','Could not validate the response.'));
       active.messages.push({role:'assistant',content});active.completed++;$('prompt').value='';status('');
     }catch(error){active.messages.pop();status(error.message || t('接続できませんでした。再度お試しください。','Connection failed. Please try again.'));}
     finally{busy=false;$('send').disabled=false;$('new').disabled=false;$('delete').disabled=false;draw();$('messages').scrollTop=$('messages').scrollHeight;}

@@ -7,7 +7,7 @@ try {
  await page.route('**/v1/**',async route=>{
   if(route.request().url().endsWith('/chat/completions')){
    submitted.push(route.request().postDataJSON());
-   await route.fulfill({status:fail?401:200,contentType:'application/json',body:JSON.stringify(fail?{error:{code:'sign-in-required'}}:{model:'kotoba/norbert',choices:[{message:{content:'Use parameterized SQL. <script>unsafe()</script>'}}]})});
+   await route.fulfill({status:fail?401:200,contentType:'application/json',body:JSON.stringify(fail?{error:{code:'sign-in-required'}}:{model:'qwen3.8-flash-next-whitehacker',choices:[{message:{content:'Use parameterized SQL. <script>unsafe()</script>'}}]})});
   }else if(route.request().url().endsWith('/research/status')) await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{code:'verification-provider-not-configured'}})});
   else await route.fulfill({status:401,contentType:'application/json',body:'{}'});
  });
@@ -18,7 +18,7 @@ try {
   await page.waitForFunction(()=>document.getElementById('norbert-access').textContent.includes('ログイン済み'));
   await page.locator('#norbert-scope').fill('approved-test-scope');await page.locator('#norbert-settings form button').click();
   await page.locator('#norbert-send').click();await page.waitForFunction(()=>document.getElementById('norbert-usage').textContent.includes('1'));
-  assert.equal(submitted.at(-1).model,'kotoba/norbert');
+  assert.equal(submitted.at(-1).model,'qwen3.8-flash-next-whitehacker');
   assert.equal(await page.locator('#norbert-messages script').count(),0);
   await page.locator('#norbert-prompt').fill('Explain');await page.locator('#norbert-send').click();await page.waitForFunction(()=>document.getElementById('norbert-usage').textContent.includes('2'));
   assert.equal(submitted.at(-1).messages.length,3);

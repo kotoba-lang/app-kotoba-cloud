@@ -196,7 +196,7 @@
   (doseq [locale [:ja :en]]
     (let [html (site/page-html locale)]
       (is (= 1 (count (re-seq #"<h1" html))))
-      (doseq [hook ["norbert-form" "norbert-history" "norbert-prompt" "norbert-settings" "kotoba/norbert" "/js/chat-components.js"]]
+      (doseq [hook ["norbert-form" "norbert-history" "norbert-prompt" "norbert-settings" "qwen3.8-flash-next-whitehacker" "/js/chat-components.js"]]
         (is (str/includes? html hook) hook))
       (is (not (str/includes? html "id=\"research-completion\""))))))
 

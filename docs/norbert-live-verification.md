@@ -1,4 +1,8 @@
-# Norbert verification — 2026-09-13
+# Historical transport verification — 2026-09-13
+
+The model was subsequently renamed to `qwen3.8-flash-next-whitehacker`.
+The old name below records the response at verification time; `kotoba/norbert`
+is reserved for a future release and is no longer published or accepted.
 
 - Public discovery: `https://kotoba.cloud/v1/models` exposes `kotoba/norbert`.
 - Direct Murakumo SSE: a small, agent-written addition function returned
