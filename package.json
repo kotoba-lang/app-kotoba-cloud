@@ -14,7 +14,9 @@
     "test:contract": "forge test --root contracts",
     "build:contract": "forge build --root contracts",
     "deploy:registry": "kbb --backend sci scripts/deploy-registry.cljk",
-    "test:providers": "node test/research-providers.mjs"
+    "test:providers": "node test/research-providers.mjs",
+    "build:security-data": "node scripts/build-security-data.mjs",
+    "test:security-data": "node test/security-data.mjs"
   },
   "devDependencies": {
     "shadow-cljs": "3.5.1",

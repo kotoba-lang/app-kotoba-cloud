@@ -1,0 +1,24 @@
+(ns app-kotoba-cloud.security-site)
+(def css "
+.security-page{max-width:1100px;margin:auto;padding:20px}.security-page h1{font-size:clamp(26px,5vw,38px)}.security-page nav{display:flex;gap:12px;flex-wrap:wrap}.security-page a{overflow-wrap:anywhere}.security-page input,.security-page select,.security-page button{min-height:44px;padding:10px;border:1px solid var(--hig-color-separator);border-radius:8px;font:inherit}.security-tools{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0}.security-tools input{flex:1;min-width:180px}.security-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}.security-results button{text-align:left;background:var(--hig-color-secondary-system-background);overflow-wrap:anywhere}.security-detail{border:1px solid var(--hig-color-separator);border-radius:12px;padding:20px;margin-top:24px}.security-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto}.security-page small{display:block;color:var(--hig-color-secondary-label)}.security-page li{margin:10px 0}.security-page :focus-visible{outline:3px solid var(--hig-color-tint);outline-offset:3px}")
+(defn view
+  ([] (view false))
+  ([embedded?]
+  [:main {:class "security-page" :id "security-main"}
+   [:nav {:aria-label "公開データ"} [:a {:href "/ja/"} "← チャット"] [:a {:href "https://wiki.kotobase.net/"} "百科"] [:a {:href "/security-data/README.md"} "LLM向け利用案内"]]
+   [(if embedded? :h2 :h1) "セキュリティ公開データ"]
+   [:p "脆弱性、攻撃手法、グループ、ログを、出典まで辿って調べる。"]
+   [:p {:id "security-summary" :role "status"} "データを読み込んでいます…"]
+   [:div {:class "security-tools"}
+    [:input {:id "security-search" :type "search" :aria-label "データを検索" :placeholder "CVE、ATT&CK ID、名前で検索"}]
+    [:select {:id "security-kind" :aria-label "データの種類"}
+     [:option {:value ""} "すべて"] [:option {:value "vulnerability"} "脆弱性"] [:option {:value "technique"} "攻撃手法"] [:option {:value "actor-group"} "グループ"] [:option {:value "attack-log"} "公開ログ"] [:option {:value "standard"} "SCAP"] [:option {:value "threat-model"} "脅威モデル"]]]
+   [:div {:id "security-results" :class "security-results"}]
+   [:section {:id "security-detail" :class "security-detail" :hidden true :tabindex -1 :aria-label "項目の詳細"}]
+   [:details [:summary "データの範囲・取得方法"]
+    [:p "初回スナップショットです。KEVの最新50件、ATT&CKの3グループと関連手法、OTRFの公開ラボログを収録。SCAPは仕様カタログで、評価エンジンや全チェック定義の配信ではありません。自動更新は未設定です。"]
+    [:p "出典付きの主張、観測ログ、分析用シナリオを区別します。KEVへの掲載だけで個別資産の脆弱性や攻撃者を判定しません。"]
+    [:nav [:a {:href "/security-data/index.json"} "IPLDマニフェスト"] [:a {:href "/security-data/graph.jsonld"} "Linked Data"] [:a {:href "/security-data/ontology.jsonld"} "オントロジー"] [:a {:href "/security-data/datoms.json"} "Datoms"] [:a {:href "/security-data/schema.edn"} "Datomicスキーマ"]]
+    [:p "IPLDのCIDを正本とし、JSON-LDとDatomic形式を同じデータから生成しています。HTTPS配信済みのブロックです。IPFSネットワークへの配布や百科の単一refへの登録は別工程です。"]
+    [:p [:a {:href "/security-data/MITRE-LICENSE.txt"} "MITRE ATT&CKの利用条件"] " · " [:a {:href "/security-data/OTRF-LICENSE.txt"} "OTRFの利用条件"]]]
+   [:script {:src "/js/security-data.js" :defer true}]]))

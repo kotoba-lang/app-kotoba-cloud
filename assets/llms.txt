@@ -52,3 +52,9 @@ Post-quantum signatures remain mandatory for library publication. The authentica
 Public operator: Kotoba Labs Inc. Contact: support@kotoba.cloud.
 
 Qualification note (8 September 2026): the installed native CLI reference-package add command returned runtime/internal-error. The agent quickstart records the failure and links the verified compile-and-execute path; package installation is not claimed verified.
+
+## Public security knowledge
+- https://kotoba.cloud/security-data/README.md
+- https://kotoba.cloud/security-data/index.json
+- https://kotoba.cloud/security-data/graph.jsonld
+- https://kotoba.cloud/ja/security/

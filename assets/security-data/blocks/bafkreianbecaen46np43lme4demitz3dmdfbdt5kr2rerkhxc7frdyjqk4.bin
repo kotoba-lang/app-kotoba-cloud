@@ -1,0 +1,1 @@
+[:find ?tech ?label :in $ ?group :where [?c ":claim/subject" ?group] [?c ":claim/property" "security/prop/uses"] [?c ":claim/value-item" ?tech] [?i ":item/id" ?tech] [?i ":item/label" ?label]]

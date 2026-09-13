@@ -3,6 +3,7 @@
   Worker Static Assets for every supported locale."
   (:require [app-kotoba-cloud.chat-site :as chat-site]
             [app-kotoba-cloud.identity-site :as identity-site]
+            [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.public-locales :as locales]
@@ -696,6 +697,7 @@
     [[:a {:class "kc-skip dads-button" :href "#main"} (:skip t)]
      (site-header locale t)
      (chat-site/view locale (passkey-href locale))
+     [:div {:id "security-view" :hidden true} (security-site/view true)]
      [:span {:id "kc-session-labels" :hidden true
              :data-signed-in-action (:signed-in-action t)
              :data-signed-in-status (:signed-in-status t)
@@ -713,13 +715,19 @@
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css chat-site/css)
+                :app-css (str tokens/skin-css app-css research-site/css chat-site/css tokens/bridge-css security-site/css)
                 :head (document-head locale :path (:title t) (:description t))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
                  (view-fn locale)))
          (str "<html lang=\"" (:html-lang t) "\">")
          (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">"))))))
+
+#?(:clj
+   (defn security-html []
+     (page/->page {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
+                  :css (document-css) :app-css (str tokens/skin-css tokens/bridge-css security-site/css)}
+                 (security-site/view))))
 
 #?(:clj
    (defn identity-html []
@@ -822,6 +830,12 @@
            (spit out (page-html locale infrastructure-view))))
        (let [out (io/file root "identity" "index.html")]
          (io/make-parents out) (spit out (identity-html)))
+       (doseq [source (file-seq (io/file "assets" "security-data")) :when (.isFile ^java.io.File source)]
+         (let [rel (.relativize (.toPath (io/file "assets")) (.toPath source)) target (io/file root (str rel))]
+           (io/make-parents target) (io/copy source target)))
+       (io/copy (io/file "assets" "security-data.js") (io/file js-dir "security-data.js"))
+       (doseq [path ["ja/security/index.html" "security-data/index.html"]]
+         (let [target (io/file root path)] (io/make-parents target) (spit target (security-html))))
        (spit (io/file js-dir "chat-components.js") chat-site/browser-script)
        (io/copy (io/file "assets" "norbert-chat.js") (io/file js-dir "norbert-chat.js"))
        (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
