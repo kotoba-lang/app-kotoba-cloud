@@ -22,6 +22,7 @@
    :output-dir "build"
    :modules {:worker {:exports {default app-kotoba-cloud.worker/app
                                PqKeyRegistry app-kotoba-cloud.pq-key-registry/make-pq-key-registry
+                               BillingAccount app-kotoba-cloud.billing-account/make-billing-account
                                route app-kotoba-cloud.worker/route
                                resetFunnelStore app-kotoba-cloud.worker/reset-funnel-store!}}}
    :compiler-options {:output-feature-set :es2020

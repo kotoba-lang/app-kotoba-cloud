@@ -1,0 +1,64 @@
+(ns app-kotoba-cloud.billing
+  "Versioned prices and measurement contracts. Money is integer micro-USD.")
+(def version "2026-09-14-v2")
+(def plans
+  [{:sku "pro" :name "Pro" :scope "platform" :cents 2000 :credits 12 :gib 20}
+   {:sku "max" :name "Max" :scope "platform" :cents 10000 :credits 60 :gib 100}
+   {:sku "ultra" :name "Ultra" :scope "platform" :cents 20000 :credits 120 :gib 250}
+   {:sku "ai-credits-25" :name "AI Credits 25" :scope "ai" :cents 2500 :credits 25 :topup true}
+   {:sku "storage-credits-25" :name "Database Credits 25" :scope "storage" :cents 2500 :credits 25 :topup true}])
+(defn plan [sku] (first (filter #(= sku (:sku %)) plans)))
+(def rates {:input-per-million 600000 :cached-input-per-million 150000
+            :output-per-million 2400000 :storage-gib-month 200000
+            :egress-gib 90000 :query-vcpu-hour 60000})
+(def catalog {:version version :currency "usd" :status "sandbox-proposal"
+              :creditValueUSD 1 :plans plans :ratesMicroUSD rates
+              :free {:identityRequired true :existingResearchQuotaUnchanged true :storageGiB 1}
+              :enterprise {:minimumMonthlyUSD 1000 :quoteRequired true :postpaidDefault false}
+              :subscriptionScope "platform" :includedBalances ["ai" "storage.capacity"]
+              :automaticTopup false :taxIncluded false})
+(defn natural? [x] (and (integer? x) (<= 0 x 1000000000000)))
+(defn token-event [receipt customer]
+  (let [{:keys [requestId model inputTokens cachedInputTokens outputTokens occurredAt]} receipt]
+    (when-not (and (string? requestId) (<= 1 (count requestId) 100)
+                   (string? model) (<= 1 (count model) 200)
+                   (every? natural? [inputTokens cachedInputTokens outputTokens])
+                   (<= cachedInputTokens inputTokens) (string? occurredAt))
+      (throw (ex-info "invalid-server-usage-receipt" {})))
+    {:transaction_id (str "inference:" requestId) :customer_id customer
+     :event_type "kotoba.inference" :timestamp occurredAt
+     :properties {:scope "ai" :catalog_version version :model model
+                  :input_tokens (- inputTokens cachedInputTokens)
+                  :cached_input_tokens cachedInputTokens :output_tokens outputTokens}}))
+(defn storage-event [sample customer]
+  (let [{:keys [sampleId databaseId bytes seconds occurredAt]} sample]
+    (when-not (and (string? sampleId) (<= 1 (count sampleId) 100)
+                   (string? databaseId) (every? natural? [bytes seconds]) (<= 1 seconds 3600)
+                   (string? occurredAt))
+      (throw (ex-info "invalid-server-storage-sample" {})))
+    {:transaction_id (str "storage:" sampleId) :customer_id customer
+     :event_type "kotoba.storage" :timestamp occurredAt
+     :properties {:scope "storage" :catalog_version version :database_id databaseId
+                  :retained_bytes bytes :interval_seconds seconds}}))
+(defn paid-line
+  "Only full paid recurring invoice lines grant an allowance. Proration cannot refill it."
+  [invoice line prices]
+  (let [price (or (get-in line [:pricing :price_details :price]) (get-in line [:price :id]))
+        sku (get prices price) p (plan sku)
+        start (get-in line [:period :start]) end (get-in line [:period :end])]
+    (when (and (= "paid" (:status invoice)) (= "usd" (:currency invoice))
+               (contains? #{"subscription_create" "subscription_cycle"} (:billing_reason invoice))
+               p (not (:topup p)) (= 1 (:quantity line))
+               (not (get-in line [:parent :subscription_item_details :proration]))
+               (not (:proration line)) (integer? start) (integer? end) (< start end)
+               (string? (:id invoice)) (string? (:id line)))
+      {:id (str (:id invoice) ":" (:id line)) :sku sku :scope (:scope p)
+       :credits (:credits p) :gib (:gib p) :start start :end end})))
+
+(defn allowance-grants
+  "Fan out one paid subscription line into independently replay-safe balances."
+  [line]
+  (if (= "platform" (:scope line))
+    [(-> line (assoc :id (str (:id line) ":ai") :scope "ai") (dissoc :gib))
+     (-> line (assoc :id (str (:id line) ":storage") :scope "storage") (dissoc :credits))]
+    [line]))
