@@ -1,0 +1,14 @@
+(ns app-kotoba-cloud.billing-usage
+  "Internal producer interface; never expose a browser-supplied usage route."
+  (:require [app-kotoba-cloud.billing-gateway :as gateway]))
+(defn record! [env authenticated-principal kind verified-receipt]
+  ;; Invoke after a durable provider/storage receipt exists, not from response text,
+  ;; caller token estimates, public headers, or request body usage fields.
+  (gateway/account env authenticated-principal "/usage" {:kind kind :receipt verified-receipt}))
+
+(defn reserve! [env authenticated-principal request-id scope maximum-micro-usd]
+  (gateway/account env authenticated-principal "/reserve"
+                   {:id request-id :scope scope :maximum maximum-micro-usd}))
+(defn settle! [env authenticated-principal request-id actual-micro-usd receipt-id]
+  (gateway/account env authenticated-principal "/settle"
+                   {:id request-id :actual actual-micro-usd :receiptId receipt-id}))

@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.worker
-  (:require [app-kotoba-cloud.attribution :as attribution]
+  (:require [app-kotoba-cloud.billing-gateway :as billing-gateway]
+            [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.boot :as boot]
             [app-kotoba-cloud.knowledge :as knowledge]
             [app-kotoba-cloud.funnel :as funnel]
@@ -611,6 +612,9 @@
     (cond
       (= hostname "boot.kotoba.cloud")
       (route-boot-host request env path)
+
+      (contains? billing-gateway/paths path)
+      (billing-gateway/route request env fetch-viewer private-json-response)
 
       (contains? knowledge/paths path)
       (knowledge/route request env)

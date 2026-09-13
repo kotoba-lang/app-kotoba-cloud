@@ -1,0 +1,80 @@
+(ns app-kotoba-cloud.billing-gateway
+  (:require [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.research-gateway :as shared]
+            ["stripe" :as Stripe]))
+(def paths #{"/v1/billing/catalog" "/v1/billing/status" "/v1/billing/checkout" "/v1/billing/portal" "/v1/billing/webhook"})
+(defn configured? [env]
+  (and (or (and (= "test" (aget env "BILLING_MODE")) (= "true" (aget env "BILLING_SANDBOX_ENABLED")))
+           (and (= "live" (aget env "BILLING_MODE")) (= "true" (aget env "BILLING_ENABLED"))
+                (= "true" (aget env "BILLING_METERING_READY"))))
+       (every? #(aget env %) ["BILLING_ACCOUNTS" "STRIPE_RESTRICTED_KEY" "STRIPE_WEBHOOK_SECRET"
+                              "STRIPE_PRICE_IDS" "STRIPE_PORTAL_CONFIGURATION_ID"])))
+(defn client [env]
+  (when (and (= "true" (aget env "BILLING_SANDBOX_ENABLED"))
+             (not (re-find #"^(rk|sk)_test_" (or (aget env "STRIPE_RESTRICTED_KEY") ""))))
+    (throw (ex-info "test-stripe-key-required" {})))
+  (Stripe. (aget env "STRIPE_RESTRICTED_KEY")
+                 #js {:apiVersion "2026-07-29.dahlia" :maxNetworkRetries 1 :timeout 15000 :httpClient (.createFetchHttpClient Stripe)}))
+(defn account [env principal path payload]
+  (let [^js binding (aget env "BILLING_ACCOUNTS")
+        stub (.get binding (.idFromName binding (str (aget env "BILLING_MODE") ":" principal)))]
+    (.fetch stub (str "https://billing.internal" path)
+            #js {:method "POST" :headers #js {"content-type" "application/json"}
+                 :body (js/JSON.stringify (clj->js (assoc payload :principal principal)))})))
+(defn- signed-body [request]
+  (let [reader (.getReader (.-body request)) chunks (array)]
+    (letfn [(step [size]
+              (-> (.read reader)
+                  (.then (fn [part]
+                           (if (.-done part) (.text (js/Blob. chunks))
+                             (let [size (+ size (.-byteLength (.-value part)))]
+                               (if (> size 262144)
+                                 (do (.cancel reader) (throw (ex-info "body-too-large" {:status 413})))
+                                 (do (.push chunks (.-value part)) (step size)))))))))]
+      (step 0))))
+(defn- webhook [request env respond]
+  (if-not (and (aget env "STRIPE_WEBHOOK_SECRET") (aget env "BILLING_ACCOUNTS") (aget env "STRIPE_RESTRICTED_KEY"))
+    (respond {:error "billing-not-configured"} 503)
+    (-> (signed-body request)
+        (.then (fn [raw]
+                 (when (> (count raw) 262144) (throw (ex-info "body-too-large" {:status 413})))
+                 (.constructEventAsync (.-webhooks (client env)) raw
+                                       (.get (.-headers request) "stripe-signature")
+                                       (aget env "STRIPE_WEBHOOK_SECRET") 300)))
+        (.then (fn [event]
+                 (let [e (js->clj event :keywordize-keys true) obj (get-in e [:data :object])
+                       principal (or (get-in obj [:parent :subscription_details :metadata :principal])
+                                     (get-in obj [:metadata :principal]))]
+                   (cond
+                     (not= (:livemode e) (= "live" (aget env "BILLING_MODE")))
+                     (respond {:error "mode-mismatch"} 400)
+                     (not (contains? #{"invoice.paid" "checkout.session.completed" "checkout.session.async_payment_succeeded"
+                                       "customer.subscription.deleted" "customer.subscription.updated"} (:type e)))
+                     (respond {:received true :ignored true} 200)
+                     (nil? principal) (respond {:received true :ignored true} 200)
+                     :else (account env principal "/event" {:event e})))))
+        (.catch (fn [e] (respond {:error "webhook-not-accepted"} (or (:status (ex-data e)) 400)))))))
+(defn route [request env viewer! respond]
+  (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
+        read? (contains? #{"/v1/billing/catalog" "/v1/billing/status"} path)]
+    (cond
+      (not= method (if read? "GET" "POST")) (respond {:error "method-not-allowed"} 405)
+      (= path "/v1/billing/catalog") (respond (assoc billing/catalog :mode (aget env "BILLING_MODE") :checkoutEnabled (boolean (configured? env))) 200)
+      (= path "/v1/billing/webhook")
+      (webhook request env respond)
+      (and (not read?) (not (shared/origins (.get (.-headers request) "origin"))))
+      (respond {:error "origin-not-allowed"} 403)
+      (and (not read?) (not= "application/json" (.get (.-headers request) "content-type")))
+      (respond {:error "json-required"} 415)
+      :else
+      (-> (viewer! request)
+          (.then (fn [viewer]
+                   (cond
+                     (not (true? (:valid viewer))) (respond {:error "sign-in-required"} 401)
+                     (not (configured? env)) (respond {:status "pending-configuration" :checkoutEnabled false} (if read? 200 503))
+                     :else (-> (if read? (js/Promise.resolve {}) (shared/bounded-json request 4096))
+                               (.then (fn [body]
+                                        (account env (:principalId viewer)
+                                                 (case path "/v1/billing/status" "/status" "/v1/billing/portal" "/portal" "/checkout")
+                                                 (select-keys body [:sku :requestId]))))))))
+          (.catch (fn [_] (respond {:error "billing-unavailable"} 503)))))))
