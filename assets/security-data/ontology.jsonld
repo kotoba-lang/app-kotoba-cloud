@@ -61,6 +61,11 @@
       "rdfs:label": "ransomwareUse"
     },
     {
+      "@id": "security:alias",
+      "@type": "rdf:Property",
+      "rdfs:label": "alias"
+    },
+    {
       "@id": "security:name",
       "@type": "rdf:Property",
       "rdfs:label": "name"

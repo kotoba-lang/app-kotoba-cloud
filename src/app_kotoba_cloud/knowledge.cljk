@@ -18,12 +18,12 @@
       (not= "GET" (.-method request)) (reply {:error "method-not-allowed"} 405)
       (or (not (string? q)) (str/blank? q) (> (count q) 200)) (reply {:error "query-required-max-200-characters"} 400)
       :else
-      (-> (asset env (.-origin url) "/security-data/retrieval.json" 262144)
+      (-> (asset env (.-origin url) "/security-data/retrieval.json" 524288)
           (.then (fn [index]
                    (if search?
                      (let [terms (str/split (str/lower-case (str/trim q)) #"\s+")
                            results (->> (:entries index)
-                                        (filter (fn [e] (let [text (str/lower-case (str (:id e) " " (:label e)))]
+                                        (filter (fn [e] (let [text (str/lower-case (str (:id e) " " (:label e) " " (str/join " " (:aliases e))))]
                                                          (every? #(str/includes? text %) terms))))
                                         (take 8) vec)]
                        (reply {:snapshot (:snapshot index) :results results :limit 8} 200))

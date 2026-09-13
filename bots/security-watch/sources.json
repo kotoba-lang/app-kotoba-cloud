@@ -4,7 +4,7 @@
     "url": "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json",
     "format": "stix-2.1",
     "mode": "current",
-    "coverage": "all non-revoked actor clusters and source-backed activity relationships; expand current three-group sample",
+    "coverage": "all valid source-covered actor clusters and reported uses relationships to techniques; campaign and software relationships not yet projected",
     "maxBytes": 80000000,
     "rights": "MITRE terms; retain existing notice"
   },
