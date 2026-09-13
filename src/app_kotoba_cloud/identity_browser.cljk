@@ -116,6 +116,7 @@
                  (disabled! "identity-begin" (or (not ready) (some? (:case @state))))
                  (disabled! "identity-camera-start" (or (not ready) (nil? (:case @state))))
                  (say! (cond ready "非公開保管への接続を確認しました。取扱説明を確認して申請してください。"
+                             (= "connected" (get-in r [:connection :authority])) "本人確認サービスに接続しました。非公開保管・鍵管理・審査員の設定が未完了のため、撮影・提出はまだできません。"
                              (= "sign-in-required" (get-in r [:error :code])) "先にKotobaにログインしてください。撮影・提出はまだ開始していません。"
                              :else "撮影画面は準備済みです。非公開保管・審査員の接続待ちのため、現在は撮影・提出できません。"))
                  (when (and (:httpOk r) (seq (:cases r)) (nil? (:case @state)))
