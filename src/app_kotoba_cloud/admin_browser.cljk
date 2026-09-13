@@ -97,9 +97,9 @@
                      (seq (:queue r))
                      (review-say! (str (count (:queue r)) " 件の担当案件があります。 / " (count (:queue r)) " assigned case(s)."))
                      :else
-                     (review-say! (t "担当案件はありません。 / No assigned cases."))))
+                     (review-say! (t "担当案件はありません。" "No assigned cases."))))
                  (when (or (not (:httpOk r)) (get-in r [:error :code]))
-                   (say! (str "authority status: " (or (get-in r [:error :code]) "unavailable") " — 接続状態の反映は審査基盤側の設定が完了した後に表示されます。")))))
+                   (say! (str "authority status: " (or (get-in r [:error :code]) "unavailable") " — 接続状態の反映は審査基盤側の設定が完了した後に表示されます。"))))
                (.replaceChildren (el "admin-queue"))
                (doseq [c (:queue r)]
                  (let [row (.createElement js/document "p")

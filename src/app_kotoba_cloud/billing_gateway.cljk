@@ -8,7 +8,7 @@
            (and (= "live" (aget env "BILLING_MODE")) (= "true" (aget env "BILLING_ENABLED"))
                 (= "true" (aget env "BILLING_METERING_READY"))))
        (every? #(aget env %) ["BILLING_ACCOUNTS" "STRIPE_RESTRICTED_KEY" "STRIPE_WEBHOOK_SECRET"
-                              "STRIPE_PRICE_IDS" "STRIPE_PORTAL_CONFIGURATION_ID"])))
+                              "STRIPE_PRICE_IDS" "STRIPE_PORTAL_CONFIGURATION_ID" "BILLING_ENVIRONMENT_ID"])))
 (defn client [env]
   (when (and (= "true" (aget env "BILLING_SANDBOX_ENABLED"))
              (not (re-find #"^(rk|sk)_test_" (or (aget env "STRIPE_RESTRICTED_KEY") ""))))
@@ -17,7 +17,7 @@
                  #js {:apiVersion "2026-07-29.dahlia" :maxNetworkRetries 1 :timeout 15000 :httpClient (.createFetchHttpClient Stripe)}))
 (defn account [env principal path payload]
   (let [^js binding (aget env "BILLING_ACCOUNTS")
-        stub (.get binding (.idFromName binding (str (aget env "BILLING_MODE") ":" principal)))]
+        stub (.get binding (.idFromName binding (str (aget env "BILLING_MODE") ":" (aget env "BILLING_ENVIRONMENT_ID") ":" principal)))]
     (.fetch stub (str "https://billing.internal" path)
             #js {:method "POST" :headers #js {"content-type" "application/json"}
                  :body (js/JSON.stringify (clj->js (assoc payload :principal principal)))})))
