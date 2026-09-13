@@ -1,0 +1,23 @@
+{
+  "account": "acct_1U7sRyITDawH5x8a",
+  "livemode": true,
+  "prices": {
+    "pro": "price_1UFIk7ITDawH5x8aa5tKnpFr",
+    "max": "price_1UFIkJITDawH5x8aEXyqIxIz",
+    "ultra": "price_1UFIkKITDawH5x8a0Jr4VAKY",
+    "ai-credits-25": "price_1UFIkLITDawH5x8apS291qyj",
+    "storage-credits-25": "price_1UFIkLITDawH5x8aMXWKID2b"
+  },
+  "webhook": {
+    "id": "we_1UFIlIITDawH5x8aHbt2FQWm",
+    "url": "https://api.kotoba.cloud/v1/billing/webhook",
+    "secretBinding": "STRIPE_LIVE_WEBHOOK_SECRET"
+  },
+  "productionEnabled": false,
+  "blockers": [
+    "Stripe representative/owner verification incomplete; final submission disabled",
+    "Live restricted API key",
+    "Live customer portal configuration",
+    "Verified production inference and database metering producer connections"
+  ]
+}
