@@ -542,7 +542,7 @@
                     (cond-> {"vary" (when (locale/apex-path? path)
                                       "Accept-Language, Cookie, CF-IPCountry")}
                       (or (locale/apex-path? path)
-                          (= path (str "/" (:locale decision) "/")))
+                          (= path (locale/locale-path (:locale decision))))
                       (assoc "content-security-policy"
                              (.replace (get security-headers "content-security-policy")
                                        "connect-src 'self'" "connect-src 'self' https://kotobase.net"))
