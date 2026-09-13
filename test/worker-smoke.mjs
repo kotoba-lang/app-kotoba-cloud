@@ -817,7 +817,7 @@ bill = await route(new Request('https://kotoba.cloud/v1/billing/checkout', {meth
 assert.equal(bill.status,403);
 const memory = new Map();
 const billingState = {storage:{get:async k=>memory.get(k), put:async(k,v)=>memory.set(k,v), list:async()=>new Map([...memory].filter(([k])=>k.startsWith('usage:'))),setAlarm:async()=>{}}, blockConcurrencyWhile: f=>f()};
-const billingEnv = {STRIPE_RESTRICTED_KEY:'sk_test_fixture_not_a_real_key', STRIPE_PRICE_IDS:JSON.stringify({'pro':'price_fixture','ai-credits-25':'price_topup'}), STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture'};
+const billingEnv = {BILLING_ENVIRONMENT_ID:'account-a-test',STRIPE_RESTRICTED_KEY:'sk_test_fixture_not_a_real_key', STRIPE_PRICE_IDS:JSON.stringify({'pro':'price_fixture','ai-credits-25':'price_topup'}), STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture'};
 const enabledCatalog=await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...billingEnv,BILLING_SANDBOX_ENABLED:'true',BILLING_MODE:'test',STRIPE_WEBHOOK_SECRET:'whsec_fixture',BILLING_ACCOUNTS:{}});
 assert.equal((await enabledCatalog.json()).checkoutEnabled,true,'Stripe-only configuration requires no additional provider');
 const billingDO = BillingAccount(billingState,billingEnv);
@@ -889,9 +889,13 @@ assert.equal((await webhook(rawEvent,signature(rawEvent,stamp-600))).status,400)
 assert.equal(webhookCalls.length,0);
 assert.equal((await webhook(rawEvent,signature(rawEvent))).status,200);
 assert.equal(webhookCalls.length,1);
-assert.equal(webhookCalls[0].id,'test:principal_fixture');
+assert.equal(webhookCalls[0].id,'test:account-a-test:principal_fixture');
 const liveEvent = JSON.stringify({...signedEvent,livemode:true});
 assert.equal((await webhook(liveEvent,signature(liveEvent))).status,400);
 assert.equal(webhookCalls.length,1);
+webhookEnv.BILLING_ENVIRONMENT_ID = 'account-b-test';
+assert.equal((await webhook(rawEvent,signature(rawEvent))).status,200);
+assert.equal(webhookCalls[1].id,'test:account-b-test:principal_fixture');
+assert.notEqual(webhookCalls[0].id,webhookCalls[1].id);
 console.log('Stripe webhook signature, timestamp and mode checks passed');
 console.log('operator console host isolation checks passed');
