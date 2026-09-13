@@ -8,12 +8,14 @@ try {
   if(route.request().url().endsWith('/chat/completions')){
    submitted.push(route.request().postDataJSON());
    await route.fulfill({status:fail?401:200,contentType:'application/json',body:JSON.stringify(fail?{error:{code:'sign-in-required'}}:{model:'kotoba/norbert',choices:[{message:{content:'Use parameterized SQL. <script>unsafe()</script>'}}]})});
-  }else await route.fulfill({status:401,contentType:'application/json',body:'{}'});
+  }else if(route.request().url().endsWith('/research/status')) await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{code:'verification-provider-not-configured'}})});
+  else await route.fulfill({status:401,contentType:'application/json',body:'{}'});
  });
  for(const width of [320,390,768,1440]) {
   await page.setViewportSize({width,height:850});await page.goto(process.env.CHAT_URL || 'http://127.0.0.1:8799/ja/');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.locator('#norbert-prompt').fill('Review my SQL');await page.locator('#norbert-send').click();
+  await page.waitForFunction(()=>document.getElementById('norbert-access').textContent.includes('ログイン済み'));
   await page.locator('#norbert-scope').fill('approved-test-scope');await page.locator('#norbert-settings form button').click();
   await page.locator('#norbert-send').click();await page.waitForFunction(()=>document.getElementById('norbert-usage').textContent.includes('1'));
   assert.equal(submitted.at(-1).model,'kotoba/norbert');
