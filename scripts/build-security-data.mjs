@@ -52,6 +52,18 @@ claim('security/log/SDLIN-201110074812','eventCount',raw.logs.toString().trim().
 const scenario={id:'security/scenario/discovery-review',type:'scenario-template',layer:'model-inference',generatedBy:'authored-template; no LLM execution',basis:['security/log/SDLIN-201110074812','security/attack/T1018'],goal:'Assess whether observed discovery is authorized administration or requires investigation.',assumptions:['Use only assets you own or are authorized to investigate.','A technique association is not proof of compromise or actor identity.'],questions:['Is the process expected for this asset and user?','Does independent evidence corroborate unauthorized activity?','Which detection or access-control gap should be validated?'],unknowns:['Actual asset configuration','User authorization','Corroborating telemetry'],notEvidenceOfAttack:true};
 const scenarioLink=dag(scenario);item(scenario.id,'探索ログを評価する脅威モデル・シナリオ雛形','threat-model','authored-template',{layer:'model-inference',record:scenarioLink});
 sources.push({'source/id':'authored-template','source/url':'https://kotoba.cloud/security-data/','source/title':'Kotoba authored analysis template','source/publisher':'Kotoba','source/license':'CC0-1.0','source/access':'public','source/retrieved-at':lock.kev.retrievedAt,archive:scenarioLink,'source/archived-cid':scenarioLink['/']});
+// Cybersecurity index axes (0-100 basis points each, host-measured; composite
+// computed by kotoba/app_kotoba_cloud/security_index.kotoba guest logic — this
+// mirror must equal its index-score: mean of 4 clamped axes, integer quotient).
+const nowMs=Date.now();
+const kevLatestDays=kev.vulnerabilities.reduce((m,v)=>Math.max(m,(nowMs-Date.parse(v.dateAdded))/86400000),0);
+const axes={
+  cvss:Math.round(Math.min(100,(kev.vulnerabilities.filter(v=>v.knownRansomwareCampaignUse==='Known').length/Math.max(1,Math.min(kev.vulnerabilities.length,500)))*200)),
+  kev:Math.round(Math.max(0,100-kevLatestDays*2)),
+  attack:Math.round(Math.min(100,(groups.length/176)*100)),
+  freshness:Math.round(Math.max(0,100-(nowMs-Date.parse(lock.kev.retrievedAt))/86400000))
+};
+axes.composite=Math.floor((Math.min(100,Math.max(0,axes.cvss))+Math.min(100,Math.max(0,axes.kev))+Math.min(100,Math.max(0,axes.attack))+Math.min(100,Math.max(0,axes.freshness)))/4);
 const properties=[...new Set(claims.map(c=>c['claim/property']))].map(id=>({'prop/id':id,'prop/label':id.split('/').at(-1),'prop/datatype':claims.some(c=>c['claim/property']===id&&c['claim/value-item'])?'item':'string'}));
 const schemaKeys=[...new Set([...items,...claims,...sources,...properties,{"claim/qualifiers":""}].flatMap(o=>Object.keys(o).filter(k=>k.includes('/'))))].sort();
 const schema=schemaKeys.map(k=>({':db/ident':':'+k,':db/valueType':k==='source/retrieved-at'?':db.type/instant':':db.type/string',':db/cardinality':':db.cardinality/one',...(k.endsWith('/id')?{':db/unique':':db.unique/identity'}:{})}));
@@ -70,7 +82,7 @@ const schemaLink=block(readFileSync(out+'/schema.edn'));
 const query='[:find ?tech ?label :in $ ?group :where [?c ":claim/subject" ?group] [?c ":claim/property" "security/prop/uses"] [?c ":claim/value-item" ?tech] [?i ":item/id" ?tech] [?i ":item/label" ?label]]\n';
 writeFileSync(out+'/query.edn',query);const queryLink=block(Buffer.from(query));
 const licenses={mitre:block(readFileSync(out+'/MITRE-LICENSE.txt')),otrf:block(readFileSync(out+'/OTRF-LICENSE.txt'))};
-const root={version:1,schema:schemaLink,query:queryLink,licenses,corpus,generatedAt:lock.kev.retrievedAt,coverage:{kev:{selected:50,total:kev.vulnerabilities.length,selection:'latest dateAdded descending then CVE id'},attack:{groups:groups.length,techniques:techniques.length,relations:relations.length-1},logs:'one public OTRF lab audit dataset; no private incident logs',scap:'overview and specification catalog; no SCAP evaluation engine'},sources:[...sourceLinks.values()],items:records.map(x=>x.record),claims:claimLinks,ontology:ontologyLink,linkedData:graphLink,datoms:datomsLink,scenario:scenarioLink};const head=dag(root);
+const root={version:1,schema:schemaLink,query:queryLink,licenses,corpus,generatedAt:lock.kev.retrievedAt,index:axes,coverage:{kev:{selected:50,total:kev.vulnerabilities.length,selection:'latest dateAdded descending then CVE id'},attack:{groups:groups.length,techniques:techniques.length,relations:relations.length-1},logs:'one public OTRF lab audit dataset; no private incident logs',scap:'overview and specification catalog; no SCAP evaluation engine'},sources:[...sourceLinks.values()],items:records.map(x=>x.record),claims:claimLinks,ontology:ontologyLink,linkedData:graphLink,datoms:datomsLink,scenario:scenarioLink};const head=dag(root);
 const contexts=records.map(r=>{
  const selectedClaims=claims.filter(c=>c['claim/subject']===r['item/id']);
  const evidence=selectedClaims.slice(0,8).map(c=>({claim:claimLinks[claims.indexOf(c)],subject:c['claim/subject'],property:c['claim/property'],value:c['claim/value-item']||c['claim/value'],layer:c['claim/layer'],source:sourceLinks.get(c['claim/source']),sourceUrl:sources.find(s=>s['source/id']===c['claim/source'])['source/url']}));

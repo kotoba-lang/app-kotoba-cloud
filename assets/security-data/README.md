@@ -1,6 +1,6 @@
 # Public security knowledge
 
-Snapshot: baguqeeraerlatkl4gshtlrepnn2p2vrszxriabdbpxghtfldxqn5ts4rcvva
+Snapshot: baguqeeraaog6vxn3znnblfvzegctwxnpnglmbw47zbmww75sgnana2eljgoa
 
 LLM retrieval: GET https://kotoba.cloud/v1/knowledge/search?q=T1018, then GET https://kotoba.cloud/v1/knowledge/context?id=security%2Fattack%2FT1018. Use the exact ID returned by search.
 Context returns at most 8 sourced claims, totalClaims/truncated, evidence layers and immutable contextUrl. Pin that URL for a session and cite claim CIDs and source URLs. Separate facts, assumptions and unknowns. Public retrieval does not grant model or research access.
