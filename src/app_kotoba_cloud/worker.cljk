@@ -603,6 +603,19 @@
         method (.-method request)
         sign-in (session/apex-sign-in-location path (.-search url))]
     (cond
+      ;; HTTPS is the transport floor for every hostname this worker serves:
+      ;; a plaintext request is redirected (301, permanent) rather than served,
+      ;; so cookies, sessions, and PQ approvals never ride an unencrypted
+      ;; connection. Path and query are preserved; only scheme (and any
+      ;; explicit :80) changes.
+      (= "http:" (.-protocol url))
+      (redirect (str "https://" hostname
+                     (when-not (empty? (.-port url))
+                       (str ":" (.-port url)))
+                     path
+                     (.-search url))
+                {"cache-control" "public, max-age=31536000, immutable"})
+
       (= hostname "boot.kotoba.cloud")
       (route-boot-host request env path)
 
