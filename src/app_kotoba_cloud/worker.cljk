@@ -541,6 +541,11 @@
                     asset
                     (cond-> {"vary" (when (locale/apex-path? path)
                                       "Accept-Language, Cookie, CF-IPCountry")}
+                      (or (locale/apex-path? path)
+                          (= path (locale/locale-path (:locale decision))))
+                      (assoc "content-security-policy"
+                             (.replace (get security-headers "content-security-policy")
+                                       "connect-src 'self'" "connect-src 'self' https://kotobase.net"))
                       (:set-cookie? decision)
                       (assoc "set-cookie" (locale/cookie-header (:locale decision)))))))))))
 

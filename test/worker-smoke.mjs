@@ -502,6 +502,9 @@ assert.equal(pathWins.status, 200);
 assert.equal(pathWins.headers.get("location"), null);
 assert.match(pathWins.headers.get("set-cookie") || "", /^kb_locale=su;/);
 
+assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://kotobase.net"));
+assert(pathWins.headers.get("content-security-policy").includes("connect-src 'self' https://kotobase.net"));
+
 const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/session"), env);
 assert.equal(sessionUntouched.status, 200);
 assert.equal(sessionUntouched.headers.get("location"), null);
@@ -781,4 +784,5 @@ assert.equal(capturePage.headers.get('permissions-policy'), 'camera=(self), micr
 assert.equal(capturePage.headers.get('cache-control'), 'no-store, private');
 assert(!capturePage.headers.get('content-security-policy').includes('freebuff'));
 assert(capturePage.headers.get('content-security-policy').includes('media-src blob:'));
+assert(!capturePage.headers.get('content-security-policy').includes('https://kotobase.net'));
 console.log('private identity gateway authorization, bounds and camera isolation checks passed');
