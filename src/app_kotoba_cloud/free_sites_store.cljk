@@ -1,0 +1,108 @@
+(ns app-kotoba-cloud.free-sites-store
+  "Kotobase Datomic-facade adapter for the bounded ownership registry.
+  Requires the backend expected_parent guard; not enabled in the Worker.
+  Credentials are supplied by a trusted, graph-scoped Biscuit issuer."
+  (:require [app-kotoba-cloud.free-sites :as sites]
+            [cljs.reader :as reader]))
+
+(def origin "https://kotobase.net")
+(def entity "free-sites/registry-v1")
+(def attribute "free-sites/document")
+(def query (pr-str [:find '?value :where [entity attribute '?value]]))
+
+(defn- fail! [reason]
+  (throw (ex-info (name reason) {:reason reason :status 503})))
+
+(defn- nonblank? [s]
+  (and (string? s) (<= 1 (count s) 256) (not (re-find #"\s" s))))
+
+(defn decode-snapshot
+  "Exactly one string datom and its authoritative chain basis are required.
+  No missing-registry bootstrap and no multi-valued-document selection."
+  [graph body]
+  (when-not (and (true? (:ok body)) (= graph (:graph body))
+                 (nonblank? (:basis_cid body))
+                 (vector? (:rows_edn body)) (= 1 (count (:rows_edn body)))
+                 (vector? (first (:rows_edn body))) (= 1 (count (first (:rows_edn body)))))
+    (fail! :registry-read-unavailable))
+  (let [wire (ffirst (:rows_edn body))]
+    (when-not (and (string? wire) (<= (count wire) 131072))
+      (fail! :registry-read-unavailable))
+    (let [document (reader/read-string wire)]
+      (when-not (string? document) (fail! :registry-read-unavailable))
+      {:basis (:basis_cid body)
+       :registry (sites/validate-registry (reader/read-string document))
+       ;; Retain the exact serialized value for the retraction, not a reprint.
+       :stored-document document})))
+
+(defn provider
+  "Config is trusted deployment configuration, never request JSON.
+  authorize! receives data:read or data:write and returns a fresh/valid Biscuit
+  bound to the configured tenant, graph and database. No cookie/CACAO fallback.
+  fetch! is injectable for contract testing. Neither function logs credentials."
+  [{:keys [graph db-name tenant-did authorize! fetch!] :or {fetch! js/fetch}}]
+  (when-not (and (every? nonblank? [graph db-name tenant-did]) (fn? authorize!) (fn? fetch!))
+    (fail! :registry-configuration-required))
+  (letfn [(request! [action method body]
+            (-> (js/Promise.resolve nil)
+                (.then (fn [_] (authorize! action)))
+                (.then
+                 (fn [authorization]
+                   (when-not (and (string? authorization)
+                                  (re-matches #"Biscuit [A-Za-z0-9_-]{80,8192}" authorization))
+                     (fail! :registry-authorization-required))
+                   (fetch! (str origin "/xrpc/ai.gftd.apps.kotobase." method)
+                           #js {:method "POST" :redirect "error" :cache "no-store"
+                                :headers #js {"content-type" "application/json"
+                                              "authorization" authorization
+                                              "x-kotobase-tenant-did" tenant-did
+                                              "x-kotobase-db-name" db-name}
+                                :body (js/JSON.stringify (clj->js body))})))
+                (.then (fn [response]
+                         (-> (.text response)
+                             (.then (fn [text]
+                                      (when (> (count text) 262144) (fail! :registry-response-too-large))
+                                      {:status (.-status response)
+                                       :body (js->clj (js/JSON.parse text) :keywordize-keys true)})))))))
+          (load! []
+            (-> (request! "data:read" "datomic.q"
+                          {:graph graph :db_name db-name :query_edn query})
+                (.then (fn [{:keys [status body]}]
+                         (when-not (= 200 status) (fail! :registry-read-unavailable))
+                         (decode-snapshot graph body)))))
+          (commit! [{:keys [expected-basis expected-revision registry]}]
+            (sites/validate-registry registry)
+            (when-not (and (nonblank? expected-basis) (integer? expected-revision)
+                           (= (inc expected-revision) (:revision registry)))
+              (fail! :invalid-registry-commit))
+            (-> (load!)
+                (.then
+                 (fn [before]
+                   (if-not (and (= expected-basis (:basis before))
+                                (= expected-revision (get-in before [:registry :revision])))
+                     {:status :conflict}
+                     (-> (request! "data:write" "datomic.transact"
+                                   {:db_name db-name :expected_parent expected-basis
+                                    :tx_edn (pr-str [[:db/retract entity attribute (:stored-document before)]
+                                                     [:db/add entity attribute (pr-str registry)]])})
+                         (.then
+                          (fn [{:keys [status body]}]
+                            (cond
+                              (and (= 409 status) (false? (:ok body))
+                                   (contains? #{"PreconditionFailed" "ConcurrentWriteConflict"} (:error body)))
+                              {:status :conflict}
+
+                              (and (= 200 status) (true? (:ok body)) (= graph (:graph body))
+                                   (nonblank? (:commit body)) (not= expected-basis (:commit body)))
+                              (-> (load!)
+                                  (.then (fn [after]
+                                           ;; If a newer writer won before readback, fail ambiguously;
+                                           ;; repeating the claim can recover it from that newer state.
+                                           (when-not (and (= (:commit body) (:basis after))
+                                                          (= registry (:registry after)))
+                                             (fail! :registry-receipt-unavailable))
+                                           {:status :committed
+                                            :snapshot (select-keys after [:basis :registry])})))
+
+                              :else (fail! :registry-write-unavailable))))))))))]
+    {:load! load! :commit! commit! :now! #(.toISOString (js/Date.))}))
