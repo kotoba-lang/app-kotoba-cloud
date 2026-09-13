@@ -6,6 +6,7 @@
             [app-kotoba-cloud.knowledge-site :as knowledge-site]
             [cloud-kotoba-dds.graph-workbench :as graph-workbench]
             [app-kotoba-cloud.identity-site :as identity-site]
+            [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.profile :as profile]
@@ -733,6 +734,17 @@
                  (security-site/view))))
 
 #?(:clj
+   (defn admin-html []
+     (page/->page
+      {:title "管理者コンソール — Kotoba Cloud" :lang "ja" :css (document-css)
+       :app-css (str tokens/skin-css app-css research-site/css)
+       :head [[:meta {:name "robots" :content "noindex"}]
+              [:script {:src "/js/session.js" :defer true}]]}
+      [:main {:id "main"} (admin-site/section :ja)]
+      [:p [:a {:href (passkey-href :ja) :id "kc-session-nav"} "Passkeyでログイン"]
+       " · " [:a {:href "/ja/"} "kotoba.cloud"]])))
+
+#?(:clj
    (defn identity-html []
      (page/->page
       {:title "本人確認 — Kotoba Cloud" :lang "ja" :css (document-css)
@@ -833,6 +845,8 @@
            (spit out (page-html locale infrastructure-view))))
        (let [out (io/file root "identity" "index.html")]
          (io/make-parents out) (spit out (identity-html)))
+       (let [out (io/file root "admin" "index.html")]
+         (io/make-parents out) (spit out (admin-html)))
        (doseq [folder ["security-data" "security-watch"]
                source (file-seq (io/file "assets" folder)) :when (.isFile ^java.io.File source)]
          (let [rel (.relativize (.toPath (io/file "assets")) (.toPath source)) target (io/file root (str rel))]
