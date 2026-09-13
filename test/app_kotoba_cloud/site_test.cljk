@@ -22,7 +22,7 @@
 (deftest japanese-page-matches-the-language-concept
   (let [html (infrastructure-html :ja)]
     (is (str/includes? html "<html lang=\"ja\""))
-    (is (str/includes? html "ホワイトハットのための、セキュリティ AI。"))
+    (is (str/includes? html "守る人に、力を。"))
     (is (str/includes? html "本人確認済みの研究者"))
     (is (= 1 (count (re-seq #"<h1" html))))
     (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
@@ -77,7 +77,7 @@
 (deftest english-page-is-complete-and-addressable
   (let [html (infrastructure-html :en)]
     (is (str/includes? html "<html lang=\"en\""))
-    (is (str/includes? html "Security intelligence."))
+    (is (str/includes? html "Empower those who protect."))
     (is (str/includes? html "verified white-hat researchers"))
     (is (str/includes? html "From AI-written code to admitted computation"))
     (is (str/includes? html "One release CID, executable from multiple providers"))

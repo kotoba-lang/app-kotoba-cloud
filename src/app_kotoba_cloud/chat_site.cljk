@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.chat-site
-  (:require [cloud-kotoba-dds.chat :as chat]
+  (:require [app-kotoba-cloud.research-site :as research-site]
+            [cloud-kotoba-dds.chat :as chat]
             [cloud-kotoba-dds.styles :as styles]
             [cloud-kotoba-dds.browser :as browser]))
 
@@ -24,7 +25,11 @@
            [:span "qwen3.8-flash-next-whitehacker"]
            [:button {:type "button" :id "norbert-settings-open"} (t "設定" "Settings")])
          (chat/conversation {:id "norbert-conversation"}
-           (chat/welcome {:id "norbert-welcome"} [:h1 (t "何を調べますか？" "What would you like to investigate?")])
+           (chat/welcome {:id "norbert-welcome"}
+             [:h1 (:title (research-site/copy locale))]
+             [:p (:vision (research-site/copy locale))]
+             [:a {:href (if ja? "/ja/about/#research" "/about/#research")}
+              (t "私たちの想い" "Our purpose")])
            (chat/message-list {:id "norbert-messages" :aria-label (t "メッセージ" "Messages")}))
          (chat/composer {:id "norbert-form"}
            (chat/prompt {:id "norbert-prompt" :maxlength 24000 :required true :aria-label (t "メッセージ" "Message") :placeholder (t "コードや調べたいことを入力" "Enter code or a research question")})
