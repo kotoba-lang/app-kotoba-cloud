@@ -1,0 +1,48 @@
+(ns app-kotoba-cloud.security-index
+  "Cybersecurity index core (pure decision, :i64 basis points).
+  Mirrors the aggregation contract of scripts/build-security-data.mjs — the
+  host (Node) reads source feeds, computes per-axis basis points 0..100, and
+  this guest computes the clamped 4-axis average plus per-axis clamp. Host
+  passes 4 axis values; guest returns the composite index in basis points.
+  No capability lines: pure document-free arithmetic (:effects #{})."
+  (:export [index-score clamp100 test-index-score test-clamp main]))
+
+(defn clamp100
+  "Clamp one axis value to [0,100]. Out-of-range host input is a feed bug —
+  clamp, never propagate."
+  [v :i64] :i64
+  (if (< 100 v) 100 (if (< v 0) 0 v)))
+
+(defn index-score
+  "Composite cybersecurity index: equal-weight mean of 4 axis basis points.
+  cvss-bp  = CVSS/severity axis (0-100)
+  kev-bp   = KEV exploitation axis (0-100)
+  attack-bp = ATT&CK activity axis (0-100)
+  fresh-bp = feed freshness axis (0-100)
+  Returns integer basis points 0..100 (truncated)."
+  [cvss-bp :i64 kev-bp :i64 attack-bp :i64 fresh-bp :i64] :i64
+  (quot (+ (+ (clamp100 cvss-bp) (clamp100 kev-bp))
+            (+ (clamp100 attack-bp) (clamp100 fresh-bp)))
+         4))
+
+(defn test-index-score
+  "Equals the 4-axis mean with clamping on both ends (390/4=97, 100+50+50+50/4=62)."
+  [] :bool
+  (if (and (= 62 (index-score 100 50 50 50))
+           (= 97 (index-score 200 150 90 100))
+           (= 0 (index-score -3 -3 -3 -3)))
+    true false))
+
+(defn test-clamp
+  "clamp100 pins both edges and the pass-through middle."
+  [] :bool
+  (if (and (= 100 (clamp100 120))
+           (= 0 (clamp100 -3))
+           (= 42 (clamp100 42)))
+    true false))
+
+(defn main
+  "Self-check: 0 = all green (count-based, not boolean)."
+  [] :i64
+  (+ (if (test-index-score) 0 1)
+     (if (test-clamp) 0 1)))
