@@ -5,7 +5,7 @@
   const ja = document.documentElement.lang === 'ja';
   const t = (a,b) => ja ? a : b;
   let chats = [], active, busy = false;
-  window.addEventListener('kotoba:research-context',event=>{if(busy){status(t('生成の完了後に根拠を変更できます。','Change evidence after generation finishes.'));return;}active.evidenceId=event.detail.id;active.evidenceLabel=event.detail.label;delete active.evidence;drawEvidence();location.hash='#chat';status(t('参照する公開データ：','Public evidence: ')+active.evidenceLabel);$('prompt').focus();});
+  window.addEventListener('kotoba:research-context',event=>{if(busy){status(t('生成の完了後に根拠を変更できます。','Change evidence after generation finishes.'));return;}active.evidenceId=event.detail.id;active.evidenceLabel=event.detail.label;delete active.evidence;drawEvidence();location.hash='#chat';status('');$('prompt').focus();});
   const status = text => $('status').textContent = text;
   const evidenceBox=document.createElement('div');evidenceBox.id='norbert-evidence';
   $('form').prepend(evidenceBox);
