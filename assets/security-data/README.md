@@ -1,6 +1,6 @@
 # Public security knowledge
 
-Snapshot: baguqeeraopjnpwslwoujf7i2gexqklwk7o7r23nyeqxsnoa3by53mk47mrya
+Snapshot: baguqeeraerlatkl4gshtlrepnn2p2vrszxriabdbpxghtfldxqn5ts4rcvva
 
 Read index.json, verify every CID, then follow source archives and sourced claims.
 DAG-JSON blocks use codec 0x0129; raw archive blocks use 0x55, both sha2-256.
