@@ -33,4 +33,7 @@ and credentials; cross-person quota identity; recovery and retention; production
 end-to-end trial. New gateway tests pass under kbb SCI. Browser source loads under
 SCI, but its compiled browser build and live interaction are not yet qualified.
 The installed `amu` command currently resolves to a missing Hermes profile.
+Calling the repository compiler directly with the package build arguments also
+refuses them: it requires a .kotoba/.cljk/.cljc source, not the legacy browser/app
+build names. The build entrypoint needs repair before release.
 Do not merge/deploy this UI as a working research service based on these tests.

@@ -82,7 +82,7 @@
                                     "Request accepted. Model startup may take up to about 35 minutes. Save this page URL to return to the result."))
         (reset! poll-timer (js/setTimeout #(poll-job! id) 5000)))
     :else
-    (do (reset! job-pending? false)
+    (do (reset! job-pending? (= "unknown" (:status result)))
         (say! "research-output"
               (case (:status result)
                 "succeeded" (:content result)
