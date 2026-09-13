@@ -1,23 +1,37 @@
 {
-  "account": "acct_1U7sRyITDawH5x8a",
+  "account": "acct_1TuxvPIzvFrqWhXK",
+  "accountName": "AWAI Network, L.L.C.",
+  "organization": "Kotoba Labs",
   "livemode": true,
-  "prices": {
-    "pro": "price_1UFIk7ITDawH5x8aa5tKnpFr",
-    "max": "price_1UFIkJITDawH5x8aEXyqIxIz",
-    "ultra": "price_1UFIkKITDawH5x8a0Jr4VAKY",
-    "ai-credits-25": "price_1UFIkLITDawH5x8apS291qyj",
-    "storage-credits-25": "price_1UFIkLITDawH5x8aMXWKID2b"
+  "products": {
+    "pro": "prod_VFoiphskFouOdi",
+    "max": "prod_VFojjxZjaYtfUE",
+    "ultra": "prod_VFojrthDS4oVSr",
+    "ai-credits-25": "prod_VFokBcoGcV18ld",
+    "storage-credits-25": "prod_VFolqMJbTjuwWb"
   },
   "webhook": {
-    "id": "we_1UFIlIITDawH5x8aHbt2FQWm",
+    "id": "we_1UFJ91IzvFrqWhXK73cdrsyu",
     "url": "https://api.kotoba.cloud/v1/billing/webhook",
-    "secretBinding": "STRIPE_LIVE_WEBHOOK_SECRET"
+    "status": "disabled",
+    "apiVersion": "2026-08-26.dahlia"
   },
   "productionEnabled": false,
   "blockers": [
-    "Stripe representative/owner verification incomplete; final submission disabled",
-    "Live restricted API key",
-    "Live customer portal configuration",
-    "Verified production inference and database metering producer connections"
+    "AWAI live secrets not yet stored",
+    "Actual inference and database metering connection and verification",
+    "Confirm charge capability; organization lists restricted but account status has no active tasks"
+  ],
+  "prices": {
+    "pro": "price_1UFJ5TIzvFrqWhXKHHsr82B0",
+    "max": "price_1UFJ60IzvFrqWhXKzi7RBX6d",
+    "ultra": "price_1UFJ6UIzvFrqWhXKl2ichBCD",
+    "ai-credits-25": "price_1UFJ72IzvFrqWhXKEvUlJ9Nj",
+    "storage-credits-25": "price_1UFJ7YIzvFrqWhXKqs1H0DCV"
+  },
+  "portal": "bpc_1UFJAhIzvFrqWhXKoYVOgCRh",
+  "requiredSecrets": [
+    "STRIPE_AWAI_LIVE_KEY",
+    "STRIPE_AWAI_LIVE_WEBHOOK_SECRET"
   ]
 }

@@ -1,8 +1,10 @@
-# Live billing activation status (2026-09-14)
+# AWAI production billing (2026-09-14)
 
-Live prices and a live webhook were provisioned for Kotoba Labs, Inc. The signing secret is stored as STRIPE_LIVE_WEBHOOK_SECRET in kotoba-cloud-control-plane. Test credentials and balances are preserved. The live catalog is recorded in stripe-live-catalog.json. No customer was charged.
+Production merchant: AWAI Network, L.L.C., acct_1TuxvPIzvFrqWhXK, under the Kotoba Labs organization. Dashboard-created live products/prices and portal are recorded in stripe-live-catalog.json. Existing Kotobase products and Murakumo webhook are unchanged.
 
-Stripe onboarding reports incomplete representative/owner details and disables final submission. The account owner must complete the missing information and submit the terms acceptance. The live restricted API key and live portal configuration are still required.
+The Kotoba webhook is created but disabled pending recipient configuration. Its API version is 2026-08-26.dahlia. The portal permits invoice history, customer/payment-method updates and cancellation at period end; plan/quantity changes are disabled. No no-code portal link was activated. No payment has been executed in AWAI.
+
+STRIPE_AWAI_LIVE_KEY and STRIPE_AWAI_LIVE_WEBHOOK_SECRET are the dedicated input bindings. The earlier STRIPE_LIVE_WEBHOOK_SECRET belongs to a different account and MUST NOT be used for AWAI. Test configuration remains unchanged. Do not enable billing flags before real metering verification. The org list says restricted, while account status shows no active tasks; charge capability remains unverified.
 
 Production paid execution is not ready. The public models endpoint currently advertises the Murakumo backend and free-only eligibility; main research_gateway sends billing=free-only, research_providers omits provider token usage, and billing_usage has no producer callers. The first-party database gateway release was previously blocked (PR59); its tenant operations and authoritative storage samples have not been verified here. Do not set BILLING_ENABLED or BILLING_METERING_READY merely because live Stripe objects exist.
 
