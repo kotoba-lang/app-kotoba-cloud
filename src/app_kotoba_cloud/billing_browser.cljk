@@ -1,5 +1,19 @@
 (ns app-kotoba-cloud.billing-browser)
 (defn- status! [message] (when-let [el (.getElementById js/document "billing-status")] (set! (.-textContent el) message)))
+(defn- balances! []
+  (-> (js/fetch "/v1/billing/status" #js {:credentials "same-origin"})
+      (.then (fn [r] (when (.-ok r) (.json r))))
+      (.then (fn [body]
+               (when body
+                 (let [balances (js->clj (aget body "balances") :keywordize-keys true)
+                       available (fn [scope] (or (:availableMicroUSD (first (filter #(= scope (:scope %)) balances))) 0))
+                       el (.getElementById js/document "billing-balances")]
+                   (when el
+                     (set! (.-textContent el)
+                           (str "残り利用枠 / Available: AI " (/ (available "ai") 1000000)
+                                " credits · Storage " (/ (available "storage.capacity") 200000)
+                                " GiB · DB " (/ (available "storage") 1000000) " credits")))))))
+      (.catch (fn [_] nil))))
 (defn- action! [path sku]
   (-> (js/fetch path #js {:method "POST" :credentials "same-origin" :headers #js {"content-type" "application/json"}
                          :body (js/JSON.stringify #js {:sku sku :requestId (.randomUUID js/crypto)})})
@@ -10,6 +24,11 @@
       (.catch #(status! (.-message %)))))
 (defn init! []
   (when (.getElementById js/document "billing-status")
+    (when-not (.getElementById js/document "billing-balances")
+      (let [el (.createElement js/document "p")]
+        (set! (.-id el) "billing-balances")
+        (.after (.getElementById js/document "billing-status") el)))
+    (balances!)
     (-> (js/fetch "/v1/billing/catalog") (.then #(.json %))
         (.then (fn [catalog]
                  (if-not (true? (aget catalog "checkoutEnabled"))
