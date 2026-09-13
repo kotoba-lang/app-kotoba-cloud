@@ -68,7 +68,7 @@
                                                    (if (or (and (= op "status") (not= (:principalId viewer) (:principalId payload)))
                                                            (and (= op "profile") (not= id (:id payload))))
                                                      (fail respond 502 "invalid-identity-response")
-                                                     (respond (select-keys payload [:policyVersion :profilePolicyVersion :principalId :intakeEnabled :cases :reviewer :queue
+                                                     (respond (select-keys payload [:connection :policyVersion :profilePolicyVersion :principalId :intakeEnabled :cases :reviewer :queue
                                                                                     :researcherProfile :profileSummary
                                                                                     :id :nonce :expiresAt :receiptId :status :revision]) 200)))))))))))))
           (.catch (fn [e] (fail respond (or (:status (ex-data e)) 503) "identity-request-unavailable"))))))

@@ -32,9 +32,10 @@ accepted as authority.
 
 ## Operational state
 
-The production private `IDENTITY_AUTHORITY` binding, private storage adapter,
-reviewer enrollment and approved retention/deletion/operator notice are not yet
-connected. Intake stays closed: this change does not enable real document uploads
+The private `IDENTITY_AUTHORITY` binding now reaches the dedicated closed
+`kotoba-identity-authority` service. The private storage adapter, key management,
+reviewer enrollment and approved retention/deletion/operator notice remain
+unconnected. Intake stays closed: this change does not enable real document uploads
 or claim that any person, organization or qualification has been verified.
 Reviewer signing remains an operator workflow; this release does not add browser
 approval buttons. Renewal/revocation requires the private authority operational

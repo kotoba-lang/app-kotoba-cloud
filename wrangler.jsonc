@@ -17,6 +17,7 @@
     { "pattern": "console.kotoba.cloud", "custom_domain": true },
     { "pattern": "boot.kotoba.cloud", "custom_domain": true }
   ],
+  "services": [{"binding": "IDENTITY_AUTHORITY", "service": "kotoba-identity-authority"}],
   "r2_buckets": [
     {
       "binding": "PUBLIC_BLOCKS",
