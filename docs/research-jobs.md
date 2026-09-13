@@ -30,8 +30,10 @@ request IDs nor receipt IDs authorize access. Do not echo internal exceptions.
 
 Release blockers: real private adapter/storage/KMS/queue/observers; signed review
 and credentials; cross-person quota identity; recovery and retention; production
-end-to-end trial. New gateway tests pass under kbb SCI. Browser source loads under
-SCI, but its compiled browser build and live interaction are not yet qualified.
+end-to-end trial. New gateway tests pass under kbb SCI. Browser and Worker compatibility builds succeeded with zero compiler warnings;
+the existing Worker smoke checks also passed. A loopback-only synthetic browser
+fixture showed result retrieval on initial load and reload with an opaque job ID.
+This is not a real model/identity/storage end-to-end test.
 The installed `amu` command currently resolves to a missing Hermes profile.
 Calling the repository compiler directly with the package build arguments also
 refuses them: it requires a .kotoba/.cljk/.cljc source, not the legacy browser/app
