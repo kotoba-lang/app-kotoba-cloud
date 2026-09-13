@@ -35,5 +35,5 @@
     "requireLiveReadback": true
   },
   "sourceFailurePolicy": "retain-last-good; record failed/blocked/stale separately",
-  "runtimeStatus": "Codex heartbeat registered ACTIVE on 2026-09-13; Itonami registration pending sign-in"
+  "runtimeStatus": "Itonami profile registered and verified on 2026-09-13; read-only standby with no routines. Codex heartbeat remains the sole scheduled publisher."
 }
