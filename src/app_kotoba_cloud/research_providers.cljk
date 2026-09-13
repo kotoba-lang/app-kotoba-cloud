@@ -4,9 +4,11 @@
   evidence and reserve quota in Kotobase before inference. No storage fallback."
   (:require [app-kotoba-cloud.research :as policy]
             [app-kotoba-cloud.research-gateway :as gateway]
-            ["svix" :refer [Webhook]]))
+            ["svix" :refer [Webhook]]
+            ["stripe" :as Stripe]))
 
 (def self-origin "https://edge.dashboard.self.xyz")
+(def stripe-origin "https://api.stripe.com")
 (def inference-url "https://api.murakumo.cloud/v1/chat/completions")
 
 (defn- fail [code] (throw (ex-info code {:status 503})))
@@ -77,6 +79,75 @@
      :nullifier (:nullifier event) :screeningCoverage ["self-ofac"]
      :reviewRequired true}))
 
+;; --- Stripe Identity Provider Adapter ---
+
+(defn- stripe-config! [config]
+  (when-not (and (re-matches #"^(rk|sk)_(live|test)_\S+" (or (:apiKey config) ""))
+                 (policy/text? (:verificationFlow config) 128)
+                 (policy/text? (:webhookSecret config) 128))
+    (fail "stripe-identity-not-configured")))
+
+(defn create-stripe-session
+  "Create a Stripe Identity verification session. Never accepts client overrides."
+  [config principal external-id fetch!]
+  (stripe-config! config)
+  (when-not (and (policy/text? principal 256) (policy/text? external-id 256))
+    (fail "invalid-stripe-challenge"))
+  (let [body (str "type=document"
+                  "&verification_flow=" (js/encodeURIComponent (:verificationFlow config))
+                  "&client_reference_id=" (js/encodeURIComponent external-id)
+                  "&metadata[principal]=" (js/encodeURIComponent principal))]
+    (-> (fetch! (str stripe-origin "/v1/identity/verification_sessions")
+                #js {:method "POST" :redirect "error"
+                     :signal (js/AbortSignal.timeout 30000)
+                     :headers #js {"content-type" "application/x-www-form-urlencoded"
+                                   "authorization" (str "Bearer " (:apiKey config))}
+                     :body body})
+        (.then (fn [response]
+                 (when-not (.-ok response) (fail "stripe-session-unavailable"))
+                 (gateway/bounded-json response 32768)))
+        (.then (fn [session]
+                 (let [url (:url session)]
+                   (when-not (and (contains? #{"requires_input" "processing"} (:status session))
+                                  (= external-id (:client_reference_id session))
+                                  (policy/text? url 512)
+                                  (policy/text? (:id session) 128))
+                     (fail "invalid-stripe-session"))
+                   {:id (:id session) :clientReferenceId (:client_reference_id session)
+                    :verificationUrl url :status (:status session)}))))))
+
+(defn verify-stripe-event
+  "Verify Stripe webhook payload using stripe-signature header.
+  Constructs event via Stripe client, binds client_reference_id & principal challenge,
+  and returns verified outputs without persisting DEK or raw PII."
+  [config challenge raw signature-header now]
+  (stripe-config! config)
+  (when (> (count raw) 262144) (fail "stripe-event-too-large"))
+  (let [stripe (Stripe. (:apiKey config) #js {:apiVersion "2026-07-29.dahlia" :httpClient (.createFetchHttpClient Stripe)})]
+    (-> (.constructEventAsync (.-webhooks stripe) raw signature-header (:webhookSecret config) 300)
+        (.then (fn [event]
+                 (let [e (js->clj event :keywordize-keys true)
+                       obj (get-in e [:data :object])
+                       session-id (:id obj)
+                       verified-at (if (number? (:created e)) (* 1000 (:created e)) now)]
+                   (when-not
+                    (and (= "identity.verification_session.verified" (:type e))
+                         (= "verified" (:status obj))
+                         (= (:sessionId challenge) session-id)
+                         (= (:externalId challenge) (:client_reference_id obj))
+                         (= (:principal challenge) (get-in obj [:metadata :principal]))
+                         (= false (:consumed challenge))
+                         (number? (:createdAt challenge)) (number? (:expiresAt challenge))
+                         (<= (:createdAt challenge) verified-at now)
+                         (< now (:expiresAt challenge))
+                         (<= (- now verified-at) 900000))
+                     (fail "stripe-evidence-not-admissible"))
+                   {:provider "stripe-identity" :status "verified" :verifiedAt verified-at
+                    :sessionId session-id :eventId (:id e)
+                    :verifiedOutputs (select-keys (:verified_outputs obj) [:dob :first_name :last_name :address])
+                    :screeningCoverage ["stripe-document-and-selfie"]
+                    :reviewRequired true}))))))
+
 (defn infer
   "Called only after atomic free-quota reservation by the private authority.
   No model fallback; no user credentials or identity evidence leave this port."
@@ -109,5 +180,12 @@
   (clj->js (verify-event (js->clj config :keywordize-keys true)
                          (js->clj challenge :keywordize-keys true)
                          raw (js->clj headers) now)))
+(defn create-stripe-session-js [config principal external-id fetch!]
+  (-> (create-stripe-session (js->clj config :keywordize-keys true) principal external-id fetch!) (.then clj->js)))
+(defn verify-stripe-event-js [config challenge raw signature-header now]
+  (-> (verify-stripe-event (js->clj config :keywordize-keys true)
+                           (js->clj challenge :keywordize-keys true)
+                           raw signature-header now)
+      (.then clj->js)))
 (defn infer-js [request fetch!]
   (-> (infer (js->clj request :keywordize-keys true) fetch!) (.then clj->js)))
