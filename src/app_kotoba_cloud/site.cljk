@@ -830,7 +830,8 @@
            (spit out (page-html locale infrastructure-view))))
        (let [out (io/file root "identity" "index.html")]
          (io/make-parents out) (spit out (identity-html)))
-       (doseq [source (file-seq (io/file "assets" "security-data")) :when (.isFile ^java.io.File source)]
+       (doseq [folder ["security-data" "security-watch"]
+               source (file-seq (io/file "assets" folder)) :when (.isFile ^java.io.File source)]
          (let [rel (.relativize (.toPath (io/file "assets")) (.toPath source)) target (io/file root (str rel))]
            (io/make-parents target) (io/copy source target)))
        (io/copy (io/file "assets" "security-data.js") (io/file js-dir "security-data.js"))

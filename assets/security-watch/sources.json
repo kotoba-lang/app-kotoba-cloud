@@ -1,0 +1,56 @@
+[
+  {
+    "id": "mitre-enterprise",
+    "url": "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json",
+    "format": "stix-2.1",
+    "mode": "current",
+    "coverage": "all non-revoked actor clusters and source-backed activity relationships; expand current three-group sample",
+    "maxBytes": 80000000,
+    "rights": "MITRE terms; retain existing notice"
+  },
+  {
+    "id": "cisa-kev",
+    "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+    "format": "json",
+    "mode": "current",
+    "coverage": "known exploited vulnerabilities; no asset-specific exposure conclusion",
+    "maxBytes": 10000000,
+    "rights": "retain source attribution"
+  },
+  {
+    "id": "ransomwatch-groups",
+    "url": "https://raw.githubusercontent.com/joshhighet/ransomwatch/main/groups.json",
+    "format": "json",
+    "mode": "historical",
+    "coverage": "historical tracker group identifiers; not identity equivalence",
+    "maxBytes": 10000000,
+    "rights": "repository Unlicense; third-party contents assessed separately"
+  },
+  {
+    "id": "ransomwatch-posts",
+    "url": "https://raw.githubusercontent.com/joshhighet/ransomwatch/main/posts.json",
+    "format": "json",
+    "mode": "historical",
+    "coverage": "historical unverified extortion allegations; no stolen files",
+    "maxBytes": 30000000,
+    "rights": "publish minimal normalized claim metadata only"
+  },
+  {
+    "id": "ransomware-live",
+    "url": "https://www.ransomware.live/api",
+    "format": "documentation",
+    "mode": "pending-access-and-terms",
+    "coverage": "current ransomware actor activity and allegations",
+    "maxBytes": 1000000,
+    "rights": "verify current API access and data reuse terms before enabling"
+  },
+  {
+    "id": "regional-reports",
+    "url": "https://www.cisa.gov/news-events/cybersecurity-advisories",
+    "format": "discovery",
+    "mode": "curated",
+    "coverage": "add CERT/CSIRT and vendor primary reports across Americas, Europe, Africa, Middle East, Asia and Oceania; retain original language",
+    "maxBytes": 2000000,
+    "rights": "source-specific; links and minimal facts until permitted"
+  }
+]

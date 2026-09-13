@@ -73,3 +73,9 @@ assumptions and unknowns. A technique match does not prove vulnerability or acto
 Public evidence retrieval grants no authority to scan, exploit, or call the model.
 Chat UI: open Public data, select an item, choose Use this evidence, then ask your question.
 Generation retains Passkey, identity/review and approved research scope requirements.
+
+## Update bot
+- Profile: https://kotoba.cloud/security-watch/profile.json
+- Collection rules: https://kotoba.cloud/security-watch/SOUL.md
+- Source registry: https://kotoba.cloud/security-watch/sources.json
+Global coverage is a collection objective, not a completeness claim. Source audit is separate from published ingestion.
