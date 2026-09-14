@@ -25,7 +25,7 @@
     (is (str/includes? html "守る人に、力を。"))
     (is (str/includes? html "本人確認済みの研究者"))
     (is (= 1 (count (re-seq #"<h1" html))))
-    (doseq [needle ["auth.kotoba.cloud" "kotobase.net" "murakumo.cloud"
+    (doseq [needle ["auth.kotoba.cloud" "api.kotoba.cloud" "murakumo.cloud"
                     "itonami.cloud" "kotoba-lang.org" "Hosted apply"
                     (str "kotoba package add kotoba-lang/reference-math@0.1.0 --catalog-cid "
                          profile/reference-package-catalog-cid)
@@ -43,7 +43,7 @@
 
 (deftest signed-in-product-links-use-the-target-bound-controller-handoff
   (let [html (infrastructure-html :ja)]
-    (is (str/includes? html "https://auth.kotoba.cloud/connect?target=kotobase"))
+    (is (str/includes? html "https://auth.kotoba.cloud/connect?target=kotoba-cloud"))
     (is (str/includes? html "https://auth.kotoba.cloud/connect?target=murakumo"))
     (is (str/includes? html "https://auth.kotoba.cloud/connect?target=itonami"))
     (is (str/includes? html "data-session-link=\"true\""))
@@ -164,10 +164,10 @@
         (is (str/includes? html "research-workspace"))
         (is (false? (str/includes? html "hosted apply is live")))
         (is (false? (str/includes? html "Hosted apply is available"))))))
-  (testing "signed-in next step stays the live Kotobase principal handoff"
-    (is (= "https://auth.kotoba.cloud/connect?target=kotobase" site/kotobase-connect-href))
-    (is (= "Connect this Principal" (get-in site/copy [:en :signed-in-action])))
-    (is (str/includes? (get-in site/copy [:en :signed-in-status]) "connect this Principal to Kotobase"))))
+  (testing "signed-in next step points to the first-party database workbench"
+    (is (= "/#knowledge/overview" site/kotobase-connect-href))
+    (is (= "Open databases" (get-in site/copy [:en :signed-in-action])))
+    (is (str/includes? (get-in site/copy [:en :signed-in-status]) "connect to the database with this Principal"))))
 
 (deftest public-entry-locales-preserve-authority-boundaries-and-hreflang
   (doseq [[locale t] locales/copy]

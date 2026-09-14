@@ -175,7 +175,7 @@ const publication = {
   issuedAt: new Date().toISOString(),
   expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
   namespace: "demo", releaseCid: "bafyRelease", recordCid: "bafyRecord",
-  publisher: "did:key:zDemo", ipnsName: "k51demo", storageOrigin: "https://kotobase.net",
+  publisher: "did:key:zDemo", ipnsName: "k51demo", storageOrigin: "https://api.kotoba.cloud",
   signedRecord: {
     name: "k51demo", value: "bafyRecord", sequence: 3,
     valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), ttl_secs: 3600,
