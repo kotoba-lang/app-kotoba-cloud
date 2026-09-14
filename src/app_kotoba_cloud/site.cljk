@@ -846,6 +846,74 @@
                                      (operator-lead locale))}
                (tokushoho-view locale)))))
 
+(defn graph-docs-view [locale]
+  (let [ja? (= locale :ja)
+        t (translation locale)
+        txt (fn [ja en] (if ja? ja en))
+        docs-path (if ja? "/ja/docs/graph/" "/docs/graph/")]
+    [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
+          :href "#main"} (:skip t)]
+     (site-header locale t {:language-ja "/ja/docs/graph/" :language-en "/docs/graph/"})
+     [:main {:id "main" :class "kc-docs"}
+      (dds/container
+       (dds/section {:title (txt "Graph・Ontologyデータベース — ドキュメント"
+                                 "Graph & Ontology database — documentation")}
+        [:p {:class "kc-legal__lead"}
+         (txt "Kotoba Cloud Database (旧 Kotobase graph 面) の Graph・Ontology ワークベンチの使い方と、周辺プロジェクト (ayatori, capability-bench) の資料をまとめたページです。"
+              "Usage guide for the Kotoba Cloud Database (formerly the Kotobase graph plane) Graph & Ontology workbench, plus reference material for the surrounding projects (ayatori, capability-bench).")]
+        (dds/heading 2 (txt "グラフ・ワークベンチを開く" "Open the graph workbench") {:size "28"})
+        [:p
+         (txt "kotoba.cloud トップの「データベース・オントロジー管理」ワークベンチを使うと、不変 IPLD スナップショット上で observed attribute と型を可視化・分析できます。"
+              "The Database & Ontology workbench on the kotoba.cloud home page visualizes and analyzes observed attributes and types over immutable IPLD snapshots.")]
+        (dds/row
+         (dds/button (txt "ワークベンチを開く (トップページ)" "Open the workbench (home page)")
+                     {:type :solid-fill :size "md" :href (if ja? "/ja/#knowledge/overview" "/#knowledge/overview")})
+         (dds/button (txt "料金・プラン" "Billing & plans")
+                     {:type :outline :size "md" :href (if ja? "/ja/billing/" "/billing/")}))
+        (dds/heading 2 (txt "周辺プロジェクト" "Surrounding projects") {:size "28"})
+        [:ul {:class "kc-docs__list"}
+         [:li
+          [:strong "ayatori"] " — "
+          (txt "kotobase.disclosure-grant プロトコル (:decrypt-fn seam 経由) を消費する recipient decryptor。contract と rollout gate は "
+               "the recipient decryptor that consumes the kotobase.disclosure-grant protocol (via the :decrypt-fn seam). Contract and rollout gates: ")
+          [:a {:href "https://github.com/kotoba-lang/kotobase/blob/main/docs/disclosure-grants.edn"}
+           "kotobase/docs/disclosure-grants.edn"]]
+         [:li
+          [:strong "capability-bench"] " — "
+          (txt "OrbitDB / Ceramic / ActorDB / Holochain と kotobase の Prolly Tree + commit DAG 形を一つの capability contract と datom workload で比較したベンチ。結果と方法論は "
+               "benchmarks comparing OrbitDB / Ceramic / ActorDB / Holochain against kotobase's own Prolly Tree + commit DAG shape under one capability contract and datom workload. Results and methodology: ")
+          [:a {:href "https://github.com/kotoba-lang/kotobase/blob/main/capability-bench/README.md"}
+           "kotobase/capability-bench/README.md"]]]
+        (dds/heading 2 (txt "URI 設計" "URI design") {:size "28"})
+        [:p
+         (txt "旧 kotobase.net は操作面 (graph) と資料面 (docs) を kotoba.cloud の path に統合しました。操作は "
+              "The former kotobase.net now integrates its operation surface (graph) and documentation surface (docs) under kotoba.cloud paths. Operations: ")
+         [:code "/graph"] " → " [:code "#knowledge/overview"]
+         (txt " へ、資料はこの " " ; documentation: this ")
+         [:code "/docs/graph"]
+         (txt " ページへ。graph.kotoba.cloud サブドメインは設定しません (canonical を一つに保つため)。"
+              " page. The graph.kotoba.cloud subdomain is not provisioned, to keep one canonical origin.")]))]
+     (site-footer t)]))
+
+(defn graph-docs-html
+     ([] (graph-docs-html :en))
+     ([locale]
+      (let [ja? (= locale :ja) path (if ja? "/ja/docs/graph/" "/docs/graph/")]
+        (apply page/->page
+               {:title (if ja? "Graph・Ontologyデータベース — Kotoba Cloud"
+                         "Graph & Ontology database — Kotoba Cloud")
+                :description (if ja? "Kotoba Cloud Database の Graph・Ontology ワークベンチの使い方と ayatori・capability-bench などの周辺資料。"
+                               "Usage guide for the Kotoba Cloud Database graph & ontology workbench plus ayatori and capability-bench reference material.")
+                :lang (if ja? "ja" "en") :css (document-css)
+                :app-css (str tokens/skin-css tokens/bridge-css)
+                :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/docs/graph/"}]
+                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/docs/graph/"}]
+                       [:link {:rel "alternate" :hreflang "x-default" :href "https://kotoba.cloud/docs/graph/"}]
+                       [:script {:src "/js/language-selector.js" :defer true}]
+                       [:script {:src "/js/session.js" :defer true}]]}
+               (graph-docs-view locale)))))
+
 (defn not-found-html
      ([] (not-found-html :en))
      ([locale]
@@ -986,4 +1054,7 @@
       (spit-file (node-path/join root "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "security" "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "ja" "security" "crypto" "index.html") (crypto-html))
+      ;; graph docs: former kotobase.net content surface
+      (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
+      (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
       (println "rendered English-first root, locale emit dirs, legal/tokushoho documents, and localized 404s")))
