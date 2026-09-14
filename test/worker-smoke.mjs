@@ -570,8 +570,8 @@ assert.equal(researchCalls.length, 0);
 {
   const orgCalls = [];
   const orgEnv = { ...env, ORG_AUTHORITY: { fetch: async (url, init) => {
-    orgCalls.push(new URL(url).pathname);
-    const body = JSON.parse(init.body);
+   orgCalls.push(new URL(url instanceof Request ? url.url : url).pathname);
+   const body = JSON.parse(init && init.body ? init.body : await url.text());
     assert.equal(body.principalId, researchPrincipal);
     return Response.json({ orgDid: 'did:webvh:com-test:test.kotoba.cloud', handle: 'com-test.kotoba.cloud' });
   }}};
@@ -1012,3 +1012,28 @@ const redirected=await route(sessionReq(scopedToken),{AUTHN_SERVICE:{fetch:async
 assert.equal(redirected.status,502);
 assert.equal((await redirected.json()).stage,'authn-response-302');
 console.log('Scoped database session exchange and header isolation passed');
+
+// Org-scoped tenant exchange (ADR-2609141633 step 4): a token request with an
+// orgHandle must be approved by the private org authority before Authn mints
+// the Biscuit token; without the orgHandle the Authn-only path is unchanged.
+{
+  const orgAuthCalls=[];
+  const orgSessionEnv={AUTHN_SERVICE:{fetch:async()=>Response.json({token:'fixture-only',tokenType:'Biscuit'},{status:201})},
+                       ORG_AUTHORITY:{fetch:async(url,init)=>{orgAuthCalls.push(new URL(url instanceof Request?url.url:url).pathname);
+                         const b=JSON.parse(init && init.body ? init.body : await url.text());
+                         assert.equal(b.principalId,'urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111');
+                         assert.equal(b.orgHandle,'com-test.kotoba.cloud');
+                         return Response.json({ok:true,orgDid:'did:webvh:com-test:test.kotoba.cloud',role:'owner',bound:true});}}};
+  const orgReq=(body,env)=>route(sessionReq(body),env);
+  // unconfigured org authority -> 503, no Authn call
+  assert.equal((await orgReq({...scopedToken,orgHandle:'com-test.kotoba.cloud'},{AUTHN_SERVICE:sessionEnv.AUTHN_SERVICE})).status,503);
+  // approved org path: authority called, then Authn mints the token
+  const sr2=await orgReq({...scopedToken,orgHandle:'com-test.kotoba.cloud'},orgSessionEnv);
+  if (sr2.status!==201) console.error('DBG org status', sr2.status, await sr2.clone().text());
+  assert.equal(sr2.status,201);
+  assert.deepEqual(orgAuthCalls,['/authorize']);
+  assert.equal(sessionCalls.length,1); // unchanged: personal path before org block
+  // authority rejection propagates as 403
+  const rejectEnv={...orgSessionEnv,ORG_AUTHORITY:{fetch:async()=>Response.json({error:'org-membership-required'},{status:403})}};
+  assert.equal((await orgReq({...scopedToken,orgHandle:'com-test.kotoba.cloud'},rejectEnv)).status,403);
+}

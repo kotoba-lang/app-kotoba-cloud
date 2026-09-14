@@ -1,13 +1,63 @@
 (ns app-kotoba-cloud.database-session
-  "Cookie-to-scoped-capability exchange. Authn remains the membership authority."
+  "Cookie-to-scoped-capability exchange. Authn remains the membership authority;
+  org-scoped tenants additionally require a live org-membership authorization
+  from the private org authority (ADR-2609141633)."
   (:require [app-kotoba-cloud.research-gateway :as bounds]
-            [app-kotoba-cloud.session :as session]))
+            [app-kotoba-cloud.session :as session]
+            [goog.object :as gobj]))
 (def paths #{"/v1/database/session/tenants" "/v1/database/session/token"})
+(defn- fetch-viewer [cookie]
+  (-> (js/fetch session/viewer-url
+                #js {:method "GET"
+                     :headers #js {"accept" "application/json"
+                                   "cookie" (str session/cookie-name "=" cookie)}})
+      (.then (fn [upstream] (when (.-ok upstream) (.json upstream))))
+      (.then (fn [payload]
+               (when payload
+                 (session/viewer-model (js->clj payload :keywordize-keys true)))))))
+
+(defn- authn-token [binding method cookie body]
+  (.fetch binding
+          (js/Request. (str "https://auth.kotoba.cloud/v1/biscuit/token")
+                       #js {:method "POST" :redirect "manual" :signal (js/AbortSignal.timeout 15000)
+                            :headers #js {"host" "auth.kotoba.cloud" "origin" "https://kotoba.cloud"
+                                          "content-type" "application/json"
+                                          "cookie" (str session/cookie-name "=" cookie)}
+                            :body (js/JSON.stringify (clj->js body))})))
+
+(defn- org-gate [org-binding cookie body]
+  ;; Returns a promise resolving nil when the caller's membership and the org's
+  ;; tenant binding are live; rejects fail-closed otherwise (ADR-2609141633).
+  (-> (fetch-viewer cookie)
+      (.then (fn [viewer]
+               (if-not (and viewer (true? (:valid viewer)))
+                 (throw (ex-info "sign-in-required" {:status 401})))
+               (.fetch org-binding
+                       (js/Request. "https://org.internal/authorize"
+                                    #js {:method "POST" :redirect "manual"
+                                         :signal (js/AbortSignal.timeout 15000)
+                                         :headers #js {"content-type" "application/json"}
+                                         :body (js/JSON.stringify
+                                                (clj->js {:principalId (:principalId viewer)
+                                                          :orgHandle (:orgHandle body)
+                                                          :tenantId (:tenantId body)
+                                                          :dbName (:dbName body)
+                                                          :permissions (:permissions body)}))}))))
+      (.then (fn [r]
+               (if-not (.-ok r)
+                 (throw (ex-info "org-authorization-failed" {:status (.-status r)})))
+               (.json r)))
+      (.then (fn [auth]
+               (let [auth (js->clj auth :keywordize-keys true)]
+                 (when-not (true? (:ok auth))
+                   (throw (ex-info "org-authorization-failed" {:status 502}))))))))
+
 (defn route [request env respond]
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
         cookie (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)
         tenants? (= path "/v1/database/session/tenants")
-        binding (aget env "AUTHN_SERVICE") stage (atom "request-validation")]
+        binding (aget env "AUTHN_SERVICE") stage (atom "request-validation")
+        org-binding (gobj/get env "ORG_AUTHORITY")]
     (cond
       (not (or (= method "POST") (and tenants? (= method "GET")))) (respond {:error "method-not-allowed"} 405)
       (not cookie) (respond {:error "sign-in-required"} 401)
@@ -20,18 +70,24 @@
                    (when (and body
                               (not (if tenants?
                                      (and (= #{:name} (set (keys body))) (string? (:name body)) (<= 1 (count (:name body)) 80))
-                                     (and (= #{:tenantId :dbName :permissions} (set (keys body)))
+                                     (and (or (= #{:tenantId :dbName :permissions} (set (keys body)))
+                                              (= #{:tenantId :dbName :permissions :orgHandle} (set (keys body))))
                                           (string? (:tenantId body)) (re-matches #"t_[a-z0-9]{12,48}" (:tenantId body))
                                           (string? (:dbName body)) (<= 1 (count (:dbName body)) 256)
                                           (contains? #{["data:read"] ["data:read" "data:write"]} (:permissions body))))))
                      (throw (ex-info "invalid-database-session-request" {:status 400})))
                    (reset! stage "authn-request")
-                   (.fetch binding
-                           (js/Request. (str "https://auth.kotoba.cloud" (if tenants? "/v1/tenants" "/v1/biscuit/token"))
-                                        #js {:method method :redirect "manual" :signal (js/AbortSignal.timeout 15000)
-                                             :headers #js {"host" "auth.kotoba.cloud" "origin" "https://kotoba.cloud" "content-type" "application/json"
-                                                           "cookie" (str session/cookie-name "=" cookie)}
-                                             :body (when body (js/JSON.stringify (clj->js body)))}))))
+                   ;; Org-scoped tenants (ADR-2609141633): before Authn mints the
+                   ;; Biscuit token, the private org authority must approve the
+                   ;; caller's live membership and the org's tenant binding. The
+                   ;; gate promise is threaded into the returned chain.
+                   (if (and (not tenants?)
+                            (string? (:orgHandle body)) (pos? (count (:orgHandle body))))
+                     (if-not org-binding
+                       (throw (ex-info "org-authority-not-configured" {:status 503}))
+                       (.then (org-gate org-binding cookie body)
+                              (fn [_] (authn-token binding method cookie body))))
+                     (authn-token binding method cookie body))))
           (.then (fn [r]
                    (reset! stage (str "authn-response-" (.-status r)))
                    (when (<= 300 (.-status r) 399)

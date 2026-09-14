@@ -5,7 +5,7 @@
   (:require [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.research-gateway :as shared]
             [goog.object :as gobj]))
-(def paths #{"/v1/org/create" "/v1/org/delegate" "/v1/org/revoke" "/v1/org/status"})
+(def paths #{"/v1/org/create" "/v1/org/delegate" "/v1/org/revoke" "/v1/org/status" "/v1/org/authorize"})
 (def origins shared/origins)
 
 (defn- service [binding path payload respond]
