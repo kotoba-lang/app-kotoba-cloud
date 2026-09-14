@@ -668,6 +668,11 @@
                                            "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
                                            "permissions-policy" "camera=(self), microphone=(), geolocation=(), payment=()"})))
 
+      (and (contains? #{"/account" "/account/"} path) (= method "GET"))
+      (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
+          (.then #(with-security-headers % {"cache-control" "no-store, private"
+                                           "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"})))
+
       (contains? research-gateway/paths path)
       (research-gateway/route request env fetch-viewer private-json-response)
 
