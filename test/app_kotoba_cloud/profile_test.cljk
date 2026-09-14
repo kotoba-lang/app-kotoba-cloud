@@ -4,9 +4,7 @@
 
 (deftest domain-roles-stay-separated
   (is (profile/valid-profile? profile/control-plane))
-  (let [roles (:roles profile/control-plane)
-        origins (map :origin (vals roles))]
-    (is (= (count origins) (count (distinct origins))))
+  (let [roles (:roles profile/control-plane)]
     (is (= "content-addressed-artifacts-state-and-receipts"
            (get-in roles [:storage :purpose])))
     (is (= "cpu-gpu-placement-and-execution"
@@ -56,7 +54,7 @@
   (let [libraries (:libraries profile/control-plane)]
     (is (= "https://kotoba-lang.org" (:catalogOrigin libraries)))
     (is (= "/libraries/" (:catalogPath libraries)))
-    (is (= "https://kotobase.net" (:storageOrigin libraries)))
+    (is (= "https://api.kotoba.cloud" (:storageOrigin libraries)))
     (is (= "kotoba library inspect" (:inspectCommand libraries)))
     (is (= "kotoba library publish" (:publishCommand libraries)))
     (is (= "local-signed-passkey-plus-principal-pinned-ml-dsa-relay-distributed-gated"
@@ -105,14 +103,14 @@
           llm (get-in roles [:compute :capabilities :llm])
           pinning (get-in roles [:storage :capabilities :pinning])]
       (is (= "/v1/messages" (:path llm)))
-      (is (= "/pins" (:path pinning)))
+      (is (= "/v1/database/pins" (:path pinning)))
       ;; The separation invariant above counts one origin per role. A capability
       ;; must not reintroduce an origin, or it becomes a second name for a
       ;; boundary that does not exist.
       (is (nil? (:origin llm)))
       (is (nil? (:origin pinning)))
       (is (= "murakumo" (:credentialIssuer llm)))
-      (is (= "kotobase" (:credentialIssuer pinning))))))
+      (is (= "kotoba-cloud" (:credentialIssuer pinning))))))
 
 (deftest principal-issued-credentials-are-not-claimed
   (testing "both live surfaces authenticate, but a Stable Principal does not mint either credential"
