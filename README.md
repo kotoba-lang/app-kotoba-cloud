@@ -186,18 +186,19 @@ implementation, provider contracts, actual screening, durable audit, atomic
 quotas, model qualification and independent end-to-end acceptance are launch
 requirements. No configuration flag alone constitutes launch approval.
 
-### Selected Modal model and identity integration
+### Selected Murakumo model and Self integration
 
 The public model is `qwen3.8-flash-next-whitehacker`, mapped exclusively to
-`qwen3.8-flash-next-cybersecurity-nvfp4` on a private Modal deployment. The
-Research Authority reaches the configured `.modal.run` endpoint directly and
-rejects missing or inconsistent provider usage receipts. This is not an
-end-to-end verified-researcher qualification.
+`qwen3.8-flash-next-cybersecurity-nvfp4` at
+`https://api.murakumo.cloud/v1/chat/completions`. On 2026-09-12 a direct defensive
+request returned the exact model in 251.94 seconds; the compiled private transport
+then returned the same model in 2.52 seconds. These are upstream transport checks,
+not an end-to-end verified-researcher qualification.
 
-`shadow-cljs release research-authority` builds the private Modal transport;
-`npm run test:providers` checks the identity-provider signature, environment,
-challenge and screening predicates using fixtures. The public Worker does not
-expose the Modal credentials. Identity-provider provisioning, canonical
+`shadow-cljs release research-providers` builds the private Self/Murakumo
+transports; `npm run test:providers` checks signature, environment, challenge,
+screening predicates, and model identity using fixtures. The public Worker does
+not expose these functions. Self account/live-flow provisioning, canonical
 Kotobase review/quota state, human-review operation and durable asynchronous
 inference jobs remain required before public intake can open. See
 `docs/research-authority-contract.md` for the exact activation boundary.
@@ -209,8 +210,7 @@ chat, page-lifetime history, a bottom composer and a mobile history drawer.
 Research scope and task settings are per conversation. Details and applications
 remain at `/about/` and `/ja/about/`. No conversation content is persisted to disk.
 The public `/v1/models` and completion responses use `qwen3.8-flash-next-whitehacker`; only the
-private authority sends the upstream Qwen ID directly to Modal and rejects other
-models.
+server provider sends the upstream Qwen ID to Murakumo, and rejects other models.
 
 The existing private `RESEARCH_AUTHORITY` binding, current identity evidence,
 approved scope and atomic free-quota receipt remain prerequisites. This change

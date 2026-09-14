@@ -16,8 +16,8 @@
      :lead "許可されたコードを調べ、脆弱性の根拠を確かめ、修正へつなげる。本人確認済みの研究者に、セキュリティ特化 LLM の無料推論枠を提供します。"
      :description "守る人に、力を。kotoba.cloud は、ホワイトハットの探究心と創造力を支える。仲間の力を結び、世界に光を取り戻す。"
      :start "研究者登録へ" :explore "モデルを見る" :models "調査のためのモデル"
-     :pending "提供準備中 — Modal 直結の指定モデルを、本人確認・審査・承認済みスコープを通して提供します。すべての審査が有効になるまで、推論は利用できません。"
-     :model-note "Kotoba Cloud の非公開 Research Authority が Modal の指定モデルへ直接接続します。本人確認・審査後に、承認済みの調査だけを実行できます。"
+     :pending "提供準備中 — Murakumo の指定モデルから実応答を確認しました。本人確認・審査の接続完了まで、このサイトの推論は利用できません。"
+     :model-note "Murakumo で実応答を確認したモデルです。初回起動に数分かかる場合があります。本人確認・審査後の提供に向けて接続を進めています。"
      :uses [["01 / 調べる" "コードレビュー" "所有・許可されたコードから、認可漏れや入力検証の問題を調べます。"]
             ["02 / 確かめる" "脆弱性の整理" "到達条件、影響、誤検知の可能性を整理し、根拠を伴う所見にします。"]
             ["03 / 直す" "修正と再検証" "修正案、回帰テスト、責任ある開示のための報告書をまとめます。"]]
@@ -50,8 +50,8 @@
      :lead "Investigate authorized code. Validate the finding. Ship the fix. Specialized LLM inference for verified white-hat researchers, with a free research allowance."
      :description "Empower those who protect. kotoba.cloud supports the curiosity and creativity of white hats. Bring our strengths together. Bring light back to the world."
      :start "Researcher onboarding" :explore "Explore the model" :models "A model built for investigation"
-     :pending "Preparing for launch — the selected Modal deployment is reached directly through the private authority. Inference remains closed until identity verification, review and scope approval are active."
-     :model-note "Kotoba Cloud's private Research Authority connects directly to the selected Modal model. Only approved research can run after identity verification and review."
+     :pending "Preparing for launch — the selected Murakumo model returned a real response. Site inference remains closed until identity verification and review are connected."
+     :model-note "A real response has been verified through Murakumo. Cold startup can take several minutes. Access remains gated while identity verification and review are connected."
      :uses [["01 / INVESTIGATE" "Review the code" "Inspect code you own or are authorized to review for authorization gaps and input validation issues."]
             ["02 / VALIDATE" "Ground the finding" "Work through reachability, impact and false positives to produce evidence-backed findings."]
             ["03 / REMEDIATE" "Close the loop" "Prepare fixes, regression tests and reports for responsible disclosure."]]

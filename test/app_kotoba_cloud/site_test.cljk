@@ -25,7 +25,7 @@
     (is (str/includes? html "守る人に、力を。"))
     (is (str/includes? html "本人確認済みの研究者"))
     (is (= 1 (count (re-seq #"<h1" html))))
-    (doseq [needle ["auth.kotoba.cloud" "api.kotoba.cloud"
+    (doseq [needle ["auth.kotoba.cloud" "api.kotoba.cloud" "murakumo.cloud"
                     "itonami.cloud" "kotoba-lang.org" "Hosted apply"
                     (str "kotoba package add kotoba-lang/reference-math@0.1.0 --catalog-cid "
                          profile/reference-package-catalog-cid)

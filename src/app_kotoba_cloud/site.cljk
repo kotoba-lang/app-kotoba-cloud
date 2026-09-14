@@ -87,10 +87,10 @@
               :href "/#knowledge/overview"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
               :body "AI の状態と知識を支える content-addressed graph database。関係と履歴を明示する。"}
-             {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
-              :href "/#research-models"
-              :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
-              :body "本人確認、審査、承認済みスコープを通した調査を、非公開の Modal 直結バックエンドで実行する。"}
+             {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
+              :href "https://murakumo.cloud"
+              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
+              :body "Admit 済みの workload を CPU/GPU へ配置し、実行する。"}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -112,14 +112,14 @@
     :steps [["Write" "AIと人間は、読みやすいデータとしてコードを自由に書く。"]
             ["Admit" "Kotobaがtype、effect、capability、resource、targetを検査する。"]
             ["Bind" "Passkey identityと対象限定grantを、host/providerが具体的なscopeへ結びつける。"]
-            ["Run" "Kotoba Cloud Database が artifact と receipt を保持し、Kotoba Cloud AI と Itonami が許可された処理を担う。"]]
+            ["Run" "Kotobaseがartifactとreceiptを保持し、MurakumoとItonamiが許可された処理を担う。"]]
     :boundary-title "境界があるから、つながれる。"
     :boundary-heading "Discoveryは権限委譲ではありません"
     :boundary-p1 "kotoba.cloud は各 origin を発見可能にしますが、storage、compute、agent work を一つの trust domain にしません。receipt は各 origin を別々に記録します。"
     :boundary-p2 "既存の auth.kotobase.net Passkey も自動移行しません。新しい RP では、検証された Principal link が必要です。"
     :profile-link "Machine-readable profile" :spec-link "言語仕様を読む"
     :footer "Kotoba Cloud — identity and deploy control"
-    :footer-roles "Language: kotoba-lang.org · Storage: api.kotoba.cloud · Compute: api.kotoba.cloud · Agent work: itonami.cloud"
+    :footer-roles "Language: kotoba-lang.org · Storage: api.kotoba.cloud · Compute: murakumo.cloud · Agent work: itonami.cloud"
     :operator-label "運営元"
     :contact-label "連絡先"
     :legal-link "運営"
@@ -193,10 +193,10 @@
               :href "/#knowledge/overview"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
               :body "A content-addressed graph database for AI state and knowledge, with explicit relationships and identifiable history."}
-             {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
-              :href "/#research-models"
-              :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
-              :body "Runs identity-verified, reviewed and scope-approved research through a private direct Modal backend."}
+             {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
+              :href "https://murakumo.cloud"
+              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
+              :body "Places admitted workloads on CPU/GPU resources and executes them."}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -218,14 +218,14 @@
     :steps [["Write" "Agents and humans write freely in readable, data-oriented code."]
             ["Admit" "Kotoba checks types, effects, capabilities, resources, and target support."]
             ["Bind" "The host and provider bind Passkey identity and a resource-scoped grant."]
-            ["Run" "Kotoba Cloud Database keeps artifacts and receipts; Kotoba Cloud AI and Itonami perform admitted work."]]
+            ["Run" "Kotobase keeps artifacts and receipts; Murakumo and Itonami perform the admitted work."]]
     :boundary-title "Boundaries make connection possible."
     :boundary-heading "Discovery is not delegation"
     :boundary-p1 "kotoba.cloud makes each origin discoverable without merging storage, compute, and agent work into one trust domain. Receipts record every origin separately."
     :boundary-p2 "Existing auth.kotobase.net Passkeys do not migrate automatically. The new RP requires a verified Principal link."
     :profile-link "Machine-readable profile" :spec-link "Read the language specification"
     :footer "Kotoba Cloud — identity and deploy control"
-    :footer-roles "Language: kotoba-lang.org · Storage: api.kotoba.cloud · Compute: api.kotoba.cloud · Agent work: itonami.cloud"
+    :footer-roles "Language: kotoba-lang.org · Storage: api.kotoba.cloud · Compute: murakumo.cloud · Agent work: itonami.cloud"
     :operator-label "Operator"
     :contact-label "Contact"
     :legal-link "Operator"
