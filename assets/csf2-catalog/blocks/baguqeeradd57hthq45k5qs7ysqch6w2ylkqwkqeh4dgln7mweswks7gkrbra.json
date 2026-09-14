@@ -1,0 +1,1 @@
+{"product/category":"DAST","product/csf":["ID.RA-01","PR.PS-06","ID.IM-02"],"product/id":"owasp-zap","product/name":"OWASP ZAP","product/platform":"CLI/proxy","product/source":"https://www.zaproxy.org/","product/summary":"Open-source web app scanner and proxy for finding vulnerabilities dynamically.","product/vendor":"OWASP (open source)"}
