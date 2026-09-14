@@ -1,0 +1,68 @@
+(ns app-kotoba-cloud.research-jobs-test
+  (:require [cljs.test :refer-macros [deftest is async]]
+            [app-kotoba-cloud.research-gateway :as gateway]
+            [app-kotoba-cloud.research :as policy]))
+(def id "11111111-1111-4111-8111-111111111111")
+(def input {:model policy/model-id :task "code-review" :scopeId "owned" :max_tokens 96
+            :messages [{:role "user" :content "Review owned code."}]})
+(defn record [reference]
+  (let [now (js/Date.now)]
+    {:principalId "alice" :policyVersion policy/policy-version :status "active"
+     :trust {:policyVersion (:version policy/trust-policy) :score 60 :routes ["web-reviewed"] :evaluatedAt now :expiresAt (+ now 60000)}
+     :continuous {:policyVersion (:version policy/session-policy) :sessionRef reference :action "code-review" :decision "allow"
+                  :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false} :evaluatedAt now :expiresAt (+ now 15000)}
+     :ekyc {:status "verified" :evidenceRef "private:id" :verifiedAt now :expiresAt (+ now 60000)}
+     :screening {:status "clear" :evidenceRef "private:screen" :checkedAt now :expiresAt (+ now 60000)}
+     :scopes [{:id "owned" :status "approved" :tasks ["code-review"] :expiresAt (+ now 60000)}]}))
+(defn request [create? extra]
+  (js/Request. (str "https://kotoba.cloud/v1/research/" (if create? "jobs" (str "job?jobId=" id)))
+               (clj->js (cond-> {:method (if create? "POST" "GET")
+                                :headers (merge {"cookie" "gftd_session=example" "origin" "https://kotoba.cloud"
+                                                 "content-type" "application/json" "idempotency-key" id} extra)}
+                         create? (assoc :body (js/JSON.stringify (clj->js input)))))))
+(defn env [mutate calls]
+  #js {:RESEARCH_AUTHORITY
+       #js {:fetch (fn [url init]
+                     (let [body (js->clj (js/JSON.parse (.-body init)) :keywordize-keys true)]
+                       (swap! calls conj [url body])
+                       (js/Promise.resolve
+                        (js/Response.json
+                         (clj->js (mutate (merge body {:status "queued" :record (record (:sessionRef body))
+                                                      :task "code-review" :scopeId "owned" :receiptId "private:job"
+                                                      :billing "free" :policyDecision "allowed" :model policy/model-id})))))))}})
+(defn response [body status] (js/Response.json (clj->js body) #js {:status status}))
+(defn call [request environment valid?]
+  (js/Promise.resolve (gateway/route request environment (fn [_] (js/Promise.resolve {:valid valid? :principalId "alice"})) response)))
+
+(deftest accepted-and-poll-receipts
+  (async done
+    (let [calls (atom [])]
+      (-> (call (request true {}) (env identity calls) true)
+          (.then (fn [r] (is (= 202 (.-status r))) (.json r)))
+          (.then (fn [r] (is (= id (.-jobId r))) (is (nil? (.-record r)))
+                   (is (= "https://research.internal/jobs/create" (ffirst @calls)))
+                   (is (= input (:request (second (first @calls)))))
+                   (call (request false {}) (env #(assoc % :status "succeeded" :content "Fix authorization.") calls) true)))
+          (.then (fn [r] (is (= 200 (.-status r))) (.json r)))
+          (.then (fn [r] (is (= "Fix authorization." (.-content r)))))
+          (.catch #(is false (str %))) (.finally done)))))
+
+(deftest unauthorized-and-invalid-receipts
+  (async done
+    (let [calls (atom [])]
+      (-> (call (request true {}) (env identity calls) false)
+          (.then (fn [r] (is (= 401 (.-status r))) (is (empty? @calls))
+                   (call (request true {"origin" "https://evil.example"}) (env identity calls) true)))
+          (.then (fn [r] (is (= 403 (.-status r))) (is (empty? @calls))
+                   (call (request true {"idempotency-key" "wrong"}) (env identity calls) true)))
+          (.then (fn [r] (is (= 400 (.-status r))) (is (empty? @calls))
+                   (js/Promise.all
+                    (clj->js (map (fn [change]
+                                   (-> (call (request false {}) (env #(merge % change) calls) true)
+                                       (.then #(is (= 502 (.-status %))))))
+                                 [{:principalId "bob"} {:sessionRef "other"} {:model "other"} {:billing "paid"}
+                                  {:jobId "other"} {:receiptId nil} {:status "succeeded" :content nil}])))))
+          (.then (fn [_]
+                   (call (request false {}) (env #(assoc-in % [:record :status] "suspended") calls) true)))
+          (.then #(is (= 403 (.-status %))))
+          (.catch #(is false (str %))) (.finally done)))))
