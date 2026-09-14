@@ -123,8 +123,18 @@
 (defn- ekyc-challenge! [storage principal]
   (-> (js-invoke storage "get" (str "ekyc:" principal)) (.then decode)))
 
+(defn- ekyc-session-challenge! [storage stripe-session-id]
+  ;; Secondary index: a later /ekyc/start overwrites the principal's single
+  ;; challenge slot, but Stripe may still verify an EARLIER session the human
+  ;; already completed. Resolve the challenge for the verified session directly.
+  (-> (js-invoke storage "get" (str "ekyc-session:" stripe-session-id)) (.then decode)))
+
 (defn- save-challenge! [storage principal challenge]
   (js-invoke storage "put" (str "ekyc:" principal) (js/JSON.stringify (clj->js challenge))))
+
+(defn- save-session-challenge! [storage stripe-session-id challenge]
+  (js-invoke storage "put" (str "ekyc-session:" stripe-session-id)
+             (js/JSON.stringify (clj->js challenge))))
 
 (defn- handle-ekyc-start [env storage body]
   (let [now (.now js/Date)]
@@ -141,6 +151,7 @@
           (.then (fn [session]
                    (let [challenge (assoc challenge :stripeSessionId (:id session))]
                      (-> (save-challenge! storage (:principalId body) challenge)
+                         (.then (fn [_] (save-session-challenge! storage (:id session) challenge))
                          (.then (fn [_]
                                   (response {:sessionId (:sessionId challenge)
                                              :externalId (:externalId challenge)
@@ -158,14 +169,25 @@
                    (text? (:principalId body) 256))
       (throw (ex-info "stripe-event-invalid" {:status 400})))
     (-> (verify-webhook-signature! secret raw (:signatureHeader body) now)
-        (.then (fn [_] (ekyc-challenge! storage (:principalId body))))
-        (.then (fn [challenge]
+        ;; Parse the event first, then resolve the challenge by the VERIFIED
+        ;; Stripe session id — not by the principal's current slot. A later
+        ;; /ekyc/start overwrites the principal slot, but the human may have
+        ;; completed an earlier session.
+        (.then (fn [_]
+                 (let [ev (stripe-event! raw)]
+                   (-> (ekyc-session-challenge! storage (:session-id ev))
+                       (.then (fn [ch] (if (map? ch)
+                                         [ch ev]
+                                         (-> (ekyc-challenge! storage (:principalId body))
+                                             (.then (fn [c] [c ev]))))))))))
+        (.then (fn [[challenge event]]
+                 (let [event (if event event (stripe-event! raw))]
                  (when-not (map? challenge) (throw (ex-info "stripe-challenge-unknown" {:status 403})))
                  (if (:consumed challenge)
                    ;; Idempotent replay: return the prior receipt, never re-apply.
                    (response {:principalId (:principalId body) :status "verified"
                               :receiptId (:receiptId challenge) :approvedBy "stripe-identity"} 200)
-                   (let [event (stripe-event! raw)]
+                   (let [event event]
                      (when-not (and (= "identity.verification_session.verified" (:type event))
                                     (= "verified" (:status event))
                                     (= (:sessionId challenge) (:session-id event))
@@ -211,7 +233,7 @@
                                                    (response {:principalId (:principalId body)
                                                               :status (:status next)
                                                               :receiptId receipt-id
-                                                              :approvedBy "stripe-identity"} 200))))))))))))))))
+                                                              :approvedBy "stripe-identity"} 200))))))))))))))))))
 
 (defn- handle-ekyc-status [storage body]
   (-> (ekyc-challenge! storage (:principalId body))
