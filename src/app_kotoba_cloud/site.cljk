@@ -622,7 +622,7 @@
                            (dds/heading 3 title {:size "20"})
                            [:p body]]))
               (:steps t)))
-        [:pre {:class "kc-command"} [:code "kotoba deploy --manifest app.edn --target murakumo:asher\n# plan is dry-run by default; apply remains explicit"]])
+        [:pre {:class "kc-command"} [:code "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before direct Modal inference"]])
        (dds/section {:title (:boundary-title t) :id "trust"}
         (dds/card
          [:article {:class "kc-boundary"}

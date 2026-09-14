@@ -106,7 +106,7 @@
   "What the control plane says about delegation.
 
   `verifiedLocally` is false and says so. The log existing is not the same as a
-  plane using it: murakumo's operator routes today take a decided input from the
+  plane using it: an operator route may take a decided input from the
   identity service (`write-gate/operator-authorized?` receives
   `verified-operator-action`), so no plane verifies a Biscuit against a root key
   of its own yet. Publishing the log without publishing that gap would let a

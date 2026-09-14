@@ -53,7 +53,7 @@
 
 (defn- issued-username [value]
   (when (and (string? value)
-             (re-matches #"(?:kotoba|kotobase|murakumo)-[a-z0-9]{14}" value))
+             (re-matches #"(?:kotoba|kotobase)-[a-z0-9]{14}" value))
     value))
 
 (defn fallback-username
