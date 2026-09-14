@@ -159,6 +159,49 @@
                        (set! (.-disabled b) false))))))
         ))
 
+(defn render-pat [r]
+  (let [result (el "account-pat-result")
+        note (el "account-pat-note")]
+    (when result
+      (if (and (:httpOk r) (:token r))
+        (let [token (:token r)
+              env-line (str "KOTOBA_API_BASE=https://api.kotoba.cloud KOTOBA_API_TOKEN=" token)
+              curl-line (str "curl -s -H 'Authorization: Bearer " token
+                             "' https://api.kotoba.cloud/v1/research/status")]
+          (say! "account-pat-token" token)
+          (say! "account-pat-env" env-line)
+          (say! "account-pat-curl" curl-line)
+          (set! (.-hidden result) false)
+          (when-let [b (el "account-pat-create")] (set! (.-disabled b) true))
+          (when note (set! (.-textContent note)
+                           (t "トークンをコピーして保存してください。この画面を離れると二度と表示されません。"
+                              "Copy and store the token now. It is never shown again.")))
+          (doseq [[button-id text] [["account-pat-copy" token]
+                                    ["account-pat-copy-env" env-line]
+                                    ["account-pat-copy-curl" curl-line]]]
+            (when-let [b (el button-id)]
+              (.addEventListener b "click"
+                                 (fn [] (.writeText (.-clipboard js/navigator) text)
+                                   (when note (set! (.-textContent note)
+                                                    (t "コピーしました。" "Copied."))))))))
+        (do (when note (set! (.-textContent note)
+                             (case (get-in r [:error :code])
+                               "pat-not-configured" (t "トークン発行はまだ有効化されていません。しばらく待ってから再試行してください。"
+                                                       "Token issuance is not enabled yet. Try again later.")
+                               "invalid-origin" (t "同じページから発行してください。" "Issue it from this page.")
+                               "content-type-required" (t "同じページから発行してください。" "Issue it from this page.")
+                               "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
+                               (t "発行できませんでした。状態を更新してください。" "Could not issue. Refresh and retry.")))))))))
+
+(defn create-pat! []
+  (when-let [b (el "account-pat-create")]
+    (set! (.-disabled b) true)
+    (-> (api "/v1/account/api-token" {:label "cli"})
+        (.then (fn [r]
+                 (render-pat r)
+                 (when-not (and (:httpOk r) (:token r))
+                   (set! (.-disabled b) false)))))))
+
 (defn refresh! []
   (-> (api "/v1/session")
       (.then render-session)
@@ -180,4 +223,5 @@
     (when-let [b (el "account-refresh")] (.addEventListener b "click" refresh!))
     (when-let [b (el "account-ekyc-start")] (.addEventListener b "click" start-ekyc!))
     (when-let [b (el "account-org-create")] (.addEventListener b "click" create-org!))
+    (when-let [b (el "account-pat-create")] (.addEventListener b "click" create-pat!))
     (refresh!)))
