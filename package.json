@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "render": "kbb -M:render",
-    "build": "npm run render && amu compile --target wasm32-browser browser app",
+    "build": "npm run render && amu compile kotoba/app_kotoba_cloud/security_index.kotoba --target wasm32-browser --jvm-free --output build/security-index.wasm && node scripts/sync-shadow-src.mjs && shadow-cljs release browser app research-providers research-authority",
     "test": "kbb -M:test && node test/aiueos-boot-manifest-cli.mjs",
     "test:worker": "node test/worker-smoke.mjs",
     "dry-run": "npm test && npm run build && npm run test:worker && wrangler deploy --dry-run --outdir dist --env=\"\"",
