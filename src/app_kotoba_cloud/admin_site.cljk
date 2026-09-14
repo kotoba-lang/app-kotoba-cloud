@@ -31,6 +31,14 @@
        (dds/row (dds/button (t "審査員登録簿を生成して保存" "Build & download registry entry") {:id "admin-reviewer-download" :type :outline :disabled true}))
        [:pre {:id "admin-reviewer-artifact" :hidden true :style {:white-space "pre-wrap" :overflow-wrap "anywhere"}}]]
 
+      (dds/heading 3 (t "第一者データベース・オントロジー管理" "Database & Ontology Workbench") {:size "24"})
+      [:p (t "Kotoba Cloud の第一者データベース・オントロジーワークベンチへのダイレクトアクセスです。セッション認証に基づきグラフ可視化、オントロジー型推論、Datalog/Cypherクエリを実行できます。"
+             "Direct access to Kotoba Cloud's first-party graph and ontology database workbench. Visualise knowledge graphs, inspect inferred ontology types, and execute Datalog/Cypher queries.")]
+      (dds/row [:a {:href "https://kotoba.cloud/#knowledge/overview" :class "dads-button dads-button--solid-fill" :target "_blank" :rel "noopener"}
+                (t "データベース管理を開く ↗" "Open Database Workbench ↗")]
+               [:a {:href "https://kotoba.cloud/#knowledge/ontology" :class "dads-button dads-button--outline" :target "_blank" :rel "noopener"}
+                (t "オントロジー画面を開く ↗" "Open Ontology Viewer ↗")])
+
       (dds/heading 3 (t "担当審査案件" "Assigned review cases") {:size "24"})
       [:p (t "審査員として登録・担当割当が有効な場合だけ案件が表示されます。証跡は同一オリジンからだけ取得します。"
              "Cases appear only when the authority registers you as a reviewer and assigns them. Evidence is fetched same-origin only.")]
