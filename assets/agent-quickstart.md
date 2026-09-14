@@ -45,7 +45,15 @@ Expected result: 42. Package admission verifies Ed25519 and ML-DSA-65 signatures
 execution is local after installation. A catalog fetch alone is not verification
 or execution evidence. Keep the release/CID and command output with your result.
 
-## 4. Connect services or publish a library
+## 4. Verified research access (Stripe Identity — live)
+
+Sign in, then follow https://kotoba.cloud/ekyc.md. The account holder completes one
+Stripe Identity check at https://verify.stripe.com (agents never do this themselves);
+approval is then automatic — ekyc, screening, trust and scope in one webhook, no manual
+review. When GET https://api.kotoba.cloud/v1/research/status returns "eligible", the
+scoped security-research model runs via POST /v1/research/jobs (free daily allowance).
+
+## 5. Connect services or publish a library
 
 - Graph state, CLI and MCP: https://kotobase.net/agent-quickstart.md
 - Language and CLI reference: https://kotoba-lang.org/llms.txt

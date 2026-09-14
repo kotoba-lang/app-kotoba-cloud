@@ -405,6 +405,7 @@
     [:div {:class "kc-footer__inner"}
      [:span (:footer t)]
      [:a {:href "/agent-quickstart.md"} "AI agent quickstart"]
+     [:a {:href "/ekyc.md"} "Research registration (Stripe Identity)"]
      [:a {:href "/llms.txt"} "LLM docs"]
      [:span (:footer-roles t)]]
     [:div {:class "kc-footer__legal"}
@@ -906,7 +907,7 @@
                    (node-path/join en-dir "legal")
                    (node-path/join en-dir "legal" "tokushoho")]]
         (fs/mkdirSync dir #js {:recursive true}))
-      (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
+      (doseq [name ["llms.txt" "llms-full.txt" "ekyc.md" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
         (copy-file (node-path/join "assets" name) (node-path/join root name)))
       (doseq [locale supported-locales :when (not (#{:en :ja} locale))]
         (let [dir (node-path/join root (name locale))]
