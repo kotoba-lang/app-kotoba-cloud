@@ -52,6 +52,9 @@ Stripe Identity check at https://verify.stripe.com (agents never do this themsel
 approval is then automatic — ekyc, screening, trust and scope in one webhook, no manual
 review. When GET https://api.kotoba.cloud/v1/research/status returns "eligible", the
 scoped security-research model runs via POST /v1/research/jobs (free daily allowance).
+For a local IDE/CLI agent, issue a personal token once at https://kotoba.cloud/account
+(CLI / IDE section, 1 click) and call the same endpoints with
+`Authorization: Bearer kc_pat_...` — OpenAI-compatible base `https://api.kotoba.cloud`.
 
 ## 5. Connect services or publish a library
 
