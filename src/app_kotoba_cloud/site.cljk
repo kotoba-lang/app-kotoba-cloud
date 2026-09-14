@@ -1030,7 +1030,14 @@
       ;; they ship verbatim. `_headers` gives the log its JSON Lines content
       ;; type and lets any resolver fetch it cross-origin.
       (doseq [source (fs-walk-files (node-path/join "assets" "well-known"))]
-        (let [target (node-path/join root ".well-known" (node-path/basename source))]
+        ;; The schema subdirectory keeps its path: schema $id is
+        ;; /.well-known/kotoba-org-membership-schema/v1.json (ADR-2609141633).
+        (let [target (if (str/includes? (str source) "kotoba-org-membership-schema")
+                       (node-path/join root ".well-known"
+                                       (node-path/join (node-path/basename (node-path/dirname source))
+                                                       (node-path/basename source)))
+                       (node-path/join root ".well-known" (node-path/basename source)))]
+          (fs/mkdirSync (node-path/dirname target) #js {:recursive true})
           (copy-file source target)
           ;; `<did>/whois` transforms to `/.well-known/whois` (no extension)
           ;; while the #whois service names `whois.vp`; a static host has no
