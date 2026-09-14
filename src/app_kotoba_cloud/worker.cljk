@@ -1,6 +1,7 @@
 (ns app-kotoba-cloud.worker
-  (:require [app-kotoba-cloud.attribution :as attribution]
+  (:require [app-kotoba-cloud.billing-gateway :as billing-gateway]
             [app-kotoba-cloud.database-gateway :as database-gateway]
+            [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.boot :as boot]
             [app-kotoba-cloud.knowledge :as knowledge]
             [app-kotoba-cloud.funnel :as funnel]
@@ -613,8 +614,39 @@
       (= hostname "boot.kotoba.cloud")
       (route-boot-host request env path)
 
+      ;; Operator console: admin.kotoba.cloud serves only the console document
+      ;; and the shared identity gateway. No marketing surface, no discovery,
+      ;; noindex, no-store. The private authority still decides availability.
+      (= hostname "admin.kotoba.cloud")
+      (cond
+        (and (= path "/v1/session") (= method "GET"))
+        (route-session request env)
+
+        (identity-gateway/operation path)
+        (identity-gateway/route request env fetch-viewer private-json-response)
+
+        (= path "/health")
+        (json-response {:ok true :service "kotoba-cloud-operator-console"})
+
+        (contains? #{"/js/session.js" "/favicon.ico"} path)
+        (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) path) request))
+            (.then #(with-security-headers % {"cache-control" "public, max-age=3600"})))
+
+        (#{"/" "/admin/" "/index.html"} path)
+        (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/admin/") request))
+            (.then #(with-security-headers % {"cache-control" "no-store, private"
+                                             "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                                             "x-robots-tag" "noindex"
+                                             "referrer-policy" "no-referrer"})))
+
+        :else
+        (json-response {:error {:code "not-found"}} 404))
+
       (database-gateway/selected? path)
       (database-gateway/route request env)
+
+      (contains? billing-gateway/paths path)
+      (billing-gateway/route request env fetch-viewer private-json-response)
 
       (contains? knowledge/paths path)
       (knowledge/route request env)

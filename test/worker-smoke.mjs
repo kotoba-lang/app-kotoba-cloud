@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { route, resetFunnelStore } from "../build/worker.js";
 
@@ -785,6 +785,26 @@ assert.equal(capturePage.headers.get('cache-control'), 'no-store, private');
 assert(!capturePage.headers.get('content-security-policy').includes('freebuff'));
 assert(capturePage.headers.get('content-security-policy').includes('media-src blob:'));
 assert(!capturePage.headers.get('content-security-policy').includes('https://kotobase.net'));
+// Operator console host: admin.kotoba.cloud serves only the console, health and the
+// shared identity gateway. Marketing/discovery paths 404; the document is no-store
+// with a locked-down CSP; gateway ops still require the session and same-origin.
+{
+  const adminDoc = await route(new Request('https://admin.kotoba.cloud/'), {...env, ASSETS: {fetch: async request => {
+    assert.equal(new URL(request.url).pathname, '/admin/');
+    return new Response('<main id="main"></main>', {headers: {'content-type': 'text/html'}});
+  }}});
+  assert.equal(adminDoc.status, 200);
+  assert.equal(adminDoc.headers.get('cache-control'), 'no-store, private');
+  assert.equal(adminDoc.headers.get('x-robots-tag'), 'noindex');
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/ja/'), env)).status, 404);
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/.well-known/kotoba-cloud.json'), env)).status, 404);
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/health'))).status, 200);
+  const adminHealth = await (await route(new Request('https://admin.kotoba.cloud/health'))).json();
+  assert.equal(adminHealth.service, 'kotoba-cloud-operator-console');
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/v1/identity/status'), env)).status, 401);
+  assert.equal((await route(researchRequest('/v1/identity/status'), identityEnv)).status, 200);
+  assert.equal((await route(new Request('https://admin.kotoba.cloud/v1/identity/status', {method:'POST', headers:{cookie:'gftd_session=research-session', origin:'https://admin.kotoba.cloud', 'content-type':'application/json'}, body:'{}'}), identityEnv)).status, 405);
+}
 console.log('private identity gateway authorization, bounds and camera isolation checks passed');
 
 // First-party database ingress: credentials are verified by the private service,
@@ -815,3 +835,96 @@ assert.equal((await route(dbRequest({authorization:'Bearer fixture'},databasePat
 assert.equal(databaseCalls.length,1);
 assert.equal((await route(dbRequest({authorization:'Bearer fixture'}),{...env,DATABASE_SERVICE:{fetch:async()=>new Response(null,{status:302,headers:{location:'https://kotobase.net'}})}})).status,502);
 console.log('Database ingress CORS, CSRF, credential isolation, route bounds and body limits passed');
+
+// Billing remains closed until metering and mode-specific provider configuration exist.
+const { BillingAccount } = await import('../build/worker.js');
+let bill = await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {});
+assert.equal((await bill.json()).checkoutEnabled, false);
+bill = await route(new Request('https://kotoba.cloud/v1/billing/status'), {});
+assert.equal(bill.status, 401);
+bill = await route(new Request('https://kotoba.cloud/v1/billing/checkout', {method:'POST', headers:{origin:'https://evil.example','content-type':'application/json'},body:'{}'}), {});
+assert.equal(bill.status,403);
+const memory = new Map();
+const billingState = {storage:{get:async k=>memory.get(k), put:async(k,v)=>memory.set(k,v), list:async()=>new Map([...memory].filter(([k])=>k.startsWith('usage:'))),setAlarm:async()=>{}}, blockConcurrencyWhile: f=>f()};
+const billingEnv = {BILLING_ENVIRONMENT_ID:'account-a-test',STRIPE_RESTRICTED_KEY:'sk_test_fixture_not_a_real_key', STRIPE_PRICE_IDS:JSON.stringify({'pro':'price_fixture','ai-credits-25':'price_topup'}), STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture'};
+const enabledCatalog=await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...billingEnv,BILLING_SANDBOX_ENABLED:'true',BILLING_MODE:'test',STRIPE_WEBHOOK_SECRET:'whsec_fixture',BILLING_ACCOUNTS:{}});
+assert.equal((await enabledCatalog.json()).checkoutEnabled,true,'Stripe-only configuration requires no additional provider');
+const billingDO = BillingAccount(billingState,billingEnv);
+const doBill = async(path,body={})=>billingDO.fetch(new Request('https://billing.internal'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({principal:'principal_fixture',...body})}));
+assert.equal((await doBill('/status')).status,200);
+const providerCalls=[];
+const oldFetchBilling=globalThis.fetch;
+globalThis.fetch=async(url,init)=>{
+ const u=String(url);providerCalls.push({url:u,body:init?.body});
+ if(u.startsWith('https://api.stripe.com/v1/subscriptions?'))return Response.json({data:[],has_more:false});
+ if(u==='https://api.stripe.com/v1/customers')return Response.json({id:'cus_fixture'});
+ if(u==='https://api.stripe.com/v1/checkout/sessions')return Response.json({id:'cs_fixture',url:'https://checkout.stripe.com/c/pay/fixture'});
+ if(u==='https://api.stripe.com/v1/invoices/in_fixture')return Response.json({id:'in_fixture',status:'paid',customer:'cus_fixture',currency:'usd',billing_reason:'subscription_cycle',lines:{has_more:false,data:[{id:'il_fixture',quantity:1,period:{start:1789257600,end:1791849600},pricing:{price_details:{price:'price_fixture'}}}]}});
+ throw new Error('Unexpected billing provider URL '+u);
+};
+try {
+ let r=await doBill('/checkout',{sku:'pro',requestId:'request_fixture_000000'});
+ assert.equal(r.status,503,'invalid id rejected');
+ r=await doBill('/checkout',{sku:'pro',requestId:'request-fixture-000000'});
+ assert.equal(r.status,200,await r.clone().text());
+ assert.equal((await r.json()).url,'https://checkout.stripe.com/c/pay/fixture');
+ r=await doBill('/checkout',{sku:'pro',requestId:'another-checkout-0000'});assert.equal(r.status,503,'second checkout cannot create another subscription');
+ const e={type:'invoice.paid',data:{object:{id:'in_fixture',customer:'cus_fixture'}}};
+ r=await doBill('/event',{event:e});assert.equal(r.status,200,await r.clone().text());
+ r=await doBill('/event',{event:e});assert.equal(r.status,200);
+ const balances=(await (await doBill('/status')).json()).balances;
+ assert.equal(balances.find(b=>b.scope==='ai').grantedMicroUSD,12000000);
+ assert.equal(balances.find(b=>b.scope==='storage.capacity').grantedMicroUSD,4000000);
+ assert.equal(providerCalls.some(c=>c.url.includes('metronome')),false);
+ const checkoutParams=new URLSearchParams(providerCalls.find(c=>c.url.endsWith('/checkout/sessions')).body);
+ assert.equal(checkoutParams.get('line_items[0][price]'),'price_fixture');
+ assert.equal(checkoutParams.has('line_items[1][price]'),false,'one recurring item includes both balances');
+ r=await doBill('/reserve',{id:'reserved-one',scope:'ai',maximum:10000000});assert.equal(r.status,200,await r.clone().text());
+ r=await doBill('/reserve',{id:'reserved-two',scope:'ai',maximum:3000000});assert.equal(r.status,402);
+ r=await doBill('/settle',{id:'reserved-one',actual:8000000,receiptId:'receipt-fixture'});assert.equal(r.status,200);
+ r=await doBill('/reserve',{id:'reserved-two',scope:'ai',maximum:3000000});assert.equal(r.status,200);
+ r=await doBill('/reserve',{id:'storage-one',scope:'storage.capacity',maximum:4000000});assert.equal(r.status,200);
+ r=await doBill('/reserve',{id:'storage-two',scope:'storage.capacity',maximum:1});assert.equal(r.status,402);
+ r=await doBill('/reserve',{id:'egress-one',scope:'storage',maximum:1});assert.equal(r.status,402,'included capacity cannot fund egress');
+ r=await doBill('/checkout',{sku:'ai-credits-25',requestId:'topup-fixture-000000'});assert.equal(r.status,200);
+ const topupEvent={type:'checkout.session.completed',data:{object:{id:'cs_fixture',customer:'cus_fixture',mode:'payment',payment_status:'paid',currency:'usd',amount_subtotal:2500,created:Math.floor(Date.now()/1000)}}};
+ r=await doBill('/event',{event:topupEvent});assert.equal(r.status,200);
+ r=await doBill('/event',{event:topupEvent});assert.equal(r.status,200);
+ const topped=(await (await doBill('/status')).json()).balances;
+ assert.equal(topped.find(b=>b.scope==='ai').grantedMicroUSD,37000000,'paid topup adds once');
+ assert.equal(topped.find(b=>b.scope==='storage').grantedMicroUSD,0,'AI topup cannot fund DB usage');
+ r=await doBill('/event',{event:{...e,data:{object:{id:'in_fixture',customer:'cus_other'}}}});assert.equal(r.status,503);
+ const receipt={requestId:'usage-fixture',model:'security',inputTokens:100,cachedInputTokens:40,outputTokens:10,occurredAt:'2026-09-14T00:00:00Z'};
+ r=await doBill('/usage',{kind:'inference',receipt});assert.equal(r.status,202);
+ const recorded=memory.get('usage:inference:usage-fixture');
+ assert.ok(recorded.includes(':input_tokens 60'));
+ await doBill('/usage',{kind:'inference',receipt});
+ assert.equal(memory.get('usage:inference:usage-fixture'),recorded);
+ r=await doBill('/usage',{kind:'inference',receipt:{...receipt,outputTokens:20}});assert.equal(r.status,503,'conflicting receipt rejected');
+} finally {globalThis.fetch=oldFetchBilling;}
+console.log('billing provider, invoice replay, tenant and durable usage checks passed');
+
+// Raw-body Stripe signature/mode enforcement precedes any account mutation.
+const webhookSecret = 'whsec_fixture_only';
+const webhookCalls = [];
+const webhookEnv = {...billingEnv, STRIPE_WEBHOOK_SECRET:webhookSecret, BILLING_MODE:'test', BILLING_ACCOUNTS:{idFromName:x=>x,get:id=>({fetch:async(url,init)=>{webhookCalls.push({id,body:JSON.parse(init.body)});return Response.json({received:true});}})}};
+const signedEvent = {id:'evt_fixture',livemode:false,type:'invoice.paid',data:{object:{id:'in_fixture',customer:'cus_fixture',parent:{subscription_details:{metadata:{principal:'principal_fixture'}}}}}};
+const rawEvent = JSON.stringify(signedEvent);
+const stamp = Math.floor(Date.now()/1000);
+const signature = (raw,t=stamp)=>`t=${t},v1=${createHmac('sha256',webhookSecret).update(`${t}.${raw}`).digest('hex')}`;
+const webhook = (raw,sig)=>route(new Request('https://api.kotoba.cloud/v1/billing/webhook',{method:'POST',headers:{'stripe-signature':sig},body:raw}),webhookEnv);
+assert.equal((await webhook(rawEvent,'t=0,v1=bad')).status,400);
+assert.equal((await webhook(rawEvent,signature(rawEvent,stamp-600))).status,400);
+assert.equal(webhookCalls.length,0);
+assert.equal((await webhook(rawEvent,signature(rawEvent))).status,200);
+assert.equal(webhookCalls.length,1);
+assert.equal(webhookCalls[0].id,'test:account-a-test:principal_fixture');
+const liveEvent = JSON.stringify({...signedEvent,livemode:true});
+assert.equal((await webhook(liveEvent,signature(liveEvent))).status,400);
+assert.equal(webhookCalls.length,1);
+webhookEnv.BILLING_ENVIRONMENT_ID = 'account-b-test';
+assert.equal((await webhook(rawEvent,signature(rawEvent))).status,200);
+assert.equal(webhookCalls[1].id,'test:account-b-test:principal_fixture');
+assert.notEqual(webhookCalls[0].id,webhookCalls[1].id);
+console.log('Stripe webhook signature, timestamp and mode checks passed');
+console.log('operator console host isolation checks passed');

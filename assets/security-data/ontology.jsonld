@@ -31,6 +31,11 @@
       "rdfs:label": "attack-log"
     },
     {
+      "@id": "security:historical-group",
+      "@type": "rdfs:Class",
+      "rdfs:label": "historical-group"
+    },
+    {
       "@id": "security:threat-model",
       "@type": "rdfs:Class",
       "rdfs:label": "threat-model"
@@ -61,6 +66,11 @@
       "rdfs:label": "ransomwareUse"
     },
     {
+      "@id": "security:alias",
+      "@type": "rdf:Property",
+      "rdfs:label": "alias"
+    },
+    {
       "@id": "security:name",
       "@type": "rdf:Property",
       "rdfs:label": "name"
@@ -89,6 +99,21 @@
       "@id": "security:eventCount",
       "@type": "rdf:Property",
       "rdfs:label": "eventCount"
+    },
+    {
+      "@id": "security:historical-post-count",
+      "@type": "rdf:Property",
+      "rdfs:label": "historical-post-count"
+    },
+    {
+      "@id": "security:discovered-range",
+      "@type": "rdf:Property",
+      "rdfs:label": "discovered-range"
+    },
+    {
+      "@id": "security:reported-by",
+      "@type": "rdf:Property",
+      "rdfs:label": "reported-by"
     }
   ]
 }

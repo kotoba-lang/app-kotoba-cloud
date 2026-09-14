@@ -1,0 +1,16 @@
+{
+  "revision": "20111d3223c5fff76937724d2f16e60c1724f34d",
+  "retrievedAt": "2026-09-13T23:53:34.337Z",
+  "groups": {
+    "url": "https://raw.githubusercontent.com/joshhighet/ransomwatch/20111d3223c5fff76937724d2f16e60c1724f34d/groups.json",
+    "sha256": "d0985955ff06096092f40fffe6ea4b9c1984a3ddef8e1d35e1e66aa5142d475a"
+  },
+  "posts": {
+    "url": "https://raw.githubusercontent.com/joshhighet/ransomwatch/20111d3223c5fff76937724d2f16e60c1724f34d/posts.json",
+    "sha256": "5eb6c1313bf6ace8ab3702e3e8be688cd747821335ec384ad5c5182c8434542e"
+  },
+  "license": {
+    "url": "https://raw.githubusercontent.com/joshhighet/ransomwatch/20111d3223c5fff76937724d2f16e60c1724f34d/LICENSE",
+    "sha256": "6b0382b16279f26ff69014300541967a356a666eb0b91b422f6862f6b7dad17e"
+  }
+}

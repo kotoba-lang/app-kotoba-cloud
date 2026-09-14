@@ -1,5 +1,7 @@
 (ns app-kotoba-cloud.browser
-  (:require [app-kotoba-cloud.identity-browser :as identity-browser]
+  (:require [app-kotoba-cloud.billing-browser :as billing-browser]
+            [app-kotoba-cloud.identity-browser :as identity-browser]
+            [app-kotoba-cloud.admin-browser :as admin-browser]
             [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.research-browser :as research-browser]
             [app-kotoba-cloud.session :as session]
@@ -222,29 +224,31 @@
              (post-funnel-event! "signup" (cond-> {} bfcid (assoc :bfcid bfcid))))))))))
 
 (defn init! []
+  (billing-browser/init!)
   (if (contains? #{"/identity" "/identity/"} (.-pathname js/location))
     (identity-browser/init!)
-    (do
-  (research-browser/init!)
-  (let [bfcid (get (landing-attribution) "bfcid")]
-    (when bfcid (load-freebuff-tag! bfcid))
-    (preserve-attribution-links!)
-    (listen-signup-intent!)
-    (when-not (storage-get "kc-funnel-visitor")
-      (storage-set "kc-funnel-visitor" "1")
-      (post-funnel-event! "visitor" (cond-> {} bfcid (assoc :bfcid bfcid)))))
-  (when-let [publication (decode-fragment "#publish=")]
-    (publication-preview! publication))
-  (when-let [transition (decode-fragment "#pq-key-transition=")]
-    (transition-preview! transition))
-  (-> (js/fetch "/v1/session" #js {:credentials "same-origin"
-                                    :headers #js {"accept" "application/json"}})
-      (.then (fn [response]
-               (when (.-ok response) (.json response))))
-      (.then (fn [payload]
-               (when payload
-                 (let [viewer (session/viewer-model
-                               (js->clj payload :keywordize-keys true))]
-                   (when (:valid viewer) (signed-in! viewer))))))
-      (.catch (fn [_] nil))))
-))
+    (if (= "admin.kotoba.cloud" (.-hostname js/location))
+      (admin-browser/init!)
+      (do
+        (research-browser/init!)
+        (let [bfcid (get (landing-attribution) "bfcid")]
+          (when bfcid (load-freebuff-tag! bfcid))
+          (preserve-attribution-links!)
+          (listen-signup-intent!)
+          (when-not (storage-get "kc-funnel-visitor")
+            (storage-set "kc-funnel-visitor" "1")
+            (post-funnel-event! "visitor" (cond-> {} bfcid (assoc :bfcid bfcid)))))
+        (when-let [publication (decode-fragment "#publish=")]
+          (publication-preview! publication))
+        (when-let [transition (decode-fragment "#pq-key-transition=")]
+          (transition-preview! transition))
+        (-> (js/fetch "/v1/session" #js {:credentials "same-origin"
+                                         :headers #js {"accept" "application/json"}})
+            (.then (fn [response]
+                     (when (.-ok response) (.json response))))
+            (.then (fn [payload]
+                     (when payload
+                       (let [viewer (session/viewer-model
+                                     (js->clj payload :keywordize-keys true))]
+                         (when (:valid viewer) (signed-in! viewer))))))
+            (.catch (fn [_] nil)))))))

@@ -12,7 +12,10 @@ assert.equal((await call('/v1/knowledge/context?id=absent')).status,404);
 assert.equal((await call('/v1/knowledge/search?q=test','POST')).status,405);
 const bad={ASSETS:{fetch:async()=>Response.json({entries:[{id:'bad',url:'https://evil.invalid/'}]})}};
 assert.equal((await call('/v1/knowledge/context?id=bad','GET',bad)).status,502);
-const huge={ASSETS:{fetch:async()=>new Response(' '.repeat(262145))}};
+const huge={ASSETS:{fetch:async()=>new Response(' '.repeat(524289))}};
 assert.equal((await call('/v1/knowledge/search?q=T1018','GET',huge)).status,503);
+r=await call('/v1/knowledge/search?q=Fancy%20Bear');assert.equal(r.status,200);assert.ok((await r.json()).results.some(x=>x.id==='security/attack/G0007'));
 assert.ok(reads.every(p=>p.startsWith('/security-data/')));
 console.log('Knowledge: real published search/context, provenance, bounds, unknown IDs, methods and path isolation passed.');
+
+r=await call('/v1/knowledge/context?id=security%2Fransomwatch%2Flockbit3');assert.equal(r.status,200);const h=(await r.json()).context.historical;assert.equal(h.mode,'historical-unverified');assert(h.count>0&&h.pages.length>0);console.log('Historical group context and page links passed.');

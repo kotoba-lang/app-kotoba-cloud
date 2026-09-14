@@ -1,0 +1,176 @@
+(ns app-kotoba-cloud.admin-browser
+  "Operator console behaviour for admin.kotoba.cloud. Talks only to the existing
+  /v1/identity/* gateway (same private authority). The reviewer signing key is
+  generated non-extractable, lives in page memory, and its public half is exported
+  into a downloadable registry entry. Decisions are Ed25519 JWS in the
+  kotoba-intake-review+jwt profile, exactly as the authority verifies them."
+  (:require [app-kotoba-cloud.research-browser :as api]))
+
+(defonce state (atom {}))
+(defn t [ja en] (if (= "ja" (.-language js/document)) ja en))
+(defn el [id] (.getElementById js/document id))
+(defn say! [s] (set! (.-textContent (el "admin-status")) s))
+(defn review-say! [s] (set! (.-textContent (el "admin-review-status")) s))
+(defn disabled! [id value] (set! (.-disabled (el id)) value))
+(defn value [id] (.trim (.-value (el id))))
+(defn set-dd! [id v] (set! (.-textContent (el id)) (or v "—")))
+
+(defn b64 [bytes]
+  (-> (js/btoa (apply str (map #(js/String.fromCharCode %) (array-seq (js/Uint8Array. bytes)))))
+      (.replaceAll "+" "-") (.replaceAll "/" "_") (.replace #"=+$" "")))
+(defn part [x] (b64 (.encode (js/TextEncoder.) (js/JSON.stringify (clj->js x)))))
+
+(defn sign! [claims]
+  (let [sec (js/Math.floor (/ (js/Date.now) 1000))
+        input (str (part {:alg "EdDSA" :typ "kotoba-intake-review+jwt" :kid (value "admin-reviewer-key-id")})
+                   "."
+                   (part (assoc claims :actor (value "admin-reviewer-account") :aud "https://kotoba.cloud"
+                                :iat sec :exp (+ sec 120))))]
+    (-> (.sign (.-subtle js/crypto) "Ed25519" (.-privateKey (:keys @state)) (.encode (js/TextEncoder.) input))
+        (.then #(str input "." (b64 %))))))
+
+(defn checked! [result]
+  (when-not (:httpOk result) (throw (js/Error. "authority refused request"))) result)
+
+(defn revoke! [id]
+  (when-let [node (el id)] (.removeAttribute node "src")))
+
+(defn clear-case! []
+  (revoke! "admin-case-document")
+  (let [v (el "admin-case-video")]
+    (when (and v (.-srcObject v)) (.pause v))
+    (.removeAttribute v "src"))
+  (set! (.-hidden (el "admin-case-actions")) true)
+  (set! (.-hidden (el "admin-case-profile")) true)
+  (set! (.-textContent (el "admin-case-profile")) ""))
+
+(defn load-evidence! [id]
+  (doseq [[slot target] [["document" "admin-case-document"] ["live-video" "admin-case-video"]]]
+    (-> (js/fetch (str "/v1/identity/evidence?id=" (js/encodeURIComponent id) "&slot=" slot)
+                  #js {:credentials "same-origin" :cache "no-store"})
+        (.then (fn [r] (when-not (.-ok r) (throw (js/Error. "denied"))) (.blob r)))
+        (.then (fn [blob]
+                 (let [url (js/URL.createObjectURL blob)]
+                   (set! (.-src (el target)) url)))
+               )
+        (.catch (fn [_] (set! (.-hidden (el target)) true))))))
+
+(defn load-profile! [id]
+  (-> (api/api (str "/v1/identity/profile?id=" (js/encodeURIComponent id)) nil)
+      (.then (fn [r]
+               (when-not (:httpOk r) (throw (js/Error. "profile unavailable")))
+               (let [p (:researcherProfile r) target (el "admin-case-profile")]
+                 (set! (.-textContent target)
+                       (str "案件：" id " / revision：" (:revision r) "\n"
+                            "所属・資格の申告（この表示は検証結果ではありません）\n"
+                            (js/JSON.stringify (clj->js p))))
+                 (set! (.-hidden target) false)))))
+  (.catch (fn [_] (set! (.-hidden (el "admin-case-profile")) true))))
+
+(defn open-case! [id]
+  (clear-case!)
+  (swap! state assoc :case id)
+  (set! (.-hidden (el "admin-case-actions")) false)
+  (-> (if (:claim-needed @state)
+        (-> (api/api "/v1/identity/claim" {:id id}) (.then checked!))
+        (js/Promise.resolve nil))
+      (.catch (fn [_] nil))
+      (.then (fn [_] (load-profile! id) (load-evidence! id)))
+      (.catch (fn [_] (review-say! "証跡の取得が許可されていません。 / Evidence view was not authorized.")))))
+
+(defn refresh! []
+  (-> (api/api "/v1/identity/status" nil)
+      (.then (fn [r]
+               (swap! state assoc :status r)
+               (let [conn (:connection r) missing (set (:missing conn))]
+                 (when (:httpOk r)
+                   (set-dd! "admin-conn-authority" (:authority conn))
+                   (set-dd! "admin-conn-storage" (if (contains? missing "private-storage") "unavailable" (:storage conn)))
+                   (set-dd! "admin-conn-keys" (if (contains? missing "key-management") "unavailable" (:keys conn)))
+                   (set-dd! "admin-conn-review" (if (contains? missing "reviewer-and-notice-policy") "unavailable" (:review conn)))
+                   (set-dd! "admin-conn-intake" (if (true? (:intakeEnabled r)) "open" "closed"))
+                   (disabled! "admin-keygen" false)
+                   (cond
+                     (not (true? (:reviewer r)))
+                     (review-say! (t "審査員として未登録です。登録簿を運用設定へ反映してください。"
+                                     "Not registered as a reviewer. Apply the registry entry to the review infrastructure."))
+                     (seq (:queue r))
+                     (review-say! (str (count (:queue r)) " 件の担当案件があります。 / " (count (:queue r)) " assigned case(s)."))
+                     :else
+                     (review-say! (t "担当案件はありません。" "No assigned cases."))))
+                 (when (or (not (:httpOk r)) (get-in r [:error :code]))
+                   (say! (str "authority status: " (or (get-in r [:error :code]) "unavailable") " — 接続状態の反映は審査基盤側の設定が完了した後に表示されます。"))))
+               (.replaceChildren (el "admin-queue"))
+               (doseq [c (:queue r)]
+                 (let [row (.createElement js/document "p")
+                       button (.createElement js/document "button")]
+                   (set! (.-textContent row) (str (:id c) " / " (:status c) " "))
+                   (set! (.-textContent button) (t "開いて確認" "Open & review"))
+                   (.addEventListener button "click" (fn [] (open-case! (:id c))))
+                   (.append row button)
+                   (.append (el "admin-queue") row)))))
+      (.catch (fn [_] (say! "接続を確認できません。 / Could not reach the identity authority.")))))
+
+(defn keygen! []
+  (-> (.generateKey (.-subtle js/crypto) "Ed25519" false #js ["sign" "verify"])
+      (.then (fn [keys]
+               (swap! state assoc :keys keys)
+               (disabled! "admin-reviewer-download" false)
+               (say! "鍵ペアを生成しました。秘密鍵はこの画面のメモリだけにあります。 / Key pair generated. The private key exists only in this page's memory.")))
+      (.catch (fn [_] (say! "鍵ペアを生成できません。 / Key generation failed.")))))
+
+(defn download! []
+  (when (:keys @state)
+    (let [account (value "admin-reviewer-account") key-id (value "admin-reviewer-key-id")]
+      (if-not (and account key-id)
+        (say! "審査員アカウントと鍵IDを入力してください。 / Enter the reviewer account and key id.")
+        (-> (.exportKey (.-subtle js/crypto) "jwk" (.-publicKey (:keys @state)))
+            (.then (fn [jwk]
+                     (let [public (select-keys (js->clj jwk :keywordize-keys true) [:kty :crv :x])
+                           artifact (clj->js {:version "kotoba-reviewer-registry-2026-09-v1"
+                                              :account account :key-id key-id
+                                              :public-jwk public :profile "kotoba-intake-review+jwt"})
+                           text (js/JSON.stringify artifact nil 2)
+                           blob (js/Blob. #js [text] #js {:type "application/json"})
+                           url (js/URL.createObjectURL blob)
+                           a (.createElement js/document "a")]
+                       (set! (.-href a) url)
+                       (set! (.-download a) (str "reviewer-registry-" key-id ".json"))
+                       (.click a)
+                       (.revokeObjectURL js/URL url)
+                       (set! (.-textContent (el "admin-reviewer-artifact")) text)
+                       (set! (.-hidden (el "admin-reviewer-artifact")) false)
+                       (say! "登録簿をダウンロードしました。 / Registry entry downloaded.")))))))))
+
+(defn decide! [action]
+  (let [id (:case @state)]
+    (when (and id (:keys @state))
+      (let [reason (value "admin-decision-reason")
+            live-ref (value "admin-live-session-ref")
+            live-done (.-checked (el "admin-live-session-done"))]
+        (disabled! "admin-approve" true)
+        (disabled! "admin-reject" true)
+        (-> (sign! {:action action :id id :reason reason
+                    :holder-method (when (and (= action "approve") live-done) "supervised-live-video-document-comparison")
+                    :live-session-ref (when (= action "approve") live-ref)
+                    :screening (when (= action "approve") {:coverage ["sanctions" "pep" "adverse-media"]})
+                    :scope (when (= action "approve") {:status "approved"})})
+            (.then #(api/api "/v1/identity/decision" {:id id :proof %}))
+            (.then checked!)
+            (.then (fn [_] (review-say! (str "判定を送信しました（" action "）。 / Decision submitted (" action ").")) (clear-case!)))
+            (.catch (fn [_] (review-say! "判定を送信できませんでした。 / The authority refused the decision.")))
+            (.finally (fn [] (disabled! "admin-approve" false) (disabled! "admin-reject" false) (refresh!))))))))
+
+(defn init! []
+  (when (el "admin-console")
+    (let [login (el "kc-session-nav")]
+      (when login
+        (let [url (js/URL. (.-href login))]
+          (.set (.-searchParams url) "return_to" "https://admin.kotoba.cloud/")
+          (set! (.-href login) (.toString url)))))
+    (doseq [[id f] [["admin-refresh" refresh!] ["admin-keygen" keygen!]
+                    ["admin-reviewer-download" download!]
+                    ["admin-approve" (fn [] (decide! "approve"))]
+                    ["admin-reject" (fn [] (decide! "reject"))]]]
+      (.addEventListener (el id) "click" f))
+    (refresh!)))

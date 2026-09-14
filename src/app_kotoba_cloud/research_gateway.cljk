@@ -3,7 +3,8 @@
   (:require [app-kotoba-cloud.research :as policy] [app-kotoba-cloud.session :as session]))
 
 (def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"})
-(def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"})
+(def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"
+               "https://admin.kotoba.cloud"})
 
 (defn bounded-json [message limit]
   (if-not (.-body message)

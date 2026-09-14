@@ -3,6 +3,8 @@
  {:research-providers {:target :esm :output-dir "build/providers"
                        :modules {:providers {:exports {createSession app-kotoba-cloud.research-providers/create-session-js
                                                        verifyEvent app-kotoba-cloud.research-providers/verify-event-js
+                                                       createStripeSession app-kotoba-cloud.research-providers/create-stripe-session-js
+                                                       verifyStripeEvent app-kotoba-cloud.research-providers/verify-stripe-event-js
                                                        infer app-kotoba-cloud.research-providers/infer-js}}}
                        :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
   :free-sites-test
@@ -22,6 +24,7 @@
    :output-dir "build"
    :modules {:worker {:exports {default app-kotoba-cloud.worker/app
                                PqKeyRegistry app-kotoba-cloud.pq-key-registry/make-pq-key-registry
+                               BillingAccount app-kotoba-cloud.billing-account/make-billing-account
                                route app-kotoba-cloud.worker/route
                                resetFunnelStore app-kotoba-cloud.worker/reset-funnel-store!}}}
    :compiler-options {:output-feature-set :es2020
