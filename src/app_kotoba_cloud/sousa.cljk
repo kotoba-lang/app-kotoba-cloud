@@ -1,0 +1,203 @@
+(ns app-kotoba-cloud.sousa
+  "Investigation-support ontology schema (v1): Case / Victim / Suspect /
+  Evidence / Procedure.
+
+  Schema-only iteration: this namespace holds the ontology definitions, the
+  validators, the case-state transition table and a minimal in-memory query
+  surface. It contains NO case data — every function operates on whatever
+  store the caller hands it, and the only sample values shipped here are the
+  enum literals and relation names themselves.
+
+  ## Relations (v1)
+
+  - case→victim: `[:case-victims :many]` (a case may have several victims)
+  - case→suspect: `[:case-suspects :many]`
+  - evidence→case: `[:evidence-case :one]`, with chain-of-custody attributes
+    (`:collected-at`, `:collected-by`, `:custody-log`) required on Evidence
+  - procedure→case: `[:procedure-case :one]`, carrying the case status
+    transition (`reported → accepted → investigating → referred`)
+
+  ## Read-only
+
+  The worker only ever exposes these via GET (`/v1/sousa/*` and
+  `/schemas/sousa-ontology/v1`). There is no write path in v1: an ontology
+  that cannot describe custody correctly must not accept custody records
+  yet."
+  (:require [clojure.string :as str]))
+
+(def ontology-id "sousa-ontology")
+(def ontology-version "v1")
+
+(def case-statuses
+  "Procedure lifecycle. Linear; `state-transition?` is the only authority."
+  [:reported :accepted :investigating :referred])
+
+(def status->index
+  (zipmap case-statuses (range (count case-statuses))))
+
+(defn state-transition?
+  "Is moving `from` → `to` a legal procedure step? Nil statuses are not legal."
+  [from to]
+  (and (contains? status->index from)
+       (contains? status->index to)
+       (= 1 (- (status->index to) (status->index from)))))
+
+(def entity-attrs
+  "Attribute → [required?, type-or-enum-set] per entity. Types are loose v1:
+  `:string`, `:instant`, or a set of allowed literals."
+  {:case {:case-number   [true :string]
+          :title         [true :string]
+          :status        [true (set case-statuses)]
+          :opened-at     [true :instant]
+          :victims       [false :ref-many]
+          :suspects      [false :ref-many]}
+   :victim {:victim-id    [true :string]
+            :case-number  [true :string]
+            :pseudonymized [true :boolean]
+            :contact      [false :string]}
+   :suspect {:suspect-id   [true :string]
+             :case-number  [true :string]
+             :status       [true #{:nominal :person-of-interest :charged :cleared}]}
+   :evidence {:evidence-id   [true :string]
+              :case-number   [true :string]
+              :kind          [true #{:physical :digital :document :testimony}]
+              :collected-at  [true :instant]
+              :collected-by  [true :string]
+              :custody-log   [true :ref-many]}
+   :procedure {:procedure-id [true :string]
+               :case-number  [true :string]
+               :from-status  [true (set (cons :none case-statuses))]
+               :to-status    [true (set case-statuses)]
+               :performed-at [true :instant]}})
+
+(def relations
+  "Cardinality of the ontology's edges, kept as data so the schema document
+  served at `/schemas/sousa-ontology/v1` cannot drift from what validators
+  enforce."
+  {:case-victims    {:from :case :to :victim   :card :many}
+   :case-suspects   {:from :case :to :suspect  :card :many}
+   :evidence-case   {:from :evidence :to :case :card :one}
+   :procedure-case  {:from :procedure :to :case :card :one}})
+
+(defn valid-status-transition?
+  "A procedure record is valid only if its from→to is a legal transition
+  (a first procedure starts from `:none`, moving into `:reported`)."
+  [{:keys [from-status to-status]}]
+  (if (= from-status :none)
+    (= to-status :reported)
+    (state-transition? from-status to-status)))
+
+(defn- type-ok? [spec v]
+  (cond
+    (set? spec) (contains? spec v)
+    (= :string spec) (and (string? v) (not (str/blank? v)))
+    (= :instant spec) (int? v)
+    (= :boolean spec) (boolean? v)
+    (= :ref-many spec) (sequential? v)
+    :else false))
+
+(defn validate-entity
+  "-> `{:ok true}` or `{:ok false :errors [\"…\"]}` for one entity map
+  `{:entity/type k :entity/attrs m}`. Unknown entity types and unknown
+  attributes are rejected: an ontology that silently accepts attributes it
+  did not define is a JSON blob with ambition."
+  [{t :entity/type a :entity/attrs}]
+  (let [spec (get entity-attrs t)]
+    (cond
+      (nil? spec)
+      {:ok false :errors [(str "unknown entity type " (pr-str t))]}
+      (not (map? a))
+      {:ok false :errors ["attrs must be a map"]}
+      :else
+      (let [errors
+            (concat
+             ;; required and well-typed
+             (for [[k [req typ]] spec
+                   :when req
+                   :let [v (get a k)]
+                   :when (or (nil? v) (not (type-ok? typ v)))]
+               (str "invalid value for " k))
+             ;; declared attrs must be typed when present
+             (for [[k [_ typ]] spec
+                   :let [v (get a k)]
+                   :when (and (some? v) (not (type-ok? typ v)))]
+               (str "invalid value for " k))
+             ;; nothing outside the schema
+             (for [k (keys a) :when (not (contains? spec k))]
+               (str "unknown attribute " k))
+             ;; procedure transitions
+             (when (and (= t :procedure)
+                        (not (valid-status-transition?
+                              (select-keys a [:from-status :to-status]))))
+               ["illegal procedure transition"]))]
+        (if (seq errors)
+          {:ok false :errors (vec errors)}
+          {:ok true})))))
+
+(def empty-store
+  "In-memory store shape: `{entity-type {id attrs}}`."
+  {:case {} :victim {} :suspect {} :evidence {} :procedure {}})
+
+(defn- store->attrs [store t id]
+  (get-in store [t id]))
+
+(defn case->evidence
+  "All evidence records attached to a case (by case number)."
+  [store case-number]
+  (->> (get store :evidence)
+       (filter (fn [[_ attrs]] (= (:case-number attrs) case-number)))
+       (mapv second)))
+
+(defn case->procedures
+  "Procedure records for a case, ordered by the status timeline they imply."
+  [store case-number]
+  (->> (get store :procedure)
+       (filter (fn [[_ attrs]] (= (:case-number attrs) case-number)))
+       (mapv second)
+       (sort-by (fn [p] (get status->index (or (:to-status p) :reported))))))
+
+(defn current-status
+  "Latest legal status for a case from its procedure records, or `:reported`
+  if a case exists with no procedure yet. Returns nil for an unknown case."
+  [store case-number]
+  (when (contains? (get store :case) case-number)
+    (let [ps (case->procedures store case-number)]
+      (if (seq ps)
+        (:to-status (last ps))
+        :reported))))
+
+(defn evidence-custody-intact?
+  "A custody chain is intact when every entry names a handler and they
+  connect: entry i+1 received from entry i's holder (first entry has no
+  predecessor). Entries without `:received-from` are read as the initial
+  collection only when the log starts with them. This is the v1 check that
+  keeps `custody-log` from becoming a decoration."
+  [custody-log]
+  (let [entries (vec custody-log)]
+    (and (pos? (count entries))
+         (every? (fn [e] (and (string? (:handler e))
+                              (not (str/blank? (:handler e)))))
+                 entries)
+         (every? (fn [[i e]]
+                   (if (zero? i)
+                     true
+                     (= (:handler (nth entries (dec i)))
+                        (:received-from e))))
+                 (map-indexed vector entries)))))
+
+(defn schema-document
+  "The JSON-shape served at `/schemas/sousa-ontology/v1`."
+  []
+  (let [ent (into (sorted-map)
+                  (for [[t m] entity-attrs]
+                    [t {:required (vec (for [[k [req _]] m :when req] k))
+                        :attributes (vec (sort (keys m)))}]))
+        rel (into (sorted-map)
+                  (for [[k r] relations]
+                    [k (select-keys r [:from :to :card])]))]
+    {:schema ontology-id
+     :version ontology-version
+     :entities ent
+     :relations rel
+     :case-statuses case-statuses
+     :transitions "reported → accepted → investigating → referred"}))

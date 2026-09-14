@@ -1,8 +1,10 @@
 (ns app-kotoba-cloud.worker
   (:require [app-kotoba-cloud.billing-gateway :as billing-gateway]
+            [clojure.string :as str]
             [app-kotoba-cloud.database-gateway :as database-gateway]
             [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.boot :as boot]
+            [app-kotoba-cloud.sousa :as sousa]
             [app-kotoba-cloud.knowledge :as knowledge]
             [app-kotoba-cloud.funnel :as funnel]
             [app-kotoba-cloud.research-gateway :as research-gateway]
@@ -710,6 +712,25 @@
 
       (= path boot/catalog-path)
       (boot-json-response boot/catalog)
+
+      (= path "/schemas/sousa-ontology/v1")
+      (json-response (sousa/schema-document))
+
+      (and (str/starts-with? path "/v1/sousa/") (= method "GET"))
+      (let [sub (subs path (count "/v1/sousa/"))]
+        (cond
+          (= sub "case-statuses")
+          (json-response {:ontology sousa/ontology-id
+                          :version sousa/ontology-version
+                          :statuses sousa/case-statuses
+                          :transitions "reported → accepted → investigating → referred"})
+
+          (= sub "relations")
+          (json-response (sousa/schema-document) 200)
+
+          :else
+          (json-response {:error {:code "not-found"
+                                  :hint "GET /v1/sousa/case-statuses or /v1/sousa/relations"}} 404)))
 
       (= path "/schemas/control-plane/v1")
       (json-response {:type "object"

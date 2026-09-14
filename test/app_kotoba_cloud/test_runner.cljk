@@ -7,6 +7,7 @@
             [app-kotoba-cloud.guardian-test]
             [app-kotoba-cloud.advisory-panel-test]
             [app-kotoba-cloud.chain-facts-test]
+            [app-kotoba-cloud.sousa-test]
             [app-kotoba-cloud.boot-test]
             [app-kotoba-cloud.pq-key-lifecycle-test]
             [app-kotoba-cloud.free-sites-test]
@@ -25,6 +26,7 @@
                           'app-kotoba-cloud.guardian-test
                           'app-kotoba-cloud.advisory-panel-test
                           'app-kotoba-cloud.chain-facts-test
+                          'app-kotoba-cloud.sousa-test
                                'app-kotoba-cloud.boot-test
                                'app-kotoba-cloud.pq-key-lifecycle-test
                                'app-kotoba-cloud.free-sites-test

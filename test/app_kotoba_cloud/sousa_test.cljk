@@ -1,0 +1,109 @@
+(ns app-kotoba-cloud.sousa-test
+  (:require [app-kotoba-cloud.sousa :as s]
+            [clojure.test :refer [deftest is testing]]))
+
+(def ^:private case-1
+  {:entity/type :case
+   :entity/attrs {:case-number "SAMPLE-2026-0001"
+                  :title "sample case (synthetic, no real data)"
+                  :status :investigating
+                  :opened-at 1760000000}})
+
+(def ^:private ev-1
+  {:entity/type :evidence
+   :entity/attrs {:evidence-id "EV-001"
+                  :case-number "SAMPLE-2026-0001"
+                  :kind :physical
+                  :collected-at 1760001000
+                  :collected-by "officer-a (synthetic)"
+                  :custody-log [{:handler "officer-a" :received-from nil}
+                                {:handler "evidence-room" :received-from "officer-a"}]}})
+
+(def ^:private proc-1
+  {:entity/type :procedure
+   :entity/attrs {:procedure-id "P-001"
+                  :case-number "SAMPLE-2026-0001"
+                  :from-status :none
+                  :to-status :reported
+                  :performed-at 1760000000}})
+
+(deftest valid-entities-pass-and-broken-ones-fail
+  (testing "a well-formed case validates"
+    (is (:ok (s/validate-entity case-1))))
+  (testing "missing required attribute is named"
+    (is (= ["invalid value for :case-number"]
+           (:errors (s/validate-entity
+                     (update-in case-1 [:entity/attrs] dissoc :case-number))))))
+  (testing "enum violation is caught (unknown status is not invented into a status)"
+    (is (:errors (s/validate-entity
+                  (assoc-in case-1 [:entity/attrs :status] :closed-somehow)))))
+  (testing "unknown attribute is rejected, not silently dropped"
+    (is (:errors (s/validate-entity
+                  (assoc-in case-1 [:entity/attrs :real-person-data] true)))))
+  (testing "unknown entity type is rejected"
+    (is (:errors (s/validate-entity {:entity/type :warrant
+                                     :entity/attrs {}})))))
+
+(deftest procedure-transitions-are-the-linear-lifecycle
+  (testing "reported → accepted is legal, skipping is not"
+    (is (:ok (s/validate-entity proc-1)))
+    (is (s/state-transition? :reported :accepted))
+    (is (not (s/state-transition? :reported :investigating))
+        "通報→送致のスキップは許さない")
+    (is (not (s/state-transition? :reported :reported))))
+  (testing "a full chain validates"
+    (is (every? (comp :ok s/validate-entity)
+                (for [[f t] [[:reported :accepted] [:accepted :investigating]
+                             [:investigating :referred]]]
+                  {:entity/type :procedure
+                   :entity/attrs {:procedure-id (str "P-" f)
+                                  :case-number "SAMPLE-2026-0001"
+                                  :from-status f :to-status t
+                                  :performed-at 1760000100}}))))
+  (testing "an illegal transition is rejected"
+    (is (:errors (s/validate-entity
+                  {:entity/type :procedure
+                   :entity/attrs {:procedure-id "P-X"
+                                  :case-number "SAMPLE-2026-0001"
+                                  :from-status :reported
+                                  :to-status :referred
+                                  :performed-at 1}})))))
+
+(deftest custody-chain-must-connect
+  (testing "a linked chain is intact"
+    (is (s/evidence-custody-intact? (:custody-log (:entity/attrs ev-1)))))
+  (testing "a broken hand-off is NOT intact (gap between holder and receiver)"
+    (is (not (s/evidence-custody-intact?
+              [{:handler "officer-a"} {:handler "evidence-room"
+                                       :received-from "officer-b"}]))))
+  (testing "an empty log is not intact"
+    (is (not (s/evidence-custody-intact? []))))
+  (testing "a handlerless entry is not intact"
+    (is (not (s/evidence-custody-intact? [{:handler ""}])))))
+
+(deftest queries-answer-from-the-store-without-inventing
+  (let [store (-> s/empty-store
+                  (assoc-in [:case "SAMPLE-2026-0001"]
+                            (:entity/attrs case-1))
+                  (assoc-in [:evidence "EV-001"] (:entity/attrs ev-1))
+                  (assoc-in [:procedure "P-001"] (:entity/attrs proc-1)))]
+    (testing "case evidence is found by case number"
+      (is (= ["EV-001"] (mapv :evidence-id (s/case->evidence store "SAMPLE-2026-0001")))))
+    (testing "unknown case has no evidence, and no fabricated status"
+      (is (empty? (s/case->evidence store "SAMPLE-9999-0000")))
+      (is (nil? (s/current-status store "SAMPLE-9999-0000"))))
+    (testing "a case with only a :reported procedure reports that status"
+      (is (= :reported (s/current-status store "SAMPLE-2026-0001"))))
+    (testing "case-number scoping holds"
+      (is (empty? (s/case->procedures store "SAMPLE-9999-0000"))))))
+
+(deftest the-schema-document-is-derivable-and-claims-what-is-enforced
+  (let [doc (s/schema-document)]
+    (testing "every entity declares its required attributes"
+      (is (= [:case-number :title :status :opened-at]
+             (get-in doc [:entities :case :required]))))
+    (testing "relations carry cardinality"
+      (is (= :one (get-in doc [:relations :evidence-case :card])))
+      (is (= :many (get-in doc [:relations :case-suspects :card]))))
+    (testing "status list matches the transition table"
+      (is (= s/case-statuses (:case-statuses doc))))))
