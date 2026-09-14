@@ -745,6 +745,27 @@ const orgRegistryBody = await orgRegistry.json();
 assert.equal(orgRegistryBody.trustSystem, 'did:webvh');
 assert.equal(orgRegistryBody.membershipSchema, 'https://kotoba.cloud/.well-known/kotoba-org-membership-schema/v1.json');
 assert.deepEqual(orgRegistryBody.organizations, []);
+// Live registry merge: authority-attested orgs appear; authority down serves
+// the static policy document as-is.
+{
+  const liveEnv={...env, ORG_AUTHORITY:{fetch:async(url,init)=>{
+    const b=JSON.parse(init && init.body ? init.body : await url.text());
+    if (new URL(url instanceof Request?url.url:url).pathname==='/registry') return Response.json({organizations:[
+      {orgDid:'did:webvh:zS:com-live.kotoba.cloud',handle:'com-live.kotoba.cloud',scid:'zS',
+       didLog:'/.well-known/kotoba-org-dids/com-live.kotoba.cloud/did.jsonl',members:1,createdAt:1}]});
+    return Response.json({ok:true});
+  }}};
+  const lr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),liveEnv);
+  const lrb=await lr.json();
+  assert.equal(lrb.organizations.length,1);
+  assert.equal(lrb.organizations[0].handle,'com-live.kotoba.cloud');
+  assert.equal(lrb.statusLists.length,1);
+  // authority unreachable → static policy doc, never an error
+  const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>Response.error('down')}};
+  const dr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),downEnv);
+  assert.equal(dr.status,200);
+  assert.deepEqual((await dr.json()).organizations,[]);
+}
 // Public per-org did:webvh log: worker proxies the private authority's
 // /didlog and serves it as application/jsonl (ADR-2609141633 layer 1).
 {

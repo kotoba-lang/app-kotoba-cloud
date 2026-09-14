@@ -756,7 +756,23 @@
       ;; Organization trust registry (ADR-2609141633). Static content, but
       ;; served by the edge so the smoke environment (no file assets) sees it.
       (= path "/.well-known/kotoba-org-registry.json")
-      (json-response org-registry/registry)
+      ;; The private authority returns the COMPLETE registry document (static
+      ;; policy + live orgs). Pass it through verbatim; if the authority is
+      ;; unreachable, serve the static policy document — never an error page.
+      (if-let [org-binding (aget env "ORG_AUTHORITY")]
+        (-> (.fetch org-binding
+                    (js/Request. "https://org.internal/registry"
+                                 #js {:method "POST" :redirect "manual"
+                                      :signal (js/AbortSignal.timeout 15000)
+                                      :headers #js {"content-type" "application/json"}
+                                      :body "{}"}))
+            (.then (fn [r]
+                     (if-not (.-ok r)
+                       (json-response org-registry/registry)
+                       (.then (.json r)
+                              (fn [doc] (json-response (js->clj doc :keywordize-keys true)))))))
+            (.catch (fn [_] (json-response org-registry/registry))))
+        (json-response org-registry/registry))
 
       ;; Public did:webvh log per organization (ADR-2609141633). The path shape
       ;; matches the did:webvh URL transform for com-<handle>.kotoba.cloud.
