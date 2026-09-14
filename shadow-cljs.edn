@@ -7,6 +7,10 @@
                                                        verifyStripeEvent app-kotoba-cloud.research-providers/verify-stripe-event-js
                                                        infer app-kotoba-cloud.research-providers/infer-js}}}
                        :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
+  :research-authority {:target :esm :output-dir "build/research"
+                       :modules {:worker {:exports {default app-kotoba-cloud.research-authority/default
+                                                    ResearchAuthority app-kotoba-cloud.research-authority/make-research-authority}}}
+                       :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
   :free-sites-test
   {:target :node-test
    :output-to "build/free-sites-tests.cjs"

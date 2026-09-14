@@ -1,0 +1,349 @@
+(ns app-kotoba-cloud.research-authority
+  "Private research authority. Deployed as its own Worker (no public routes,
+  workers.dev disabled) and reachable only through the RESEARCH_AUTHORITY
+  service binding. Canonical durable state lives in Durable Object storage as
+  the interim store until the private Kotobase ref (kotoba-cloud-security-research)
+  is provisioned; every mutation is an atomic blockConcurrencyWhile transaction.
+
+  Admission contract follows docs/research-authority-contract.md and the edge
+  policy in app-kotoba-cloud.research. The authority recomputes trust points and
+  the session projection itself from binding-trusted inputs; it never accepts
+  browser-supplied evidence. Slow upstream inference runs detached (waitUntil)
+  under a durable job; the edge polls /jobs/status within its 60-second limit.
+
+  Operator decisions (eKYC verification, screening clearance, scope approval,
+  suspension) require an HMAC-SHA256 signature over the canonical operation
+  tuple with the RESEARCH_OPERATOR_SECRET. The secret never leaves the Worker;
+  operator calls arrive over the same private binding.")
+
+(def version "kotoba-research-authority-2026-09-v1")
+
+(defn text? [x n] (and (string? x) (<= 1 (count x) n) (boolean (re-find #"\S" x))))
+(defn- response [body status]
+  (js/Response. (js/JSON.stringify (clj->js body))
+                #js {:status status :headers #js {"content-type" "application/json"
+                                                  "cache-control" "no-store, private"}}))
+(defn- decode [s] (when s (js->clj (js/JSON.parse s) :keywordize-keys true)))
+
+(def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
+(def tasks #{"code-review" "vulnerability-triage" "remediation"})
+(def weights {"web-reviewed" 60 "app-passport" 80})
+(def threshold 60)
+(def screening-ttl-ms 86400000)
+(def ekyc-ttl-ms (* 365 86400000))
+(def trust-window-ms 60000)
+(def session-window-ms 15000)
+(def upstream-url "https://api.murakumo.cloud/v1/chat/completions")
+(def upstream-model "qwen3.8-flash-next-cybersecurity-nvfp4")
+(def public-model "qwen3.8-flash-next-whitehacker")
+
+;; --- operator authorization -------------------------------------------------
+(defn- canonical [items] (js/JSON.stringify (clj->js items)))
+(defn- hex [buf]
+  (apply str (map (fn [b] (.padStart (.toString b 16) 2 "0")) (array-seq (js/Uint8Array. buf)))))
+(defn- hmac! [secret msg]
+  (-> (.importKey (.-subtle js/crypto) "raw" (.encode (js/TextEncoder.) secret)
+                  (clj->js {:name "HMAC" :hash "SHA-256"}) false (clj->js ["sign"]))
+      (.then #(.sign (.-subtle js/crypto) (clj->js {:name "HMAC"}) % (.encode (js/TextEncoder.) msg)))
+      (.then hex)))
+(defn- timing-safe=? [a b]
+  (and (= (count a) (count b))
+       (zero? (reduce (fn [acc i] (+ acc (bit-xor (.charCodeAt a i) (.charCodeAt b i)))) 0 (range (count a))))))
+(defn- require-operator! [env body now]
+  (let [secret (aget env "RESEARCH_OPERATOR_SECRET")
+        ts (:operatorTimestamp body) sig (:operatorSignature body)]
+    (when-not (text? secret 256) (throw (ex-info "operator-not-enrolled" {:status 503})))
+    (when-not (and (number? ts) (<= (- now ts) 120000) (<= 0 ts) (text? sig 128))
+      (throw (ex-info "operator-proof-required" {:status 403})))
+    (let [msg (canonical [(:op body) (:principalId body) (:caseId body) (:scopeId body)
+                          (:tasks body) (:expiresAt body) (:status body) ts (:operatorActor body)])]
+      (-> (hmac! secret msg)
+          (.then (fn [expected]
+                   (when-not (timing-safe=? expected sig)
+                     (throw (ex-info "operator-signature-invalid" {:status 403})))))))))
+
+;; --- record construction ----------------------------------------------------
+(defn- fresh? [start end now max-age]
+  (and (number? start) (number? end) (<= 0 start now) (< now end)
+       (<= (- now start) max-age)))
+(defn- eligibility-reason [record now]
+  (cond
+    (not= "active" (:status record)) "review-required"
+    (not= "verified" (get-in record [:ekyc :status])) "verification-required"
+    (not (fresh? (get-in record [:ekyc :verifiedAt]) (get-in record [:ekyc :expiresAt]) now ekyc-ttl-ms)) "verification-expired"
+    (not= "clear" (get-in record [:screening :status])) "review-required"
+    (not (fresh? (get-in record [:screening :checkedAt]) (get-in record [:screening :expiresAt]) now screening-ttl-ms)) "screening-expired"
+    :else nil))
+(defn- trust-valid? [trust now]
+  (and (vector? (:routes trust))
+       (<= 1 (count (:routes trust)) 2)
+       (= (count (:routes trust)) (count (set (:routes trust))))
+       (every? #(contains? weights %) (:routes trust))
+       (fresh? (:evaluatedAt trust) (:expiresAt trust) now trust-window-ms)
+       (number? (:score trust))
+       (= (:score trust) (min 100 (reduce + 0 (map weights (:routes trust)))))
+       (>= (:score trust) threshold)))
+(defn- session-projection [session-ref action now]
+  ;; Uncalibrated projection: the edge has already authenticated the principal and
+  ;; derived the session reference server-side over the private binding. Belief is
+  ;; bounded at 0.9 pending production observers.
+  {:policyVersion "kotoba-session-evidence-2026-09-v1" :sessionRef session-ref :action action
+   :decision "allow" :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}
+   :evaluatedAt now :expiresAt (+ now session-window-ms)})
+(defn- public-record [record session-ref action now]
+  (cond-> record
+    true (assoc :continuous (session-projection session-ref action now))
+    (trust-valid? (:trust record) now)
+    (assoc :trust (assoc (:trust record) :evaluatedAt now :expiresAt (+ now trust-window-ms)
+                         :policyVersion "kotoba-trust-routes-2026-09-v1"))))
+
+(defn- scope-approved? [record task scope-id now]
+  (boolean (some #(and (= scope-id (:id %)) (= "approved" (:status %))
+                       (number? (:expiresAt %)) (< now (:expiresAt %))
+                       (some #{task} (:tasks %)))
+                 (:scopes record))))
+(defn- utc-day [now] (quot now 86400000))
+(defn- quota-used [record day]
+  (let [u (:usage record)] (if (and (= day (:day u)) (number? (:count u))) (:count u) 0)))
+(defn- completion-shape? [body]
+  (and (= public-model (get-in body [:request :model]))
+       (contains? tasks (get-in body [:request :task]))
+       (text? (get-in body [:request :scopeId]) 256)
+       (vector? (get-in body [:request :messages]))))
+
+;; --- job lifecycle ----------------------------------------------------------
+(defn- job-response [job record session-ref now]
+  {:jobId (:jobId job) :principalId (:principalId job) :sessionRef session-ref
+   :policyVersion "whitehat-2026-09-12-v1"
+   :trustPolicyVersion "kotoba-trust-routes-2026-09-v1"
+   :sessionPolicyVersion "kotoba-session-evidence-2026-09-v1"
+   :model public-model :billing "free" :policyDecision "allowed"
+   :receiptId (:receiptId job) :status (:status job)
+   :task (get-in job [:request :task]) :scopeId (get-in job [:request :scopeId])
+   :content (:content job)
+   :record (public-record record session-ref (get-in job [:request :task]) now)})
+(defn- load-state [storage]
+  (-> (js-invoke storage "get" "record") (.then decode)))
+(defn- save-state [storage record]
+  (js-invoke storage "put" "record" (js/JSON.stringify (clj->js record))))
+
+(defn- store-job! [storage job]
+  (js-invoke storage "put" (str "job:" (:jobId job)) (js/JSON.stringify (clj->js job))))
+(defn- load-job [storage job-id]
+  (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
+
+(defn- upstream-body [request]
+  #js {:model upstream-model :stream false
+       :messages (clj->js (:messages request))
+       :max_tokens (:max_tokens request)})
+
+(defn- run-inference! [env storage job-id]
+  ;; Detached from the request: the Durable Object writes the terminal state; a
+  ;; crashed run is reconciled on the next poll as "unknown", never re-dispatched.
+  (let [p (load-job storage job-id)]
+    (.then p (fn [job]
+      (when (and job (= "queued" (:status job)))
+        (let [q (js/fetch upstream-url
+                          #js {:method "POST" :redirect "error"
+                               :signal (js/AbortSignal.timeout 2100000)
+                               :headers #js {"content-type" "application/json"
+                                             "authorization" (str "Bearer " (or (aget env "MURAKUMO_API_TOKEN") ""))}
+                               :body (js/JSON.stringify (upstream-body (:request job)))})
+              fail (fn [e]
+                     (store-job! storage (assoc job :status "failed"
+                                                :error (str (or (.-message e) e))
+                                                :finishedAt (js/Date.now))))
+              succeed (fn [fallback]
+                        (store-job! storage (assoc job :status "succeeded"
+                                                   :content fallback
+                                                   :finishedAt (js/Date.now))))
+              fetched (js-invoke q "then"
+                        (fn [r]
+                          (if-not (.-ok r)
+                            (throw (ex-info "murakumo-inference-unavailable" {:status (.-status r)}))
+                            (.json r)))
+                        fail)
+              parsed (js-invoke fetched "then"
+                       (fn [raw]
+                         (let [decoded (decode raw)
+                               content (get-in decoded [:choices 0 :message :content])
+                               reasoning (get-in decoded [:choices 0 :message :reasoning])
+                               fallback (if (text? content 65536) content reasoning)]
+                           (if-not (and (= upstream-model (:model decoded))
+                                        (= "chat.completion" (:object decoded))
+                                        (text? fallback 65536))
+                             (throw (ex-info "unexpected-murakumo-model-or-response" {}))
+                             fallback)))
+                       fail)]
+          (js-invoke parsed "then" succeed fail)))))))
+;; --- request handling -------------------------------------------------------
+(defn- handle-status [storage body]
+  (let [now (.now js/Date)]
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (let [record (or record {:status "none" :principalId (:principalId body)})]
+                   (response (assoc (public-record record (:sessionRef body) (:action body) now)
+                                    :policyVersion "whitehat-2026-09-12-v1"
+                                    :principalId (:principalId body)) 200)))))))
+
+(defn- handle-applications [storage body]
+  (let [now (.now js/Date)]
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (let [record (or record {:status "none" :principalId (:principalId body)
+                                          :applications []})
+                       app {:applicationId (str "app-" (:requestId body))
+                            :status "pending-review"
+                            :verificationMode (get-in body [:application :verificationMode])
+                            :purpose (get-in body [:application :purpose])
+                            :scope (get-in body [:application :scope])
+                            :submittedAt now
+                            :policyVersion "whitehat-2026-09-12-v1"}
+                       next (update record :applications (fnil conj []) app)]
+                   (-> (save-state storage next)
+                       (.then (fn [_] (response {:principalId (:principalId body)
+                                                 :applicationId (:applicationId app)} 200))))))))))
+
+(defn- handle-jobs-create [storage body]
+  (let [now (.now js/Date)]
+    (when-not (completion-shape? body) (throw (ex-info "invalid-job-request" {:status 400})))
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (let [record (or record {:status "none" :principalId (:principalId body)})]
+                   ;; Admission recheck happens here, atomically, before any reservation.
+                   (if-let [reason (or (eligibility-reason record now)
+                                       (when-not (trust-valid? (assoc (:trust record)
+                                                                      :evaluatedAt (- now 1000)
+                                                                      :expiresAt (+ now trust-window-ms -1000)) now)
+                                         "trust-route-required"))]
+                     (response {:error reason} 403)
+                     (let [day (utc-day now) used (quota-used record day)]
+                       (cond
+                         (>= used (:requestsPerDay free-limits))
+                         (response {:error "free-quota-exhausted"} 429)
+                         :else
+                         (-> (js-invoke storage "get" (str "job:" (:jobId body)))
+                             (.then (fn [prior]
+                                      (let [prior (decode prior)]
+                                        (cond
+                                          (and prior (not= (get-in body [:request :messages])
+                                                           (get-in prior [:request :messages])))
+                                          (response {:error "job-input-conflict"} 409)
+                                          prior (response (job-response prior record (:sessionRef body) now) 200)
+                                          :else
+                                          (let [job {:jobId (:jobId body) :principalId (:principalId body)
+                                                     :status "queued" :receiptId (str "receipt-" (:jobId body))
+                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens])
+                                                     :createdAt now :sessionRef (:sessionRef body)}
+                                                next (assoc-in record [:usage :day] day)
+                                                next (assoc-in next [:usage :count] (inc used))]
+                                            (-> (save-state storage next)
+                                                (.then (fn [_] (store-job! storage job)))
+                                                (.then (fn [_]
+                                                         (response (job-response job record (:sessionRef body) now) 200)))))))))))))))))))
+
+(defn- handle-jobs-status [storage body]
+  (let [now (.now js/Date)]
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (-> (load-job storage (:jobId body))
+                     (.then (fn [job]
+                              (cond
+                                (nil? job) (response (assoc (job-response
+                                                             {:jobId (:jobId body) :principalId (:principalId body)
+                                                              :status "unknown" :receiptId "receipt-unknown"}
+                                                             (or record {:principalId (:principalId body)})
+                                                             (:sessionRef body) now)
+                                                            :policyDecision "denied")
+                                                     404)
+                                (not= (:principalId body) (:principalId job))
+                                (response {:error "job-owner-mismatch"} 403)
+                                :else (response (job-response job record (:sessionRef body) now) 200))))))))))
+
+(defn- handle-review [storage body]
+  (let [now (.now js/Date)]
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (let [record (or record {:status "none" :principalId (:principalId body)
+                                          :scopes [] :applications []})
+                       next (case (:op body)
+                              "verify-ekyc"
+                              (assoc record :ekyc {:status "verified" :evidenceRef (:caseId body)
+                                                   :verifiedAt now :expiresAt (+ now ekyc-ttl-ms)})
+                              "clear-screening"
+                              (assoc record :screening {:status "clear" :evidenceRef (:caseId body)
+                                                        :checkedAt now :expiresAt (+ now screening-ttl-ms)})
+                              "grant-trust"
+                              (assoc record :trust {:score (min 100 (reduce + 0 (map weights (:routes body))))
+                                                    :routes (:routes body)
+                                                    :evaluatedAt now :expiresAt (+ now trust-window-ms)})
+                              "approve-scope"
+                              (let [entry {:id (:scopeId body) :status "approved"
+                                           :tasks (vec (:tasks body)) :expiresAt (:expiresAt body)}]
+                                (assoc record :scopes
+                                       (conj (filterv #(not= (:scopeId body) (:id %)) (:scopes record)) entry)))
+                              "activate" (assoc record :status "active")
+                              "suspend" (assoc record :status "suspended")
+                              (throw (ex-info "operator-operation-unknown" {:status 400})))
+                       audit {:op (:op body) :actor (:operatorActor body) :caseId (:caseId body)
+                              :at now :receiptId (str "op-" (:operatorActor body) "-" now)}]
+                   (-> (save-state storage (assoc next :lastReview audit))
+                       (.then (fn [_]
+                                (response {:principalId (:principalId body)
+                                           :op (:op body) :receiptId (:receiptId audit)
+                                           :status (:status next)} 200))))))))))
+
+(defn- route-op [path]
+  (case path
+    "/status" :status
+    "/applications" :applications
+    "/jobs/create" :jobs-create
+    "/jobs/status" :jobs-status
+    "/complete" :complete
+    "/review" :review
+    nil))
+
+(defn- handle [state env path body]
+  (let [storage (aget state "storage") now (.now js/Date)]
+    (case (route-op path)
+      :status (handle-status storage body)
+      :applications (handle-applications storage body)
+      :jobs-create (-> (handle-jobs-create storage body)
+                       ;; Fire the detached upstream call only after the 202/200 is
+                       ;; committed; waitUntil keeps it alive beyond the request.
+                       (.then (fn [resp]
+                                (when (= 200 (.-status resp))
+                                  (js-invoke state "waitUntil" (run-inference! env storage (:jobId body))))
+                                resp)))
+      :jobs-status (handle-jobs-status storage body)
+      :complete (response {:error "sync-completion-retired-use-jobs"} 501)
+      :review (-> (require-operator! env body now)
+                  (.then (fn [_] (handle-review storage body))))
+      (js/Promise.resolve (response {:error "not-found"} 404)))))
+
+(deftype ResearchAuthority [^js state env]
+  Object
+  (fetch [_ request]
+    (if (= "https://research.internal" (.-origin (js/URL. (.-url request))))
+      (-> (.json request)
+          (.then (fn [body]
+                   (.blockConcurrencyWhile state
+                     (fn [] (handle state env (.-pathname (js/URL. (.-url request)))
+                                    (js->clj body :keywordize-keys true))))))
+          (.catch (fn [e]
+                    (js/console.error "authority-op-failed" (.-stack e))
+                    (let [data (ex-data e)
+                          status (or (:status data) 500)]
+                      (response {:error (if (= 500 status) "authority-internal"
+                                            (or (.-message e) "authority-error"))}
+                                status)))))
+      (js/Promise.resolve (response {:error "private-binding-required"} 403)))))
+
+(defn make-research-authority [state env] (ResearchAuthority. state env))
+
+;; Worker entry: no public routes; this fetch exists only so wrangler can upload
+;; the script. Every request without the internal origin is refused.
+(defn fetch! [request ^js env _ctx]
+  (js/Promise.resolve (response {:error "private-binding-required"} 403)))
+
+(def default #js {:fetch fetch!})
