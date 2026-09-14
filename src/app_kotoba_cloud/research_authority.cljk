@@ -68,8 +68,10 @@
   (let [key (stripe-credential! env)
         flow (let [f (aget env "STRIPE_VERIFICATION_FLOW")] (when (text? f 128) f))
         flow-part (if flow (str "&verification_flow=" (js/encodeURIComponent flow)) "")]
+    ;; Workers fetch only accepts redirect "follow"|"manual" — "error" throws
+    ;; TypeError at the edge, so guard Stripe redirects by status instead.
     (-> (js/fetch (str stripe-origin "/v1/identity/verification_sessions")
-                  #js {:method "POST" :redirect "error"
+                  #js {:method "POST" :redirect "manual"
                        :signal (js/AbortSignal.timeout 30000)
                        :headers #js {"content-type" "application/x-www-form-urlencoded"
                                      "authorization" (str "Bearer " key)}
@@ -366,7 +368,7 @@
     (.then p (fn [job]
       (when (and job (= "queued" (:status job)))
         (let [q (js/fetch (modal-upstream-url env)
-                          #js {:method "POST" :redirect "error"
+                          #js {:method "POST" :redirect "manual"
                                :signal (js/AbortSignal.timeout 2100000)
                                :headers #js {"content-type" "application/json"
                                              "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))}

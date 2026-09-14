@@ -22,7 +22,7 @@
   (self-config! config)
   (when-not (policy/text? external-id 256) (fail "invalid-verification-challenge"))
   (-> (fetch! (str self-origin "/v1/sessions")
-              #js {:method "POST" :redirect "error"
+              #js {:method "POST" :redirect "manual"
                    :signal (js/AbortSignal.timeout 30000)
                    :headers #js {"content-type" "application/json"
                                  "authorization" (str "Bearer " (:apiKey config))}
@@ -98,7 +98,7 @@
                   "&client_reference_id=" (js/encodeURIComponent external-id)
                   "&metadata[principal]=" (js/encodeURIComponent principal))]
     (-> (fetch! (str stripe-origin "/v1/identity/verification_sessions")
-                #js {:method "POST" :redirect "error"
+                #js {:method "POST" :redirect "manual"
                      :signal (js/AbortSignal.timeout 30000)
                      :headers #js {"content-type" "application/x-www-form-urlencoded"
                                    "authorization" (str "Bearer " (:apiKey config))}
@@ -154,7 +154,7 @@
   [request fetch!]
   (when-not (policy/completion? request) (fail "invalid-inference-request"))
   (-> (fetch! inference-url
-              #js {:method "POST" :redirect "error"
+              #js {:method "POST" :redirect "manual"
                    :signal (js/AbortSignal.timeout 2100000)
                    :headers #js {"content-type" "application/json"}
                    :body (js/JSON.stringify
