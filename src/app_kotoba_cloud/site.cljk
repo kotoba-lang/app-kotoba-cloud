@@ -66,6 +66,7 @@
     :description "Kotobaの安全なコードとKotobaseのグラフ状態を、identityとdeploy controlで実行環境へつなぎます。Discoveryは公開中。Hosted applyは未提供です。"
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
     :nav-architecture "構成" :nav-libraries "ライブラリ公開" :nav-label "主要ナビゲーション"
+    :nav-account "アカウント" :nav-security "セキュリティ"
     :language-label "表示言語" :hero-eyebrow "CONTROLLED EXECUTION"
     :headline "AIが書くソフトウェアを、制御された実行へ。"
     :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
@@ -172,6 +173,7 @@
     :description "Connect Kotoba code and Kotobase graph state to the execution environment through identity and deploy control. Discovery is live; hosted apply is not yet offered."
     :skip "Skip to content" :home-label "Kotoba Cloud home"
     :nav-architecture "Architecture" :nav-libraries "Publish libraries" :nav-label "Primary navigation"
+    :nav-account "Account" :nav-security "Security"
     :language-label "Display language" :hero-eyebrow "CONTROLLED EXECUTION"
     :headline "Controlled execution for AI-generated software."
     :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
@@ -392,6 +394,8 @@
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-models")} (if (= locale :ja) "モデル" "Models")]
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (if (= locale :ja) "研究者登録" "Researchers")]
        [:a {:class "kc-nav__secondary" :href (if (= locale :ja) "/ja/billing/" "/billing/")} (if (= locale :ja) "料金・決済" "Billing")]
+       [:a {:class "kc-nav__secondary" :href "/account"} (:nav-account t)]
+       [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]
        (language-links locale (:language-label t)
                        {:ja (or language-ja "/ja/") :en (or language-en "/")})
        ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
@@ -754,71 +758,69 @@
          (str "<html lang=\"" (:html-lang t) "\">")
          (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">")))))
 
+(defn site-layout
+  "ONE shared page shell for every kotoba.cloud document: header/nav +
+  <main id=\"main\"> + footer. Layering: jp-go-dds owns tokens/parts;
+  cloud-kotoba-dds owns the app-shell/navigation/account-entry PATTERNS
+  (structure here follows them, kc-* classes are this repo's implementation);
+  shinkansen (CID-published documents) is the planned delivery successor —
+  keep emitted documents self-contained (no NEW external assets)."
+  [{:keys [title description lang robots extra-css]} body]
+  (page/->page
+   {:title title
+    :description description
+    :lang (or lang "ja")
+    :css (document-css)
+    :app-css (str tokens/skin-css app-css extra-css)
+    :head (if robots [[:meta {:name "robots" :content robots}]] [])}
+   (site-header :ja copy)
+   [:main {:id "main"} body]
+   (site-footer copy)))
+
 (defn security-html []
-     (page/->page {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
-                  :css (document-css) :app-css (str tokens/skin-css tokens/bridge-css security-site/css)
-                  :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-                         [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
-                 (security-site/view)))
+     (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
+                   :extra-css (str tokens/bridge-css security-site/css)}
+      (security-site/view)))
 
 (defn csf2-html []
-     (page/->page {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
+     (site-layout {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
                    :description "サイバーセキュリティ製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをサポートするかを機能別チャートで表示します。"
-                   :css (document-css)
-                   :app-css (str tokens/skin-css tokens/bridge-css csf2-site/css)
-                   :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-                          [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
-                  (csf2-site/view)))
+                   :extra-css (str tokens/bridge-css csf2-site/css)}
+      (csf2-site/view)))
 
 (defn crypto-html []
-  (page/->page {:title "暗号資産詐欺対応カタログ — Kotoba Cloud" :lang "ja"
-                :description "全世界の暗号資産取引所の情報・セキュリティ通報窓口と、国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログ。"
-                :css (document-css)
-                :app-css (str tokens/skin-css tokens/bridge-css crypto-site/css)
-                :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-                       [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
-               (crypto-site/view)))
+     (site-layout {:title "暗号資産詐欺対応カタログ — Kotoba Cloud" :lang "ja"
+                   :description "全世界の暗号資産取引所の情報・セキュリティ通報窓口と、国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログ。"
+                   :extra-css (str tokens/bridge-css crypto-site/css)}
+      (crypto-site/view)))
 
 (defn admin-html []
-     (page/->page
-      {:title "管理者コンソール — Kotoba Cloud" :lang "ja" :css (document-css)
-       :app-css (str tokens/skin-css app-css research-site/css)
-       :head [[:meta {:name "robots" :content "noindex"}]
-              [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-              [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
-              [:script {:src "/js/session.js" :defer true}]]}
-      [:main {:id "main"} (admin-site/section :ja)]
-      [:p [:a {:href (passkey-href :ja) :id "kc-session-nav"} "Passkeyでログイン"]
-       " · " [:a {:href "/ja/"} "kotoba.cloud"]]))
+     (site-layout {:title "管理者コンソール — Kotoba Cloud" :lang "ja"
+                   :robots "noindex"
+                   :extra-css research-site/css}
+      (admin-site/section :ja)))
 
 (defn identity-html []
      ;; Identity route is Stripe-Identity-only. The first-party browser capture
      ;; console (identity-site / identity-browser / identity-gateway) stays in
-     ;; the repo as a tested component but is not rendered or linked today;
-     ;; re-enable by rendering identity-site/section here.
-     (page/->page
-      {:title "本人確認 — Kotoba Cloud" :lang "ja" :css (document-css)
-       :app-css (str tokens/skin-css app-css research-site/css)
-       :head [[:meta {:name "robots" :content "noindex"}]]}
-      [:main {:id "main"}
-       (dds/container
-        (dds/heading 1 "本人確認は Stripe Identity 経路のみ" {:size "36"})
-        [:p "kotoba.cloud の本人確認は Stripe Identity（verify.stripe.com）のみを提供しています。書類と顔写真は Stripe にのみ送られ、kotoba.cloud は本人確認の状態・有効期限・証跡参照のみを保持します。"]
-        [:p "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"]
-        (dds/row (dds/button "研究者登録（Stripe Identity）" {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
-                 (dds/button "登録ガイド" {:href "https://kotoba.cloud/llms.txt" :type :outline})))
-       [:p [:a {:href "/account"} "アカウント管理"] " · " [:a {:href "/ja/"} "会話に戻る"]]]))
+     ;; the repo as a tested component but is not rendered or linked today.
+     (site-layout {:title "本人確認 — Kotoba Cloud" :lang "ja"
+                   :robots "noindex"
+                   :extra-css research-site/css}
+      (dds/container
+       (dds/heading 1 "本人確認は Stripe Identity 経路のみ" {:size "36"})
+       [:p "kotoba.cloud の本人確認は Stripe Identity（verify.stripe.com）のみを提供しています。書類と顔写真は Stripe にのみ送られ、kotoba.cloud は本人確認の状態・有効期限・証跡参照のみを保持します。"]
+       [:p "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"]
+       (dds/row (dds/button "研究者登録（Stripe Identity）" {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
+                (dds/button "登録ガイド" {:href "https://kotoba.cloud/llms.txt" :type :outline})))))
 
 (defn account-html []
   ;; Account console: session, Stripe-only identity verification, research
   ;; eligibility, scopes and billing. Client logic lives in account-browser.
-  (page/->page
-   {:title "アカウント管理 — Kotoba Cloud" :lang "ja" :css (document-css)
-    :app-css (str tokens/skin-css app-css account-site/css)
-    :head [[:meta {:name "robots" :content "noindex"}]]}
-   [:main {:id "main"} (account-site/section)]
-   [:p [:a {:href (passkey-href :ja) :id "kc-session-nav"} "Passkeyでログイン"]
-    " · " [:a {:href "/ja/"} "会話に戻る"]]))
+  (site-layout {:title "アカウント管理 — Kotoba Cloud" :lang "ja"
+                :robots "noindex"
+                :extra-css account-site/css}
+   (account-site/section)))
 
 (defn billing-html [locale]
      (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
