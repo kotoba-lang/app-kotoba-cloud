@@ -38,6 +38,12 @@
        [:p {:class "kb-footnote kb-mut" :style {:margin-top "0.75rem"}}
         (t "オントロジー画面は蓄積データから観測した属性（observed attributes）と型を可視化・分析します。不変のIPLDスナップショットに基づく厳密なデータ管理を提供します。"
            "The ontology inspector visualizes and analyzes observed attributes and types from persistent datoms, backed by immutable IPLD snapshots.")]]
+      [:div {:class "kc-knowledge-connect"}
+       [:label {:for "knowledge-tenant"} (t "ワークスペース" "Workspace")]
+       [:select {:id "knowledge-tenant"} [:option {:value ""} (t "個人のカタログ（参照のみ）" "Personal catalog (catalog only)")]]
+       [:label {:for "knowledge-tenant-name"} (t "新しいワークスペース名" "New workspace name")]
+       [:input {:id "knowledge-tenant-name" :maxlength "80" :value "Billing verification"}]
+       [:button {:id "knowledge-tenant-create" :type "button"} (t "ワークスペースを作成" "Create workspace")]]
       [:form {:id "knowledge-connect" :class "kc-knowledge-connect"}
        (dds/button (t "データベースを開く" "Open databases") {:type :solid-fill :submit? true})
        (dds/button (t "ワークベンチを閉じる" "Close workbench") {:type :outline :attrs {:type "button" :id "knowledge-disconnect" :hidden true}})
@@ -61,7 +67,13 @@
   var api='https://api.kotoba.cloud/v1/database';
   signIn.href='https://auth.kotoba.cloud/sign-in?return_to='+encodeURIComponent(location.origin+location.pathname+'#knowledge/overview');
   function clear(){generation++;if(controller)controller.abort();if(instance)instance.dispose();controller=null;instance=null;mount.replaceChildren();disconnect.hidden=true;form.querySelector('[type=submit]').disabled=false;status.textContent='Workbench closed.';status.setAttribute('data-bad','0');}
-  form.addEventListener('submit',function(e){e.preventDefault();clear();var run=generation;
+  var tenantSelect=document.getElementById('knowledge-tenant'),tenantName=document.getElementById('knowledge-tenant-name');
+  function sessionCall(path,body){return fetch('/v1/database/session/'+path,{method:body?'POST':'GET',credentials:'same-origin',headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Workspace request failed');return d;});});}
+  function loadTenants(selected){return sessionCall('tenants').then(function(d){tenantSelect.replaceChildren(new Option('個人のカタログ（参照のみ）',''));(d.memberships||[]).filter(function(m){return m.status==='active';}).forEach(function(m){tenantSelect.add(new Option(m.tenantId,m.tenantId));});if(selected)tenantSelect.value=selected;});}
+  document.getElementById('knowledge-tenant-create').addEventListener('click',function(){var button=this;button.disabled=true;clear();sessionCall('tenants',{name:tenantName.value.trim()}).then(function(d){if(!d.tenant||!d.tenant.id)throw new Error('Workspace not created');return loadTenants(d.tenant.id);}).then(function(){status.textContent='ワークスペースを作成しました。「データベースを開く」で接続してください。';}).catch(function(e){status.textContent=e.message;}).finally(function(){button.disabled=false;});});
+  tenantSelect.addEventListener('change',clear);
+  loadTenants().catch(function(){});
+  form.addEventListener('submit',function(e){e.preventDefault();clear();var run=generation,tenant=tenantSelect.value;
     controller=new AbortController();var signal=controller.signal;form.querySelector('[type=submit]').disabled=true;
     status.textContent='Checking your Kotoba Cloud session…';status.setAttribute('data-bad','0');
     fetch('/v1/session',{credentials:'same-origin',cache:'no-store',signal:signal}).then(function(r){if(!r.ok)throw new Error('Session unavailable');return r.json();}).then(function(session){
@@ -74,13 +86,23 @@
         request:function(path,options){
           if(signal.aborted)return Promise.reject(new Error('disconnected'));
           if(!/^\\/(xrpc\\/|pins(?:[/?]|$)|v1\\/audit(?:[/?]|$)|api\\/)/.test(path)||path.indexOf('..')!==-1)return Promise.reject(new Error('Unsupported database route'));
-          return fetch(api+path,Object.assign({},options,{credentials:'include',redirect:'error',cache:'no-store',signal:signal})).then(function(r){
-            if(r.status===401){clear();signIn.hidden=false;status.textContent='Your session expired. Sign in again.';status.setAttribute('data-bad','1');}
+          var headers=new Headers(options.headers||{});if(tenant)headers.set('x-kotobase-tenant',tenant);
+          var data={};try{data=JSON.parse(options.body||'{}');}catch(e){}
+          var graphOp=path.endsWith('datomic.q')||path.endsWith('datomic.transact')||path.endsWith('datomic.asOf')||path.endsWith('datomic.dbStats')||path.endsWith('kg.query')||path.indexOf('/api/')===0;
+          var supplied=headers.get('authorization'),write=path.endsWith('transact')||(path.endsWith('kg.query')&&String(data.query||'').trim().toUpperCase().startsWith('CREATE '));
+          var prepare=Promise.resolve();
+          if(graphOp&&(!supplied||supplied==='Biscuit session')){
+            if(!tenant||!data.db_name){status.textContent='データの読み書きにはワークスペースとDBを選択してください。';return Promise.reject(new Error('Workspace and database required'));}
+            prepare=sessionCall('token',{tenantId:tenant,dbName:data.db_name,permissions:write?['data:read','data:write']:['data:read']}).then(function(d){if(signal.aborted||run!==generation)throw new Error('disconnected');if(d.tokenType!=='Biscuit'||!d.token)throw new Error('Database authorization unavailable');headers.set('authorization','Biscuit '+d.token);});
+          }
+          return prepare.then(function(){return fetch(api+path,Object.assign({},options,{headers:headers,credentials:'include',redirect:'error',cache:'no-store',signal:signal}));}).then(function(r){
+            if(r.status===401){status.textContent='Database authorization was rejected. Reconnect the workspace or refresh its permission.';status.setAttribute('data-bad','1');}
             if(r.status===503){status.textContent='Database service is not ready. Please try again later.';status.setAttribute('data-bad','1');}
             return r;
           });
         }
       });
+      if(tenant){var authInput=mount.querySelector('#cacao-token');if(authInput){authInput.value='session';authInput.type='hidden';}}
       status.textContent='Connected through api.kotoba.cloud. Each operation checks your database permissions.';status.setAttribute('data-bad','0');
       mount.querySelector('.kb-console').addEventListener('kb:tenant-ready',function(){status.textContent='Database tenant confirmed.';});
     }).catch(function(e){if(signal.aborted||run!==generation)return;form.querySelector('[type=submit]').disabled=false;status.textContent=e.message;status.setAttribute('data-bad','1');});

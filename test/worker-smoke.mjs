@@ -960,3 +960,21 @@ try {
  assert.deepEqual(await r.json(),{status:'account-mismatch',chargesEnabled:false,payoutsEnabled:false});
 } finally {globalThis.fetch=readinessFetch;}
 console.log('AWAI readiness authentication, account binding and caching passed');
+
+// Session capability exchange: Authn alone decides membership and permission.
+const sessionCalls=[];
+const sessionEnv={AUTHN_SERVICE:{fetch:async request=>{sessionCalls.push(request);return Response.json({token:'fixture-only',tokenType:'Biscuit'},{status:201});}}};
+const sessionReq=(body,headers={})=>new Request('https://kotoba.cloud/v1/database/session/token',{method:'POST',headers:{cookie:'gftd_session=fixture',origin:'https://kotoba.cloud','content-type':'application/json',...headers},body:JSON.stringify(body)});
+const scopedToken={tenantId:'t_123456789012',dbName:'billing-e2e',permissions:['data:read']};
+assert.equal((await route(sessionReq(scopedToken,{cookie:''}),sessionEnv)).status,401);
+assert.equal((await route(sessionReq(scopedToken,{origin:'https://evil.example'}),sessionEnv)).status,403);
+assert.equal((await route(sessionReq({...scopedToken,permissions:['admin:*']}),sessionEnv)).status,400);
+assert.equal((await route(sessionReq({...scopedToken,graph:'forged'}),sessionEnv)).status,400);
+assert.equal(sessionCalls.length,0);
+let sr=await route(sessionReq(scopedToken,{'x-internal-trust':'forged',authorization:'Bearer injected'}),sessionEnv);
+assert.equal(sr.status,201);assert.equal(sessionCalls.length,1);
+assert.equal(sessionCalls[0].url,'https://auth.kotoba.cloud/v1/biscuit/token');
+assert.equal(sessionCalls[0].headers.get('authorization'),null);
+assert.equal(sessionCalls[0].headers.get('x-internal-trust'),null);
+assert.deepEqual(await sessionCalls[0].json(),scopedToken);
+console.log('Scoped database session exchange and header isolation passed');

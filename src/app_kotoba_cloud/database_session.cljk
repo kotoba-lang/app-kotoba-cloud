@@ -1,0 +1,37 @@
+(ns app-kotoba-cloud.database-session
+  "Cookie-to-scoped-capability exchange. Authn remains the membership authority."
+  (:require [app-kotoba-cloud.research-gateway :as bounds]
+            [app-kotoba-cloud.session :as session]))
+(def paths #{"/v1/database/session/tenants" "/v1/database/session/token"})
+(defn route [request env respond]
+  (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
+        cookie (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)
+        tenants? (= path "/v1/database/session/tenants")
+        binding (aget env "AUTHN_SERVICE")]
+    (cond
+      (not (or (= method "POST") (and tenants? (= method "GET")))) (respond {:error "method-not-allowed"} 405)
+      (not cookie) (respond {:error "sign-in-required"} 401)
+      (and (= method "POST") (not (bounds/origins (.get (.-headers request) "origin")))) (respond {:error "origin-not-allowed"} 403)
+      (and (= method "POST") (not= "application/json" (.get (.-headers request) "content-type"))) (respond {:error "json-required"} 415)
+      (not binding) (respond {:error "authn-not-connected"} 503)
+      :else
+      (-> (if (= method "GET") (js/Promise.resolve nil) (bounds/bounded-json request 4096))
+          (.then (fn [body]
+                   (when (and body
+                              (not (if tenants?
+                                     (and (= #{:name} (set (keys body))) (string? (:name body)) (<= 1 (count (:name body)) 80))
+                                     (and (= #{:tenantId :dbName :permissions} (set (keys body)))
+                                          (string? (:tenantId body)) (re-matches #"t_[a-z0-9]{12,48}" (:tenantId body))
+                                          (string? (:dbName body)) (<= 1 (count (:dbName body)) 256)
+                                          (contains? #{["data:read"] ["data:read" "data:write"]} (:permissions body))))))
+                     (throw (ex-info "invalid-database-session-request" {:status 400})))
+                   (.fetch binding
+                           (js/Request. (str "https://auth.kotoba.cloud" (if tenants? "/v1/tenants" "/v1/biscuit/token"))
+                                        #js {:method method :redirect "error" :signal (js/AbortSignal.timeout 15000)
+                                             :headers #js {"host" "auth.kotoba.cloud" "origin" "https://kotoba.cloud" "content-type" "application/json"
+                                                           "cookie" (str session/cookie-name "=" cookie)}
+                                             :body (when body (js/JSON.stringify (clj->js body)))}))))
+          (.then (fn [r]
+                   (-> (bounds/bounded-json r 32768)
+                       (.then (fn [body] (respond body (.-status r)))))))
+          (.catch (fn [e] (respond {:error "database-session-unavailable"} (or (:status (ex-data e)) 503))))))))
