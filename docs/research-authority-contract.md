@@ -108,8 +108,8 @@ Measure useful answer generation and token limits on the actual serving stack,
 model/version identity, license provenance, provider retention/training policy,
 input/output policy behavior and refusal of out-of-scope harmful requests. Do not
 weaken safety mechanisms or present model refusal removal as a product guarantee.
-The service consumes only the configured private Modal deployment under that
-boundary. No browser request can select a provider or endpoint.
+The service must consume only qualified Murakumo compute or an explicitly approved
+provider under that boundary. No GPU rental or contract has been purchased here.
 
 ## Acceptance evidence
 
@@ -132,22 +132,22 @@ prove this full process is live.
 
 ## Selected production transports (2026-09-12)
 
-The private authority supplies the concrete provider transports:
+`research-providers` supplies the concrete private-authority transports:
 
 - `create-session`: Self Enterprise REST API, pinned live flow/version, a 15-minute
   opaque challenge, live verification URL validation. Keys are server secrets.
 - `verify-event`: official Svix verification of raw bytes, followed by exact live
   flow/version, pre-KYC product, challenge/session, time and predicate checks.
   Returns **identity evidence requiring review**, never blanket AML clearance.
-- direct inference: a private, explicit `MODAL_INFERENCE_URL` on a `.modal.run`
-  deployment, authenticated with `MODAL_INFERENCE_TOKEN`, model
+- `infer`: a private, explicit `MODAL_INFERENCE_URL` on a `.modal.run` deployment,
+  authenticated with `MODAL_INFERENCE_TOKEN`, model
   `qwen3.8-flash-next-cybersecurity-nvfp4`. No Murakumo relay or fallback model;
   the authority rejects mismatched response attribution and provider usage that is
   missing or internally inconsistent.
 
-These transports are buildable and tested separately from the public Worker. No
-application may dispatch to Modal without the canonical atomic quota reservation
-described above. Self
+These transports are buildable and tested separately from the public Worker.
+They are **not yet attached to a production authority**. No application may call
+`infer` without the canonical atomic quota reservation described above. Self
 session URLs are bearer capabilities: return only to the authenticated applicant;
 never place them or raw proofs in logs, analytics, public blocks or datoms.
 
@@ -158,8 +158,9 @@ configured sanctions/PEP/manual review workflow, and issue a scope grant. The
 coverage alone does not establish comprehensive sanctions, PEP or AML/CTF review.
 A reused identity needs a fresh service-bound proof and current screening.
 
-The authority uses a durable asynchronous job so a cold start does not consume the
-public gateway's 60-second binding call. It
+Cold startup is advertised up to 2,000 seconds by Murakumo's model inventory.
+The transport permits up to 2,100 seconds; the public gateway's 60-second binding
+call is deliberately unchanged. The authority needs a durable asynchronous job
 and authenticated polling route before exposing cold inference to researchers.
 A queued job must reserve free quota once, recheck revocation before dispatch,
 record the actual model receipt, and never automatically rebill or silently retry

@@ -1,7 +1,7 @@
 (ns app-kotoba-cloud.chain-facts-test
   (:require [app-kotoba-cloud.chain-facts :as cf]
             [app-kotoba-cloud.guardian :as g]
-            [clojure.java.io :as io]
+            #?(:clj [clojure.java.io :as io])
             [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
@@ -76,13 +76,14 @@
   ;; literal — two agreeing constants, not a check. Reverting chain_facts.cljc to
   ;; the invented selector left BOTH suites green, which is how this test came to
   ;; exist. Here the Clojure constant is compared against something derived.
-  (let [f (io/file artifact)]
-    (is (.exists f)
+  (let [exists? #?(:cljs (fn [p] (.existsSync (js/require "fs") p)) :clj (fn [p] (.exists (io/file p))))
+        slurp-f #?(:cljs (fn [p] (.readFileSync (js/require "fs") p "utf8")) :clj (fn [p] (slurp p)))]
+    (is (exists? artifact)
         (str "run `npm run build:contract` first — this test cannot verify the "
              "selector without the compiled ABI, and must not pass while it "
              "cannot: " artifact))
-    (when (.exists f)
-      (let [ids (-> (slurp f)
+    (when (exists? artifact)
+      (let [ids (-> (slurp-f artifact)
                     (str/replace #"\s" "")
                     (->> (re-find #"\"methodIdentifiers\":\{([^}]*)\}"))
                     second)

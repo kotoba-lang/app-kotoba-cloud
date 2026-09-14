@@ -34,4 +34,4 @@
                                'app-kotoba-cloud.site-test
                                'app-kotoba-cloud.locale-test)]
     (when (pos? (+ (:fail result) (:error result)))
-      (System/exit 1))))
+      (js/process.exit 1))))

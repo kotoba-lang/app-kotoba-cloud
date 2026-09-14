@@ -14,8 +14,8 @@
 (def catalog
   {:object "list"
    :data [{:id model-id :object "model" :owned_by "kotoba"
-           :upstream "private-modal-direct"
-           :availability "modal-direct-access-gated"
+           :upstream "https://api.murakumo.cloud/v1/chat/completions"
+           :availability "upstream-tested-access-gated"
            :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}]
    :policyVersion policy-version :freeTier free-limits
    :requirements ["authenticated-principal" "verified-ekyc" "current-aml-ctf-clearance"

@@ -9,6 +9,7 @@
 
 (def self-origin "https://edge.dashboard.self.xyz")
 (def stripe-origin "https://api.stripe.com")
+(def inference-url "https://api.murakumo.cloud/v1/chat/completions")
 
 (defn- fail [code] (throw (ex-info code {:status 503})))
 (defn- self-config! [config]
@@ -147,6 +148,31 @@
                     :screeningCoverage ["stripe-document-and-selfie"]
                     :reviewRequired true}))))))
 
+(defn infer
+  "Called only after atomic free-quota reservation by the private authority.
+  No model fallback; no user credentials or identity evidence leave this port."
+  [request fetch!]
+  (when-not (policy/completion? request) (fail "invalid-inference-request"))
+  (-> (fetch! inference-url
+              #js {:method "POST" :redirect "error"
+                   :signal (js/AbortSignal.timeout 2100000)
+                   :headers #js {"content-type" "application/json"}
+                   :body (js/JSON.stringify
+                          (clj->js {:model policy/upstream-model-id :stream false
+                                    :messages (:messages request)
+                                    :max_tokens (:max_tokens request)}))})
+      (.then (fn [response]
+               (when-not (.-ok response) (fail "murakumo-inference-unavailable"))
+               (gateway/bounded-json response 131072)))
+      (.then (fn [result]
+               (let [content (get-in result [:choices 0 :message :content])]
+                 (when-not (and (= policy/upstream-model-id (:model result))
+                                (= "chat.completion" (:object result))
+                                (policy/text? content 65536))
+                   (fail "unexpected-murakumo-model-or-response"))
+                 {:model policy/model-id :content content
+                  :finishReason (get-in result [:choices 0 :finish_reason])})))))
+
 ;; Explicit JS boundary for the private authority integration and transport tests.
 (defn create-session-js [config external-id fetch!]
   (-> (create-session (js->clj config :keywordize-keys true) external-id fetch!) (.then clj->js)))
@@ -161,3 +187,5 @@
                            (js->clj challenge :keywordize-keys true)
                            raw signature-header now)
       (.then clj->js)))
+(defn infer-js [request fetch!]
+  (-> (infer (js->clj request :keywordize-keys true) fetch!) (.then clj->js)))
