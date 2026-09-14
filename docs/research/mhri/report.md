@@ -51,7 +51,7 @@ MHRI(m) = 100 × [ 0.4·R_cap(m) + 0.3·R_exp(m) + 0.3·R_gov(m) ]
 
 ### 3.2 R_cap: Capability Risk (能力)
 
-Artificial Analysis Intelligence Index のカテゴリ構成[1]と METR の時間地平[4]を流用する。
+Artificial Analysis Intelligence Index v4.3 のカテゴリ構成 (v4.3 は 10 evaluations を統合)[1]と METR の時間地平[4]を流用する。
 
 | サブ項目 | ソース | 重み (R_cap 内) | 根拠 |
 |---|---|---|---|
@@ -118,12 +118,11 @@ FLI の 6 domains[7]のうちモデル単位に落とせるものを採用する
 - **v0.3**: jailbreak red-team を自前実施し R_gov/refusal を一次データ化。
 - **v1.0**: 四半期更新・感度分析・history (grade trend) 公開。
 
-## 7. References
 
-## Sources
 
 [1] https://artificialanalysis.ai/methodology/intelligence-benchmarking — Artificial Analysis Intelligence Benchmarking Methodology
     > "Intelligence Index is calculated as a weighted average across four categories: Agents (30%), Coding (20%), Scientific Reasoning (20%) and General (30%)."
+    > "Artificial Analysis Intelligence Index v4.3 incorporates 10 evaluations: AA-Briefcase, GDPval-AA v2, AutomationBench-AA, Terminal-Bench v4.0, SciCode, AA-LCR v1.1, AA-Omniscience, Humanity's Last Exam, GDP.pdf, CritPt."
     > "Our methodology emphasizes fairness and real-world applicability. We estimate a 95% confidence interval for Artificial Analysis Intelligence Index of less than ±1%"
     > "AutomationBench-AA 657 tasks 1 SaaS workflow automation with REST API tools Objective completion, with zero credit for tasks that trigger a guardrail violation"
     > "Standardized: All models are evaluated under identical conditions with consistent prompting strategies, temperature settings, and evaluation criteria."
