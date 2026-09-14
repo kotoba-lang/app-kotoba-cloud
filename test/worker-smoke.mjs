@@ -565,7 +565,7 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, { "content-type": "text/plain" }), researchEnv)).status, 415);
 assert.equal(researchCalls.length, 0);
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
-assert.equal((await modelCatalog.json()).data[0].availability, "upstream-tested-access-gated");
+assert.equal((await modelCatalog.json()).data[0].availability, "modal-direct-access-gated");
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 const eligibleStatusBody = await eligibleStatus.json();
 assert.equal(eligibleStatusBody.status, "eligible");
