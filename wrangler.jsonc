@@ -44,6 +44,10 @@
     {
       "binding": "DATABASE_SERVICE",
       "service": "kotoba-cloud-database"
+    },
+    {
+      "binding": "AUTHN_SERVICE",
+      "service": "kotobase-authn"
     }
   ],
   "r2_buckets": [

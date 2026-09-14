@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.worker
-  (:require [app-kotoba-cloud.billing-gateway :as billing-gateway]
+  (:require [app-kotoba-cloud.database-session :as database-session]
+            [app-kotoba-cloud.billing-gateway :as billing-gateway]
             [app-kotoba-cloud.database-gateway :as database-gateway]
             [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.boot :as boot]
@@ -642,6 +643,9 @@
 
         :else
         (json-response {:error {:code "not-found"}} 404))
+
+      (database-session/paths path)
+      (database-session/route request env private-json-response)
 
       (database-gateway/selected? path)
       (database-gateway/route request env)
