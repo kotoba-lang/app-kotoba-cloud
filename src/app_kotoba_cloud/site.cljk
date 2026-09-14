@@ -1057,4 +1057,10 @@
       ;; graph docs: former kotobase.net content surface
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
+      ;; crypto catalog data blocks + browser script (data at /crypto-data/crypto/)
+      (doseq [source (fs-walk-files (node-path/join "assets" "crypto-catalog"))]
+        (let [rel (node-path/relative (node-path/join "assets" "crypto-catalog") source)
+              target (node-path/join root "crypto-data" "crypto" rel)]
+          (copy-file source target)))
+      (copy-file (node-path/join "assets" "crypto-catalog.js") (node-path/join js-dir "crypto-catalog.js"))
       (println "rendered English-first root, locale emit dirs, legal/tokushoho documents, and localized 404s")))
