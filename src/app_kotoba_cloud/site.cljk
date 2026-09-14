@@ -1,7 +1,16 @@
 (ns app-kotoba-cloud.site
   "Localized public pages for kotoba.cloud. Pure CLJC views render finite
   Worker Static Assets for every supported locale."
-  (:require [app-kotoba-cloud.research-site :as research-site]
+  (:require [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.chat-site :as chat-site]
+            [app-kotoba-cloud.knowledge-site :as knowledge-site]
+            [cloud-kotoba-dds.graph-workbench :as graph-workbench]
+            [app-kotoba-cloud.identity-site :as identity-site]
+            [app-kotoba-cloud.admin-site :as admin-site]
+            [app-kotoba-cloud.csf2-site :as csf2-site]
+            [app-kotoba-cloud.crypto-site :as crypto-site]
+            [app-kotoba-cloud.security-site :as security-site]
+            [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.public-locales :as locales]
             [app-kotoba-cloud.locale :as locale]
@@ -13,9 +22,9 @@
             [jp-go-dds.css :as dcss]
             [jp-go-dds.page :as page]
             [jp-go-dds.tokens :as tokens]
+            #?(:clj [clojure.java.io :as io])
             ;; render runs on the kbb engine (JVM-free): node's fs/path stand in
-            ;; for clojure.java.io (fs/mkdirSync, writeFileSync, copyFileSync,
-            ;; readdirSync; see document-css / -main below).
+            ;; for clojure.java.io (see document-css / -main below).
             ["fs" :as fs]
             ["path" :as node-path]))
 
@@ -24,7 +33,7 @@
 (def operator-name "Kotoba Labs Inc")
 (def public-contact-email "support@kotoba.cloud")
 (def legal-disclosure "請求があった場合、法令に従い遅滞なく開示します")
-(def kotobase-connect-href "https://auth.kotoba.cloud/connect?target=kotobase")
+(def kotobase-connect-href "/#knowledge/overview")
 
 (def reference-package-command
   (str "# install and run the live Ed25519 + ML-DSA-65 reference package\n"
@@ -61,15 +70,15 @@
     :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
            "安全なコード。信頼できる状態。制御された実行。Kotoba Labs は、この三つをつなぐ安全で超高速なソフトウェアスタックを目指しています。"]
     :philosophy "他者の達成を助けるとして、Kotoba Cloud は、すでに存在する場所へ人や end user を含む他者がサインインし work を向けるための扉です。"
-    :next-step "今完了できること: サインインして Stable Principal を確認し、Kotobase へ接続します。"
+    :next-step "今完了できること: サインインして Stable Principal を確認し、データベースへ接続します。"
     :identity-title "Stable Principal を確認する"
     :identity-waiting "サインインして Stable Principal を確認してください。それが最初に完了できる手順です。Hosted apply は提供していません。"
     :identity-done "Stable Principal を確認しました。"
     :identity-label "ログイン中の Identity"
-    :next-step-hint "この Principal を Kotobase へ向けます。その接続はすでに動作します。"
+    :next-step-hint "この Principal でデータベースを開きます。その接続はすでに動作します。"
     :next-step-alt "または library publish の dry-run を完了し、ここで Passkey + ML-DSA-65 で承認します。"
-    :signed-in-action "同じPrincipalで接続"
-    :signed-in-status "ログイン済みの session を確認しました。次: この Principal を Kotobase へ接続します。"
+    :signed-in-action "データベースを開く"
+    :signed-in-status "ログイン済みの session を確認しました。次: この Principal でデータベースへ接続します。"
     :passkey-cta "Base Account で始める" :cli-cta "Kotoba CLI を見る"
     :nav-sign-in "ログイン"
     :live "Discovery と Passkey RP は稼働中。Hosted apply はまだ提供していません。"
@@ -78,14 +87,14 @@
     :control-kind "CONTROL + IDENTITY" :control-title "Kotoba Cloud"
     :control-body "Passkey で Stable Principal を確認し、CLI deploy が参照する topology と authority floor を公開します。"
     :connect-label "同じPrincipalで接続"
-    :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
-              :href "https://kotobase.net"
-              :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
+    :planes [{:kind "STORAGE" :name "Kotoba Cloud Database" :origin "api.kotoba.cloud"
+              :href "/#knowledge/overview"
+              :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
               :body "AI の状態と知識を支える content-addressed graph database。関係と履歴を明示する。"}
-             {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
-              :href "https://murakumo.cloud"
-              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
-              :body "Admit 済みの workload を CPU/GPU へ配置し、実行する。"}
+             {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
+              :href "/#research-models"
+              :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
+              :body "本人確認、審査、承認済みスコープを通した調査を、非公開の Modal 直結バックエンドで実行する。"}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -94,7 +103,7 @@
     :library-lead "release CIDはnamespace head、definition、raw Wasm、compile receipt、再現性evidenceを一つのIPLD graphに固定します。名前とGitHubは発見・provenanceです。"
     :library-status "耐量子署名は任意ではありません。公開にはPasskey sessionとPrincipalに固定したML-DSA-65署名の両方が必要です。外部Passkey authenticatorと分散認定は別に検証します。"
     :approval-title "ライブラリ公開を承認"
-    :approval-lead "CLIがローカル鍵で署名し、Kotobaseへ保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
+    :approval-lead "CLIがローカル鍵で署名し、保存したgraphです。次のCIDとIPNS名を確認してから公開してください。"
     :approval-button "Passkey + ML-DSA-65で公開"
     :key-approval-title "耐量子公開鍵の変更を承認"
     :key-approval-lead "action、epoch、現行鍵と次の鍵を確認してください。ローテーションは両方のML-DSA鍵で署名済みです。Passkey確認後にのみ反映します。"
@@ -107,14 +116,14 @@
     :steps [["Write" "AIと人間は、読みやすいデータとしてコードを自由に書く。"]
             ["Admit" "Kotobaがtype、effect、capability、resource、targetを検査する。"]
             ["Bind" "Passkey identityと対象限定grantを、host/providerが具体的なscopeへ結びつける。"]
-            ["Run" "Kotobaseがartifactとreceiptを保持し、MurakumoとItonamiが許可された処理を担う。"]]
+            ["Run" "Kotoba Cloud Database が artifact と receipt を保持し、Kotoba Cloud AI と Itonami が許可された処理を担う。"]]
     :boundary-title "境界があるから、つながれる。"
     :boundary-heading "Discoveryは権限委譲ではありません"
     :boundary-p1 "kotoba.cloud は各 origin を発見可能にしますが、storage、compute、agent work を一つの trust domain にしません。receipt は各 origin を別々に記録します。"
     :boundary-p2 "既存の auth.kotobase.net Passkey も自動移行しません。新しい RP では、検証された Principal link が必要です。"
     :profile-link "Machine-readable profile" :spec-link "言語仕様を読む"
     :footer "Kotoba Cloud — identity and deploy control"
-    :footer-roles "Language: kotoba-lang.org · Storage: kotobase.net · Compute: murakumo.cloud · Agent work: itonami.cloud"
+    :footer-roles "Language: kotoba-lang.org · Storage: api.kotoba.cloud · Compute: api.kotoba.cloud · Agent work: itonami.cloud"
     :operator-label "運営元"
     :contact-label "連絡先"
     :legal-link "運営"
@@ -167,15 +176,15 @@
     :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
            "Safe code. Trusted state. Controlled execution. Kotoba Labs is building toward a safe and ultra-fast software stack that connects all three."]
     :philosophy "As 他者の達成を助ける, Kotoba Cloud is the door so another person, including an end user, can sign in and point work at a place that already exists."
-    :next-step "Finishable now: sign in, confirm the Stable Principal, then connect it to Kotobase."
-    :identity-title "Confirm a Stable Principal"
-    :identity-waiting "Sign in to confirm a Stable Principal. That is the first finishable step. Hosted apply is not offered."
+    :next-step "Finishable now: sign in, confirm the Stable Principal, then connect to the database."
+    :identity-title "Confirm the Stable Principal"
+    :identity-waiting "Sign in to confirm the Stable Principal. That is the first finishable step. Hosted apply is not offered."
     :identity-done "Stable Principal confirmed."
-    :identity-label "Signed-in identity"
-    :next-step-hint "Point this Principal at Kotobase. That handoff already works."
-    :next-step-alt "Or finish a library publication dry-run, then approve it here with Passkey + ML-DSA-65."
-    :signed-in-action "Connect this Principal"
-    :signed-in-status "Signed-in session confirmed. Next: connect this Principal to Kotobase."
+    :identity-label "Signed-in Identity"
+    :next-step-hint "Open the database with this Principal. That connection already works."
+    :next-step-alt "Or complete a library publish dry-run and approve it here with Passkey + ML-DSA-65."
+    :signed-in-action "Open databases"
+    :signed-in-status "Signed-in session confirmed. Next: connect to the database with this Principal."
     :passkey-cta "Start with a Base Account" :cli-cta "Explore the Kotoba CLI"
     :nav-sign-in "Sign in"
     :live "Discovery and the Passkey RP are live. Hosted apply is not available yet."
@@ -184,14 +193,14 @@
     :control-kind "CONTROL + IDENTITY" :control-title "Kotoba Cloud"
     :control-body "Passkey verifies a Stable Principal. The control plane publishes the topology and authority floor used by CLI deploy."
     :connect-label "Connect this Principal"
-    :planes [{:kind "STORAGE" :name "Kotobase" :origin "kotobase.net"
-              :href "https://kotobase.net"
-              :connect-href "https://auth.kotoba.cloud/connect?target=kotobase"
+    :planes [{:kind "STORAGE" :name "Kotoba Cloud Database" :origin "api.kotoba.cloud"
+              :href "/#knowledge/overview"
+              :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
               :body "A content-addressed graph database for AI state and knowledge, with explicit relationships and identifiable history."}
-             {:kind "COMPUTE" :name "Murakumo" :origin "murakumo.cloud"
-              :href "https://murakumo.cloud"
-              :connect-href "https://auth.kotoba.cloud/connect?target=murakumo"
-              :body "Places admitted workloads on CPU/GPU resources and executes them."}
+             {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
+              :href "/#research-models"
+              :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
+              :body "Runs identity-verified, reviewed and scope-approved research through a private direct Modal backend."}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -200,7 +209,7 @@
     :library-lead "A release CID fixes the namespace head, definitions, raw Wasm, compile receipts, and reproducibility evidence in one IPLD graph. Names and GitHub remain discovery and provenance."
     :library-status "Post-quantum signatures are mandatory, not optional. Publication requires both a Passkey session and an ML-DSA-65 signature pinned to the Principal. External authenticators and distributed qualification remain separately verified boundaries."
     :approval-title "Approve library publication"
-    :approval-lead "The CLI signed this graph locally and stored it in Kotobase. Verify the CIDs and IPNS name before publishing."
+    :approval-lead "The CLI signed this graph locally and stored it. Verify the CIDs and IPNS name before publishing."
     :approval-button "Publish with Passkey + ML-DSA-65"
     :key-approval-title "Approve post-quantum key transition"
     :key-approval-lead "Verify the action, epoch, current key, and next key. Rotation is signed by both ML-DSA keys and takes effect only after Passkey confirmation."
@@ -213,14 +222,14 @@
     :steps [["Write" "Agents and humans write freely in readable, data-oriented code."]
             ["Admit" "Kotoba checks types, effects, capabilities, resources, and target support."]
             ["Bind" "The host and provider bind Passkey identity and a resource-scoped grant."]
-            ["Run" "Kotobase keeps artifacts and receipts; Murakumo and Itonami perform the admitted work."]]
+            ["Run" "Kotoba Cloud Database keeps artifacts and receipts; Kotoba Cloud AI and Itonami perform admitted work."]]
     :boundary-title "Boundaries make connection possible."
     :boundary-heading "Discovery is not delegation"
     :boundary-p1 "kotoba.cloud makes each origin discoverable without merging storage, compute, and agent work into one trust domain. Receipts record every origin separately."
     :boundary-p2 "Existing auth.kotobase.net Passkeys do not migrate automatically. The new RP requires a verified Principal link."
     :profile-link "Machine-readable profile" :spec-link "Read the language specification"
     :footer "Kotoba Cloud — identity and deploy control"
-    :footer-roles "Language: kotoba-lang.org · Storage: kotobase.net · Compute: murakumo.cloud · Agent work: itonami.cloud"
+    :footer-roles "Language: kotoba-lang.org · Storage: api.kotoba.cloud · Compute: api.kotoba.cloud · Agent work: itonami.cloud"
     :operator-label "Operator"
     :contact-label "Contact"
     :legal-link "Operator"
@@ -340,7 +349,8 @@
 
 (defn translation [locale]
   (let [t (infrastructure-translation locale) r (research-site/copy locale)]
-    (assoc t :title (str "Kotoba Cloud — " (:title r)) :description (:description r))))
+    (assoc t :title (str "Kotoba Cloud — " (:title r)) :description (:description r)
+           :footer (str "Kotoba Cloud — " (:title r)))))
 
 (defn passkey-href [locale]
   (session/passkey-href (if (= locale :ja) :ja :en)))
@@ -404,28 +414,31 @@
      [:a {:href (:tokushoho-path t)} (:tokushoho-link t)]])])
 
 (defn billing-view [locale]
-  (let [t (translation locale) ja? (= locale :ja)
-        txt (fn [ja en] (if ja? ja en))]
+  (let [t (translation locale) ja? (= locale :ja) txt (fn [ja en] (if ja? ja en))]
     [[:a {:class "kc-skip" :href "#main"} (:skip t)]
      (site-header locale t {:language-ja "/ja/billing/" :language-en "/billing/"})
      [:main {:id "main"}
       (dds/container
-       (dds/section {:title (txt "料金と決済" "Plans and billing")}
-        [:p {:class "kc-lead"} (txt "ストレージとAI推論の決済を、AWAIで。" "Storage and AI inference, billed through AWAI.")]
-        [:p "AWAI Network, L.L.C. · Stripe Checkout"]
-        [:p (txt "使うサービスを選んで、購入内容と料金を確認できます。契約と利用枠はサービスごとに管理されます。" "Choose a service to review its plan and price. Subscriptions and usage allowances are managed per service.")]
-        (dds/grid {}
-         (dds/card
-          (dds/heading 2 "Kotobase" {:size "28"})
-          [:p (txt "アプリのデータを保存する" "Store your application's data")]
-          [:p (txt "Freeから開始。StarterとProfessionalの月額プランは、Kotobaseで内容を確認して購入できます。" "Start with Free. Review and subscribe to the monthly Starter or Professional plan on Kotobase.")]
-          (dds/button (txt "ストレージのプランを確認" "View storage plans") {:type :solid-fill :size "md" :href "https://kotobase.net/signup"}))
-         (dds/card
-          (dds/heading 2 "Murakumo" {:size "28"})
-          [:p (txt "分散ノードでAI推論を使う" "Run AI inference on distributed nodes")]
-          [:p (txt "推論用クレジットを購入。購入画面で、付与されるクレジットと支払額を確認できます。" "Buy inference credits. Review the credit allowance and payment amount before checkout.")]
-          (dds/button (txt "推論用クレジットを確認" "View inference credits") {:type :solid-fill :size "md" :href "https://murakumo.cloud/portal/#store"})))
-        [:p {:class "kc-legal__note"} (txt "Kotoba Cloudの制御・発見機能自体に、新たな月額課金はありません。請求のご相談は、購入したサービスの窓口へお問い合わせください。" "Kotoba Cloud's control and discovery features have no new monthly charge. For billing support, contact the service where you purchased.")]))]
+       (dds/section {:title (txt "推論・データベースの料金" "Inference and database plans")}
+        [:p (txt "検証中の料金案です。まだ本番で購入できません。価格は米ドル・税別です。" "Sandbox pricing proposal. Production purchases are not available yet. Prices are in USD, excluding tax.")]
+        [:p (txt "本人確認済みの無料研究枠は継続します。有料プランでも本人確認と研究対象の承認が必要です。" "Verified researchers retain the free research allowance. Paid plans still require identity verification and approved scope.")]
+        [:p (txt "1つの月額プランにtoken利用枠とDB保存容量が含まれます。残量は別々に表示し、枠を超える利用は用途別の追加creditsで支払います。1 credit = $1相当。自動チャージは無効です。" "One monthly plan includes token usage and database storage. Each has its own allowance; optional scoped credits cover extra usage. One credit represents $1 of usage. Automatic top-up is off.")]
+        (into [:div {:class "kc-billing-plans"}]
+              (for [p billing/plans]
+                (dds/card
+                 (dds/heading 2 (:name p) {:size "28"})
+                 [:p (str "$" (/ (:cents p) 100) (when-not (:topup p) (txt " / 月" " / month")))]
+                 [:p (str (:credits p) (if (:topup p) " credits" (txt " AI credits / 月" " AI credits / month")))]
+                 (when (:gib p) [:p (str (:gib p) (txt " GiB のGraph・Ontology保存容量" " GiB graph and ontology storage"))])
+                 [:button {:type "button" :data-billing-sku (:sku p) :disabled true}
+                  (txt "接続状況を確認中" "Checking availability")])) )
+        [:p (txt "Proのtoken枠を基準にMaxは5倍、Ultraは10倍。Proの12 creditsは、通常入力1,000万＋出力250万tokensに相当します（混合例）。入力・キャッシュ・出力の構成により利用可能なtoken数は変わります。" "Max includes 5× and Ultra 10× the Pro token allowance. Pro's 12 credits cover, for example, 10 million uncached input plus 2.5 million output tokens. Actual token capacity varies with the input, cache and output mix.")]
+        [:p (txt "WebとAPIで同じtoken枠を共有します。保存容量は推論では消費されません。Viewerは付属し、query処理・外部転送・保存超過はDB creditsの対象です。" "Web and API share the token allowance. Inference does not consume storage capacity. The viewer is included; query compute, egress and excess storage use DB credits.")]
+        [:p {:id "billing-status" :role "status"}]
+        [:button {:id "billing-portal" :type "button" :disabled true} (txt "請求・解約の管理" "Manage billing and cancellation")]
+        (dds/heading 2 "Enterprise" {:size "28"})
+        [:p (txt "月額$1,000からの個別見積。年間コミット、用途別予算、組織の権限管理、監査ログ、専用推論・保管構成を契約に応じて設計します。SLAと専用容量は個別合意後に適用します。" "Custom quotes from $1,000/month: annual commitments, scoped budgets, organization permissions, audit logs, and dedicated inference/storage options. SLA and dedicated capacity require an agreed contract.")]
+        [:p (txt "月額枠は各請求期間末に失効し、追加creditsは購入から12か月有効です。残高不足で新しい有料処理を停止します。保存済みデータは自動削除しません。" "Monthly allowances expire at the end of their billing period; top-up credits last 12 months. New paid work stops when funds run out. Stored data is not automatically deleted.")]))]
      (site-footer t)]))
 
 (defn legal-rows [t]
@@ -504,7 +517,7 @@
             :data-session-link "true" :hidden true}
         connect-label " →"]])]))
 
-(defn view [locale]
+(defn infrastructure-view [locale]
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
@@ -614,7 +627,7 @@
                            (dds/heading 3 title {:size "20"})
                            [:p body]]))
               (:steps t)))
-        [:pre {:class "kc-command"} [:code "kotoba deploy --manifest app.edn --target murakumo:asher\n# plan is dry-run by default; apply remains explicit"]])
+        [:pre {:class "kc-command"} [:code "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before direct Modal inference"]])
        (dds/section {:title (:boundary-title t) :id "trust"}
         (dds/card
          [:article {:class "kc-boundary"}
@@ -630,10 +643,8 @@
 
 (defn- resource-read
   "Read a classpath resource the JVM-free way. The kbb engine clones nbb.edn
-  git deps into .nbb/.cache/<hash>/nbb-deps/ (the union of the dep's :paths,
-  measured 2026-09-12: requiring jp-go-dds.core loads core.cljc from there), so
-  a resource is found by scanning those cache roots. First match wins; missing
-  resource throws instead of returning empty bytes."
+  git deps into .nbb/.cache/<hash>/nbb-deps/, so a resource is found by scanning
+  those cache roots. First match wins; missing resource throws."
   [resource-path]
   (let [cache (node-path/join (js/process.cwd) ".nbb" ".cache")
         roots (try (js->clj (fs/readdirSync cache)) (catch :default _ []))
@@ -646,10 +657,6 @@
       (throw (ex-info (str "resource-not-found: " resource-path) {})))))
 
 (defn- css-for-extras
-  "dcss/css-for の cljs 側代替。上流 dds の css-for は #?(:clj ...) でしか
-   定義されないため、純粋 helper (component-path の :cljs branch /
-   extra-components) を使ってここで連結する。core components は dds.css に
-   束ね済みなので extra-components を通して二重定義を避ける。"
   [components]
   (str/join "\n"
             (map resource-read (map dcss/component-path (dcss/extra-components components)))))
@@ -678,14 +685,9 @@
         [:link {:rel "alternate" :hreflang "x-default" :href en-href}]
         [:link {:rel "alternate" :type "text/markdown" :href "https://kotoba.cloud/agent-quickstart.md" :title "AI agent quickstart"}]
         [:meta {:property "og:site_name" :content "Kotoba Cloud"}]
-        [:meta {:property "og:image" :content "https://kotoba.cloud/og.png"}]
-        [:meta {:property "og:image:width" :content "1731"}]
-        [:meta {:property "og:image:height" :content "909"}]
-        [:meta {:property "og:image:alt" :content "Kotoba Cloud - controlled execution for AI-generated software"}]
-        [:meta {:name "twitter:card" :content "summary_large_image"}]
+        [:meta {:name "twitter:card" :content "summary"}]
         [:meta {:name "twitter:title" :content title}]
         [:meta {:name "twitter:description" :content description}]
-        [:meta {:name "twitter:image" :content "https://kotoba.cloud/og.png"}]
         [:script {:type "application/ld+json"}
          (str "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"@id\":\"https://kotoba.cloud/#website\",\"url\":\"https://kotoba.cloud/\",\"name\":\"Kotoba Cloud\",\"publisher\":{\"@type\":\"Organization\",\"name\":\"Kotoba Labs Inc.\"},\"inLanguage\":["
               (apply str (interpose "," (map #(str "\"" (name %) "\"") supported-locales)))
@@ -719,9 +721,22 @@
                 :else x))]
       (walk node))))
 
+(defn view [locale]
+  (let [t (translation locale)]
+    [[:a {:class "kc-skip dads-button" :href "#main"} (:skip t)]
+     (site-header locale t)
+     (chat-site/view locale (passkey-href locale))
+     (knowledge-site/view locale)
+     [:div {:id "security-view" :hidden true} (security-site/view true)]
+     [:span {:id "kc-session-labels" :hidden true
+             :data-signed-in-action (:signed-in-action t)
+             :data-signed-in-status (:signed-in-status t)
+             :data-signed-in-href kotobase-connect-href}]]))
+
 (defn page-html
      ([] (page-html :en))
-     ([locale]
+     ([locale] (page-html locale view))
+     ([locale view-fn]
       (let [t (translation locale)]
         (str/replace
          (apply page/->page
@@ -729,19 +744,68 @@
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css)
+                :app-css (str tokens/skin-css app-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css security-site/css)
                 :head (document-head locale :path (:title t) (:description t))}
                (if (get locales/copy locale)
-                 (mark-english-fallback locale (view locale))
-                 (view locale)))
+                 (mark-english-fallback locale (view-fn locale))
+                 (view-fn locale)))
          (str "<html lang=\"" (:html-lang t) "\">")
          (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">")))))
+
+(defn security-html []
+     (page/->page {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
+                  :css (document-css) :app-css (str tokens/skin-css tokens/bridge-css security-site/css)
+                  :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                         [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
+                 (security-site/view)))
+
+(defn csf2-html []
+     (page/->page {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
+                   :description "サイバーセキュリティ製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをサポートするかを機能別チャートで表示します。"
+                   :css (document-css)
+                   :app-css (str tokens/skin-css tokens/bridge-css csf2-site/css)
+                   :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                          [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
+                  (csf2-site/view)))
+
+(defn crypto-html []
+  (page/->page {:title "暗号資産詐欺対応カタログ — Kotoba Cloud" :lang "ja"
+                :description "全世界の暗号資産取引所の情報・セキュリティ通報窓口と、国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログ。"
+                :css (document-css)
+                :app-css (str tokens/skin-css tokens/bridge-css crypto-site/css)
+                :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                       [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
+               (crypto-site/view)))
+
+(defn admin-html []
+     (page/->page
+      {:title "管理者コンソール — Kotoba Cloud" :lang "ja" :css (document-css)
+       :app-css (str tokens/skin-css app-css research-site/css)
+       :head [[:meta {:name "robots" :content "noindex"}]
+              [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+              [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
+              [:script {:src "/js/session.js" :defer true}]]}
+      [:main {:id "main"} (admin-site/section :ja)]
+      [:p [:a {:href (passkey-href :ja) :id "kc-session-nav"} "Passkeyでログイン"]
+       " · " [:a {:href "/ja/"} "kotoba.cloud"]]))
+
+(defn identity-html []
+     (page/->page
+      {:title "本人確認 — Kotoba Cloud" :lang "ja" :css (document-css)
+       :app-css (str tokens/skin-css app-css research-site/css)
+       :head [[:meta {:name "robots" :content "noindex"}]
+              [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+              [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
+              [:script {:src "/js/session.js" :defer true}]]}
+      [:main {:id "main"} (identity-site/section :ja)]
+      [:p [:a {:href (passkey-href :ja) :id "kc-session-nav"} "Passkeyでログイン"]
+       " · " [:a {:href "/ja/"} "会話に戻る"]]))
 
 (defn billing-html [locale]
      (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
            path (if ja? "/ja/billing/" "/billing/")]
        (apply page/->page
-              {:title title :description "AWAI billing for Kotobase storage and Murakumo inference."
+              {:title title :description "Kotoba Cloud inference, graph and ontology database subscriptions and credits."
                :lang (if ja? "ja" "en") :css (document-css) :app-css (str tokens/skin-css app-css research-site/css)
                :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/billing/"}]
@@ -788,7 +852,9 @@
             dds-css (resource-read "jp_go_dds/dds.css")]
         (page/->page
          {:title (:not-found-title t) :description (:not-found-lead t)
-          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css research-site/css)}
+          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css research-site/css)
+          :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                 [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
          (dds/container
           [:main {:id "main"}
            [:section {:class "kc-hero"}
@@ -887,4 +953,36 @@
       (let [headers (node-path/join "assets" "_headers")]
         (when (fs/existsSync headers)
           (copy-file headers (node-path/join root "_headers"))))
+            (let [out (node-path/join root "identity" "index.html")]
+        (spit-file out (identity-html)))
+      (let [out (node-path/join root "admin" "index.html")]
+        (spit-file out (admin-html)))
+      ;; security + csf2 + crypto static pages and their data blocks
+      (doseq [folder ["security-data" "security-watch"]]
+        (let [sources (fs-walk-files (node-path/join "assets" folder))]
+          (doseq [source sources]
+            (let [rel (node-path/relative (node-path/join "assets") source)
+                  target (node-path/join root rel)]
+              (copy-file source target)))))
+      (copy-file (node-path/join "assets" "security-data.js") (node-path/join js-dir "security-data.js"))
+      (doseq [path ["ja/security/index.html" "security-data/index.html"]]
+        (spit-file (node-path/join root path) (security-html)))
+      (doseq [path ["csf2/index.html" "security/csf2/index.html" "ja/security/csf2/index.html"]]
+        (spit-file (node-path/join root path) (csf2-html)))
+      (doseq [source (fs-walk-files (node-path/join "assets" "csf2-catalog"))]
+        (let [rel (node-path/relative (node-path/join "assets" "csf2-catalog") source)
+              target (node-path/join root "security-data" "csf2" rel)]
+          (copy-file source target)))
+      (doseq [source (fs-walk-files (node-path/join "assets" "security-watch"))]
+        (let [rel (node-path/relative (node-path/join "assets" "security-watch") source)
+              target (node-path/join root "security-data" "security-watch" rel)]
+          (copy-file source target)))
+      (spit-file (node-path/join js-dir "chat-components.js") chat-site/browser-script)
+      (spit-file (node-path/join js-dir "graph-workbench.js") graph-workbench/script)
+      (spit-file (node-path/join js-dir "knowledge-host.js") knowledge-site/script)
+      (copy-file (node-path/join "assets" "csf2-catalog.js") (node-path/join js-dir "csf2-catalog.js"))
+      (copy-file (node-path/join "assets" "norbert-chat.js") (node-path/join js-dir "norbert-chat.js"))
+      (spit-file (node-path/join root "crypto" "index.html") (crypto-html))
+      (spit-file (node-path/join root "security" "crypto" "index.html") (crypto-html))
+      (spit-file (node-path/join root "ja" "security" "crypto" "index.html") (crypto-html))
       (println "rendered English-first root, locale emit dirs, legal/tokushoho documents, and localized 404s")))

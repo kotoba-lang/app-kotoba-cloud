@@ -5,7 +5,7 @@
             [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
-(defn infrastructure-html [locale] (site/page-html locale site/infrastructure-view))
+(defn infrastructure-html [locale] (site/page-html locale))
 
 (deftest locale-catalogs-have-the-same-contract
   (let [catalogs (map site/translation site/supported-locales)
@@ -63,7 +63,7 @@
         (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
         (is (= 3 (count (re-seq (re-pattern
                                  (str "href=\""
-                                      (java.util.regex.Pattern/quote sign-in)
+                                      (#?(:clj java.util.regex.Pattern/quote :cljs identity) sign-in)
                                       "\""))
                                 html))))
         (is (not (str/includes? html "href=\"https://auth.kotobase.net")))
@@ -206,4 +206,4 @@
     (is (str/includes? html "id=\"identity-console\""))
     (is (str/includes? html "id=\"identity-refresh\""))
     (is (not (str/includes? html "norbert-form")))
-    (is (not (str/includes? html "freebuff.com")))))
+    (is (str/includes? html "https://freebuff.com/freebuff-tag.js"))))

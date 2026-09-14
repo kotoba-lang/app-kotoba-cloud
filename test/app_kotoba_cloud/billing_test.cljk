@@ -8,7 +8,7 @@
     (is (= "inference:r1" (:transaction_id e)))
     (is (not (contains? (:properties e) :prompt)))
     (doseq [bad [(assoc r :inputTokens -1) (assoc r :cachedInputTokens 101) (dissoc r :outputTokens)]]
-      (is (thrown? Exception (b/token-event bad "customer"))))))
+      (is (thrown? #?(:clj Exception :cljs js/Error) (b/token-event bad "customer"))))))
 (deftest invoice-grants
   (let [i {:id "in_1" :status "paid" :currency "usd" :billing_reason "subscription_cycle"}
         l {:id "il_1" :quantity 1 :period {:start 10 :end 20} :pricing {:price_details {:price "price_1"}}}
@@ -46,16 +46,16 @@
         settled (limits/settle held {:id "one" :actual 50 :receiptId "receipt1"})]
     (is (= l (limits/grant l g)))
     (is (= held (limits/reserve held r)))
-    (is (thrown? Exception (limits/reserve held (assoc r :id "two" :maximum 30))))
-    (is (thrown? Exception (limits/reserve l (assoc r :scope "storage"))))
-    (is (thrown? Exception (limits/reserve l (assoc r :now 20))))
-    (is (thrown? Exception (limits/reserve held (assoc r :maximum 50))))
+    (is (thrown? #?(:clj Exception :cljs js/Error) (limits/reserve held (assoc r :id "two" :maximum 30))))
+    (is (thrown? #?(:clj Exception :cljs js/Error) (limits/reserve l (assoc r :scope "storage"))))
+    (is (thrown? #?(:clj Exception :cljs js/Error) (limits/reserve l (assoc r :now 20))))
+    (is (thrown? #?(:clj Exception :cljs js/Error) (limits/reserve held (assoc r :maximum 50))))
     (is (= 50 (get-in settled [:spent "included"])))
     (is (= settled (limits/settle settled {:id "one" :actual 50 :receiptId "receipt1"})))
-    (is (thrown? Exception (limits/settle settled {:id "one" :actual 49 :receiptId "receipt1"})))
+    (is (thrown? #?(:clj Exception :cljs js/Error) (limits/settle settled {:id "one" :actual 49 :receiptId "receipt1"})))
     (is (limits/reserve settled (assoc r :id "two" :maximum 50)))
     (is (:frozen (limits/settle held {:id "one" :actual 81 :receiptId "receipt1"})))
-    (is (thrown? Exception (limits/reserve (assoc held :frozen true) (assoc r :id "two"))))))
+    (is (thrown? #?(:clj Exception :cljs js/Error) (limits/reserve (assoc held :frozen true) (assoc r :id "two"))))))
 (deftest included-before-topup
   (let [l (-> limits/empty-ledger
               (limits/grant {:id "z-included" :scope "ai" :amount 30 :start 10 :end 20 :topup false})
