@@ -738,6 +738,9 @@
                  "/ja/#knowledge/overview"
                  "/#knowledge/overview"))
 
+      (and (= path "/v1/logout") (= method "POST"))
+      (route-logout request)
+
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
 
@@ -760,9 +763,6 @@
 
       (= path "/v1/session")
       (route-session request env)
-
-      (and (= path "/v1/logout") (= method "POST"))
-      (route-logout request)
 
       (or (= path "/.well-known/kotoba-cloud.json")
           (= path "/v1/control-plane"))
