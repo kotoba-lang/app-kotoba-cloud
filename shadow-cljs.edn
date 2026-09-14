@@ -4,8 +4,7 @@
                        :modules {:providers {:exports {createSession app-kotoba-cloud.research-providers/create-session-js
                                                        verifyEvent app-kotoba-cloud.research-providers/verify-event-js
                                                        createStripeSession app-kotoba-cloud.research-providers/create-stripe-session-js
-                                                       verifyStripeEvent app-kotoba-cloud.research-providers/verify-stripe-event-js
-                                                       infer app-kotoba-cloud.research-providers/infer-js}}}
+                                                       verifyStripeEvent app-kotoba-cloud.research-providers/verify-stripe-event-js}}}
                        :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
   :research-authority {:target :esm :output-dir "build/research"
                        :modules {:worker {:exports {default app-kotoba-cloud.research-authority/default

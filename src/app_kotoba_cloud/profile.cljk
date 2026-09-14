@@ -51,15 +51,15 @@
                          :authorization "bearer-or-cacao"
                          :credentialIssuer "kotoba-cloud"
                          :principalIssuedCredentials false}}}
-    :compute {:origin "https://api.murakumo.cloud"
-              :publicOrigin "https://murakumo.cloud"
-              :purpose "cpu-gpu-placement-and-execution"
+    :compute {:origin "https://api.kotoba.cloud"
+              :publicOrigin "https://kotoba.cloud"
+              :purpose "policy-gated-white-hat-inference"
               :capabilities
-              {:llm {:purpose "hosted-inference-on-the-murakumo-fleet"
-                     :path "/v1/messages"
-                     :modelAliasPath "/infer/models/murakumo-main"
-                     :authorization "bearer-or-x-api-key"
-                     :credentialIssuer "murakumo"
+              {:llm {:purpose "admitted-inference-through-the-private-modal-backend"
+                     :path "/v1/research/jobs"
+                     :modelAliasPath "/v1/models"
+                     :authorization "principal-session-and-approved-scope"
+                     :credentialIssuer "kotoba-cloud"
                      :principalIssuedCredentials false}}}
     :agentWork {:origin "https://itonami.cloud"
                 :purpose "agent-workspaces-goals-tools-and-approvals"}
@@ -75,16 +75,16 @@
    ;; may join and under whose name, and nothing yet routes work by it. A caller
    ;; that needs work confined to one tier cannot get that from this surface.
    :tiers
-   {:enrollmentSurface "https://api.murakumo.cloud/infer/nodes"
-    :planSurface "https://api.murakumo.cloud/itonami/plans"
-    :creditsSurface "https://api.murakumo.cloud/infer/credits"
-    :costSurface "https://api.murakumo.cloud/infer/cost"
-    :trustTiers ["awai-secure" "community"]
-    :secureProvider "did:web:awai.network"
-    :secureEnrollment "operator-authorized-only"
-    :communityProvider "each-node-presents-its-own-did-key"
-    :communityEnrollment "public-default-admission-pending"
-    :enforcedAt "enrollment"
+   {:inferenceProvider "modal-direct-private"
+    :planSurface "https://kotoba.cloud/billing/"
+    :creditsSurface "https://kotoba.cloud/billing/"
+    :costSurface "https://api.kotoba.cloud/v1/billing/usage"
+    :trustTiers ["verified-researcher"]
+    :secureProvider "kotoba-cloud"
+    :secureEnrollment "identity-review-and-scope-approval"
+    :communityProvider "not-applicable"
+    :communityEnrollment "not-applicable"
+    :enforcedAt "research-admission"
     :dispatchTierFiltering false}
    ;; Delegation is the half of the tier story the roles above do not carry: a
    ;; tier says who is party to a call, and this says how a narrower authority
@@ -102,8 +102,8 @@
     :hostedApply false
     :controlOrigin "https://api.kotoba.cloud"
     :storageOrigin "https://api.kotoba.cloud"
-    :computeOrigin "https://api.murakumo.cloud"
-    :publicComputeOrigin "https://murakumo.cloud"
+    :computeOrigin "https://api.kotoba.cloud"
+    :publicComputeOrigin "https://kotoba.cloud"
     :agentWorkOrigin "https://itonami.cloud"}
    :cryptography
    {:defaultPolicy "post-quantum-required-for-new-boundaries"
@@ -175,8 +175,8 @@
           (get-in profile [:security :sessionProjection]))
        (= "https://api.kotoba.cloud" (get-in profile [:roles :storage :origin]))
        (= boot/origin (get-in profile [:roles :boot :origin]))
-       (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
-       (= "/v1/messages"
+       (= "https://api.kotoba.cloud" (get-in profile [:roles :compute :origin]))
+       (= "/v1/research/jobs"
           (get-in profile [:roles :compute :capabilities :llm :path]))
        (= "/v1/database/pins"
           (get-in profile [:roles :storage :capabilities :pinning :path]))
@@ -188,9 +188,10 @@
        (false? (get-in profile [:roles :storage :capabilities :pinning
                                 :principalIssuedCredentials]))
        (false? (get-in profile [:tiers :dispatchTierFiltering]))
-       (= "did:web:awai.network" (get-in profile [:tiers :secureProvider]))
-       (= "operator-authorized-only" (get-in profile [:tiers :secureEnrollment]))
-       (= "enrollment" (get-in profile [:tiers :enforcedAt]))
+       (= "modal-direct-private" (get-in profile [:tiers :inferenceProvider]))
+       (= "kotoba-cloud" (get-in profile [:tiers :secureProvider]))
+       (= "identity-review-and-scope-approval" (get-in profile [:tiers :secureEnrollment]))
+       (= "research-admission" (get-in profile [:tiers :enforcedAt]))
        (= rootkey/log-path (get-in profile [:delegation :logPath]))
        (= "the-log-not-this-document" (get-in profile [:delegation :authority]))
        (= "the-calling-plane-not-this-document"
