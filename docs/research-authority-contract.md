@@ -139,9 +139,11 @@ prove this full process is live.
 - `verify-event`: official Svix verification of raw bytes, followed by exact live
   flow/version, pre-KYC product, challenge/session, time and predicate checks.
   Returns **identity evidence requiring review**, never blanket AML clearance.
-- `infer`: exactly `https://api.murakumo.cloud/v1/chat/completions`, model
-  `qwen3.8-flash-next-cybersecurity-nvfp4`. No fallback model; rejects mismatched
-  response attribution. This uses the upstream's supported public inference path.
+- `infer`: a private, explicit `MODAL_INFERENCE_URL` on a `.modal.run` deployment,
+  authenticated with `MODAL_INFERENCE_TOKEN`, model
+  `qwen3.8-flash-next-cybersecurity-nvfp4`. No Murakumo relay or fallback model;
+  the authority rejects mismatched response attribution and provider usage that is
+  missing or internally inconsistent.
 
 These transports are buildable and tested separately from the public Worker.
 They are **not yet attached to a production authority**. No application may call

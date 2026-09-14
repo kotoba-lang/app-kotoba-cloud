@@ -15,7 +15,5 @@
   "migrations": [
     { "tag": "v1-research-records", "new_sqlite_classes": ["ResearchAuthority"] }
   ],
-  "vars": {
-    "MURAKUMO_UPSTREAM": "https://api.murakumo.cloud/v1/chat/completions"
-  }
+  "vars": {}
 }

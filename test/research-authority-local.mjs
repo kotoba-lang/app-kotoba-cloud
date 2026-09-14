@@ -2,11 +2,14 @@
 import assert from "node:assert/strict";
 let upstreamBody = null;
 globalThis.fetch = async (url, init) => {
+  assert.equal(url, "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions");
+  assert.equal(init.headers.authorization, "Bearer modal-test-token");
   const req = JSON.parse(String(init.body));
   return new Response(JSON.stringify({
     id: "chatcmpl-test", object: "chat.completion",
     model: "qwen3.8-flash-next-cybersecurity-nvfp4",
     choices: [{ index: 0, message: { role: "assistant", content: "Fix authorization." }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 12, completion_tokens: 3, total_tokens: 15 },
   }), { status: 200, headers: { "content-type": "application/json" } });
 };
 import { ResearchAuthority } from "../build/research/worker.js";
@@ -22,7 +25,11 @@ const state = {
   waitUntil(p) { /* run detached synchronously-ish */ },
   blockConcurrencyWhile(fn) { return fn(); },
 };
-const env = { RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef" };
+const env = {
+  RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef",
+  MODAL_INFERENCE_URL: "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions",
+  MODAL_INFERENCE_TOKEN: "modal-test-token",
+};
 const auth = new ResearchAuthority(state, env);
 const call = (path, body) => auth.fetch(new Request(`https://research.internal${path}`, {
   method: "POST", headers: { "content-type": "application/json" },
@@ -88,6 +95,15 @@ r = await call("/jobs/create", {
 assert.equal(r.status, 200, JSON.stringify(r));
 assert.equal(r.json.policyDecision, "allowed");
 assert.equal(r.json.model, "qwen3.8-flash-next-whitehacker");
+
+const storedJob = JSON.parse(await state.storage.get("job:" + jobId));
+assert.equal(storedJob.status, "succeeded");
+assert.deepEqual(storedJob.usageReceipt && {
+  source: storedJob.usageReceipt.source,
+  inputTokens: storedJob.usageReceipt.inputTokens,
+  outputTokens: storedJob.usageReceipt.outputTokens,
+  totalTokens: storedJob.usageReceipt.totalTokens,
+}, { source: "modal-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
 
 // 7. replay same input -> same receipt, not double-counted
 r = await call("/jobs/create", {
