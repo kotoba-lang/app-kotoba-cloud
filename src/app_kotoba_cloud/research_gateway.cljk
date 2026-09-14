@@ -1,6 +1,8 @@
 (ns app-kotoba-cloud.research-gateway
   "Private service-binding seam. No public upstream URL, identity evidence or prompt logs."
-  (:require [app-kotoba-cloud.research :as policy] [app-kotoba-cloud.session :as session]))
+  (:require [app-kotoba-cloud.research :as policy]
+            [app-kotoba-cloud.session :as session]
+            [app-kotoba-cloud.pat :as pat]))
 
 (def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"
              "/v1/research/jobs" "/v1/research/job"
@@ -241,11 +243,39 @@
 
 
 
+;; Bearer personal-API-token (PAT) path for local CLI/IDE agents. Bypasses the
+;; browser origin gate ONLY — ekyc/screening/trust/scope/quota checks are the
+;; same code path as the cookie session, against the same authority. The
+;; authority trusts the edge's sessionRef, so a stable agent-domain reference
+;; is enough; the token itself is verified statelessly by HMAC before any
+;; service hop. No origin header, no cookie, no viewer is required here.
+(defn- bearer-auth [request ^js env respond path ekyc?]
+  (let [binding (.-RESEARCH_AUTHORITY env)
+        secret (aget env pat/secret-name)]
+    (if (nil? binding)
+      (respond {:error {:code "verification-provider-not-configured"}
+                :status "pending-provider-setup" :freeTier policy/free-limits} 503)
+      (if-not (string? secret)
+        (respond {:error {:code "pat-not-configured"}} 503)
+        (let [token (subs (.get (.-headers request) "authorization") 7)]
+          (-> (pat/verify token secret)
+              (.then (fn [auth]
+                       (if (nil? auth)
+                         (respond {:error {:code "research-access-denied"}} 403)
+                         (-> (pat/agent-session-reference
+                              (:principalId auth) (subs (:tokenHash auth) 0 16))
+                             (.then #(if ekyc?
+                                       (ekyc-route request path binding (:principalId auth) % respond)
+                                       (authorized-route request path binding (:principalId auth) % respond)))))))))))))
+
+
 (defn route [request ^js env fetch-viewer respond]
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
         post? (= method "POST") binding (.-RESEARCH_AUTHORITY env)
         public-webhook? (= path "/v1/research/ekyc/webhook")
         ekyc? (contains? #{"/v1/research/ekyc/start" "/v1/research/ekyc/status"} path)
+        auth-header (or (.get (.-headers request) "authorization") "")
+        pat-prefix (str "Bearer " pat/prefix)
         required-method (cond
                           (= path "/v1/research/applications") "POST"
                           (= path "/v1/chat/completions") "POST"
@@ -266,6 +296,18 @@
                     (let [status (or (:status (ex-data e)) 503)]
                       (respond {:error {:code (case status 400 "invalid-json" "stripe-webhook-rejected")
                                   :eventId (str (:eventId (ex-data e)))}} status)))))
+      ;; Bearer PAT: no browser origin, no cookie. This gate must sit BEFORE
+      ;; the cookie-session origin/json checks so curl clients without an
+      ;; Origin header are not rejected by the browser-only gates.
+      (and auth-header (.startsWith auth-header pat-prefix))
+      (-> (if (and post? (not (re-find #"(?i)^application/json(?:;|$)" (or (.get (.-headers request) "content-type") ""))))
+            (js/Promise.reject (ex-info "json-required" {:status 415}))
+            (js/Promise.resolve nil))
+          (.then (fn [] (bearer-auth request env respond path ekyc?)))
+          (.catch (fn [e]
+                    (let [status (or (:status (ex-data e)) 503)]
+                      (respond {:error {:code (case status 413 "body-too-large" 400 "invalid-json" 415 "json-required"
+                                                   "research-service-unavailable")}} status)))))
       (and post? (not (contains? origins (.get (.-headers request) "origin"))))
       (respond {:error {:code "origin-not-allowed"}} 403)
       (and post? (not (re-find #"(?i)^application/json(?:;|$)" (or (.get (.-headers request) "content-type") ""))))

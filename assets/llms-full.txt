@@ -76,6 +76,23 @@ Post-quantum signatures remain mandatory for library publication. The authentica
 ## Start
 
 - Agent onboarding: https://kotoba.cloud/agent-quickstart.md
+
+### CLI / IDE agents (personal API token)
+
+Local CLI/IDE agents can call the research API without a browser session:
+1. The account holder signs in at https://kotoba.cloud/account and issues a
+   personal API token once (「CLI / IDE から使う」→「接続トークンを発行」).
+2. Call with `Authorization: Bearer kc_pat_...` — no cookie, no Origin header:
+   `POST https://api.kotoba.cloud/v1/chat/completions` and
+   `POST https://api.kotoba.cloud/v1/research/jobs` (OpenAI-compatible shape),
+   `GET https://api.kotoba.cloud/v1/models` and `/v1/research/status`.
+3. Identity verification (Stripe), approved scope, free quota (50 req/day,
+   2,048 output tokens) and all eligibility gates are identical to the
+   browser session — the token bypasses the browser origin gate only.
+4. The token is shown once at issuance and is never accepted in URLs. It is
+   stateless (HMAC-backed); revocation is by rotating the signing secret —
+   contact support@kotoba.cloud.
+
 - Graph CLI and MCP onboarding: https://kotobase.net/agent-quickstart.md
 
 - Executable language quickstart: https://kotoba-lang.org/agent-quickstart.md

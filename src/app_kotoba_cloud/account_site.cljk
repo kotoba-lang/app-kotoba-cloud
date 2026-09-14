@@ -81,9 +81,41 @@
    [:p {:class "kc-account-note"}
     "本人確認済みの無料研究枠は課金されません。有料枠の購入は自動チャージなしです。"]))
 
+(defn panel-cli []
+  (dds/card
+   (dds/heading 2 "CLI / IDE から使う" {:size "24"})
+   [:div {:id "account-cli" :class "kc-account"}
+    [:p {:class "kc-account-note"}
+     "ローカルの CLI / IDE エージェントから研究 API を呼び出すための接続トークンを発行します。トークンは一度だけ表示され、二度と表示されません。"]
+    (dds/row
+     (dds/button "接続トークンを発行" {:id "account-pat-create" :type :solid-fill})
+     (dds/button "ガイドを開く" {:href "/ekyc.md" :type :outline}))
+    [:p {:id "account-pat-note" :class "kc-account-note" :role "status"}]
+    [:div {:id "account-pat-result" :hidden true}
+     [:div {:class "kc-account-row"}
+      [:span {:class "kc-account-label"} "接続トークン（一度だけ表示）"]
+      [:span {:class "kc-account-value" :id "account-pat-token"} "—"]
+      (dds/button "コピー" {:id "account-pat-copy" :type :outline :size "sm"})]
+     [:div {:class "kc-account-row"}
+      [:span {:class "kc-account-label"} "ENV"]
+      [:span {:class "kc-account-value" :id "account-pat-env"} "—"]
+      (dds/button "コピー" {:id "account-pat-copy-env" :type :outline :size "sm"})]
+     [:div {:class "kc-account-row"}
+      [:span {:class "kc-account-label"} "CURL"]
+      [:span {:class "kc-account-value" :id "account-pat-curl"} "—"]
+      (dds/button "コピー" {:id "account-pat-copy-curl" :type :outline :size "sm"})]
+     [:p {:class "kc-account-note"}
+      "Claude Code など MCP 対応エージェントは "
+      [:a {:href "/mcp.json"} "/mcp.json"]
+      " を参照してください。完全なガイドは "
+      [:a {:href "/llms.txt"} "/llms.txt"]
+      " と "
+      [:a {:href "/ekyc.md"} "/ekyc.md"]
+      " にあります。取り消しは署名鍵の交換（サポート連絡）で行われます: support@kotoba.cloud"]]]))
+
 (defn section []
   [:section {:id "account-console" :class "kc-research-section"}
    (dds/container
     (dds/heading 1 "アカウント管理" {:size "36"})
     (into [:div {:class "kc-account"}]
-          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes) (panel-org) (panel-billing)]))])
+          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes) (panel-org) (panel-billing) (panel-cli)]))])

@@ -541,6 +541,9 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
   researchCalls.push({ path, body, headers: new Headers(init.headers) });
   assert.equal(new Headers(init.headers).get("cookie"), null);
   if (path === "/status") return Response.json(researchRecord);
+  if (path === "/ekyc/start") return Response.json({ sessionId: "session-1",
+    externalId: "ext-1", verificationUrl: "https://verify.stripe.com/test",
+    expiresAt: Date.now() + 900000, scopeId: body.scopeId, tasks: body.tasks });
   if (path === "/applications") return Response.json({ principalId: body.principalId, applicationId: "application-1" });
   assert.equal(path, "/complete");
   assert.equal(body.principalId, researchPrincipal);
@@ -634,6 +637,97 @@ assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions"
   body: overLimitStream
 }), researchEnv)).status, 413);
 console.log("research gateway identity, evidence, scope, free-only receipts and streamed limits passed");
+
+// PAT (personal API token) path for local CLI/IDE agents: stateless HMAC
+// token issued same-origin, verified on the bearer research path. The
+// authority must see a STABLE agent-domain sessionRef and the SAME principal.
+const patSecret = "test-pat-signing-secret-0123456789abcdef";
+const patEnv = { ...researchEnv, PAT_SIGNING_SECRET: patSecret };
+const patIssue = await route(new Request("https://kotoba.cloud/v1/account/api-token", {
+  method: "POST",
+  headers: { cookie: "gftd_session=research-session", origin: "https://kotoba.cloud",
+             "content-type": "application/json" }, body: JSON.stringify({ label: "cli" })
+}), patEnv);
+assert.equal(patIssue.status, 200);
+const patBody = await patIssue.json();
+assert.match(patBody.token, /^kc_pat_[A-Za-z0-9_-]+\.[0-9a-f]{16}$/);
+
+// Issue must fail closed without the secret.
+assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token", {
+  method: "POST", headers: { cookie: "gftd_session=research-session",
+  origin: "https://kotoba.cloud", "content-type": "application/json" }, body: "{}"
+}), researchEnv)).status, 503);
+
+// Bearer research/status: no cookie, no Origin header — accepted. First call
+// reports pending because continuous evidence is still bound to the cookie
+// sessionRef; the agent binds its own evidence via ekyc/start below.
+const bearerStatus = await route(new Request("https://kotoba.cloud/v1/research/status", {
+  headers: { authorization: `Bearer ${patBody.token}` }
+}), patEnv);
+assert.equal(bearerStatus.status, 200);
+assert.equal((await bearerStatus.json()).status, "pending");
+const agentCalls = researchCalls.filter(c => c.path === "/status");
+assert.equal(agentCalls.length >= 2, true);
+assert.equal(agentCalls[agentCalls.length - 1].body.principalId, researchPrincipal);
+// Stable agent-domain sessionRef, distinct from the cookie-domain one.
+const agentSessionRef = agentCalls[agentCalls.length - 1].body.sessionRef;
+assert.match(agentSessionRef, /^[0-9a-f]{64}$/);
+assert.notEqual(agentSessionRef, researchSessionRef);
+
+// The agent's first ekyc/start binds continuous evidence to the AGENT
+// sessionRef (the authority stores what the edge sends, no recompute).
+const patBodyReq = { principalId: researchPrincipal, scopeId: "owned", tasks: ["code-review"] };
+assert.equal((await route(new Request("https://kotoba.cloud/v1/research/ekyc/start", {
+  method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+  body: JSON.stringify(patBodyReq)
+}), patEnv)).status, 200);
+const ekycCalls = researchCalls.filter(c => c.path === "/ekyc/start");
+assert.equal(ekycCalls.length, 1);
+assert.equal(ekycCalls[0].body.principalId, researchPrincipal);
+assert.equal(ekycCalls[0].body.sessionRef, agentSessionRef);
+
+// With continuous evidence bound to the agent ref (and the same policy
+// version as the cookie record), bearer status is eligible.
+const savedRecord = structuredClone(researchRecord);
+researchRecord.continuous.sessionRef = agentSessionRef;
+const bearerStatus2 = await route(new Request("https://kotoba.cloud/v1/research/status", {
+  headers: { authorization: `Bearer ${patBody.token}` }
+}), patEnv);
+assert.equal(bearerStatus2.status, 200);
+assert.equal((await bearerStatus2.json()).status, "eligible");
+researchRecord = savedRecord;
+// Second call must produce the SAME sessionRef (stability).
+const agentRef2 = researchCalls.filter(c => c.path === "/status").slice(-1)[0].body.sessionRef;
+assert.equal(agentRef2, agentSessionRef);
+
+// Wrong HMAC → 403 (no authority call).
+const beforeBearer = researchCalls.length;
+assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", {
+  headers: { authorization: `Bearer kc_pat_ews.kotoba:principal:forged.0000000000000000` }
+}), patEnv)).status, 403);
+assert.equal(researchCalls.length, beforeBearer);
+// Truncated / malformed token → 403.
+assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", {
+  headers: { authorization: "Bearer kc_pat_notatoken" }
+}), patEnv)).status, 403);
+// Bearer POST without JSON content-type → 415.
+assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+  method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "text/plain" },
+  body: "x" }), patEnv)).status, 415);
+// Secret absent on the bearer path → fail closed 503.
+assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", {
+  headers: { authorization: `Bearer ${patBody.token}` }
+}), researchEnv)).status, 503);
+// Cookie path unchanged: browser origin gate still applies to cookie POSTs.
+assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, {
+  origin: "https://evil.example" }), researchEnv)).status, 403);
+
+// Token must never leak into logged calls (only sessionRef/policy payloads go
+// to the authority; the bearer token itself is never part of any payload).
+for (const c of researchCalls) {
+  assert.equal(JSON.stringify(c.body).includes("kc_pat_"), false);
+}
+console.log("PAT issue + bearer research path passed");
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" }, body: "{broken"
 }), researchEnv)).status, 400);
