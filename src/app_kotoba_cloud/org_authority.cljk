@@ -153,6 +153,42 @@
                                     (response {:orgDid (:did org) :handle (:handle org)
                                                :revoked (:memberPrincipalId body)} 200))))))))))))
 
+(defn- handle-authorize [storage body now]
+  ;; Org-scoped database access (ADR-2609141633 step 4): the caller must hold an
+  ;; active membership, and the tenant must be bound to the caller's organization.
+  ;; First use binds the tenant to the org; only owner/admin may bind.
+  (cond
+    (not (and (text? (:principalId body) 256) (text? (:orgHandle body) 80)
+              (string? (:tenantId body)) (re-matches #"t_[a-z0-9]{12,48}" (:tenantId body))
+              (string? (:dbName body)) (<= 1 (count (:dbName body)) 256)))
+    (js/Promise.resolve (response {:error "invalid-org-authorize"} 400))
+
+    :else
+    (-> (load-org! storage (:orgHandle body))
+        (.then (fn [org]
+                 (cond
+                   (nil? org) (response {:error "org-unknown"} 404)
+                   (nil? (active-member org (:principalId body)))
+                   (response {:error "org-membership-required"} 403)
+                   :else
+                   (let [member (active-member org (:principalId body))
+                         tenants (or (:tenants org) {})
+                         bound (get tenants (:tenantId body))]
+                     (cond
+                       (and (nil? bound) (not (contains? #{"owner" "admin"} (:role member))))
+                       (response {:error "org-tenant-bind-forbidden"} 403)
+
+                       (and bound (not= bound (:dbName body)))
+                       (response {:error "org-tenant-mismatch"} 403)
+
+                       :else
+                       (let [org (assoc org :tenants (assoc tenants (:tenantId body) (:dbName body)))]
+                         (-> (save-org! storage (:handle org) org)
+                             (.then (fn [_]
+                                      (response {:ok true :orgDid (:did org) :handle (:handle org)
+                                                 :role (:role member) :tenantId (:tenantId body)
+                                                 :bound (nil? bound)} 200)))))))))))))
+
 (defn- handle-status [storage body]
   (if-not (text? (:principalId body) 256)
     (js/Promise.resolve (response {:error "invalid-org-status"} 400))
@@ -175,6 +211,7 @@
     "/delegate" handle-delegate
     "/revoke" handle-revoke
     "/status" handle-status
+    "/authorize" handle-authorize
     nil))
 
 (defn- handle [state env path body]
