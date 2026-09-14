@@ -207,3 +207,24 @@
     (is (str/includes? html "/ekyc.md"))
     (is (not (str/includes? html "id=\"identity-console\"")))
     (is (not (str/includes? html "norbert-form")))))
+
+(deftest unified-chrome-covers-formerly-bare-pages
+  ;; ADR site-layout: every page ships header/footer/nav (IA unification).
+  (doseq [html [(site/account-html) (site/identity-html) (site/admin-html)
+                (site/csf2-html) (site/crypto-html)]]
+    (is (str/includes? html "kc-header"))
+    (is (str/includes? html "kc-footer"))
+    (is (str/includes? html "<nav"))))
+
+(deftest header-links-cross-page-documents
+  (let [html (site/page-html :ja)]
+    (is (str/includes? html "href=\"/account\""))
+    (is (str/includes? html "href=\"/security/csf2/\""))
+    (is (or (str/includes? html "href=\"/billing/\"") (str/includes? html "href=\"/ja/billing/\"")))))
+
+(deftest account-console-carries-agent-onboarding
+  ;; PAT issuance section: 1-click local IDE/CLI onboarding.
+  (let [html (site/account-html)]
+    (is (str/includes? html "kc-header"))
+    (is (str/includes? html "noindex"))
+    (is (str/includes? html "接続トークン"))))
