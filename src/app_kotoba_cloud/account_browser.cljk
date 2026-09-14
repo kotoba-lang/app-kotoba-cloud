@@ -102,6 +102,47 @@
           (:checkoutEnabled r) (t "有料枠の購入・管理は料金ページから行えます。" "Purchases and management are on the plans page.")
           :else (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet."))))
 
+(defn render-orgs [r]
+  (let [host (el "account-orgs")]
+    (when host
+      (.replaceChildren host)
+      (if (and (:httpOk r) (seq (:organizations r)))
+        (doseq [o (:organizations r)]
+          (let [row (.createElement js/document "div")]
+            (set! (.-className row) "kc-account-row")
+            (set! (.-textContent row)
+                  (str (:handle o) " · " (:role o) " · " (:status o) " · " (:orgDid o)))
+            (.append host row)))
+        (let [p (.createElement js/document "p")]
+          (set! (.-className p) "kc-account-note")
+          (set! (.-textContent p)
+                (t "所属する組織はまだありません。ハンドルを入力して作成してください。"
+                   "No organizations yet. Enter a handle to create one."))
+          (.append host p))))))
+
+(declare refresh!)
+
+(defn create-org! []
+  (when-let [b (el "account-org-create")]
+    (let [handle (.-value (el "account-org-handle"))]
+      (set! (.-disabled b) true)
+      (say! "account-org-note" (t "組織を作成しています…" "Creating the organization…"))
+      (-> (api "/v1/org/create" {:handle handle :role "owner"})
+          (.then (fn [r]
+                   (if (:httpOk r)
+                     (do (say! "account-org-note"
+                               (t (str "作成しました: " (:orgDid r))
+                                  (str "Created: " (:orgDid r))))
+                         (refresh!))
+                     (do (say! "account-org-note"
+                               (case (get-in r [:error :code])
+                                 "invalid-org-handle" (t "ハンドルは com-<名前>.kotoba.cloud 形式で指定してください。" "Handle must look like com-<name>.kotoba.cloud.")
+                                 "org-handle-taken" (t "このハンドルは既に使われています。" "That handle is already taken.")
+                                 "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
+                                 "org-authority-not-configured" (t "組織サービスはまだ接続されていません。" "The organization service is not connected yet.")
+                                 (t "作成できませんでした。状態を更新してください。" "Could not create. Refresh and retry.")))
+                         (set! (.-disabled b) false)))))))))
+
 (defn start-ekyc! []
   (when-let [b (el "account-ekyc-start")]
     (set! (.-disabled b) true)
@@ -126,14 +167,17 @@
                  (do (render-ekyc {:httpOk false})
                      (render-eligibility {:httpOk false})
                      (render-scopes [])
+                     (render-orgs {:httpOk false})
                      (render-billing {:httpOk false}))
                  (do (-> (api "/v1/research/ekyc/status") (.then render-ekyc))
                      (-> (api "/v1/research/status")
                          (.then (fn [r] (render-eligibility r) (render-scopes (:scopes r [])))))
+                     (-> (api "/v1/org/status" {}) (.then render-orgs))
                      (-> (api "/v1/billing/status") (.then render-billing))))))))
 
 (defn init! []
   (when (el "account-console")
     (when-let [b (el "account-refresh")] (.addEventListener b "click" refresh!))
     (when-let [b (el "account-ekyc-start")] (.addEventListener b "click" start-ekyc!))
+    (when-let [b (el "account-org-create")] (.addEventListener b "click" create-org!))
     (refresh!)))

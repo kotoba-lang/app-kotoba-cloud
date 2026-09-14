@@ -56,6 +56,20 @@
    [:p {:class "kc-account-note"}
     "調査権限の根拠ごとに承認されます。期限切れ・停止中のスコープでは推論できません。"]))
 
+(defn panel-org []
+  (dds/card
+   (dds/heading 2 "組織（Org DID）" {:size "24"})
+   [:div {:id "account-orgs" :class "kc-account"}]
+   [:div {:class "kc-account-row"}
+    [:span {:class "kc-account-label"} "ORG HANDLE"]
+    [:input {:id "account-org-handle" :class "kc-account-value"
+             :placeholder "com-example.kotoba.cloud" :maxlength 80}]]
+   (dds/row
+    (dds/button "組織を作成" {:id "account-org-create" :type :solid-fill :disabled true})
+    (dds/button "状態を更新" {:id "account-refresh" :type :outline}))
+   [:p {:id "account-org-note" :class "kc-account-note" :role "status"}
+    "組織は did:webvh DID として発行され、membership は検証可能な VC で管理されます。作成者には owner ロールが付与されます。"]))
+
 (defn panel-billing []
   (dds/card
    (dds/heading 2 "請求・クレジット" {:size "24"})
@@ -72,4 +86,4 @@
    (dds/container
     (dds/heading 1 "アカウント管理" {:size "36"})
     (into [:div {:class "kc-account"}]
-          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes) (panel-billing)]))])
+          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes) (panel-org) (panel-billing)]))])
