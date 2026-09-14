@@ -3,6 +3,20 @@
 NIST CSF 2.0 サブカテゴリ 106 件に対する製品カタログの coverage 記録。
 測定は `~/.hermes/profiles/csf2-catalog/scripts/csf2_evidence.py` (assets/csf2-catalog データ + test gate) による。
 
+## 2026-09-14 第 2 回 (成熟度反復, branch research/csf2-2026-09-14-2)
+
+- 再計測: **coverage 変化なし 59 / 106 (56%)**, 製品 39 件, test gate OK。前回計測 (同日 PR #80) と同一値 — 拡張反復待ちのため。
+- 出典リンク再チェックで **Graylog Security の source URL が 403** (`https://www.graylog.org/products/security`) を確認。非 www 版 `https://graylog.org/products/security/` が 200 を返すため修正した。
+
+## 出典リンク死活チェック (2026-09-14 第 2 回, curl -sL -o /dev/null -w '%{http_code}')
+
+| URL | status |
+| https://www.ibm.com/products/qradar-siem | 200 |
+| https://www.graylog.org/products/security | 403 → 修正: https://graylog.org/products/security/ は 200 |
+| https://www.okta.com/products/single-sign-on/ | 200 |
+| https://www.microsoft.com/security/business/identity-access/microsoft-entra-id | 200 |
+| https://www.keycloak.org/ | 200 |
+
 ## 2026-09-14 (成熟度反復, branch research/csf2-2026-09-14)
 
 - **全体 coverage: 59 / 106 サブカテゴリ (56%)**, 製品 39 件。

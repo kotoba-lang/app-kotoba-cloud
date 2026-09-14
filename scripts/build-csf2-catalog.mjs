@@ -104,7 +104,7 @@ const products = [
   P('graylog-security', 'Graylog Security', 'Graylog', 'SIEM', 'Self-hosted/SaaS',
     'Log management plus anomaly detection and pre-built detections mapped to MITRE ATT&CK.',
     ['DE.CM-01','DE.CM-03','DE.CM-09','DE.AE-03','DE.AE-06','DE.AE-08','PR.PS-04','RS.AN-03','RS.AN-06'],
-    'https://www.graylog.org/products/security'),
+    'https://graylog.org/products/security/'),
 
   // --- Identity / access ---
   P('okta-workforce-identity', 'Okta Workforce Identity', 'Okta', 'IAM', 'SaaS',
