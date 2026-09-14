@@ -791,16 +791,22 @@
        " · " [:a {:href "/ja/"} "kotoba.cloud"]]))
 
 (defn identity-html []
+     ;; Identity route is Stripe-Identity-only. The first-party browser capture
+     ;; console (identity-site / identity-browser / identity-gateway) stays in
+     ;; the repo as a tested component but is not rendered or linked today;
+     ;; re-enable by rendering identity-site/section here.
      (page/->page
       {:title "本人確認 — Kotoba Cloud" :lang "ja" :css (document-css)
        :app-css (str tokens/skin-css app-css research-site/css)
-       :head [[:meta {:name "robots" :content "noindex"}]
-              [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-              [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
-              [:script {:src "/js/session.js" :defer true}]]}
-      [:main {:id "main"} (identity-site/section :ja)]
-      [:p [:a {:href (passkey-href :ja) :id "kc-session-nav"} "Passkeyでログイン"]
-       " · " [:a {:href "/ja/"} "会話に戻る"]]))
+       :head [[:meta {:name "robots" :content "noindex"}]]}
+      [:main {:id "main"}
+       (dds/container
+        (dds/heading 1 "本人確認は Stripe Identity 経路のみ" {:size "36"})
+        [:p "kotoba.cloud の本人確認は Stripe Identity（verify.stripe.com）のみを提供しています。書類と顔写真は Stripe にのみ送られ、kotoba.cloud は本人確認の状態・有効期限・証跡参照のみを保持します。"]
+        [:p "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"]
+        (dds/row (dds/button "研究者登録（Stripe Identity）" {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
+                 (dds/button "登録ガイド" {:href "https://kotoba.cloud/llms.txt" :type :outline})))
+       [:p [:a {:href "/ja/"} "会話に戻る"]]]))
 
 (defn billing-html [locale]
      (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")

@@ -717,13 +717,13 @@ const identityCapabilities = await route(new Request('https://kotoba.cloud/.well
 assert.equal(identityCapabilities.status, 200);
 const identityProfile = await identityCapabilities.json();
 assert.equal(identityProfile.provider, 'kotoba');
-assert.equal(identityProfile.enrollmentEnabled, false);
+assert.equal(identityProfile.enrollmentEnabled, true);
 assert.equal(identityProfile.zeroKnowledge, false);
-assert.equal(identityProfile.defaultRoute, 'web-reviewed');
+assert.equal(identityProfile.defaultRoute, 'stripe-identity');
 assert.equal(identityProfile.trustPolicy.weights['web-reviewed'], 60);
 assert.equal(identityProfile.trustPolicy.weights['app-passport'], 80);
 assert.equal(identityProfile.trustPolicy.ceiling, 100);
-assert.equal(identityProfile.status, 'components-tested-enrollment-closed');
+assert.equal(identityProfile.status, 'stripe-identity-only');
 
 // Browser capture uses a dedicated private service; no authenticated fallback.
 const intakeId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';

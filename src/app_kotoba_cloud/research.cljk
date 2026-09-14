@@ -100,21 +100,25 @@
 
 
 (def identity-profile
-  {:provider "kotoba" :profile "kotoba-identity-2026-09-v2"
-   :status "components-tested-enrollment-closed" :enrollmentEnabled false
+  ;; Public identity metadata. The live route is Stripe Identity only
+  ;; (web-reviewed console and app-passport routes remain in-repo components,
+  ;; not offered today).
+  {:provider "kotoba" :profile "kotoba-identity-2026-09-v3"
+   :status "stripe-identity-only" :enrollmentEnabled true
    :source "https://github.com/kotoba-lang/ekyc"
-   :defaultRoute "web-reviewed" :trustPolicy trust-policy
+   :defaultRoute "stripe-identity" :trustPolicy trust-policy
    :sessionPolicy session-policy :continuousMonitoring "policy-tested-observers-not-connected"
-   :routes [{:id "web-reviewed" :weight 60 :role "initial-trust-root"
+   :routes [{:id "stripe-identity" :weight 60 :role "initial-trust-root"
+             :verification "stripe-identity-document-and-selfie-webhook-auto-approval"
+             :status "live"}
+            {:id "web-reviewed" :role "component-not-offered"
              :verification "browser-document-and-supervised-live-video-review"
-             :status "policy-tested-enrollment-closed"}
-            {:id "app-passport" :weight 80 :role "additional-trust-route"
+             :status "component-enrollment-closed"}
+            {:id "app-passport" :role "component-not-offered"
              :verification "ICAO-TD3-LDS0-SHA2-and-holder-review"
-             :status "capture-bridge-tested-app-pending"}]
+             :status "component-capture-bridge-tested-app-pending"}]
    :credentialProfile "kotoba-identity+jwt" :zeroKnowledge false
-   :captureHosts ["browser-capture-implemented-intake-closed" "ios-native-bridge"]
-   :intake {:policyVersion "kotoba-web-intake-2026-09-v1" :console "/identity"
-            :storage "encrypted-vault-tested-private-ports-unconnected"
-            :review "queue-view-and-signed-decisions-implemented-operator-enrollment-pending"}
-   :pending ["private-canonical-storage-host" "production-key-management" "reviewer-signing-enrollment" "review-operations" "published-retention-and-contact-notice"]
-   :additionalRoutePending ["production-trust-bundle" "physical-passport-qualification" "signed-phone-app"]})
+   :intake {:console "/ekyc.md"
+            :provider "stripe" :verificationHost "https://verify.stripe.com"
+            :images "sent-to-stripe-only-not-stored-by-kotoba-cloud"}
+   :componentsNotOffered ["web-reviewed" "app-passport"]})
