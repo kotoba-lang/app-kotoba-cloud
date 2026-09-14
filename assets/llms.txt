@@ -16,7 +16,13 @@ Free allowance after verified identity: 50 requests per day, up to 2,048 output 
 
 Registration steps the agent can drive (human completes the Stripe identity check):
 - Full registration guide: https://kotoba.cloud/ekyc.md
-1. Sign in (Passkey): https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F
+1. Sign in at https://auth.kotoba.cloud/sign-in — any method works and yields the
+   same Stable Principal (identity method does not affect verification):
+   - Passkey (Face ID / Touch ID / Windows Hello), or
+   - Your own key: self-minted CACAO (`kotoba cacao --aud https://auth.kotoba.cloud`), or
+   - Ethereum wallet (SIWE) or Base Account, or
+   - Recovery phrase (BIP-39, derived in-browser).
+   The session cookie (`credentials: "same-origin"`) is what the research API reads.
 2. POST https://api.kotoba.cloud/v1/research/ekyc/start (same-origin JSON:
    {"scopeId":"owned","tasks":["code-review"]}) → verificationUrl
 3. Human opens the verificationUrl (https://verify.stripe.com) — agents never complete the identity check themselves.

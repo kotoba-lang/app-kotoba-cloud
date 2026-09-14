@@ -17,8 +17,13 @@ Free allowance after verified identity: 50 requests per day, up to 2,048 output 
 
 ## Registration (Stripe Identity only — agent-followable)
 
-1. Sign in with a Passkey: https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F
-   The research API reads the session cookie; use credentials "same-origin".
+1. Sign in at https://auth.kotoba.cloud/sign-in — any method works and yields the
+   same Stable Principal (identity method does not affect verification):
+   - Passkey (Face ID / Touch ID / Windows Hello), or
+   - Your own key: self-minted CACAO (`kotoba cacao --aud https://auth.kotoba.cloud`), or
+   - Ethereum wallet (SIWE) or Base Account, or
+   - Recovery phrase (BIP-39, derived in-browser).
+   The session cookie (`credentials: "same-origin"`) is what the research API reads.
 2. POST https://api.kotoba.cloud/v1/research/ekyc/start
    Body: {"scopeId":"owned","tasks":["code-review"]}
    Response: {"sessionId","externalId","verificationUrl","expiresAt","scopeId","tasks"}
