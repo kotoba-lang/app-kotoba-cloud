@@ -683,6 +683,20 @@
       (and (= path "/api/funnel/event") (= method "POST"))
       (route-funnel-event request env)
 
+      ;; Former kotobase.net surfaces. Operations resolve to the graph
+      ;; workbench on the apex document; documentation is a static page.
+      ;; graph.kotoba.cloud stays unprovisioned (one canonical origin).
+      (and (= path "/graph") (= method "GET"))
+      (redirect (if (= (locale/negotiate
+                        {:path path
+                         :cookie (session/cookie-value (.get (.-headers request) "cookie")
+                                                       locale/cookie-name)
+                         :accept-language (.get (.-headers request) "accept-language")
+                         :country (request-country request)})
+                       :ja)
+                 "/ja/#knowledge/overview"
+                 "/#knowledge/overview"))
+
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
 
