@@ -1,6 +1,5 @@
 (ns app-kotoba-cloud.research-site
   (:require [app-kotoba-cloud.research :as research]
-            [app-kotoba-cloud.identity-site :as identity-site]
             [jp-go-dds.core :as dds]))
 
 (defn copy [locale]
@@ -23,7 +22,7 @@
             ["03 / 直す" "修正と再検証" "修正案、回帰テスト、責任ある開示のための報告書をまとめます。"]]
      :register "本人確認から、無料の研究環境へ。"
      :steps [["アカウント" "既存のアカウントでログイン。ウォレット接続だけでは本人確認済みになりません。"]
-             ["eKYC" "ブラウザで書類撮影とライブ本人照合を行う経路を準備中。審査完了で信頼スコア60点。アプリのIC旅券確認は別経路として後から加点できます。"]
+             ["eKYC" "本人確認は Stripe Identity 経路のみです。verify.stripe.com で書類・顔の確認が完了すると自動承認されます（ekyc 365日、screening 24時間、trust 60点）。"]
              ["AML / CTF" "制裁・PEP 等の照合、リスク審査、必要な追加確認。保留・期限切れ・停止中は推論できません。"]
              ["無料で調査" "調査権限と対象範囲を確認後、無料枠を利用。確認後も継続的な再審査を行います。"]]
      :fee "本人確認済みの研究者は $0"
@@ -57,7 +56,7 @@
             ["03 / REMEDIATE" "Close the loop" "Prepare fixes, regression tests and reports for responsible disclosure."]]
      :register "One verified identity. A free research workspace."
      :steps [["Account" "Sign in with your existing account. A connected wallet alone is not verified identity."]
-             ["eKYC" "Browser document capture and supervised live identity review are in development. Approved Web review contributes 60 trust points. App passport verification can add an independent route later."]
+             ["eKYC" "Identity verification runs on Stripe Identity only. Completing the document and selfie check at verify.stripe.com approves the account automatically (ekyc 365d, screening 24h, trust 60 points)."]
              ["AML / CTF" "Sanctions and PEP screening, risk review and additional checks where needed. Pending, expired or suspended records cannot infer."]
              ["Free research" "Confirm authorization and research scope, then use the free allowance. Ongoing review keeps eligibility current."]]
      :fee "$0 for verified researchers"
@@ -79,8 +78,7 @@
 
 (defn sections [locale sign-in]
   (let [t (copy locale)]
-    [(identity-site/section locale)
-     [:section {:class "kc-research-hero" :id "research"}
+    [[:section {:class "kc-research-hero" :id "research"}
       (dds/container
        [:p {:class "kc-eyebrow"} "KOTOBA CLOUD / WHITE HAT RESEARCH"]
        (dds/heading 1 (:title t) {:size "64"})
@@ -110,7 +108,7 @@
        (dds/card (dds/heading 3 (:fee t) {:size "24"}) [:p (:quota t)])
        (dds/row (dds/button (:login t) {:href sign-in :type :outline})
                 (dds/button (:refresh t) {:id "research-refresh" :type :outline})
-                (dds/button (if (= locale :ja) "本人確認画面（準備中）" "Identity console (preparing)") {:href "/identity" :type :outline}))
+                (dds/button (if (= locale :ja) "研究者登録（Stripe Identity）" "Research registration (Stripe Identity)") {:href "/ekyc.md" :type :outline}))
        [:p {:id "research-status" :role "status" :aria-live "polite"} (:pending t)]
        [:form {:id "research-application" :class "kc-research-form"}
         [:label (if (= locale :ja) "本人確認の方法" "Verification method") [:select {:id "research-mode"} [:option {:value "new"} (:new t)] [:option {:value "reuse"} (:reuse t)]]]

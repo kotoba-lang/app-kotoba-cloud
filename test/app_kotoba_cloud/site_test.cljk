@@ -201,9 +201,9 @@
         (is (str/includes? html hook) hook))
       (is (not (str/includes? html "id=\"research-completion\""))))))
 
-(deftest identity-route-has-its-own-document
+(deftest identity-route-is-stripe-only
   (let [html (site/identity-html)]
-    (is (str/includes? html "id=\"identity-console\""))
-    (is (str/includes? html "id=\"identity-refresh\""))
-    (is (not (str/includes? html "norbert-form")))
-    (is (str/includes? html "https://freebuff.com/freebuff-tag.js"))))
+    (is (str/includes? html "Stripe Identity"))
+    (is (str/includes? html "/ekyc.md"))
+    (is (not (str/includes? html "id=\"identity-console\"")))
+    (is (not (str/includes? html "norbert-form")))))
