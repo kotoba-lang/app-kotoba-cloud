@@ -65,11 +65,12 @@
 
 (defn- rated [parts divisor]
   (let [n #?(:clj (reduce + (map (fn [[u r]] (* (bigint u) (bigint r))) parts))
-             :cljs (reduce (fn [sum [u r]] (js* "(~{} + (~{} * ~{}))" sum (js/BigInt u) (js/BigInt r)))
+             ;; nbb cannot analyze js* syntax; plain BigInt operator calls work.
+             :cljs (reduce (fn [sum [u r]] (+ sum (* (js/BigInt u) (js/BigInt r))))
                            (js/BigInt 0) parts))
         d #?(:clj (bigint divisor) :cljs (js/BigInt divisor))
         value #?(:clj (quot (+ n (dec d)) d)
-                 :cljs (js/Number (js* "((~{} + ~{} - 1n) / ~{})" n d d)))]
+                 :cljs (js/Number (/ (+ n (- d (js/BigInt 1))) d)))]
     (when-not (natural? value) (throw (ex-info "usage-arithmetic-overflow" {})))
     value))
 
