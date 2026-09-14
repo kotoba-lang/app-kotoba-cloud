@@ -1,0 +1,26 @@
+(ns app-kotoba-cloud.billing-readiness
+  "Read-only merchant check. Exposes no credentials or Stripe account details."
+  (:require ["stripe" :as Stripe]))
+(def expected-account "acct_1TuxvPIzvFrqWhXK")
+(defn- retrieve! [env]
+  (let [key (aget env "STRIPE_AWAI_LIVE_KEY")]
+    (if-not (and (string? key) (re-find #"^(rk|sk)_live_" key))
+      (js/Promise.resolve #js {:status "live-key-not-configured"})
+      (let [client (Stripe. key #js {:apiVersion "2026-07-29.dahlia" :maxNetworkRetries 0 :timeout 10000
+                                     :httpClient (.createFetchHttpClient Stripe)})]
+        (-> (.retrieve (.-accounts client))
+            (.then (fn [^js account]
+                     #js {:status (if (= expected-account (.-id account)) "connected" "account-mismatch")
+                          :chargesEnabled (and (= expected-account (.-id account)) (true? (.-charges_enabled account)))
+                          :payoutsEnabled (and (= expected-account (.-id account)) (true? (.-payouts_enabled account)))}))
+            (.catch (fn [e]
+                      #js {:status (case (.-statusCode e) 401 "invalid-live-key" 403 "account-read-permission-required" "stripe-unavailable")})))))))
+
+(defonce checks (js/WeakMap.))
+(defn check! [env]
+  (let [prior (.get checks env) now (js/Date.now)]
+    (if (and prior (< now (.-expires prior)))
+      (.-result prior)
+      (let [result (retrieve! env)]
+        (.set checks env #js {:expires (+ now 300000) :result result})
+        result))))

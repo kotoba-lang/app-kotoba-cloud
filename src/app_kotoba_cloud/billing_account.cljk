@@ -87,6 +87,25 @@
                                         (if (:frozen next) 503 200))))))))
       (.catch (fn [e] (response {:error (or (ex-message e) "admission-unavailable")}
                                (if (= "usage-limit-exceeded" (ex-message e)) 402 503))))))
+(defn- settle-usage [storage {:keys [id kind receipt]}]
+  (-> (.get storage "limits")
+      (.then (fn [saved]
+               (let [ledger (or (decode saved) limits/empty-ledger)
+                     charge (billing/receipt-charge kind receipt)
+                     reservation (get-in ledger [:reservations id])
+                     prior (get-in ledger [:receipts (:id charge)])]
+                 (when-not (= (:scope charge) (:scope reservation))
+                   (throw (ex-info "usage-scope-mismatch" {})))
+                 (when (and prior (not= prior {:reservationId id :charge charge}))
+                   (throw (ex-info "usage-receipt-conflict" {})))
+                 (let [next (-> (limits/settle ledger {:id id :actual (:amount charge) :receiptId (:id charge)})
+                                (assoc-in [:receipts (:id charge)] {:reservationId id :charge charge}))]
+                   ;; Receipt and monetary settlement commit in the same durable write.
+                   (-> (save storage "limits" next)
+                       (.then (fn [_] (response {:settled (not (:frozen next))
+                                                :receiptId (:id charge) :amountMicroUSD (:amount charge)}
+                                               (if (:frozen next) 503 200)))))))))
+      (.catch (fn [_] (response {:error "usage-settlement-pending"} 503)))))
 (defn- event! [storage env event]
   (-> (.get storage "customer")
       (.then (fn [saved]
@@ -142,6 +161,7 @@
   (let [storage (aget state "storage") principal (:principal body)]
     (case path
       ("/reserve" "/settle") (admission storage path body)
+      "/settle-usage" (settle-usage storage body)
       "/usage" (enqueue-usage state body)
       "/checkout" (checkout storage env principal body)
       "/event" (event! storage env (:event body))

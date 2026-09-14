@@ -62,3 +62,33 @@
     [(-> line (assoc :id (str (:id line) ":ai") :scope "ai") (dissoc :gib))
      (-> line (assoc :id (str (:id line) ":storage") :scope "storage") (dissoc :credits))]
     [line]))
+
+(defn- rated [parts divisor]
+  (let [n #?(:clj (reduce + (map (fn [[u r]] (* (bigint u) (bigint r))) parts))
+             :cljs (reduce (fn [sum [u r]] (js* "(~{} + (~{} * ~{}))" sum (js/BigInt u) (js/BigInt r)))
+                           (js/BigInt 0) parts))
+        d #?(:clj (bigint divisor) :cljs (js/BigInt divisor))
+        value #?(:clj (quot (+ n (dec d)) d)
+                 :cljs (js/Number (js* "((~{} + ~{} - 1n) / ~{})" n d d)))]
+    (when-not (natural? value) (throw (ex-info "usage-arithmetic-overflow" {})))
+    value))
+
+(defn receipt-charge
+  "Rate only an authenticated producer receipt. Round once per receipt to micro-USD.
+  Storage is retained byte-seconds over a fixed 30-day billing month."
+  [kind receipt]
+  (case kind
+    "inference"
+    (let [event (token-event receipt nil)
+          {:keys [input_tokens cached_input_tokens output_tokens]} (:properties event)
+          parts [[input_tokens (:input-per-million rates)]
+                 [cached_input_tokens (:cached-input-per-million rates)]
+                 [output_tokens (:output-per-million rates)]]]
+      {:id (:transaction_id event) :scope "ai" :event event
+       :amount (rated parts 1000000)})
+    "storage"
+    (let [event (storage-event receipt nil)
+          byte-seconds (* (:bytes receipt) (:seconds receipt))]
+      {:id (:transaction_id event) :scope "storage.capacity" :event event
+       :amount (rated [[byte-seconds (:storage-gib-month rates)]] (* 1073741824 2592000))})
+    (throw (ex-info "unknown-meter" {}))))

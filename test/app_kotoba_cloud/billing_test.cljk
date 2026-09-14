@@ -64,3 +64,11 @@
               (limits/settle {:id "r" :actual 40 :receiptId "receipt"}))]
     (is (= 30 (get-in l [:spent "z-included"])))
     (is (= 10 (get-in l [:spent "a-topup"])))))
+
+(deftest authoritative-rating
+  (let [r {:requestId "rating-test" :model "fixture" :inputTokens 1000000
+           :cachedInputTokens 200000 :outputTokens 100000 :occurredAt "2026-09-14T00:00:00Z"}]
+    (is (= 750000 (:amount (b/receipt-charge "inference" r))))
+    (is (= 1 (:amount (b/receipt-charge "inference" (assoc r :inputTokens 1 :cachedInputTokens 0 :outputTokens 0)))))
+    (is (thrown? #?(:clj Exception :cljs js/Error) (b/receipt-charge "inference" (assoc r :cachedInputTokens 1000001)))))
+  (is (= 278 (:amount (b/receipt-charge "storage" {:sampleId "hour" :databaseId "db" :bytes 1073741824 :seconds 3600 :occurredAt "2026-09-14T00:00:00Z"})))))
