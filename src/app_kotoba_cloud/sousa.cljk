@@ -1,0 +1,294 @@
+(ns app-kotoba-cloud.sousa
+  "Investigation-support ontology: schema, validation, and queries.
+
+  This namespace defines the *ontology only* — entity kinds, the attributes
+  each kind may carry, the relations between kinds, and the case-status
+  lifecycle (reported → accepted → investigating → referred). It holds no
+  store and no HTTP: entities arrive as plain maps, validation is pure, and
+  the worker decides how results are served.
+
+  ## No real case data
+
+  Every map in this namespace is a synthetic fixture (`sample-*`). Real
+  investigation data is forbidden in this repository; the schema and the
+  validators are the deliverable.
+
+  ## Closed-world attributes
+
+  `validate-entity` rejects unknown attribute names outright (closed world)
+  rather than passing them through. An ontology that accepts anything is not
+  an ontology; unknown keys usually mean a caller confused two entity kinds,
+  and silently storing them would corrupt later queries.")
+
+;; ---------------------------------------------------------------------------
+;; Entity kinds and attributes
+;; ---------------------------------------------------------------------------
+
+(def entity-kinds
+  "The five core kinds of the investigation ontology."
+  #{:case :victim :suspect :evidence :procedure})
+
+(def case-statuses
+  "Linear lifecycle of a case. `reported` is the only legal initial status."
+  [:reported :accepted :investigating :referred])
+
+(def initial-case-status :reported)
+
+(def case-transitions
+  "Legal forward transitions only. A case never regresses: closing the loop
+  back to `reported` would mean re-opening an accepted report as if it had
+  never been accepted, which is a records correction, not a status move."
+  {:reported      #{:accepted}
+   :accepted      #{:investigating}
+   :investigating #{:referred}
+   :referred      #{}})
+
+(def ^:private attr-specs
+  "entity-kind -> {attr -> {:type :string/:keyword/:instant/:refs
+                            :required? bool
+                            :max-len int (strings)}}"
+  {:case
+   {:case-id      {:type :string :required? true :max-len 64}
+    :case-number  {:type :string :required? true :max-len 64}
+    :title        {:type :string :required? true :max-len 256}
+    :status       {:type :keyword :required? true :one-of (set case-statuses)}
+    :opened-at    {:type :instant :required? true}
+    :assigned-to  {:type :string :required? false :max-len 128}}
+
+   :victim
+   {:case-id      {:type :string :required? true :max-len 64}
+    :display-ref  {:type :string :required? true :max-len 64}
+    :protected?   {:type :boolean :required? false}}
+
+   :suspect
+   {:case-id      {:type :string :required? true :max-len 64}
+    :display-ref  {:type :string :required? true :max-len 64}
+    :status       {:type :keyword :required? true
+                   :one-of #{:unknown :person-of-interest :named :charged :cleared}}}
+
+   :evidence
+   {:case-id        {:type :string :required? true :max-len 64}
+    :evidence-id    {:type :string :required? true :max-len 64}
+    :evidence-kind  {:type :keyword :required? true
+                     :one-of #{:physical :document :digital :testimony}}
+    ;; Chain of custody: an ordered log of who held the item and when. The
+    ;; first entry is collection; every later entry must follow it.
+    :custody-chain  {:type :custody :required? true}}
+
+   :procedure
+   {:case-id      {:type :string :required? true :max-len 64}
+    :procedure-id {:type :string :required? true :max-len 64}
+    ;; A procedure advances the case; its type must name the status it moves
+    ;; the case INTO (accept, investigate, refer). `report` opens one.
+    :type         {:type :keyword :required? true
+                   :one-of #{:report :accept :investigate :refer}}
+    :recorded-at  {:type :instant :required? true}}})
+
+;; ---------------------------------------------------------------------------
+;; Relations
+;; ---------------------------------------------------------------------------
+
+(def relations
+  "Kind -> kind -> relation name. Cardinality is expressed in the name and
+  enforced by query shape, not by a runtime — the ontology stays data."
+  {:case      {:victim     :case-has-victim
+               :suspect    :case-has-suspect
+               :evidence   :case-has-evidence
+               :procedure  :case-has-procedure}
+   :evidence  {:case :evidence-collected-from}
+   :procedure {:case :procedure-regarding}})
+
+(def relation-names
+  (set (for [m (vals relations) r (vals m)] r)))
+
+(defn relation-for [from to]
+  (get-in relations [from to]))
+
+;; ---------------------------------------------------------------------------
+;; Validation
+;; ---------------------------------------------------------------------------
+
+(defn- parse-ms
+  "Parse an ISO-8601 instant to epoch millis, nil when unparseable. Reader-
+  conditional because this ns runs on both the JVM test-runner and the JS
+  worker."
+  [s]
+  #?(:clj (try (-> (java.time.Instant/parse s) (.getEpochSecond) (* 1000))
+               (catch Exception _ nil))
+     :cljs (let [n (js/Date.parse s)] (when-not (js/isNaN n) n))))
+
+(defn- instant? [v]
+  (and (string? v) (some? (parse-ms v))))
+
+(defn- custody-entry-valid? [e]
+  (and (map? e)
+       (string? (:holder e)) (pos? (count (:holder e))) (<= (count (:holder e)) 128)
+       (string? (:held-at e)) (some? (parse-ms (:held-at e)))
+       (string? (:note e)) (<= (count (:note e)) 256)))
+
+(defn- custody-valid? [chain]
+  (and (vector? chain) (pos? (count chain)) (every? custody-entry-valid? chain)))
+
+(defn validate-entity
+  "Validate `entity` (a map with :kind). -> `{:ok bool :errors [...]}`.
+
+  Closed world: an unknown kind, unknown attribute, or unknown keyword value
+  is an error, not a warning."
+  [{:keys [kind] :as entity}]
+  (let [spec (get attr-specs kind)]
+    (if-not spec
+      {:ok false :errors [(if (nil? kind) :unknown-kind :unknown-entity-type)]}
+      (let [errors
+            (into []
+                  (concat
+                   ;; unknown attributes
+                   (keep (fn [k]
+                           (when-not (contains? spec k) [:unknown-attribute k]))
+                         (keys (dissoc entity :kind)))
+                   ;; missing required
+                   (keep (fn [[a s]]
+                           (when (and (:required? s) (nil? (get entity a)))
+                             [:missing-required a]))
+                         spec)
+                   ;; per-attribute checks
+                   (keep (fn [[a s]]
+                           (let [v (get entity a)]
+                             (when (some? v)
+                               (case (:type s)
+                                 :string (when-not (and (string? v)
+                                                        (pos? (count v))
+                                                        (<= (count v) (:max-len s)))
+                                           [:invalid-attribute a])
+                                 :keyword (when-not (contains? (:one-of s) v)
+                                            [:invalid-attribute a])
+                                 :instant (when-not (instant? v)
+                                            [:invalid-attribute a])
+                                 :boolean (when-not (boolean? v)
+                                            [:invalid-attribute a])
+                                 :custody (when-not (custody-valid? v)
+                                            [:invalid-attribute a])
+                                 nil))))
+                         spec)))]
+        {:ok (empty? errors) :errors errors}))))
+
+(defn validate-custody-chain
+  "A chain is legal when it is a non-empty vector of valid entries ordered by
+  time. Equal timestamps are allowed (handover recorded twice on the hour)."
+  [chain]
+  (and (custody-valid? chain)
+       (apply <= (map parse-ms (map :held-at chain)))))
+
+(defn valid-transition?
+  "Is moving `from` -> `to` a legal case-status transition?"
+  [from to]
+  (contains? (get case-transitions from) to))
+
+(defn advance-status
+  "Apply a procedure of `type` to a case in `status`.
+  -> `{:ok true :status new-status}` or `{:ok false :reason ...}`."
+  [status type]
+  (let [target (case type :report :reported :accept :accepted
+                     :investigate :investigating :refer :referred
+                     nil)]
+    (cond
+      (nil? target)        {:ok false :reason :unknown-procedure-type}
+      (= :report type)     {:ok false :reason :case-already-reported}
+      (valid-transition? status target) {:ok true :status target}
+      :else                {:ok false :reason :illegal-transition})))
+
+;; ---------------------------------------------------------------------------
+;; Queries (pure, over caller-supplied in-memory records)
+;; ---------------------------------------------------------------------------
+
+(defn- has-case-id? [case-id]
+  (fn [{:keys [kind] :as e}]
+    (and (contains? #{:victim :suspect :evidence :procedure} kind)
+         (= case-id (:case-id e)))))
+
+(defn linked-entities
+  "Everything linked to `case-id`, grouped by kind."
+  [records case-id]
+  (let [pred (has-case-id? case-id)
+        matches (filter pred records)]
+    (into {}
+          (map (fn [k] [k (filterv #(= k (:kind %)) matches)]))
+          [:victim :suspect :evidence :procedure])))
+
+(defn case-with-links
+  "The case record plus every linked entity. Returns `{:ok false}` when no
+  case matches — an absent case is not an empty one."
+  [records case-number]
+  (let [case-e (first (filter #(and (= :case (:kind %))
+                                    (= case-number (:case-number %))) records))]
+    (if-not case-e
+      {:ok false :reason :case-not-found}
+      {:ok true :case case-e :links (linked-entities records (:case-id case-e))})))
+
+(defn chain-of-custody
+  "Custody chain of the evidence with `ev-id` inside `case-id`.
+  -> `{:ok true :chain [...]}` | `{:ok false :reason :evidence-not-found}`."
+  [records case-id ev-id]
+  (if-let [ev (first (filter #(and (= :evidence (:kind %))
+                                   (= case-id (:case-id %))
+                                   (= ev-id (:evidence-id %)))
+                             records))]
+    {:ok true :chain (:custody-chain ev)}
+    {:ok false :reason :evidence-not-found}))
+
+(defn next-legal-statuses
+  "For the worker's read-only route: what may this status move to."
+  [status]
+  (vec (sort (get case-transitions status))))
+
+;; ---------------------------------------------------------------------------
+;; Schema document served at /schemas/sousa-ontology/v1
+;; ---------------------------------------------------------------------------
+
+(def ontology-schema-document
+  {:name "sousa-ontology"
+   :version "v2"
+   :entityKinds (mapv name (sort entity-kinds))
+   :caseStatuses (mapv name case-statuses)
+   :caseTransitions (into (sorted-map)
+                          (map (fn [[k v]] [(name k) (vec (sort v))]))
+                          case-transitions)
+   :attributes (into (sorted-map)
+                     (map (fn [[k spec]]
+                            [(name k) (into (sorted-map)
+                                            (map (fn [[a s]]
+                                                   [(name a)
+                                                    (merge {:type (name (:type s))
+                                                            :required (boolean (:required? s))}
+                                                            (when (:one-of s)
+                                                              {:oneOf (mapv name (sort-by str (:one-of s)))})
+                                                            (when (:max-len s) {:maxLength (:max-len s)}))])
+                                            spec))]))
+                     attr-specs)
+   :relations (into (sorted-map)
+                    (map (fn [[from m]]
+                           [(name from) (into (sorted-map)
+                                              (map (fn [[to r]] [(name to) (name r)]))
+                                              m)]))
+                    relations)
+   :notes ["closed-world validation: unknown attributes are rejected"
+           "case status lifecycle is forward-only"
+           "evidence carries a chain-of-custody log; no real case data"]})
+
+;; ---------------------------------------------------------------------------
+;; Synthetic fixtures — the only data in this namespace
+;; ---------------------------------------------------------------------------
+
+(def sample-case
+  {:kind :case :case-id "case-sample-001" :case-number "R2-2026-0001"
+   :title "Synthetic sample case (no real-world referent)"
+   :status :investigating :opened-at "2026-09-14T00:00:00Z"})
+
+(def sample-records
+  [sample-case
+   {:kind :victim :case-id "case-sample-001" :display-ref "victim-A" :protected? true}
+   {:kind :suspect :case-id "case-sample-001" :display-ref "suspect-B" :status :person-of-interest}
+   {:kind :evidence :case-id "case-sample-001" :evidence-id "ev-001" :evidence-kind :digital
+    :custody-chain [{:holder "officer-1" :held-at "2026-09-14T01:00:00Z" :note "collected"}
+                    {:holder "lab-1" :held-at "2026-09-14T02:00:00Z" :note "submitted for analysis"}]}
+   {:kind :procedure :case-id "case-sample-001" :procedure-id "proc-002"
+    :type :investigate :recorded-at "2026-09-14T03:00:00Z"}])
