@@ -5,7 +5,7 @@
   (:require [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.research-gateway :as shared]
             [goog.object :as gobj]))
-(def paths #{"/v1/org/create" "/v1/org/delegate" "/v1/org/revoke" "/v1/org/status" "/v1/org/authorize"})
+(def paths #{"/v1/org/create" "/v1/org/delegate" "/v1/org/revoke" "/v1/org/status" "/v1/org/authorize" "/v1/org/verify"})
 (def origins shared/origins)
 
 (defn- service [binding path payload respond]
@@ -31,6 +31,16 @@
         binding (gobj/get env "ORG_AUTHORITY")]
     (cond
       (not= method "POST") (respond {:error {:code "method-not-allowed"}} 405)
+      ;; Verification is a public capability: anyone holding a membership VC
+      ;; (or a third party verifying one) may call it. Still same-origin and
+      ;; bounded; the authority does the cryptographic work.
+      (= path "/v1/org/verify")
+      (if-not (contains? origins (.get (.-headers request) "origin"))
+        (respond {:error {:code "origin-not-allowed"}} 403)
+        (if-not binding
+          (respond {:error {:code "org-authority-not-configured"}} 503)
+          (-> (shared/bounded-json request 16384)
+              (.then (fn [body] (service binding "/verify" body respond))))))
       (= path "/v1/org/status")
       ;; status is same-origin POST too (no cross-origin org listing)
       (if-not (contains? origins (.get (.-headers request) "origin"))

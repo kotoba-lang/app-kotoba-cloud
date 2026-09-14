@@ -570,8 +570,8 @@ assert.equal(researchCalls.length, 0);
 {
   const orgCalls = [];
   const orgEnv = { ...env, ORG_AUTHORITY: { fetch: async (url, init) => {
-   orgCalls.push(new URL(url instanceof Request ? url.url : url).pathname);
-   const body = JSON.parse(init && init.body ? init.body : await url.text());
+   orgCalls.push(new URL(url).pathname);
+   const body = JSON.parse(init.body);
     assert.equal(body.principalId, researchPrincipal);
     return Response.json({ orgDid: 'did:webvh:com-test:test.kotoba.cloud', handle: 'com-test.kotoba.cloud' });
   }}};
@@ -1036,4 +1036,60 @@ console.log('Scoped database session exchange and header isolation passed');
   // authority rejection propagates as 403
   const rejectEnv={...orgSessionEnv,ORG_AUTHORITY:{fetch:async()=>Response.json({error:'org-membership-required'},{status:403})}};
   assert.equal((await orgReq({...scopedToken,orgHandle:'com-test.kotoba.cloud'},rejectEnv)).status,403);
+}
+
+
+// Org authority: webvh mint, VC proof, biscuit issuance (ADR-2609141633 wrap-up).
+// The private authority mints a real did:webvh genesis log at /create; /delegate
+// returns a membership VC carrying a DataIntegrityProof; an optional
+// memberNextPublicKey yields a Biscuit authority block the member attenuates offline.
+{
+  const orgInternalCalls=[];
+  const mkOrgEnv=()=>({AUTHN_SERVICE:sessionEnv.AUTHN_SERVICE,
+    ORG_AUTHORITY:{fetch:async(url,init)=>{
+      const u=String(url);
+      orgInternalCalls.push(new URL(u).pathname);
+      const body=JSON.parse(init.body);
+      if (u.endsWith('/create')) {
+        return Response.json({orgDid:'did:webvh:zSCIDtest:com-x.kotoba.cloud',handle:body.handle,
+          scid:'zSCIDtest',webvhLog:'{"versionId":"1-zSCIDtest"}',
+          ownerPrincipal:body.principalId,schemaVersion:'kotoba-org-membership-2026-09-v1'});
+      }
+      if (u.endsWith('/delegate')) {
+        const vc={issuer:'did:webvh:zSCIDtest:com-x.kotoba.cloud',
+          credentialSubject:{id:body.memberPrincipalId,org:'did:webvh:zSCIDtest:com-x.kotoba.cloud',
+            role:body.role,handle:body.orgHandle},
+          proof:{type:'DataIntegrityProof',cryptosuite:'eddsa-jcs-2022',jws:'c2ln'}};
+        const out={orgDid:vc.issuer,handle:body.orgHandle,
+          member:{principalId:body.memberPrincipalId,role:body.role,status:'active'},
+          membership:vc};
+        if (body.memberNextPublicKey) out.biscuit='biscuit/edn-v1 fixture';
+        return Response.json(out);
+      }
+      return Response.json({ok:true});
+    }}});
+  const oreq=(path,body)=>route(new Request('https://kotoba.cloud'+path,{method:'POST',
+    headers:{cookie:'gftd_session=fixture',origin:'https://kotoba.cloud','content-type':'application/json'},
+    body:JSON.stringify(body)}),mkOrgEnv());
+  const cr=await oreq('/v1/org/create',{handle:'com-x.kotoba.cloud',role:'owner'});
+  assert.equal(cr.status,200);
+  const crb=await cr.json();
+  assert.equal(crb.orgDid,'did:webvh:zSCIDtest:com-x.kotoba.cloud');
+  assert.ok(String(crb.webvhLog).includes('1-zSCIDtest'));
+  const dr=await oreq('/v1/org/delegate',{orgHandle:'com-x.kotoba.cloud',
+    memberPrincipalId:'did:key:z6Mkmember',role:'member',
+    memberNextPublicKey:'b64url-member-key'});
+  assert.equal(dr.status,200);
+  const drb=await dr.json();
+  assert.equal(drb.membership.proof.type,'DataIntegrityProof');
+  assert.equal(drb.membership.proof.cryptosuite,'eddsa-jcs-2022');
+  assert.ok(drb.biscuit.startsWith('biscuit/edn-v1'));
+  // verify: public capability, still same-origin
+  const vr=await route(new Request('https://kotoba.cloud/v1/org/verify',{method:'POST',
+    headers:{origin:'https://kotoba.cloud','content-type':'application/json'},
+    body:JSON.stringify({credential:drb.membership})}),mkOrgEnv());
+  assert.equal(vr.status,200);
+  const noOrigin=await route(new Request('https://kotoba.cloud/v1/org/verify',{method:'POST',
+    headers:{'content-type':'application/json'},body:'{}'}),{});
+  assert.equal(noOrigin.status,403);
 }
