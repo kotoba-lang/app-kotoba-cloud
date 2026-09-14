@@ -60,18 +60,21 @@
 
 (defn- create-identity-session!
   "Inline Stripe Identity session create (document type, bound verification
-  flow). Fails closed when STRIPE_IDENTITY_KEY / STRIPE_VERIFICATION_FLOW are
-  absent. Validates the same response predicates as the provider adapter."
+  flow). Fails closed without STRIPE_IDENTITY_KEY (or the AWAI fallback).
+  STRIPE_VERIFICATION_FLOW is optional: when set it is sent as
+  verification_flow; when absent a plain type=document session is created
+  (Stripe accepts it, as verified live)."
   [env principal external-id]
-  (let [key (stripe-credential! env) flow (aget env "STRIPE_VERIFICATION_FLOW")]
-    (when-not (text? flow 128) (throw (ex-info "stripe-identity-not-configured" {:status 503})))
+  (let [key (stripe-credential! env)
+        flow (let [f (aget env "STRIPE_VERIFICATION_FLOW")] (when (text? f 128) f))
+        flow-part (if flow (str "&verification_flow=" (js/encodeURIComponent flow)) "")]
     (-> (js/fetch (str stripe-origin "/v1/identity/verification_sessions")
                   #js {:method "POST" :redirect "error"
                        :signal (js/AbortSignal.timeout 30000)
                        :headers #js {"content-type" "application/x-www-form-urlencoded"
                                      "authorization" (str "Bearer " key)}
                        :body (str "type=document"
-                                  "&verification_flow=" (js/encodeURIComponent flow)
+                                  flow-part
                                   "&client_reference_id=" (js/encodeURIComponent external-id)
                                   "&metadata[principal]=" (js/encodeURIComponent principal))})
         (.then (fn [r]
