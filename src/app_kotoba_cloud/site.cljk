@@ -8,6 +8,7 @@
             [app-kotoba-cloud.identity-site :as identity-site]
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
+            [app-kotoba-cloud.crypto-site :as crypto-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.profile :as profile]
@@ -720,7 +721,7 @@
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css security-site/css)
+                :app-css (str tokens/skin-css app-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css security-site/css)
                 :head (document-head locale :path (:title t) (:description t))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
@@ -741,6 +742,13 @@
                    :css (document-css)
                    :app-css (str tokens/skin-css tokens/bridge-css csf2-site/css)}
                   (csf2-site/view))))
+
+(defn crypto-html []
+  (page/->page {:title "暗号資産詐欺対応カタログ — Kotoba Cloud" :lang "ja"
+                :description "全世界の暗号資産取引所の情報・セキュリティ通報窓口と、国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログ。"
+                :css (document-css)
+                :app-css (str tokens/skin-css tokens/bridge-css crypto-site/css)}
+               (crypto-site/view)))
 
 #?(:clj
    (defn admin-html []
@@ -870,6 +878,14 @@
          (let [rel (.relativize (.toPath (io/file "assets" "csf2-catalog")) (.toPath source))
                target (io/file root (str "security-data/csf2/" rel))]
            (io/make-parents target) (io/copy source target)))
+       ;; Crypto-asset fraud-response catalog: static page + sourced data blocks
+       (doseq [path ["crypto/index.html" "security/crypto/index.html" "ja/security/crypto/index.html"]]
+         (let [target (io/file root path)] (io/make-parents target) (spit target (crypto-html))))
+       (doseq [source (file-seq (io/file "assets" "crypto-catalog")) :when (.isFile ^java.io.File source)]
+         (let [rel (.relativize (.toPath (io/file "assets" "crypto-catalog")) (.toPath source))
+               target (io/file root (str "crypto-data/crypto/" rel))]
+           (io/make-parents target) (io/copy source target)))
+       (io/copy (io/file "assets" "crypto-catalog.js") (io/file js-dir "crypto-catalog.js"))
        (spit (io/file js-dir "chat-components.js") chat-site/browser-script)
        (spit (io/file js-dir "graph-workbench.js") graph-workbench/script)
        (spit (io/file js-dir "knowledge-host.js") knowledge-site/script)
