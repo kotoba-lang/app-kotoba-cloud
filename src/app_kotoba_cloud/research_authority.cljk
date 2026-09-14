@@ -14,7 +14,8 @@
   Operator decisions (eKYC verification, screening clearance, scope approval,
   suspension) require an HMAC-SHA256 signature over the canonical operation
   tuple with the RESEARCH_OPERATOR_SECRET. The secret never leaves the Worker;
-  operator calls arrive over the same private binding.")
+  operator calls arrive over the same private binding."
+  (:require [app-kotoba-cloud.research-providers :as providers]))
 
 (def version "kotoba-research-authority-2026-09-v1")
 
@@ -555,7 +556,65 @@
     "/ekyc/start" :ekyc-start
     "/ekyc/webhook" :ekyc-webhook
     "/ekyc/status" :ekyc-status
+    "/ekyc/self/webhook" :ekyc-self-webhook
     nil))
+
+(defn- handle-self-verify-ekyc [env storage body]
+  ;; Layer wiring for the Self (self.xyz) route: Svix-verified webhook evidence
+  ;; applies the full approval chain. Admissibility (signature, flow binding,
+  ;; ofac/minimumAge proof attributes, freshness) is delegated to the provider
+  ;; adapter; raw + svix headers ride in the body (edge relays them verbatim).
+  (let [now (.now js/Date)
+        challenge {:sessionId (:sessionId body) :externalId (:externalId body)
+                   :principal (:principalId body) :scopeId (:scopeId body)
+                   :tasks (vec (:tasks body)) :consumed false
+                   :createdAt (:challengeCreatedAt body) :expiresAt (:challengeExpiresAt body)}]
+    (-> (providers/verify-event
+         {:apiKey (aget env "SELF_API_KEY") :webhookSecret (aget env "SELF_WEBHOOK_SECRET")
+          :flowId (aget env "SELF_FLOW_ID") :flowVersionId (aget env "SELF_FLOW_VERSION_ID")}
+         challenge (:raw body) (:svixHeaders body) now)
+        (.then (fn [evidence]
+                 ;; Layer 4: duplicate-person resistance — the scoped nullifier is
+                 ;; consumed atomically with the approval chain.
+                 (let [nf (str "self-nullifier:" (:nullifier evidence))]
+                   (-> (js-invoke storage "get" nf)
+                       (.then (fn [existing]
+                                (let [prior (decode existing)]
+                                  (when (and prior (not= prior (:principalId body)))
+                                    (throw (ex-info "duplicate-person-rejected" {:status 403}))))
+                                (-> (load-state storage)
+                                    (.then (fn [record]
+                                             (let [record (or record {:status "none"
+                                                                      :principalId (:principalId body)
+                                                                      :scopes [] :applications []})
+                                                   next (-> record
+                                                            (assoc :policyVersion "whitehat-2026-09-12-v1")
+                                                            (assoc :ekyc {:status "verified"
+                                                                          :evidenceRef (:sessionId evidence)
+                                                                          :verifiedAt now :expiresAt (+ now ekyc-ttl-ms)})
+                                                            (assoc :screening {:status "clear"
+                                                                               :evidenceRef (str "self:" (:eventId evidence))
+                                                                               :checkedAt now
+                                                                               :expiresAt (+ now screening-ttl-ms)})
+                                                            (assoc :trust {:score (get weights "web-reviewed")
+                                                                           :routes ["web-reviewed"]
+                                                                           :evaluatedAt now
+                                                                           :expiresAt (+ now trust-window-ms)}))
+                                                   next (assoc next :scopes
+                                                               (conj (filterv #(not= (:scopeId body) (:id %)) (:scopes record))
+                                                                     {:id (:scopeId body) :status "approved"
+                                                                      :tasks (vec (:tasks body))
+                                                                      :expiresAt (+ now 86400000)}))
+                                                   next (assoc next :status "active")]
+                                               (-> (js-invoke storage "put" nf
+                                                              (js/JSON.stringify (clj->js (:principalId body))))
+                                                   (.then (fn [_] (save-state storage next)))
+                                                   (.then (fn [_]
+                                                            (response {:principalId (:principalId body)
+                                                                       :status (:status next)
+                                                                       :provider "self"
+                                                                       :approvedBy "self-zk"} 200)))))))))))))))))
+
 
 (defn- handle [state env path body]
   (let [storage (aget state "storage") now (.now js/Date)]
@@ -575,6 +634,7 @@
                   (.then (fn [_] (handle-review storage body))))
       :ekyc-start (handle-ekyc-start env storage body)
       :ekyc-webhook (handle-ekyc-webhook env storage body)
+      :ekyc-self-webhook (handle-self-verify-ekyc env storage body)
       :ekyc-status (handle-ekyc-status storage body)
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 

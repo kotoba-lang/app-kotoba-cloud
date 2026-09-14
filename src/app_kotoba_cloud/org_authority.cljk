@@ -8,7 +8,8 @@
             [didwebvh.entry :as entry]
             [didwebvh.signer :as vh-signer]
             [biscuit.token :as bt]
-            [ed25519.sign :as ed]))
+            [ed25519.sign :as ed]
+            [app-kotoba-cloud.org-registry :as org-registry]))
 
 (def schema-version "kotoba-org-membership-2026-09-v1")
 (def roles #{"owner" "admin" "member" "billing"})
@@ -369,6 +370,28 @@
                                                  :role (:role member)}
                                                 200))))))))))))))
 
+(defn- handle-registry [storage _body _now]
+  ;; Returns the COMPLETE registry document (static policy + live organization
+  ;; projection). The worker serializes this verbatim — no edge-side merging,
+  ;; so keyword-vs-JS-object pitfalls stay on this side of the binding.
+  (-> (all-orgs! storage)
+      (.then (fn [orgs]
+               (let [orgs (vec (js->clj (clj->js orgs) :keywordize-keys true))]
+               (response
+                (assoc (org-registry/registry)
+                       :organizations
+                       (vec (for [org orgs]
+                              {:orgDid (:did org) :handle (:handle org)
+                               :scid (:scid org)
+                               :didLog (str "/.well-known/kotoba-org-dids/" (:handle org) "/did.jsonl")
+                               :members (count (:members org))
+                               :createdAt (:createdAt org)}))
+                       :statusLists
+                       (vec (for [org orgs]
+                              {:id (str "https://kotoba.cloud/.well-known/kotoba-org-status/"
+                                        (:handle org) "/v1")})))
+                 200))))))
+
 (defn- handle-status [storage body]
   (if-not (text? (:principalId body) 256)
     (js/Promise.resolve (response {:error "invalid-org-status"} 400))
@@ -394,12 +417,19 @@
     "/authorize" handle-authorize
     "/verify" handle-verify
     "/didlog" handle-didlog
+    "/registry" handle-registry
     nil))
 
 (defn- handle [state env path body]
   (let [storage (aget state "storage") now (.now js/Date)]
     (if-let [op (route-op path)]
-      (op storage body now)
+      (cond
+        ;; arity-3 handlers take (storage body now)
+        (contains? #{handle-create handle-delegate handle-revoke handle-authorize} op)
+        (op storage body now)
+        (contains? #{handle-didlog handle-verify handle-status} op)
+        (op storage body)
+        :else (op storage))
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 
 (deftype OrgAuthority [^js state env]
