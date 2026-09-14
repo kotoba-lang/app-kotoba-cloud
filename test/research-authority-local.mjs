@@ -263,6 +263,19 @@ const r3 = await auth3.fetch(new Request("https://research.internal/ekyc/start",
 assert.equal(r3.status, 503);
 assert.equal(r3.json.error, "stripe-identity-not-configured");
 
+// S8b. ekyc/start works without STRIPE_VERIFICATION_FLOW (flow optional)
+{
+  const envNoFlow = { ...stripeEnv2 }; delete envNoFlow.STRIPE_VERIFICATION_FLOW;
+  const stNF = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const aNF = new ResearchAuthority(stNF, envNoFlow);
+  const rr = await aNF.fetch(new Request("https://research.internal/ekyc/start", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ principalId: p2 + "-noflow", sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] }),
+  })).then(x => x.json().then(j => ({ status: x.status, json: j })));
+  assert.equal(rr.status, 200, JSON.stringify(rr));
+  assert.ok(rr.json.sessionId && rr.json.verificationUrl);
+}
+
 // S9. approved principal can create a research job end-to-end
 r = await call2("/jobs/create", {
   principalId: p2, sessionRef: ref2, jobId: "33333333-3333-4333-8333-333333333333",
