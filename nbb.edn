@@ -15,4 +15,8 @@
         ;; fails with "Could not find namespace: jp-go-dds.core".
         io.github.kotoba-lang/jp-go-digital-design-system
         {:git/url "https://github.com/kotoba-lang/jp-go-digital-design-system.git"
-         :git/sha "94ffae44a8e248b196b7d0b8a692f0645c9d34b1"}}}
+         :git/sha "94ffae44a8e248b196b7d0b8a692f0645c9d34b1"}
+        ;; COPIED from deps.edn: chat_site/knowledge_site require cloud-kotoba-dds.
+        io.github.kotoba-lang/cloud-kotoba-dds
+        {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git"
+         :git/sha "502053418e9df99f167d3da8a5953edb1a73fc7e"}}}
