@@ -40,6 +40,10 @@
     {
       "binding": "IDENTITY_AUTHORITY",
       "service": "kotoba-identity-authority"
+    },
+    {
+      "binding": "DATABASE_SERVICE",
+      "service": "kotoba-cloud-database"
     }
   ],
   "r2_buckets": [

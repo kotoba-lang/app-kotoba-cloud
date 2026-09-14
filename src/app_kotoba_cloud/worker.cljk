@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.worker
   (:require [app-kotoba-cloud.billing-gateway :as billing-gateway]
+            [app-kotoba-cloud.database-gateway :as database-gateway]
             [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.boot :as boot]
             [app-kotoba-cloud.knowledge :as knowledge]
@@ -546,7 +547,7 @@
                           (= path (locale/locale-path (:locale decision))))
                       (assoc "content-security-policy"
                              (.replace (get security-headers "content-security-policy")
-                                       "connect-src 'self'" "connect-src 'self' https://kotobase.net"))
+                                       "connect-src 'self'" "connect-src 'self' https://api.kotoba.cloud"))
                       (:set-cookie? decision)
                       (assoc "set-cookie" (locale/cookie-header (:locale decision)))))))))))
 
@@ -640,6 +641,9 @@
 
         :else
         (json-response {:error {:code "not-found"}} 404))
+
+      (database-gateway/selected? path)
+      (database-gateway/route request env)
 
       (contains? billing-gateway/paths path)
       (billing-gateway/route request env fetch-viewer private-json-response)

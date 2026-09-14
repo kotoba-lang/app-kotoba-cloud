@@ -1,52 +1,44 @@
-# Shared knowledge workbench integration (development)
+# First-party database workbench
 
-Kotoba Cloud mounts `cloud-kotoba-dds.graph-workbench` inside its existing
-root document at `#knowledge/overview`, `#knowledge/graph`,
-`#knowledge/ontology`, `#knowledge/datoms`, `#knowledge/query`, etc.
-The chat sidebar exposes the route. Chat and query drafts remain in memory
-while switching views. No iframe or second admin document is introduced.
+The shared graph, ontology inspector, datoms, query, pins and audit components
+are pinned to cloud-kotoba-dds 502053418e9df99f167d3da8a5953edb1a73fc7e.
+They remain mounted in the root document at #knowledge/overview and sibling tabs.
+Every CID link is supplied by the host adapter.
 
-Kotobase owns the databases and authorizes every existing API operation.
-This host accepts an explicit Kotobase Bearer/Biscuit/CACAO token, held only
-in a connection closure. It does not persist tokens, include cookies, follow
-redirects, or forward a Kotoba Cloud inference key automatically. A fixed
-origin and route allowlist constrain requests. Disconnect aborts outstanding
-requests, disposes routing listeners and removes rendered tenant data.
-Write controls still require the existing explicit scoped capability.
+## Public contract
 
-This is local development integration, not common SSO, a completed ontology
-editor, a new API origin or a production deployment. The ontology panel
-inspects observed attributes/types in a bounded snapshot. Billing remains
-with the existing Kotobase contract.
+The host uses https://api.kotoba.cloud/v1/database as the API base. Suffixes
+include /xrpc/ai.gftd.apps.kotobase.datomic.q, /api/q, /api/transact, /pins,
+/v1/audit and /ipld/{cid}. Compatibility NSID names and existing tenant IDs
+remain stable; they are not network destinations.
 
-## Build and release
+The browser signs in at auth.kotoba.cloud and uses its HttpOnly session cookie.
+It does not request a Kotobase token. API callers may supply their existing
+verified database Bearer/Biscuit/CACAO credential; inference keys do not grant
+database rights. Writes remain subject to database capabilities and authority.
 
-Both consumers pin the shared library's merged main commit
-`80d8e7c0ab6c0762298c37e40db451181d7964ed` (cloud-kotoba-dds PR #2).
-The development-only override is no longer required. The Cloud integration is
-rebased by applying the scoped feature onto latest main; earlier unpublished
-inference/authority drafts remain outside this release.
+Only named Kotoba Cloud origins receive credentialed CORS. Cookie-authenticated
+mutations require an allowed Origin. The gateway strips caller identity and
+internal-trust headers, bounds JSON bodies to 1 MiB, refuses redirects, and
+forwards only the session cookie and database authentication/selector headers.
 
-## Verification on 2026-09-13
+## Private transport
 
-- Kotobase existing page suite: 82 tests, 1621 assertions passed after extraction.
-- App pages and shared offline fixture rendered via explicit JVM compatibility
-  path using the declared DADS pin. Not native/Q9 qualification.
-- Fixture browser: same-document navigation, shared graph/schema snapshot,
-  query state retention, bearer transport, preserved Biscuit prefix, 401
-  handling, disconnect clearing and 320/390/768/1440px overflow checks passed.
-- CORS OPTIONS on Kotobase accepted authorization/content-type for POST from
-  kotoba.cloud. No real credential or tenant read/write was tested.
+DATABASE_SERVICE targets the separate kotoba-cloud-database Worker. It has no
+public route or cron and uses internal identity and graph-engine bindings.
+The shared engine and tenant store preserve existing data; net-kotobase's
+public Worker, DNS and TLS are not used as transport dependencies.
 
-Run the committed browser test against a local render server:
-`kbb --backend sci test/graph-workbench-browser.cljk`.
-It uses installed Chrome and Playwright (`PLAYWRIGHT_MODULE` if outside Node's
-normal module search path). Set `GRAPH_PREVIEW_URL` to the served locale root;
-the default is `http://127.0.0.1:8847/ja/`. External API replies are fixtures.
+Its deployment config lives in net-kotobase/control-plane at
+kotobase-api-gateway/wrangler.kotoba-cloud.jsonc. Its wrapper refuses requests
+until AUTHN_SERVICE, KOTOBASE_GRAPH_DATABASE_SERVICE and KOTOBA_INTERNAL_SECRET
+are present. The last must match the existing graph backend's trust credential.
+Missing credentials are not replaced with unsigned identities or an HTTP fallback.
 
-## Publication prerequisite repair
+## Release qualification
 
-Root PR #3114 repairs manifest classification retention, targeted generation's
-separator and the nested .cljk verifier. The canonical check and regression
-fixtures passed; individual metadata entries were corrected through separate
-GitHub API commits without advancing any pin.
+Worker tests cover credential/tenant-header isolation, CORS, CSRF, size bounds,
+unknown operation rejection and redirect refusal. The browser fixture test
+covers session-based connection, graph/ontology/query state and expired-session
+clearing. Live tenant read/write qualification is required after provisioning
+the dedicated Worker's trust credential; do not equate mock tests with this.
