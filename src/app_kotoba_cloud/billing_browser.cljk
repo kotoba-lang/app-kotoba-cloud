@@ -14,6 +14,21 @@
                                 " credits · Storage " (/ (available "storage.capacity") 200000)
                                 " GiB · DB " (/ (available "storage") 1000000) " credits")))))))
       (.catch (fn [_] nil))))
+(defn- connection! []
+  (when (= "1" (.get (.-searchParams (js/URL. (.-href js/location))) "connection-check"))
+    (let [el (.createElement js/document "p")]
+      (set! (.-id el) "billing-connection")
+      (.after (.getElementById js/document "billing-status") el)
+      (set! (.-textContent el) "本番決済の接続を確認しています…")
+      (-> (js/fetch "/v1/billing/readiness" #js {:credentials "same-origin"})
+          (.then (fn [r] (if (.-ok r) (.json r) (throw (js/Error. "sign-in-required")))))
+          (.then (fn [body]
+                   (set! (.-textContent el)
+                         (if (= "connected" (aget body "status"))
+                           (str "AWAI接続確認済み。Stripe決済: " (if (true? (aget body "chargesEnabled")) "利用可能" "制限中")
+                                "。本番課金の開放は別途確認が必要です。")
+                           (str "本番接続の確認結果: " (aget body "status"))))))
+          (.catch (fn [_] (set! (.-textContent el) "接続を確認できません。ログイン状態を確認してください。")))))))
 (defn- action! [path sku]
   (-> (js/fetch path #js {:method "POST" :credentials "same-origin" :headers #js {"content-type" "application/json"}
                          :body (js/JSON.stringify #js {:sku sku :requestId (.randomUUID js/crypto)})})
@@ -29,6 +44,7 @@
         (set! (.-id el) "billing-balances")
         (.after (.getElementById js/document "billing-status") el)))
     (balances!)
+    (connection!)
     (-> (js/fetch "/v1/billing/catalog") (.then #(.json %))
         (.then (fn [catalog]
                  (if-not (true? (aget catalog "checkoutEnabled"))
