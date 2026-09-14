@@ -43,13 +43,13 @@
     ;; `principalIssuedCredentials false` is the honest half of each entry: the
     ;; surface is live and authenticated, but a Stable Principal does not mint
     ;; the credential for it. The caller still gets that from the plane itself.
-    :storage {:origin "https://kotobase.net"
+    :storage {:origin "https://api.kotoba.cloud"
               :purpose "content-addressed-artifacts-state-and-receipts"
               :capabilities
               {:pinning {:purpose "ipfs-pinning-service-api-over-the-shared-block-space"
-                         :path "/pins"
+                         :path "/v1/database/pins"
                          :authorization "bearer-or-cacao"
-                         :credentialIssuer "kotobase"
+                         :credentialIssuer "kotoba-cloud"
                          :principalIssuedCredentials false}}}
     :compute {:origin "https://api.murakumo.cloud"
               :publicOrigin "https://murakumo.cloud"
@@ -101,7 +101,7 @@
    {:mode "local-admission-remote-compute"
     :hostedApply false
     :controlOrigin "https://api.kotoba.cloud"
-    :storageOrigin "https://kotobase.net"
+    :storageOrigin "https://api.kotoba.cloud"
     :computeOrigin "https://api.murakumo.cloud"
     :publicComputeOrigin "https://murakumo.cloud"
     :agentWorkOrigin "https://itonami.cloud"}
@@ -118,7 +118,7 @@
     :packageRegistryPath "/.well-known/kotoba-package-registry.edn"
     :packageRegistryCid reference-package-catalog-cid
     :packageSignatureSuite "ed25519+ml-dsa-65"
-    :storageOrigin "https://kotobase.net"
+    :storageOrigin "https://api.kotoba.cloud"
     :releaseSchema "kotoba.library-release.v1"
     :availabilityProofSchema "kotoba.library-availability.v1"
     :minimumByteCompleteStorageProviders 2
@@ -173,12 +173,12 @@
           (get-in profile [:security :sessionCookieScope]))
        (= "https://kotoba.cloud/v1/session"
           (get-in profile [:security :sessionProjection]))
-       (= "https://kotobase.net" (get-in profile [:roles :storage :origin]))
+       (= "https://api.kotoba.cloud" (get-in profile [:roles :storage :origin]))
        (= boot/origin (get-in profile [:roles :boot :origin]))
        (= "https://api.murakumo.cloud" (get-in profile [:roles :compute :origin]))
        (= "/v1/messages"
           (get-in profile [:roles :compute :capabilities :llm :path]))
-       (= "/pins"
+       (= "/v1/database/pins"
           (get-in profile [:roles :storage :capabilities :pinning :path]))
        ;; These three falses are the claims most likely to rot upward. Each one
        ;; is a boundary that is not wired yet, so flipping it has to be a commit
@@ -206,7 +206,7 @@
        (false? (get-in profile [:cryptography :legacyCompatibilityRequired]))
        (false? (get-in profile [:deploy :hostedApply]))
        (= "https://kotoba-lang.org" (get-in profile [:libraries :catalogOrigin]))
-       (= "https://kotobase.net" (get-in profile [:libraries :storageOrigin]))
+       (= "https://api.kotoba.cloud" (get-in profile [:libraries :storageOrigin]))
        (= "https://kotoba.cloud/schemas/library-publication-request/v3"
           (get-in profile [:libraries :requestSchema]))
        (= "publication-and-passkey-authenticated-transitions-live"
