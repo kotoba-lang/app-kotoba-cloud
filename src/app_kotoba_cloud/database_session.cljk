@@ -28,12 +28,14 @@
                    (reset! stage "authn-request")
                    (.fetch binding
                            (js/Request. (str "https://auth.kotoba.cloud" (if tenants? "/v1/tenants" "/v1/biscuit/token"))
-                                        #js {:method method :redirect "error" :signal (js/AbortSignal.timeout 15000)
+                                        #js {:method method :redirect "manual" :signal (js/AbortSignal.timeout 15000)
                                              :headers #js {"host" "auth.kotoba.cloud" "origin" "https://kotoba.cloud" "content-type" "application/json"
                                                            "cookie" (str session/cookie-name "=" cookie)}
                                              :body (when body (js/JSON.stringify (clj->js body)))}))))
           (.then (fn [r]
                    (reset! stage (str "authn-response-" (.-status r)))
+                   (when (<= 300 (.-status r) 399)
+                     (throw (ex-info "unexpected-authn-redirect" {:status 502})))
                    (-> (bounds/bounded-json r 32768)
                        (.then (fn [body] (respond body (.-status r)))))))
           (.catch (fn [e] (respond {:error "database-session-unavailable" :stage @stage :kind (if (= "TypeError" (.-name e)) "transport-type-error" "upstream-unavailable")} (or (:status (ex-data e)) 503))))))))

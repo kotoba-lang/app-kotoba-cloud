@@ -977,4 +977,8 @@ assert.equal(sessionCalls[0].url,'https://auth.kotoba.cloud/v1/biscuit/token');
 assert.equal(sessionCalls[0].headers.get('authorization'),null);
 assert.equal(sessionCalls[0].headers.get('x-internal-trust'),null);
 assert.deepEqual(await sessionCalls[0].json(),scopedToken);
+assert.equal(sessionCalls[0].redirect,'manual');
+const redirected=await route(sessionReq(scopedToken),{AUTHN_SERVICE:{fetch:async()=>new Response(null,{status:302,headers:{location:'https://unexpected.example/'}})}});
+assert.equal(redirected.status,502);
+assert.equal((await redirected.json()).stage,'authn-response-302');
 console.log('Scoped database session exchange and header isolation passed');
