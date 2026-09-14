@@ -109,7 +109,7 @@
                    (.addEventListener button "click" (fn [] (open-case! (:id c))))
                    (.append row button)
                    (.append (el "admin-queue") row)))))
-      (.catch (fn [_] (say! "接続を確認できません。 / Could not reach the identity authority."))))
+      (.catch (fn [_] (say! "接続を確認できません。 / Could not reach the identity authority.")))))
 
 (defn keygen! []
   (-> (.generateKey (.-subtle js/crypto) "Ed25519" false #js ["sign" "verify"])
