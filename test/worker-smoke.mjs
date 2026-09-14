@@ -715,6 +715,14 @@ console.log("worker Passkey/PQ publication, AIUEOS boot, origin locale negotiate
 
 const identityCapabilities = await route(new Request('https://kotoba.cloud/.well-known/kotoba-identity.json'), env);
 assert.equal(identityCapabilities.status, 200);
+// Org trust registry + membership schema ship as static well-known assets
+// (ADR-2609141633); the schema keeps its subdirectory path.
+const orgRegistry = await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'), env);
+assert.equal(orgRegistry.status, 200);
+const orgRegistryBody = await orgRegistry.json();
+assert.equal(orgRegistryBody.trustSystem, 'did:webvh');
+assert.equal(orgRegistryBody.membershipSchema, 'https://kotoba.cloud/.well-known/kotoba-org-membership-schema/v1.json');
+assert.deepEqual(orgRegistryBody.organizations, []);
 const identityProfile = await identityCapabilities.json();
 assert.equal(identityProfile.provider, 'kotoba');
 assert.equal(identityProfile.enrollmentEnabled, true);

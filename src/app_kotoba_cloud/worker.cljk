@@ -9,6 +9,7 @@
             [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.research :as research]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
+            [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
@@ -713,6 +714,11 @@
 
       (= path "/.well-known/kotoba-identity.json")
       (json-response research/identity-profile)
+
+      ;; Organization trust registry (ADR-2609141633). Static content, but
+      ;; served by the edge so the smoke environment (no file assets) sees it.
+      (= path "/.well-known/kotoba-org-registry.json")
+      (json-response org-registry/registry)
 
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})

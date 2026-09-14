@@ -1,0 +1,22 @@
+(ns app-kotoba-cloud.org-registry
+  "First-party organization trust registry (ADR-2609141633). The edge serves
+  this JSON directly; the DID log and status lists remain the tamper-evident
+  records and this document is their cacheable projection.")
+
+(def registry
+  {:version "kotoba-org-registry-2026-09-v1"
+   :trustSystem "did:webvh"
+   :refresh {:statusListCadenceMs 3600000 :cacheMaxAgeSeconds 3600}
+   :membershipSchema "https://kotoba.cloud/.well-known/kotoba-org-membership-schema/v1.json"
+   :organizations []
+   :statusLists []
+   :policies {:handleNamespace "*.kotoba.cloud"
+              :allocation "operator-policy"
+              :disputes "j@awai.network"
+              :roles ["owner" "admin" "member" "billing"]
+              :verification ["resolve-org-webvh-document-and-check-updatekeys-chain"
+                             "verify-membership-vc-signature-by-org-current-signing-key"
+                             "check-vc-credentialstatus-not-revoked-and-not-expired"
+                             "check-registry-current-issuer-entry-matches-org-did"]}
+   :transfer {:procedure "rotate-webvh-updatekeys-then-issue-new-membership-vcs"
+              :effect "old-key-vcs-and-biscuit-tokens-fail-closed-name-scid-survive"}})
