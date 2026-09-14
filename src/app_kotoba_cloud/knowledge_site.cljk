@@ -64,7 +64,7 @@
   var form=document.getElementById('knowledge-connect'),mount=document.getElementById('knowledge-mount'),
     status=document.getElementById('knowledge-state'),disconnect=document.getElementById('knowledge-disconnect'),
     signIn=document.getElementById('knowledge-sign-in'),controller=null,instance=null,generation=0;
-  var api='https://api.kotoba.cloud/v1/database';
+  var api=location.origin+'/v1/database';
   signIn.href='https://auth.kotoba.cloud/sign-in?return_to='+encodeURIComponent(location.origin+location.pathname+'#knowledge/overview');
   function clear(){generation++;if(controller)controller.abort();if(instance)instance.dispose();controller=null;instance=null;mount.replaceChildren();disconnect.hidden=true;form.querySelector('[type=submit]').disabled=false;status.textContent='Workbench closed.';status.setAttribute('data-bad','0');}
   var tenantSelect=document.getElementById('knowledge-tenant'),tenantName=document.getElementById('knowledge-tenant-name');
@@ -96,7 +96,7 @@
             prepare=sessionCall('token',{tenantId:tenant,dbName:data.db_name,permissions:write?['data:read','data:write']:['data:read']}).then(function(d){if(signal.aborted||run!==generation)throw new Error('disconnected');if(d.tokenType!=='Biscuit'||!d.token)throw new Error('Database authorization unavailable');headers.set('authorization','Biscuit '+d.token);});
           }
           return prepare.then(function(){return fetch(api+path,Object.assign({},options,{headers:headers,credentials:'include',redirect:'error',cache:'no-store',signal:signal}));}).then(function(r){
-            if(r.status===401){status.textContent='Database authorization was rejected. Reconnect the workspace or refresh its permission.';status.setAttribute('data-bad','1');}
+            if(r.status===401){status.textContent='Database authorization was rejected. Reconnect the workspace or refresh its permission.';status.setAttribute('data-bad','1');return r.clone().json().then(function(d){if(signal.aborted||run!==generation)return r;var detail=[d.error_origin,d.stage,d.message,d.reason,d.details].filter(function(v){return typeof v==='string';}).join(' ').slice(0,300);if(detail)status.textContent+=' '+detail;return r;},function(){return r;});}
             if(r.status===503){status.textContent='Database service is not ready. Please try again later.';status.setAttribute('data-bad','1');}
             return r;
           });
