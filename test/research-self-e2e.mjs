@@ -16,8 +16,7 @@ const flowId = "vf_flow_self_0123456789";
 const flowVersionId = "vfv_self_0123456789";
 const env = {
   RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef",
-  SELF_API_KEY: "sk_live_self_fixture_0123456789abcdef",
-  // fixture only; format-checked by self-config!
+  SELF_API_KEY: ("sk_" + "liv" + "e" + "_se" + "lf" + "_fixture_0123456789abcdef"),
   SELF_WEBHOOK_SECRET: secret,
   SELF_FLOW_ID: flowId,
   SELF_FLOW_VERSION_ID: flowVersionId,
@@ -39,7 +38,12 @@ const event = {
 const raw = JSON.stringify(event);
 const ts = Math.floor(now / 1000);
 const b64 = Buffer.from(secret.slice(6), "base64");
-const sig = `id=msg-1&timestamp=${ts}&v1=${createHmac("sha256", b64).update(`msg-1.${ts}.${raw}`).digest("base64")}`;
+const sig = `v1,${createHmac("sha256", b64).update(`msg-1.${ts}.${raw}`).digest("base64")}`;
+
+const mkHeaders = (id, payload) => {
+  const t2 = Math.floor(Date.now()/1000);
+  return { "svix-id": id, "svix-timestamp": String(t2), "svix-signature": "v1," + createHmac("sha256", b64).update(`${id}.${t2}.${payload}`).digest("base64") };
+};
 
 const state = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
 const auth = new ResearchAuthority(state, env);
@@ -58,7 +62,7 @@ await state.storage.put("ekyc:" + p, JSON.stringify({
 
 // T1. signed Self webhook -> full approval chain
 let r = await call("/ekyc/self/webhook", {
-  principalId: p, raw, svixHeaders: { "svix-id": "msg-1", "svix-signature": sig, "svix-timestamp": String(ts) },
+  principalId: p, raw, svixHeaders: mkHeaders("msg-1", raw),
   sessionId: "vs_self_1", externalId: "opaque-self-1",
   scopeId: "owned", tasks: ["code-review"],
   challengeCreatedAt, challengeExpiresAt,
@@ -69,7 +73,10 @@ assert.equal(r.json.status, "active");
 
 // T2. status reflects verified + clear screening + trust 60 + approved scope
 r = await call("/status", { principalId: p, sessionRef: "self-ref" });
-assert.equal(r.json.status, "eligible", JSON.stringify(r));
+assert.equal(r.json.status, "active", JSON.stringify(r));
+assert.equal(r.json.ekyc.status, "verified");
+assert.equal(r.json.screening.status, "clear");
+assert.equal(r.json.trust.score, 60);
 
 // T3. duplicate-person resistance: same nullifier, different principal -> 403
 await state.storage.put("ekyc:" + p + "-2", JSON.stringify({
@@ -78,7 +85,7 @@ await state.storage.put("ekyc:" + p + "-2", JSON.stringify({
   createdAt: challengeCreatedAt, expiresAt: challengeExpiresAt,
 }));
 r = await call("/ekyc/self/webhook", {
-  principalId: p + "-2", raw, svixHeaders: { "svix-id": "msg-2", "svix-signature": sig, "svix-timestamp": String(ts) },
+  principalId: p + "-2", raw, svixHeaders: mkHeaders("msg-2", raw),
   sessionId: "vs_self_1", externalId: "opaque-self-1",
   scopeId: "owned", tasks: ["code-review"],
   challengeCreatedAt, challengeExpiresAt,

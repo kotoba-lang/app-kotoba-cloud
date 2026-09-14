@@ -16,7 +16,7 @@
   (when-not (and (re-matches #"sk_live_\S+" (or (:apiKey config) ""))
                  (policy/text? (:flowId config) 128)
                  (policy/text? (:flowVersionId config) 128))
-    (fail "self-live-flow-not-configured")))
+    (do (js/console.error "DBG selfcfg2" (pr-str (map (juxt count) [(:apiKey config) (str (:flowId config)) (str (:flowVersionId config))]))) (fail "self-live-flow-not-configured"))))
 
 (defn create-session [config external-id fetch!]
   (self-config! config)
@@ -52,7 +52,10 @@
   [config challenge raw headers now]
   (self-config! config)
   (when (> (count raw) 131072) (fail "self-event-too-large"))
-  (let [event (js->clj (.verify (Webhook. (:webhookSecret config)) raw (clj->js headers))
+  ;; headers may arrive as a CLJS map (authority) or a JS object; normalize so
+  ;; both the Svix verify call and the (get headers ...) reads below work.
+  (let [headers (js->clj (clj->js headers))
+        event (js->clj (try (.verify (Webhook. (:webhookSecret config)) raw (clj->js headers)) (catch :default e (js/console.error "DBG svix-verify failed:" (str e) "raw-len:" (count raw) "hdrs:" (pr-str headers)) (throw e)))
                        :keywordize-keys true)
         verified-at (js/Date.parse (:verified_at event))]
     (when-not

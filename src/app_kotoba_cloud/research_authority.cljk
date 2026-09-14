@@ -569,10 +569,10 @@
                    :principal (:principalId body) :scopeId (:scopeId body)
                    :tasks (vec (:tasks body)) :consumed false
                    :createdAt (:challengeCreatedAt body) :expiresAt (:challengeExpiresAt body)}]
-    (-> (providers/verify-event
+    (-> (js/Promise.resolve (providers/verify-event
          {:apiKey (aget env "SELF_API_KEY") :webhookSecret (aget env "SELF_WEBHOOK_SECRET")
           :flowId (aget env "SELF_FLOW_ID") :flowVersionId (aget env "SELF_FLOW_VERSION_ID")}
-         challenge (:raw body) (:svixHeaders body) now)
+         challenge (:raw body) (:svixHeaders body) now))
         (.then (fn [evidence]
                  ;; Layer 4: duplicate-person resistance — the scoped nullifier is
                  ;; consumed atomically with the approval chain.
