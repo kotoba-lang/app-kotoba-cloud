@@ -1,7 +1,7 @@
 {
   "profile": "kotoba-security-watch",
   "checkedAt": "2026-09-13T23:52:25.075Z",
-  "publication": "validated-not-yet-published",
+  "publication": "published-live-verified",
   "sources": [
     {
       "id": "mitre-enterprise",
@@ -92,5 +92,17 @@
     "ATT&CK campaigns and software relationships",
     "Ransomware.live access and redistribution conditions"
   ],
-  "scope": "Historical tracker observations only; unspecified discovery timezone, unknown event dates; no victim titles, actor-site locations or raw third-party posts published. Three post-only group names are not merged with registry identities."
+  "scope": "Historical tracker observations only; unspecified discovery timezone, unknown event dates; no victim titles, actor-site locations or raw third-party posts published. Three post-only group names are not merged with registry identities.",
+  "publishedCommit": "ea5a8affd6a713b95d54e0e4744381fcef27c8bd",
+  "workerVersion": "1770e7c3-1769-4b9f-90a2-fed41ef2f02f",
+  "verifiedAt": "2026-09-14T00:04:06.553881+00:00",
+  "readback": {
+    "snapshot": {
+      "/": "baguqeeraf5vhe4oixhmczrrblnisr3ghrvttyyrks6jpexvi7rduqpmf2qka"
+    },
+    "search": "lockbit3",
+    "context": "security/ransomwatch/lockbit3",
+    "immutableBytes": "Context and first historical page match locally verified CID bytes; all page claims remain unverified-allegation"
+  },
+  "manifestPinCommit": "0d9c4662bd482fd23bac795331590dd928ceb118"
 }
