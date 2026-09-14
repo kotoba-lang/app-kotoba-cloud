@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kotoba-research-authority",
+  "main": "build/research/worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "observability": { "enabled": false },
+  "durable_objects": {
+    "bindings": [
+      { "name": "RESEARCH_RECORDS", "class_name": "ResearchAuthority" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-research-records", "new_sqlite_classes": ["ResearchAuthority"] }
+  ],
+  "vars": {
+    "MURAKUMO_UPSTREAM": "https://api.murakumo.cloud/v1/chat/completions"
+  }
+}
