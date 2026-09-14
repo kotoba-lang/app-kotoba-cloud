@@ -395,7 +395,7 @@
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (if (= locale :ja) "研究者登録" "Researchers")]
        [:a {:class "kc-nav__secondary" :href (if (= locale :ja) "/ja/billing/" "/billing/")} (if (= locale :ja) "料金・決済" "Billing")]
        [:a {:class "kc-nav__secondary" :href "/account"} (:nav-account t)]
-       [:a {:class "kc-nav__secondary" :href "/security/"} (:nav-security t)]
+       [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]
        (language-links locale (:language-label t)
                        {:ja (or language-ja "/ja/") :en (or language-en "/")})
        ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
