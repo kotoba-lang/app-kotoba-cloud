@@ -326,6 +326,20 @@
                                                  :role (:role member) :tenantId (:tenantId body)
                                                  :bound (nil? bound)} 200)))))))))))))
 
+(defn- handle-didlog [storage body]
+  ;; Public: a did:webvh log is published for anyone to resolve (ADR layer 1).
+  (let [handle (:handle body)]
+    (if-not (and (string? handle) (re-find handle-pattern handle))
+      (js/Promise.resolve (response {:error "invalid-org-handle"} 400))
+      (-> (load-org! storage handle)
+          (.then (fn [org]
+                   (cond
+                     (nil? org) (response {:error "org-unknown"} 404)
+                     :else (response {:did (:did org) :scid (:scid org)
+                                      :log (:webvhLog org)
+                                      :publishedAt (:createdAt org)}
+                                     200))))))))
+
 (defn- handle-verify [storage body]
   ;; Third-party presentation path: anyone holding a membership VC can have it
   ;; verified — signature via the org's stored key, subject/issuer binding, and
@@ -379,6 +393,7 @@
     "/status" handle-status
     "/authorize" handle-authorize
     "/verify" handle-verify
+    "/didlog" handle-didlog
     nil))
 
 (defn- handle [state env path body]

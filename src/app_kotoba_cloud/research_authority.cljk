@@ -149,17 +149,18 @@
                      :createdAt now :expiresAt (+ now challenge-ttl-ms) :consumed false}]
       (-> (create-identity-session! env (:principalId body) (:externalId challenge))
           (.then (fn [session]
-                   (let [challenge (assoc challenge :stripeSessionId (:id session))]
-                     (-> (save-challenge! storage (:principalId body) challenge)
-                         (.then (fn [_] (save-session-challenge! storage (:id session) challenge))
-                         (.then (fn [_]
-                                  (response {:sessionId (:sessionId challenge)
-                                             :externalId (:externalId challenge)
-                                             :verificationUrl (:url session)
-                                             :expiresAt (:expiresAt challenge)
-                                             :scopeId (:scopeId body)
-                                             :tasks (vec (:tasks body))} 200)))))))))))
-
+                   (let [challenge (assoc challenge :stripeSessionId (:id session))
+                         saved (.then (save-challenge! storage (:principalId body) challenge)
+                                      (fn [_]
+                                        (save-session-challenge! storage (:id session) challenge)))]
+                     (.then saved
+                            (fn [_]
+                              (response {:sessionId (:sessionId challenge)
+                                         :externalId (:externalId challenge)
+                                         :verificationUrl (:url session)
+                                         :expiresAt (:expiresAt challenge)
+                                         :scopeId (:scopeId body)
+                                         :tasks (vec (:tasks body))} 200))))))))))
 (defn- handle-ekyc-webhook [env storage body]
   (let [now (.now js/Date)
         secret (aget env "STRIPE_IDENTITY_WEBHOOK_SECRET")
@@ -233,7 +234,7 @@
                                                    (response {:principalId (:principalId body)
                                                               :status (:status next)
                                                               :receiptId receipt-id
-                                                              :approvedBy "stripe-identity"} 200))))))))))))))))))
+                                                              :approvedBy "stripe-identity"} 200)))))))))))))))))
 
 (defn- handle-ekyc-status [storage body]
   (-> (ekyc-challenge! storage (:principalId body))

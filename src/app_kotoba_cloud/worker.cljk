@@ -758,6 +758,36 @@
       (= path "/.well-known/kotoba-org-registry.json")
       (json-response org-registry/registry)
 
+      ;; Public did:webvh log per organization (ADR-2609141633). The path shape
+      ;; matches the did:webvh URL transform for com-<handle>.kotoba.cloud.
+      (and (.startsWith path "/.well-known/kotoba-org-dids/") (= method "GET"))
+      (let [prefix "/.well-known/kotoba-org-dids/"
+            handle (subs path (count prefix))
+            ;; did:webvh URL transform: <domain>/did.jsonl — the log file is
+            ;; part of the path, not the handle.
+            handle (if (.endsWith handle "/did.jsonl")
+                     (subs handle 0 (- (count handle) 10))
+                     handle)
+            org-binding (aget env "ORG_AUTHORITY")]
+        (if (and org-binding (re-find #"^com-[a-z0-9][a-z0-9-]{2,62}\.kotoba\.cloud$" handle))
+          (-> (.fetch org-binding
+                      (js/Request. "https://org.internal/didlog"
+                                   #js {:method "POST" :redirect "manual"
+                                        :signal (js/AbortSignal.timeout 15000)
+                                        :headers #js {"content-type" "application/json"}
+                                        :body (js/JSON.stringify (clj->js {:handle handle}))}))
+              (.then (fn [r]
+                       (if-not (.-ok r)
+                         (json-response {:error {:code "org-did-not-found"}} 404)
+                         (.then (.json r)
+                                (fn [d]
+                                  (let [d (js->clj d :keywordize-keys true)]
+                                    (js/Response. (str (:log d) "\n")
+                                                  #js {:status 200
+                                                       :headers #js {"content-type" "application/jsonl; charset=utf-8"
+                                                                     "cache-control" "public, max-age=3600"}}))))))))
+          (json-response {:error {:code "not-found"}} 404)))
+
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})
 

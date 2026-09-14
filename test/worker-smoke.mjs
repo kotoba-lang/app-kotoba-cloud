@@ -745,6 +745,24 @@ const orgRegistryBody = await orgRegistry.json();
 assert.equal(orgRegistryBody.trustSystem, 'did:webvh');
 assert.equal(orgRegistryBody.membershipSchema, 'https://kotoba.cloud/.well-known/kotoba-org-membership-schema/v1.json');
 assert.deepEqual(orgRegistryBody.organizations, []);
+// Public per-org did:webvh log: worker proxies the private authority's
+// /didlog and serves it as application/jsonl (ADR-2609141633 layer 1).
+{
+  const didLogEnv={...env, ORG_AUTHORITY:{fetch:async(url,init)=>{
+    const b=JSON.parse(init && init.body ? init.body : await url.text());
+    if (b.handle==='com-pub.kotoba.cloud') return Response.json({did:'did:webvh:zS:com-pub.kotoba.cloud',
+      scid:'zS',log:'{"versionId":"1-zS"}',publishedAt:1700000000000});
+    return Response.json({error:'org-unknown'},{status:404});
+  }}};
+  const pubLog=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-dids/com-pub.kotoba.cloud/did.jsonl'),didLogEnv);
+  assert.equal(pubLog.status,200);
+  assert.equal(pubLog.headers.get('content-type'),'application/jsonl; charset=utf-8');
+  assert.equal((await pubLog.text()).includes('1-zS'),true);
+  const missingLog=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-dids/com-none.kotoba.cloud/did.jsonl'),didLogEnv);
+  assert.equal(missingLog.status,404);
+  const badHandle=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-dids/evil/did.jsonl'),didLogEnv);
+  assert.equal(badHandle.status,404);
+}
 const identityProfile = await identityCapabilities.json();
 assert.equal(identityProfile.provider, 'kotoba');
 assert.equal(identityProfile.enrollmentEnabled, true);
