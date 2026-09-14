@@ -13,6 +13,7 @@ try{
   await page.locator('#security-detail').getByRole('button',{name:'maps-to · T1018 — Remote System Discovery'}).click();
   await page.locator('#security-detail h2').filter({hasText:'T1018'}).waitFor();
   await page.locator('#security-kind').selectOption('actor-group');await page.locator('#security-search').fill('Fancy Bear');assert.equal(await page.locator('#security-results button').count(),1);
+  await page.locator('#security-kind').selectOption('');await page.locator('#security-search').fill('lockbit3');await page.locator('#security-results button').filter({hasText:/^lockbit3 —/}).click();await page.locator('#security-detail').getByRole('link',{name:'履歴データ 1',exact:true}).waitFor();await page.locator('#security-detail').getByText(/確認済み被害件数ではありません/).waitFor();
   await page.locator('#security-search').fill('<script>alert(1)</script>');assert.equal(await page.locator('#security-results button').count(),0);
   await page.locator('#security-view nav a').first().click();await page.locator('#chat-view').waitFor({state:'visible'});
  }

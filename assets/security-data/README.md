@@ -1,9 +1,11 @@
 # Public security knowledge
 
-Snapshot: baguqeerandytd5gsaouy64pr3uexsj5af3vfpja3sa4orl24k43sxicvrzmq
+Snapshot: baguqeeraf5vhe4oixhmczrrblnisr3ghrvttyyrks6jpexvi7rduqpmf2qka
 
 LLM retrieval: GET https://kotoba.cloud/v1/knowledge/search?q=T1018, then GET https://kotoba.cloud/v1/knowledge/context?id=security%2Fattack%2FT1018. Use the exact ID returned by search.
 Context returns at most 8 sourced claims, totalClaims/truncated, evidence layers and immutable contextUrl. Pin that URL for a session and cite claim CIDs and source URLs. Separate facts, assumptions and unknowns. Public retrieval does not grant model or research access.
+
+Ransomwatch group records link bounded historical pages containing unverified allegations, EAV datoms and JSON-LD statements. These paged claims are counted separately in coverage.ransomwatch.observations. Discovery timestamps have unknown timezone and are not attack dates; titles and victim identities are omitted.
 
 Read index.json, verify every CID, then follow source archives and sourced claims.
 DAG-JSON blocks use codec 0x0129; raw archive blocks use 0x55, both sha2-256.

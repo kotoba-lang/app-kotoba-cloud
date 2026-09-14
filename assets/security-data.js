@@ -8,13 +8,14 @@
   const response=await fetch('/security-data/index.json');if(!response.ok)throw Error('unavailable');const data=await response.json();
   const url=link=>data.blocks[link['/']].path;
   const link=(label,href)=>{const a=node('a',label);a.href=href;return a;};
-  const labels={'vulnerability':'脆弱性','technique':'攻撃手法','actor-group':'グループ','attack-log':'公開ラボログ','standard':'SCAP','threat-model':'脅威モデル'};
+  const labels={'vulnerability':'脆弱性','technique':'攻撃手法','actor-group':'グループ','historical-group':'履歴（未確認）','attack-log':'公開ラボログ','standard':'SCAP','threat-model':'脅威モデル'};
   $('summary').replaceChildren(node('span',`${data.records.length}項目 · ${data.claims.length}件の出典付き主張 · 取得 ${data.generatedAt.slice(0,10)} `),link('スナップショットCID',data.headUrl));
   let selected=0;
   async function detail(record){const request=++selected;const panel=$('detail');panel.hidden=false;panel.replaceChildren(node('h2',record['item/label']),link('このレコードのCID',url(record.record)));
    const r=await fetch(url(record.record));if(!r.ok)throw Error('record unavailable');const value=await r.json();if(request!==selected)return;
    if(chat){const use=node('button','この根拠で調べる');use.type='button';use.onclick=()=>{window.dispatchEvent(new CustomEvent('kotoba:research-context',{detail:{id:record['item/id'],label:record['item/label']}}));};panel.append(use);}
    if(value.evidence)panel.append(node('p','出典レコードから、元URL・取得日時・原文アーカイブへ辿れます。'),link('出典とアーカイブ',url(value.evidence)));
+   if(record.historical){panel.append(node('p',`過去の未確認申告 ${record.historical.count} 件。確認済み被害件数ではありません。`));for(const [i,page] of record.historical.pages.entries())panel.append(link(`履歴データ ${i+1} `,url(page)));}
    if(record.rawLog)panel.append(node('p','公開されたラボの監査ログです。実際の被害事例ではありません。'),link('監査ログを読む',record.rawLog));
    if(value.record)panel.append(node('p','このシナリオは分析の雛形で、観測事実ではありません。'),link('シナリオと仮定',url(value.record)));
    const edges=data.relations.filter(e=>e.subject===record['item/id']||e.object===record['item/id']);

@@ -1,0 +1,96 @@
+{
+  "profile": "kotoba-security-watch",
+  "checkedAt": "2026-09-13T23:52:25.075Z",
+  "publication": "validated-not-yet-published",
+  "sources": [
+    {
+      "id": "mitre-enterprise",
+      "status": "unchanged",
+      "sha256": "dc1639caa5501d720e280cf1cbd8fbe009884a0c9b3e6e9ed9d0c25166c3d8f4"
+    },
+    {
+      "id": "cisa-kev",
+      "status": "unchanged",
+      "sha256": "c27673ad6c346c50f573c566f14c11c373e4ae452880d2cdb8f01a364e1e630b",
+      "mode": "current",
+      "records": 1709
+    },
+    {
+      "id": "ransomwatch-groups",
+      "status": "historical-cached",
+      "sha256": "d0985955ff06096092f40fffe6ea4b9c1984a3ddef8e1d35e1e66aa5142d475a"
+    },
+    {
+      "id": "ransomwatch-posts",
+      "status": "historical-cached",
+      "sha256": "5eb6c1313bf6ace8ab3702e3e8be688cd747821335ec384ad5c5182c8434542e"
+    },
+    {
+      "id": "ransomware-live",
+      "status": "pending-access-and-terms"
+    },
+    {
+      "id": "regional-reports",
+      "status": "curated"
+    }
+  ],
+  "implementation": {
+    "head": "baguqeeraf5vhe4oixhmczrrblnisr3ghrvttyyrks6jpexvi7rduqpmf2qka",
+    "items": 946,
+    "claims": 7135,
+    "blocks": 9641,
+    "coverage": {
+      "ransomwatch": {
+        "groups": 219,
+        "registryGroups": 216,
+        "observations": 16072,
+        "inputRows": 16072,
+        "duplicates": 0,
+        "pages": 591,
+        "mode": "historical-unverified",
+        "sourceVersion": "20111d3223c5fff76937724d2f16e60c1724f34d",
+        "geography": "Tracker-covered groups only; nationality and global completeness not inferred",
+        "language": "Original group identifiers retained; no translations",
+        "omitted": "Post titles, victim identities, locations, private/leaked contents; no independently confirmed incidents",
+        "retrievedAt": "2026-09-13T23:53:34.337Z"
+      },
+      "kev": {
+        "selected": 50,
+        "total": 1709,
+        "selection": "latest dateAdded descending then CVE id"
+      },
+      "attack": {
+        "groups": 176,
+        "techniques": 498,
+        "relations": 4628,
+        "selection": "all non-revoked, non-deprecated Enterprise ATT&CK intrusion sets with MITRE IDs; reported uses edges to valid techniques only",
+        "language": "source labels and aliases retained; no translation",
+        "geography": "source-covered activity clusters; no inferred nationality or exhaustive global coverage"
+      },
+      "logs": "one public OTRF lab audit dataset; no private incident logs",
+      "scap": "overview and specification catalog; no SCAP evaluation engine"
+    }
+  },
+  "validation": [
+    "9641 active CID hashes and links",
+    "16072 normalized observations / 591 bounded pages",
+    "privacy allowlist, logical IDs, duplicate fixture, provenance, EAV and JSON-LD",
+    "14 site tests / 2626 assertions",
+    "knowledge API group contexts and bounds",
+    "worker smoke including authorization, billing and admin host isolation",
+    "provider signature/environment fixtures; no real identity verification",
+    "responsive UI 320/390/768/1440 with history page links",
+    "Wrangler dry-run"
+  ],
+  "assetCount": 12838,
+  "assetMaxBytes": 9461083,
+  "buildRepairs": [
+    "Close missing refresh function delimiter in admin browser",
+    "Remove duplicate unpaired admin fallback expression after explicit 404"
+  ],
+  "remaining": [
+    "ATT&CK campaigns and software relationships",
+    "Ransomware.live access and redistribution conditions"
+  ],
+  "scope": "Historical tracker observations only; unspecified discovery timezone, unknown event dates; no victim titles, actor-site locations or raw third-party posts published. Three post-only group names are not merged with registry identities."
+}
