@@ -6,6 +6,7 @@
             [app-kotoba-cloud.knowledge-site :as knowledge-site]
             [cloud-kotoba-dds.graph-workbench :as graph-workbench]
             [app-kotoba-cloud.identity-site :as identity-site]
+            [app-kotoba-cloud.account-site :as account-site]
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
             [app-kotoba-cloud.crypto-site :as crypto-site]
@@ -806,7 +807,18 @@
         [:p "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"]
         (dds/row (dds/button "研究者登録（Stripe Identity）" {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
                  (dds/button "登録ガイド" {:href "https://kotoba.cloud/llms.txt" :type :outline})))
-       [:p [:a {:href "/ja/"} "会話に戻る"]]]))
+       [:p [:a {:href "/account"} "アカウント管理"] " · " [:a {:href "/ja/"} "会話に戻る"]]]))
+
+(defn account-html []
+  ;; Account console: session, Stripe-only identity verification, research
+  ;; eligibility, scopes and billing. Client logic lives in account-browser.
+  (page/->page
+   {:title "アカウント管理 — Kotoba Cloud" :lang "ja" :css (document-css)
+    :app-css (str tokens/skin-css app-css account-site/css)
+    :head [[:meta {:name "robots" :content "noindex"}]]}
+   [:main {:id "main"} (account-site/section)]
+   [:p [:a {:href (passkey-href :ja) :id "kc-session-nav"} "Passkeyでログイン"]
+    " · " [:a {:href "/ja/"} "会話に戻る"]]))
 
 (defn billing-html [locale]
      (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
@@ -1030,6 +1042,8 @@
           (copy-file headers (node-path/join root "_headers"))))
             (let [out (node-path/join root "identity" "index.html")]
         (spit-file out (identity-html)))
+      (let [out (node-path/join root "account" "index.html")]
+        (spit-file out (account-html)))
       (let [out (node-path/join root "admin" "index.html")]
         (spit-file out (admin-html)))
       ;; security + csf2 + crypto static pages and their data blocks

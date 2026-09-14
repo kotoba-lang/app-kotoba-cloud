@@ -1,6 +1,7 @@
 (ns app-kotoba-cloud.browser
   (:require [app-kotoba-cloud.billing-browser :as billing-browser]
             [app-kotoba-cloud.identity-browser :as identity-browser]
+            [app-kotoba-cloud.account-browser :as account-browser]
             [app-kotoba-cloud.admin-browser :as admin-browser]
             [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.research-browser :as research-browser]
@@ -225,8 +226,14 @@
 
 (defn init! []
   (billing-browser/init!)
-  (if (contains? #{"/identity" "/identity/"} (.-pathname js/location))
+  (cond
+    (contains? #{"/identity" "/identity/"} (.-pathname js/location))
     (identity-browser/init!)
+
+    (contains? #{"/account" "/account/"} (.-pathname js/location))
+    (account-browser/init!)
+
+    :else
     (if (= "admin.kotoba.cloud" (.-hostname js/location))
       (admin-browser/init!)
       (do
