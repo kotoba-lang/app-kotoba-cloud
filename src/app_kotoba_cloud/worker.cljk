@@ -624,6 +624,9 @@
         (and (= path "/v1/session") (= method "GET"))
         (route-session request env)
 
+        (contains? research-gateway/paths path)
+        (research-gateway/route request env fetch-viewer private-json-response)
+
         (identity-gateway/operation path)
         (identity-gateway/route request env fetch-viewer private-json-response)
 
