@@ -12,3 +12,8 @@
 (defn settle! [env authenticated-principal request-id actual-micro-usd receipt-id]
   (gateway/account env authenticated-principal "/settle"
                    {:id request-id :actual actual-micro-usd :receiptId receipt-id}))
+
+(defn settle-receipt! [env authenticated-principal request-id kind verified-receipt]
+  ;; Rating happens in the authoritative ledger; producer supplies measurements only.
+  (gateway/account env authenticated-principal "/settle-usage"
+                   {:id request-id :kind kind :receipt verified-receipt}))

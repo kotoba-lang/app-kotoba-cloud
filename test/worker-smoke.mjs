@@ -901,6 +901,16 @@ try {
  await doBill('/usage',{kind:'inference',receipt});
  assert.equal(memory.get('usage:inference:usage-fixture'),recorded);
  r=await doBill('/usage',{kind:'inference',receipt:{...receipt,outputTokens:20}});assert.equal(r.status,503,'conflicting receipt rejected');
+
+ r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200,await r.clone().text());
+ assert.equal((await r.json()).amountMicroUSD,66);
+ const settledSnapshot=memory.get('limits');
+ r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200);
+ assert.equal(memory.get('limits'),settledSnapshot,'retry cannot charge twice');
+ r=await doBill('/reserve',{id:'receipt-replay-other',scope:'ai',maximum:100});assert.equal(r.status,200);
+ r=await doBill('/settle-usage',{id:'receipt-replay-other',kind:'inference',receipt});assert.equal(r.status,503,'same receipt cannot settle another reservation');
+ r=await doBill('/settle-usage',{id:'storage-one',kind:'storage',receipt:{sampleId:'storage-hour',databaseId:'fixture',bytes:1073741824,seconds:3600,occurredAt:'2026-09-14T00:00:00Z'}});assert.equal(r.status,200);
+ assert.equal((await r.json()).amountMicroUSD,278);
 } finally {globalThis.fetch=oldFetchBilling;}
 console.log('billing provider, invoice replay, tenant and durable usage checks passed');
 
@@ -928,3 +938,25 @@ assert.equal(webhookCalls[1].id,'test:account-b-test:principal_fixture');
 assert.notEqual(webhookCalls[0].id,webhookCalls[1].id);
 console.log('Stripe webhook signature, timestamp and mode checks passed');
 console.log('operator console host isolation checks passed');
+
+// Merchant readiness is authenticated, read-only, cached and projects no secret/PII.
+const readinessRequest=()=>new Request('https://kotoba.cloud/v1/billing/readiness',{headers:{cookie:'gftd_session=fixture'}});
+assert.equal((await route(new Request('https://kotoba.cloud/v1/billing/readiness'),{})).status,401);
+const readinessFetch=globalThis.fetch;
+let accountReads=0;
+try {
+ globalThis.fetch=async(url,init)=>{
+  if(String(url)==='https://api.stripe.com/v1/account') {accountReads++;return Response.json({id:'acct_1TuxvPIzvFrqWhXK',charges_enabled:true,payouts_enabled:true,email:'must-not-leak@example.com'});}
+  return readinessFetch(url,init);
+ };
+ const readyEnv={STRIPE_AWAI_LIVE_KEY:'sk_live_fixture_not_real'};
+ let r=await route(readinessRequest(),readyEnv);
+ assert.deepEqual(await r.json(),{status:'connected',chargesEnabled:true,payoutsEnabled:true});
+ await route(readinessRequest(),readyEnv);assert.equal(accountReads,1);
+ r=await route(readinessRequest(),{STRIPE_AWAI_LIVE_KEY:'sk_test_fixture_not_real'});
+ assert.equal((await r.json()).status,'live-key-not-configured');assert.equal(accountReads,1);
+ globalThis.fetch=async(url,init)=>String(url)==='https://api.stripe.com/v1/account'?Response.json({id:'acct_other',charges_enabled:true}):readinessFetch(url,init);
+ r=await route(readinessRequest(),{STRIPE_AWAI_LIVE_KEY:'sk_live_fixture_other'});
+ assert.deepEqual(await r.json(),{status:'account-mismatch',chargesEnabled:false,payoutsEnabled:false});
+} finally {globalThis.fetch=readinessFetch;}
+console.log('AWAI readiness authentication, account binding and caching passed');
