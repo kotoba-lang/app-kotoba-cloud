@@ -1,0 +1,67 @@
+(ns app-kotoba-cloud.org-gateway
+  "Edge-side surface for the private org authority (ADR-2609141633). Same seam
+  as research-gateway: session-authenticated, same-origin POST only, bodies are
+  bounded JSON; the authority owns the state and the keys."
+  (:require [app-kotoba-cloud.org-registry :as org-registry]
+            [app-kotoba-cloud.research-gateway :as shared]
+            [goog.object :as gobj]))
+(def paths #{"/v1/org/create" "/v1/org/delegate" "/v1/org/revoke" "/v1/org/status"})
+(def origins shared/origins)
+
+(defn- service [binding path payload respond]
+  (-> (.fetch binding (str "https://org.internal" path)
+              #js {:method "POST" :redirect "manual"
+                   :signal (js/AbortSignal.timeout 30000)
+                   :headers #js {"content-type" "application/json"}
+                   :body (js/JSON.stringify (clj->js payload))})
+      (.then (fn [r]
+               (if (.-ok r)
+                 (-> (shared/bounded-json r 65536)
+                     (.then #(respond % 200)))
+                 (-> (.text r)
+                     (.catch (fn [_] ""))
+                     (.then (fn [detail]
+                              (let [code (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
+                                              (catch :default _ nil))]
+                                (respond {:error {:code (or code "org-authority-unavailable")}}
+                                         (if (contains? #{400 403 404 409} (.-status r)) (.-status r) 503)))))))))))
+
+(defn route [request env viewer-fn respond]
+  (let [url (js/URL. (.-url request)) path (.-pathname url) method (.-method request)
+        binding (gobj/get env "ORG_AUTHORITY")]
+    (cond
+      (not= method "POST") (respond {:error {:code "method-not-allowed"}} 405)
+      (= path "/v1/org/status")
+      ;; status is same-origin POST too (no cross-origin org listing)
+      (if-not (contains? origins (.get (.-headers request) "origin"))
+        (respond {:error {:code "origin-not-allowed"}} 403)
+        (-> (shared/bounded-json request 2048)
+            (.catch (fn [_] (js/Promise.resolve {})))
+            (.then (fn [body]
+                     (-> (viewer-fn request)
+                         (.then (fn [viewer]
+                                  (if-not (true? (:valid viewer))
+                                    (respond {:error {:code "sign-in-required"}} 401)
+                                    (if-not binding
+                                      (respond {:error {:code "org-authority-not-configured"}} 503)
+                                      (service binding "/status" {:principalId (:principalId viewer)} respond))))))))))
+      :else
+      (if-not (contains? origins (.get (.-headers request) "origin"))
+        (respond {:error {:code "origin-not-allowed"}} 403)
+        (if-not (= "application/json" (.get (.-headers request) "content-type"))
+          (respond {:error {:code "json-required"}} 415)
+          (-> (shared/bounded-json request 8192)
+              (.then (fn [body]
+                       (-> (viewer-fn request)
+                           (.then (fn [viewer]
+                                    (cond
+                                      (not (true? (:valid viewer)))
+                                      (respond {:error {:code "sign-in-required"}} 401)
+
+                                      (nil? binding)
+                                      (respond {:error {:code "org-authority-not-configured"}} 503)
+
+                                      :else
+                                      (service binding (subs path 7)
+                                               (assoc body :principalId (:principalId viewer))
+                                               respond)))))))))))))

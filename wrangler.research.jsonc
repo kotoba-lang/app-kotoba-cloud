@@ -9,11 +9,13 @@
   "observability": { "enabled": false },
   "durable_objects": {
     "bindings": [
-      { "name": "RESEARCH_RECORDS", "class_name": "ResearchAuthority" }
+      { "name": "RESEARCH_RECORDS", "class_name": "ResearchAuthority" },
+      { "name": "ORG_RECORDS", "class_name": "OrgAuthority" }
     ]
   },
   "migrations": [
-    { "tag": "v1-research-records", "new_sqlite_classes": ["ResearchAuthority"] }
+    { "tag": "v1-research-records", "new_sqlite_classes": ["ResearchAuthority"] },
+    { "tag": "v2-org-records", "new_sqlite_classes": ["OrgAuthority"] }
   ],
   "vars": {}
 }

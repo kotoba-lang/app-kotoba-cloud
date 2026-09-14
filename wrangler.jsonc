@@ -46,6 +46,10 @@
       "service": "kotoba-research-authority"
     },
     {
+      "binding": "ORG_AUTHORITY",
+      "service": "kotoba-research-authority"
+    },
+    {
       "binding": "DATABASE_SERVICE",
       "service": "kotoba-cloud-database"
     },
