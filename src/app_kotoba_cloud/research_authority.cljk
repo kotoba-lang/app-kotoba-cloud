@@ -570,7 +570,20 @@
 
 ;; Worker entry: no public routes; this fetch exists only so wrangler can upload
 ;; the script. Every request without the internal origin is refused.
+;; Service bindings land here, not on the DO. Read the body, derive the
+;; per-principal DO id, and forward so the atomic blockConcurrencyWhile
+;; semantics live inside the Durable Object.
 (defn fetch! [request ^js env _ctx]
-  (js/Promise.resolve (response {:error "private-binding-required"} 403)))
+  (if-not (= "https://research.internal" (.-origin (js/URL. (.-url request))))
+    (js/Promise.resolve (response {:error "private-binding-required"} 403))
+    (-> (.json request)
+        (.then (fn [body]
+                 (let [ns (.-RESEARCH_RECORDS env)
+                       id (.idFromName ns (or (.-principalId body) "anonymous"))
+                       stub (.get ns id)]
+                   (.fetch stub (js/Request. (.-url request)
+                                             #js {:method "POST"
+                                                  :headers #js {"content-type" "application/json"}
+                                                  :body (js/JSON.stringify body)}))))))))
 
 (def default #js {:fetch fetch!})

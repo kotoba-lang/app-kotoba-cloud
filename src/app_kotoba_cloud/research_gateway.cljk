@@ -4,7 +4,7 @@
 
 (def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"
              "/v1/research/jobs" "/v1/research/job"
-             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook"})
+             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook" "/v1/research/review"})
 (def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"
                "https://admin.kotoba.cloud"})
 
@@ -30,7 +30,7 @@
 
 (defn- service [binding path payload]
   (-> (.fetch binding (str "https://research.internal" path)
-              #js {:method "POST" :redirect "error"
+              #js {:method "POST" :redirect "manual"
                    :signal (js/AbortSignal.timeout 60000)
                    :headers #js {"content-type" "application/json"}
                    :body (js/JSON.stringify (clj->js payload))})
@@ -205,7 +205,20 @@
                    (.then #(job-response % principal reference id respond))))))))))
 
 (defn- authorized-route [request path binding principal reference respond]
-  (if (#{"/v1/research/jobs" "/v1/research/job"} path)
+  (if (= path "/v1/research/review")
+    ;; Operator decisions are HMAC-verified by the authority; the edge only
+    ;; requires an authenticated principal on the admin origin and passes the
+    ;; bounded body through untouched.
+    (if-not (= (.-origin (js/URL. (.-url request))) "https://admin.kotoba.cloud")
+      (respond {:error {:code "review-origin-required"}} 403)
+      (-> (bounded-json request 32768)
+          (.then (fn [body]
+                   (-> (service binding "/review" (assoc body :principalId principal :sessionRef reference))
+                       (.then (fn [result]
+                                (if (and (= principal (:principalId result)) (policy/text? (:receiptId result) 512))
+                                  (respond result 200)
+                                  (respond {:error {:code "invalid-review-receipt"}} 502)))))))))
+    (if (#{"/v1/research/jobs" "/v1/research/job"} path)
     (job-route request path binding principal reference respond)
     (if (= path "/v1/research/status")
     (-> (service binding "/status" {:principalId principal :sessionRef reference :action "code-review"})
@@ -224,7 +237,8 @@
                               (respond {:error {:code "invalid-application-receipt"}} 502))))))
              (if-not (policy/completion? body)
                (respond {:error {:code "invalid-research-request"}} 400)
-               (complete binding principal reference body respond)))))))))
+               (complete binding principal reference body respond))))))))))
+
 
 
 (defn route [request ^js env fetch-viewer respond]
@@ -236,6 +250,7 @@
                           (= path "/v1/research/applications") "POST"
                           (= path "/v1/chat/completions") "POST"
                           (= path "/v1/research/jobs") "POST"
+                          (= path "/v1/research/review") "POST"
                           (or public-webhook? (= path "/v1/research/ekyc/start")) "POST"
                           :else "GET")]
     (cond
