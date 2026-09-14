@@ -1,0 +1,200 @@
+(ns app-kotoba-cloud.org-authority
+  "Private organization authority (ADR-2609141633). Runs as a Durable Object in
+  the private kotoba-research-authority Worker; the public control plane reaches
+  it only through a service binding. It owns the organization signing key pair
+  (Ed25519, generated on first create) and the membership roster with per-member
+  status. It does not mint webvh identifiers: handle reservation and the webvh
+  document stay operator-side until /v1/org/create wires the issuance script."
+  (:require [kotoba.lang.text :as str]))
+
+(def schema-version "kotoba-org-membership-2026-09-v1")
+(def roles #{"owner" "admin" "member" "billing"})
+(def handle-pattern #"^com-[a-z0-9][a-z0-9-]{2,62}\.kotoba\.cloud$")
+(def role-rank {"owner" 3 "admin" 2 "member" 1 "billing" 1})
+
+(defn- response [body status]
+  (js/Response. (js/JSON.stringify (clj->js body))
+                #js {:status status
+                     :headers #js {"content-type" "application/json; charset=utf-8"
+                                   "cache-control" "no-store"}}))
+
+(defn- text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))
+
+(defn- decode [x]
+  (if (or (nil? x) (undefined? x)) nil (js->clj x :keywordize-keys true)))
+
+(defn- load-org! [storage handle]
+  (-> (js-invoke storage "get" (str "org:" handle)) (.then decode)))
+
+(defn- save-org! [storage handle org]
+  (js-invoke storage "put" (str "org:" handle) (js/JSON.stringify (clj->js org))))
+
+(defn- all-orgs! [storage]
+  (-> (js-invoke storage "list" #js {:prefix "org:"})
+      (.then (fn [listing]
+               (js/Promise.all
+                (map (fn [k] (-> (js-invoke storage "get" k) (.then decode)))
+                     (array-seq (or (.-keys listing) []))))))))
+
+(defn- org-for-member [orgs principal-id]
+  (some (fn [org]
+          (when (some #(and (= principal-id (:principalId %))
+                            (= "active" (:status %)))
+                      (:members org))
+            org))
+        orgs))
+
+(defn- active-member [org principal-id]
+  (some #(when (and (= principal-id (:principalId %)) (= "active" (:status %))) %)
+        (:members org)))
+
+(defn- generate-signing-key! []
+  (-> (.generateKey (.-subtle js/crypto) "Ed25519" true #js ["sign" "verify"])
+      (.then (fn [keys]
+               (js/Promise.all
+                [(js-invoke (.-subtle js/crypto) "exportKey" "jwk" (.-publicKey keys))
+                 (js-invoke (.-subtle js/crypto) "exportKey" "jwk" (.-privateKey keys))])))))
+
+(defn- membership-vc [org member-principal role]
+  {:schemaVersion schema-version
+   :type ["VerifiableCredential" "KotobaOrgMembership"]
+   :issuer (:did org)
+   :credentialStatus {:id (str "https://kotoba.cloud/.well-known/kotoba-org-status/"
+                               (:handle org) "/v1")
+                      :type "KotobaOrgStatusList"}
+   :credentialSubject {:id member-principal :org (:did org) :role role :handle (:handle org)}})
+
+(defn- handle-create [storage body now]
+  (let [handle (str (:handle body))]
+    (cond
+      (not (and (text? handle 80) (re-find handle-pattern handle)))
+      (js/Promise.resolve (response {:error "invalid-org-handle"} 400))
+
+      (not (and (text? (:principalId body) 256) (contains? roles (:role body))))
+      (js/Promise.resolve (response {:error "invalid-org-create"} 400))
+
+      :else
+      (-> (load-org! storage handle)
+          (.then (fn [existing]
+                   (if existing
+                     (response {:error "org-handle-taken"} 409)
+                     (-> (generate-signing-key!)
+                         (.then (fn [[public-jwk private-jwk]]
+                                  (let [org {:did (str "did:webvh:com-"
+                                                       (subs handle 0 (.lastIndexOf handle "."))
+                                                       ":" handle)
+                                             :handle handle
+                                             :publicJwk (select-keys (js->clj public-jwk :keywordize-keys true) [:kty :crv :x])
+                                             :privateJwk (js/JSON.stringify private-jwk)
+                                             :members [{:principalId (:principalId body)
+                                                        :role (:role body)
+                                                        :status "active"
+                                                        :issuedAt now}]
+                                             :createdAt now}]
+                                    (-> (save-org! storage handle org)
+                                        (.then (fn [_]
+                                                 (response {:orgDid (:did org) :handle handle
+                                                            :ownerPrincipal (:principalId body)
+                                                            :schemaVersion schema-version}
+                                                           200)))))))))))))))
+
+(defn- handle-delegate [storage body now]
+  (cond
+    (not (and (text? (:principalId body) 256) (text? (:memberPrincipalId body) 256)
+              (contains? roles (:role body))))
+    (js/Promise.resolve (response {:error "invalid-org-delegate"} 400))
+
+    :else
+    (-> (all-orgs! storage)
+        (.then (fn [orgs]
+                 (let [org (org-for-member orgs (:principalId body))]
+                   (cond
+                     (nil? org) (response {:error "org-membership-required"} 403)
+
+                     (< (get role-rank (:role (active-member org (:principalId body))) 0)
+                        (if (= "member" (:role body)) 1 2))
+                     (response {:error "org-role-insufficient"} 403)
+
+                     (some #(= (:memberPrincipalId body) (:principalId %)) (:members org))
+                     (response {:error "org-already-member"} 409)
+
+                     :else
+                     (let [member {:principalId (:memberPrincipalId body)
+                                   :role (:role body) :status "active" :issuedAt now}
+                           org (update org :members conj member)]
+                       (-> (save-org! storage (:handle org) org)
+                           (.then (fn [_]
+                                    (response {:orgDid (:did org) :handle (:handle org)
+                                               :member member
+                                               :membership (membership-vc org (:memberPrincipalId body) (:role body))}
+                                              200))))))))))))
+
+(defn- handle-revoke [storage body now]
+  (if-not (text? (:principalId body) 256)
+    (js/Promise.resolve (response {:error "invalid-org-revoke"} 400))
+    (-> (all-orgs! storage)
+        (.then (fn [orgs]
+                 (let [org (org-for-member orgs (:principalId body))]
+                   (cond
+                     (nil? org) (response {:error "org-membership-required"} 403)
+
+                     (nil? (some #(when (= (:memberPrincipalId body) (:principalId %)) %) (:members org)))
+                     (response {:error "org-member-unknown"} 404)
+
+                     :else
+                     (let [updated (update org :members
+                                           (fn [ms]
+                                             (mapv #(if (= (:memberPrincipalId body) (:principalId %))
+                                                      (assoc % :status "revoked" :revokedAt now)
+                                                      %)
+                                                   ms)))]
+                       (-> (save-org! storage (:handle org) updated)
+                           (.then (fn [_]
+                                    (response {:orgDid (:did org) :handle (:handle org)
+                                               :revoked (:memberPrincipalId body)} 200))))))))))))
+
+(defn- handle-status [storage body]
+  (if-not (text? (:principalId body) 256)
+    (js/Promise.resolve (response {:error "invalid-org-status"} 400))
+    (-> (all-orgs! storage)
+        (.then (fn [orgs]
+                 (response
+                  {:organizations
+                   (vec (for [org orgs
+                              :let [m (some #(when (= (:principalId body) (:principalId %)) %)
+                                            (:members org))]
+                              :when m]
+                          {:orgDid (:did org) :handle (:handle org)
+                           :role (:role m) :status (:status m)
+                           :members (count (:members org))}))}
+                  200))))))
+
+(defn- route-op [path]
+  (case path
+    "/create" handle-create
+    "/delegate" handle-delegate
+    "/revoke" handle-revoke
+    "/status" handle-status
+    nil))
+
+(defn- handle [state env path body]
+  (let [storage (aget state "storage") now (.now js/Date)]
+    (if-let [op (route-op path)]
+      (op storage body now)
+      (js/Promise.resolve (response {:error "not-found"} 404)))))
+
+(deftype OrgAuthority [^js state env]
+  Object
+  (fetch [_ request]
+    (if (= "https://org.internal" (.-origin (js/URL. (.-url request))))
+      (-> (.json request)
+          (.then (fn [body]
+                   (.blockConcurrencyWhile state
+                     (fn [] (handle state env (.-pathname (js/URL. (.-url request)))
+                                    (js->clj body :keywordize-keys true))))))
+          (.catch (fn [e]
+                    (js/console.error "org-authority-op-failed" (.-stack e))
+                    (response {:error "org-authority-internal"} 500))))
+      (js/Promise.resolve (response {:error "private-binding-required"} 403)))))
+
+(defn make-org-authority [state env] (OrgAuthority. state env))

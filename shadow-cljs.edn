@@ -9,7 +9,8 @@
                        :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
   :research-authority {:target :esm :output-dir "build/research"
                        :modules {:worker {:exports {default app-kotoba-cloud.research-authority/default
-                                                    ResearchAuthority app-kotoba-cloud.research-authority/make-research-authority}}}
+                                                    ResearchAuthority app-kotoba-cloud.research-authority/make-research-authority
+                                                    OrgAuthority app-kotoba-cloud.org-authority/make-org-authority}}}
                        :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
   :free-sites-test
   {:target :node-test

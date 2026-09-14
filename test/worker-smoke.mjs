@@ -564,6 +564,28 @@ assert.equal((await route(researchRequest("/v1/research/status"), env)).status, 
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, { origin: "https://evil.example" }), researchEnv)).status, 403);
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, { "content-type": "text/plain" }), researchEnv)).status, 415);
 assert.equal(researchCalls.length, 0);
+
+// Org gateway (ADR-2609141633): same-origin POST, session required; the private
+// org authority owns create/delegate/revoke/status.
+{
+  const orgCalls = [];
+  const orgEnv = { ...env, ORG_AUTHORITY: { fetch: async (url, init) => {
+    orgCalls.push(new URL(url).pathname);
+    const body = JSON.parse(init.body);
+    assert.equal(body.principalId, researchPrincipal);
+    return Response.json({ orgDid: 'did:webvh:com-test:test.kotoba.cloud', handle: 'com-test.kotoba.cloud' });
+  }}};
+  assert.equal((await route(new Request('https://kotoba.cloud/v1/org/status', { method: 'POST',
+    headers: { cookie: 'gftd_session=research-session' } }), orgEnv)).status, 403);
+  assert.equal((await route(new Request('https://kotoba.cloud/v1/org/status', { method: 'GET',
+    headers: { cookie: 'gftd_session=research-session', origin: 'https://kotoba.cloud' } }), orgEnv)).status, 405);
+  assert.equal((await route(researchRequest('/v1/org/create', { handle: 'bad' }, { origin: 'https://evil.example' }), orgEnv)).status, 403);
+  assert.equal((await route(researchRequest('/v1/org/create', { handle: 'com-x.kotoba.cloud', role: 'owner' }), orgEnv)).status, 200);
+  assert.deepEqual(orgCalls, ['/create']);
+  assert.equal((await route(new Request('https://kotoba.cloud/v1/org/create', { method: 'POST',
+    headers: { origin: 'https://kotoba.cloud', 'content-type': 'application/json' },
+    body: JSON.stringify({ handle: 'com-x.kotoba.cloud', role: 'owner' }) }), env)).status, 401);
+}
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
 assert.equal((await modelCatalog.json()).data[0].availability, "upstream-tested-access-gated");
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);

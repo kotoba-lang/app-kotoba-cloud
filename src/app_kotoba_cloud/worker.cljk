@@ -9,6 +9,7 @@
             [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.research :as research]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
+            [app-kotoba-cloud.org-gateway :as org-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
@@ -668,6 +669,9 @@
           (.then #(with-security-headers % {"cache-control" "no-store, private"
                                            "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
                                            "permissions-policy" "camera=(self), microphone=(), geolocation=(), payment=()"})))
+
+      (contains? org-gateway/paths path)
+      (org-gateway/route request env fetch-viewer private-json-response)
 
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
