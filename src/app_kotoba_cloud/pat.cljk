@@ -1,0 +1,112 @@
+(ns app-kotoba-cloud.pat
+  "Stateless personal API tokens (PAT) for local CLI/IDE agents.
+
+  Token = \"kc_pat_\" <principalB64url> \".\" <hmac16hex>, where hmac16hex is
+  the first 16 hex chars of HMAC-SHA-256(PAT_SIGNING_SECRET, \"kotoba-agent-pat-v1:<principal>\").
+  The edge verifies by recomputation — no storage, no DO. Revocation is coarse
+  by design: rotating PAT_SIGNING_SECRET invalidates every token at once
+  (documented; users who need revocation contact support). Fail closed when
+  the secret is absent. Tokens are issued once over HTTPS and never appear in
+  query strings or logs."
+  (:require [app-kotoba-cloud.session :as session]))
+
+(def prefix "kc_pat_")
+(def secret-name "PAT_SIGNING_SECRET")
+(def hmac-domain "kotoba-agent-pat-v1")
+(def session-domain "kotoba-agent-session-v1")
+
+(defn- bytes->hex [buffer]
+  (apply str (map (fn [b] (.padStart (.toString b 16) 2 "0"))
+                  (array-seq (js/Uint8Array. buffer)))))
+
+(defn- encode [string] (.encode (js/TextEncoder.) string))
+
+(defn- sha256-hex [string]
+  (-> (.digest (.-subtle js/crypto) "SHA-256" (encode string))
+      (.then bytes->hex)))
+
+(defn- hmac-hex [secret message]
+  (-> (.importKey (.-subtle js/crypto) "raw" (encode secret)
+                  #js {:name "HMAC" :hash "SHA-256"} false #js ["sign"])
+      (.then (fn [key] (.sign (.-subtle js/crypto)
+                             #js {:name "HMAC" :hash "SHA-256"} key (encode message))))
+      (.then bytes->hex)))
+
+(defn- b64url-encode [string]
+  (let [bytes (encode string)
+        binary (apply str (map (fn [b] (js/String.fromCharCode b)) (array-seq bytes)))]
+    (-> (js/btoa binary)
+        (.replace #"\+" "-")
+        (.replace #"/" "_")
+        (.replace #"=+$" ""))))
+
+(defn- b64url-decode [string]
+  (when (re-matches #"[A-Za-z0-9_-]+" string)
+    (let [pad (mod (- 4 (mod (count string) 4)) 4)
+          b64 (-> (str string (apply str (repeat pad "=")))
+                  (.replace #"-" "+")
+                  (.replace #"_" "/"))]
+      (try
+        (let [binary (js/atob b64)
+              bytes (js/Uint8Array. (count binary))]
+          (doseq [i (range (count binary))]
+            (aset bytes i (.charCodeAt binary i)))
+          (.decode (js/TextDecoder.) bytes))
+        (catch :default _ nil)))))
+
+(defn- principal-id?
+  [value]
+  (and (string? value) (pos? (count value)) (<= (count value) 256)
+       (not (re-find #"\s" value))
+       (or (.startsWith value "did:")
+           (.startsWith value "urn:kotoba:principal:"))))
+
+(defn- constant-eq? [a b]
+  (and (= (count a) (count b))
+       (zero? (reduce (fn [acc i] (bit-or acc (bit-xor (.charCodeAt a i)
+                                                       (.charCodeAt b i))))
+                      0 (range (count a))))))
+
+(defn issue
+  [principal secret]
+  (-> (hmac-hex secret (str hmac-domain ":" principal))
+      (.then (fn [sig] (str prefix (b64url-encode principal) "." (subs sig 0 16))))))
+
+(defn verify
+  "Promise of {:principalId .. :tokenHash ..} or nil (nil = reject). Fails
+  closed on any structural, charset or MAC mismatch. tokenHash is SHA-256 of
+  the exact bearer token as presented."
+  [token secret]
+  (if-not (and (string? token) (string? secret) (pos? (count secret))
+               (<= (count secret) 256) (.startsWith token prefix))
+    (js/Promise.resolve nil)
+    (let [rest (subs token (count prefix))
+          dot (.indexOf rest ".")]
+      (if-not (and (pos? dot) (= (.lastIndexOf rest ".") dot))
+        (js/Promise.resolve nil)
+        (let [principal (b64url-decode (subs rest 0 dot))
+              signature (subs rest (inc dot))]
+          (if-not (and (principal-id? principal)
+                       (re-matches #"[0-9a-f]{16}" signature))
+            (js/Promise.resolve nil)
+            (-> (hmac-hex secret (str hmac-domain ":" principal))
+                (.then (fn [expected]
+                         (if (constant-eq? signature (subs expected 0 16))
+                           (-> (sha256-hex token)
+                               (.then (fn [h] {:principalId principal :tokenHash h})))
+                           nil))))))))))
+
+(defn agent-session-reference
+  "Stable bearer session-reference. Same derivation family as the browser
+  session reference (SHA-256 of a JSON tuple) but a distinct domain tag, so
+  the authority — which trusts the edge's sessionRef without recomputation —
+  sees a consistent per-token reference that can never collide with a cookie
+  session reference."
+  [principal token-hash]
+  (-> (.digest (.-subtle js/crypto) "SHA-256"
+               (encode (js/JSON.stringify #js [session-domain principal token-hash])))
+      (.then bytes->hex)))
+
+(defn secret-available? [env]
+  (let [secret (aget env secret-name)]
+    (and (string? secret) (pos? (count secret)) (<= (count secret) 256))))

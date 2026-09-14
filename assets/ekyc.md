@@ -17,6 +17,18 @@ Free allowance after verified identity: 50 requests per day, up to 2,048 output 
    - Recovery phrase (BIP-39, derived in-browser; the phrase never leaves the device).
    The session cookie (`credentials: "same-origin"`) is what the research API reads.
    Sole-custody methods (own key / wallet / phrase) never expose keys to the service.
+
+   CLI/IDE alternative (no browser session at call time): after signing in once,
+   the account holder issues a personal API token at https://kotoba.cloud/account
+   (「CLI / IDE から使う」→「接続トークンを発行」, shown once). Local agents then send
+   `Authorization: Bearer kc_pat_...` on every call (never a query parameter):
+   - POST https://api.kotoba.cloud/v1/chat/completions (OpenAI-compatible)
+   - POST https://api.kotoba.cloud/v1/research/jobs (async, Idempotency-Key)
+   - GET  https://api.kotoba.cloud/v1/models, /v1/research/status
+   All eligibility gates (Stripe Identity verification, approved scope, free
+   quota) apply identically; the token only removes the browser-origin and
+   cookie requirements. Revocation is by rotating the signing secret
+   (support@kotoba.cloud).
 2. Start verification:
    POST https://api.kotoba.cloud/v1/research/ekyc/start
    same-origin JSON body: {"scopeId":"owned","tasks":["code-review"]}
