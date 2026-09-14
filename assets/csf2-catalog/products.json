@@ -1,0 +1,719 @@
+[
+ {
+  "product/id": "crowdstrike-falcon",
+  "product/name": "CrowdStrike Falcon",
+  "product/vendor": "CrowdStrike",
+  "product/category": "EDR/XDR",
+  "product/platform": "SaaS agent",
+  "product/summary": "Endpoint detection and response: behavioral telemetry, threat intel correlation, managed threat hunting.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-04",
+   "DE.AE-07",
+   "DE.AE-08",
+   "ID.RA-03",
+   "ID.RA-04",
+   "PR.PS-02",
+   "PR.PS-04",
+   "PR.PS-05",
+   "RS.AN-03",
+   "RS.AN-06",
+   "RS.AN-07",
+   "RS.MA-02",
+   "RS.MA-03",
+   "RS.MI-01",
+   "RS.MI-02",
+   "ID.AM-02"
+  ],
+  "product/source": "https://www.crowdstrike.com/products/endpoint-security/"
+ },
+ {
+  "product/id": "microsoft-defender-endpoint",
+  "product/name": "Microsoft Defender for Endpoint",
+  "product/vendor": "Microsoft",
+  "product/category": "EDR/XDR",
+  "product/platform": "SaaS agent",
+  "product/summary": "Endpoint EDR with threat and vulnerability management, attack surface reduction, automated investigation.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-04",
+   "DE.AE-07",
+   "DE.AE-08",
+   "ID.RA-01",
+   "ID.RA-03",
+   "ID.AM-02",
+   "PR.PS-02",
+   "PR.PS-04",
+   "PR.PS-05",
+   "RS.AN-03",
+   "RS.MA-02",
+   "RS.MA-03",
+   "RS.MI-01",
+   "RS.MI-02",
+   "ID.IM-03"
+  ],
+  "product/source": "https://www.microsoft.com/security/business/endpoint-security/microsoft-defender-endpoint"
+ },
+ {
+  "product/id": "sentinelone-singularity",
+  "product/name": "SentinelOne Singularity",
+  "product/vendor": "SentinelOne",
+  "product/category": "EDR/XDR",
+  "product/platform": "SaaS agent",
+  "product/summary": "Autonomous endpoint protection with AI-driven detection and automated rollback remediation.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-04",
+   "DE.AE-07",
+   "DE.AE-08",
+   "PR.PS-04",
+   "PR.PS-05",
+   "RS.AN-03",
+   "RS.MI-01",
+   "RS.MI-02",
+   "RC.RP-05"
+  ],
+  "product/source": "https://www.sentinelone.com/platform/"
+ },
+ {
+  "product/id": "defender-atp-sensor-linux",
+  "product/name": "Wazuh",
+  "product/vendor": "Wazuh (open source)",
+  "product/category": "SIEM/EDR",
+  "product/platform": "Self-hosted",
+  "product/summary": "Open-source XDR and SIEM: log analysis, file integrity monitoring, vulnerability detection, compliance mapping.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-06",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-06",
+   "DE.AE-08",
+   "ID.AM-01",
+   "ID.AM-02",
+   "ID.AM-07",
+   "ID.RA-01",
+   "PR.PS-04",
+   "PR.PS-01",
+   "RS.AN-03",
+   "RS.AN-06",
+   "RS.AN-07",
+   "RS.MA-02"
+  ],
+  "product/source": "https://wazuh.com/"
+ },
+ {
+  "product/id": "splunk-enterprise-security",
+  "product/name": "Splunk Enterprise Security",
+  "product/vendor": "Splunk (Cisco)",
+  "product/category": "SIEM",
+  "product/platform": "Self-hosted/SaaS",
+  "product/summary": "SIEM: security monitoring, correlation search, incident review, SOAR integration.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-06",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-06",
+   "DE.AE-07",
+   "DE.AE-08",
+   "PR.PS-04",
+   "RS.MA-02",
+   "RS.MA-03",
+   "RS.AN-03",
+   "RS.AN-06",
+   "RS.AN-07",
+   "RS.CO-03",
+   "ID.RA-02"
+  ],
+  "product/source": "https://www.splunk.com/en_us/products/enterprise-security.html"
+ },
+ {
+  "product/id": "elastic-security",
+  "product/name": "Elastic Security",
+  "product/vendor": "Elastic",
+  "product/category": "SIEM",
+  "product/platform": "Self-hosted/SaaS",
+  "product/summary": "SIEM and endpoint security on the Elastic Stack: detection rules, threat intel matching, case management.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-06",
+   "DE.AE-07",
+   "DE.AE-08",
+   "PR.PS-04",
+   "RS.AN-03",
+   "RS.AN-06",
+   "RS.AN-07",
+   "RS.MA-02",
+   "ID.RA-02"
+  ],
+  "product/source": "https://www.elastic.co/security"
+ },
+ {
+  "product/id": "ibm-qradar",
+  "product/name": "IBM QRadar Suite",
+  "product/vendor": "IBM",
+  "product/category": "SIEM",
+  "product/platform": "SaaS",
+  "product/summary": "SIEM/SOAR: analytics over security logs, automated incident response playbooks.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-06",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-06",
+   "DE.AE-08",
+   "PR.PS-04",
+   "RS.MA-02",
+   "RS.MA-03",
+   "RS.AN-03",
+   "RS.CO-03",
+   "ID.RA-02"
+  ],
+  "product/source": "https://www.ibm.com/products/qradar-siem"
+ },
+ {
+  "product/id": "graylog-security",
+  "product/name": "Graylog Security",
+  "product/vendor": "Graylog",
+  "product/category": "SIEM",
+  "product/platform": "Self-hosted/SaaS",
+  "product/summary": "Log management plus anomaly detection and pre-built detections mapped to MITRE ATT&CK.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.CM-03",
+   "DE.CM-09",
+   "DE.AE-03",
+   "DE.AE-06",
+   "DE.AE-08",
+   "PR.PS-04",
+   "RS.AN-03",
+   "RS.AN-06"
+  ],
+  "product/source": "https://www.graylog.org/products/security"
+ },
+ {
+  "product/id": "okta-workforce-identity",
+  "product/name": "Okta Workforce Identity",
+  "product/vendor": "Okta",
+  "product/category": "IAM",
+  "product/platform": "SaaS",
+  "product/summary": "Identity provider: SSO, MFA, lifecycle management, access policy.",
+  "product/csf": [
+   "PR.AA-01",
+   "PR.AA-02",
+   "PR.AA-03",
+   "PR.AA-04",
+   "PR.AA-05",
+   "ID.AM-08",
+   "DE.CM-03",
+   "PR.DS-02"
+  ],
+  "product/source": "https://www.okta.com/products/single-sign-on/"
+ },
+ {
+  "product/id": "microsoft-entra-id",
+  "product/name": "Microsoft Entra ID",
+  "product/vendor": "Microsoft",
+  "product/category": "IAM",
+  "product/platform": "SaaS",
+  "product/summary": "Azure AD successor: SSO, conditional access, identity protection, PIM.",
+  "product/csf": [
+   "PR.AA-01",
+   "PR.AA-02",
+   "PR.AA-03",
+   "PR.AA-04",
+   "PR.AA-05",
+   "ID.AM-08",
+   "DE.CM-03",
+   "DE.AE-03",
+   "RS.MA-02"
+  ],
+  "product/source": "https://www.microsoft.com/security/business/identity-access/microsoft-entra-id"
+ },
+ {
+  "product/id": "keycloak",
+  "product/name": "Keycloak",
+  "product/vendor": "Keycloak (open source)",
+  "product/category": "IAM",
+  "product/platform": "Self-hosted",
+  "product/summary": "Open-source identity and access management: SSO, MFA, federation, fine-grained authorization.",
+  "product/csf": [
+   "PR.AA-01",
+   "PR.AA-02",
+   "PR.AA-03",
+   "PR.AA-04",
+   "PR.AA-05",
+   "PR.DS-02"
+  ],
+  "product/source": "https://www.keycloak.org/"
+ },
+ {
+  "product/id": "cyberark-pam",
+  "product/name": "CyberArk Privilege Cloud",
+  "product/vendor": "CyberArk",
+  "product/category": "PAM",
+  "product/platform": "SaaS",
+  "product/summary": "Privileged access management: vaulting, session recording, just-in-time access.",
+  "product/csf": [
+   "PR.AA-01",
+   "PR.AA-03",
+   "PR.AA-05",
+   "DE.CM-03",
+   "PR.DS-01",
+   "PR.PS-04",
+   "RS.AN-06"
+  ],
+  "product/source": "https://www.cyberark.com/products/privilege-cloud/"
+ },
+ {
+  "product/id": "yubico-yubihsm",
+  "product/name": "YubiHSM 2",
+  "product/vendor": "Yubico",
+  "product/category": "HSM",
+  "product/platform": "Hardware",
+  "product/summary": "Hardware security module for key storage and cryptographic operations.",
+  "product/csf": [
+   "PR.DS-01",
+   "PR.DS-02",
+   "ID.RA-09",
+   "PR.AA-01"
+  ],
+  "product/source": "https://www.yubico.com/products/yubihsm2/"
+ },
+ {
+  "product/id": "paloalto-ngfw",
+  "product/name": "Palo Alto Networks NGFW",
+  "product/vendor": "Palo Alto Networks",
+  "product/category": "Firewall",
+  "product/platform": "Hardware/VM",
+  "product/summary": "Next-generation firewall: app-ID, URL filtering, threat prevention, TLS decryption.",
+  "product/csf": [
+   "PR.IR-01",
+   "PR.DS-02",
+   "DE.CM-01",
+   "DE.AE-03",
+   "DE.AE-08",
+   "PR.PS-04",
+   "PR.PS-05",
+   "RS.MI-01"
+  ],
+  "product/source": "https://www.paloaltonetworks.com/network-security/next-generation-firewall"
+ },
+ {
+  "product/id": "pfense-plus",
+  "product/name": "pfSense Plus",
+  "product/vendor": "Netgate",
+  "product/category": "Firewall",
+  "product/platform": "Self-hosted",
+  "product/summary": "Open-source firewall/router: NAT, VPN, IDS/IPS integration, traffic shaping.",
+  "product/csf": [
+   "PR.IR-01",
+   "PR.DS-02",
+   "DE.CM-01",
+   "PR.IR-03"
+  ],
+  "product/source": "https://www.netgate.com/pfsense-plus-software"
+ },
+ {
+  "product/id": "cloudflare-zero-trust",
+  "product/name": "Cloudflare Zero Trust",
+  "product/vendor": "Cloudflare",
+  "product/category": "ZTNA",
+  "product/platform": "SaaS",
+  "product/summary": "Zero trust network access, secure web gateway, DNS filtering, WAF, DLP.",
+  "product/csf": [
+   "PR.IR-01",
+   "PR.DS-02",
+   "DE.CM-01",
+   "DE.AE-03",
+   "PR.AA-03",
+   "PR.AA-05",
+   "PR.DS-01",
+   "PR.DS-10",
+   "PR.PS-04"
+  ],
+  "product/source": "https://www.cloudflare.com/products/zero-trust/"
+ },
+ {
+  "product/id": "zeek",
+  "product/name": "Zeek",
+  "product/vendor": "Zeek (open source)",
+  "product/category": "Network detection",
+  "product/platform": "Self-hosted",
+  "product/summary": "Network security monitor: rich telemetry and scripted detection on network traffic.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.AE-03",
+   "DE.AE-07",
+   "PR.PS-04",
+   "RS.AN-03",
+   "RS.AN-07"
+  ],
+  "product/source": "https://zeek.org/"
+ },
+ {
+  "product/id": "suricata",
+  "product/name": "Suricata",
+  "product/vendor": "OISF (open source)",
+  "product/category": "Network detection",
+  "product/platform": "Self-hosted",
+  "product/summary": "IDS/IPS and network security monitoring with signature and protocol analysis.",
+  "product/csf": [
+   "DE.CM-01",
+   "DE.AE-03",
+   "DE.AE-08",
+   "PR.IR-01",
+   "PR.PS-04",
+   "RS.MI-01"
+  ],
+  "product/source": "https://suricata.io/"
+ },
+ {
+  "product/id": "tenable-nessus",
+  "product/name": "Tenable Nessus",
+  "product/vendor": "Tenable",
+  "product/category": "Vulnerability management",
+  "product/platform": "Self-hosted",
+  "product/summary": "Industry-standard vulnerability scanner with extensive plugin coverage.",
+  "product/csf": [
+   "ID.RA-01",
+   "ID.RA-03",
+   "ID.RA-04",
+   "ID.AM-01",
+   "ID.AM-02",
+   "PR.PS-02",
+   "ID.IM-03"
+  ],
+  "product/source": "https://www.tenable.com/products/nessus"
+ },
+ {
+  "product/id": "openvas-gvm",
+  "product/name": "OpenVAS (Greenbone)",
+  "product/vendor": "Greenbone (open source)",
+  "product/category": "Vulnerability management",
+  "product/platform": "Self-hosted",
+  "product/summary": "Open-source vulnerability scanning engine with regularly updated feed.",
+  "product/csf": [
+   "ID.RA-01",
+   "ID.RA-03",
+   "ID.AM-01",
+   "PR.PS-02"
+  ],
+  "product/source": "https://www.greenbone.net/en/products/gvm/"
+ },
+ {
+  "product/id": "qualys-vmdr",
+  "product/name": "Qualys VMDR",
+  "product/vendor": "Qualys",
+  "product/category": "Vulnerability management",
+  "product/platform": "SaaS",
+  "product/summary": "Cloud vulnerability management: discovery, prioritization, patch correlation.",
+  "product/csf": [
+   "ID.RA-01",
+   "ID.RA-03",
+   "ID.RA-04",
+   "ID.AM-01",
+   "ID.AM-02",
+   "ID.AM-08",
+   "PR.PS-02",
+   "ID.IM-03"
+  ],
+  "product/source": "https://www.qualys.com/apps/vulnerability-management-detection-response/"
+ },
+ {
+  "product/id": "hashicorp-vault",
+  "product/name": "HashiCorp Vault",
+  "product/vendor": "HashiCorp",
+  "product/category": "Secrets management",
+  "product/platform": "Self-hosted/SaaS",
+  "product/summary": "Secrets management, encryption as a service, dynamic credentials, PKI.",
+  "product/csf": [
+   "PR.AA-01",
+   "PR.AA-03",
+   "PR.AA-05",
+   "PR.DS-01",
+   "PR.DS-02",
+   "ID.RA-09",
+   "PR.PS-01"
+  ],
+  "product/source": "https://developer.hashicorp.com/vault"
+ },
+ {
+  "product/id": "openbao",
+  "product/name": "OpenBao",
+  "product/vendor": "OpenBao (open source)",
+  "product/category": "Secrets management",
+  "product/platform": "Self-hosted",
+  "product/summary": "Open-source fork of Vault: secrets management and encryption as a service.",
+  "product/csf": [
+   "PR.AA-01",
+   "PR.AA-03",
+   "PR.AA-05",
+   "PR.DS-01",
+   "PR.DS-02"
+  ],
+  "product/source": "https://openbao.org/"
+ },
+ {
+  "product/id": "trivy",
+  "product/name": "Trivy",
+  "product/vendor": "Aqua Security (open source)",
+  "product/category": "SCA/container scan",
+  "product/platform": "CLI/CI",
+  "product/summary": "Comprehensive scanner for containers, IaC, secrets and dependencies.",
+  "product/csf": [
+   "ID.RA-01",
+   "ID.RA-09",
+   "PR.PS-01",
+   "PR.PS-02",
+   "PR.PS-06",
+   "GV.SC-07"
+  ],
+  "product/source": "https://trivy.dev/"
+ },
+ {
+  "product/id": "owasp-zap",
+  "product/name": "OWASP ZAP",
+  "product/vendor": "OWASP (open source)",
+  "product/category": "DAST",
+  "product/platform": "CLI/proxy",
+  "product/summary": "Open-source web app scanner and proxy for finding vulnerabilities dynamically.",
+  "product/csf": [
+   "ID.RA-01",
+   "PR.PS-06",
+   "ID.IM-02"
+  ],
+  "product/source": "https://www.zaproxy.org/"
+ },
+ {
+  "product/id": "semgrep",
+  "product/name": "Semgrep",
+  "product/vendor": "Semgrep",
+  "product/category": "SAST",
+  "product/platform": "CLI/CI",
+  "product/summary": "Fast static analysis with custom rules and supply-chain dependency scanning.",
+  "product/csf": [
+   "PR.PS-06",
+   "ID.RA-01",
+   "GV.SC-05",
+   "GV.SC-07"
+  ],
+  "product/source": "https://semgrep.dev/"
+ },
+ {
+  "product/id": "sonarqube",
+  "product/name": "SonarQube",
+  "product/vendor": "Sonar",
+  "product/category": "SAST",
+  "product/platform": "Self-hosted/SaaS",
+  "product/summary": "Code quality and security: static analysis with taint tracking in CI.",
+  "product/csf": [
+   "PR.PS-06",
+   "ID.RA-01",
+   "ID.IM-03"
+  ],
+  "product/source": "https://www.sonarsource.com/products/sonarqube/"
+ },
+ {
+  "product/id": "veeam-backup",
+  "product/name": "Veeam Backup & Replication",
+  "product/vendor": "Veeam",
+  "product/category": "Backup",
+  "product/platform": "Self-hosted",
+  "product/summary": "Enterprise backup, replication, immutable backups and instant recovery.",
+  "product/csf": [
+   "PR.DS-11",
+   "RC.RP-01",
+   "RC.RP-02",
+   "RC.RP-03",
+   "RC.RP-05",
+   "PR.IR-03"
+  ],
+  "product/source": "https://www.veeam.com/products/veeam-backup-replication.html"
+ },
+ {
+  "product/id": "restic",
+  "product/name": "Restic",
+  "product/vendor": "Restic (open source)",
+  "product/category": "Backup",
+  "product/platform": "CLI",
+  "product/summary": "Fast, secure, deduplicated backup with client-side encryption and integrity checks.",
+  "product/csf": [
+   "PR.DS-11",
+   "RC.RP-03",
+   "PR.DS-01"
+  ],
+  "product/source": "https://restic.net/"
+ },
+ {
+  "product/id": "borgbackup",
+  "product/name": "BorgBackup",
+  "product/vendor": "Borg (open source)",
+  "product/category": "Backup",
+  "product/platform": "CLI",
+  "product/summary": "Deduplicating backup with compression and authenticated encryption.",
+  "product/csf": [
+   "PR.DS-11",
+   "RC.RP-03",
+   "PR.DS-01"
+  ],
+  "product/source": "https://www.borgbackup.org/"
+ },
+ {
+  "product/id": "knowbe4-ksat",
+  "product/name": "KnowBe4 Security Awareness Training",
+  "product/vendor": "KnowBe4",
+  "product/category": "Training",
+  "product/platform": "SaaS",
+  "product/summary": "Security awareness training and simulated phishing platform.",
+  "product/csf": [
+   "PR.AT-01",
+   "PR.AT-02",
+   "DE.CM-03",
+   "ID.IM-02"
+  ],
+  "product/source": "https://www.knowbe4.com/products/kevin-mitnick-security-awareness-training"
+ },
+ {
+  "product/id": "drata",
+  "product/name": "Drata",
+  "product/vendor": "Drata",
+  "product/category": "GRC",
+  "product/platform": "SaaS",
+  "product/summary": "Continuous compliance automation and control monitoring across frameworks.",
+  "product/csf": [
+   "GV.PO-01",
+   "GV.PO-02",
+   "GV.OV-01",
+   "GV.OV-03",
+   "ID.AM-02",
+   "ID.IM-01",
+   "PR.PS-04",
+   "GV.SC-04",
+   "GV.SC-05"
+  ],
+  "product/source": "https://www.drata.com/"
+ },
+ {
+  "product/id": "opencre",
+  "product/name": "OpenCRE",
+  "product/vendor": "OWASP (open source)",
+  "product/category": "GRC",
+  "product/platform": "Self-hosted",
+  "product/summary": "Common Requirement Enumeration: machine-readable security requirements linked to standards.",
+  "product/csf": [
+   "GV.PO-01",
+   "GV.SC-05",
+   "PR.PS-06"
+  ],
+  "product/source": "https://www.opencre.org/"
+ },
+ {
+  "product/id": "oscal-compass",
+  "product/name": "OSCAL Compass",
+  "product/vendor": "Compass (open source)",
+  "product/category": "GRC",
+  "product/platform": "Self-hosted",
+  "product/summary": "OSCAL-native policy-as-code and control cataloging (incl. NIST CSF mapping).",
+  "product/csf": [
+   "GV.PO-01",
+   "GV.PO-02",
+   "GV.OV-03",
+   "ID.IM-01"
+  ],
+  "product/source": "https://github.com/oscal-compass"
+ },
+ {
+  "product/id": "gitleaks",
+  "product/name": "GitLeaks",
+  "product/vendor": "GitLeaks (open source)",
+  "product/category": "Secrets detection",
+  "product/platform": "CLI/CI",
+  "product/summary": "Detect and prevent hardcoded secrets in git repositories.",
+  "product/csf": [
+   "PR.DS-01",
+   "ID.RA-09",
+   "PR.PS-06"
+  ],
+  "product/source": "https://github.com/gitleaks/gitleaks"
+ },
+ {
+  "product/id": "misp",
+  "product/name": "MISP Threat Sharing",
+  "product/vendor": "MISP (open source)",
+  "product/category": "Threat intelligence",
+  "product/platform": "Self-hosted",
+  "product/summary": "Open-source threat intelligence platform for sharing, correlating indicators.",
+  "product/csf": [
+   "ID.RA-02",
+   "ID.RA-03",
+   "DE.AE-07",
+   "RS.CO-03",
+   "GV.RM-05"
+  ],
+  "product/source": "https://www.misp-project.org/"
+ },
+ {
+  "product/id": "opencti",
+  "product/name": "OpenCTI",
+  "product/vendor": "Filigran (open source)",
+  "product/category": "Threat intelligence",
+  "product/platform": "Self-hosted",
+  "product/summary": "Open cyber threat intelligence platform with knowledge graph of threats.",
+  "product/csf": [
+   "ID.RA-02",
+   "ID.RA-03",
+   "DE.AE-07",
+   "RS.CO-03"
+  ],
+  "product/source": "https://www.filigran.io/products/opencti/"
+ },
+ {
+  "product/id": "cuckoo-sandbox",
+  "product/name": "CAPE Sandbox",
+  "product/vendor": "CAPE (open source)",
+  "product/category": "Sandbox",
+  "product/platform": "Self-hosted",
+  "product/summary": "Malware analysis sandbox with automated behavioral reporting.",
+  "product/csf": [
+   "ID.RA-03",
+   "DE.AE-07",
+   "RS.AN-03",
+   "RS.AN-07"
+  ],
+  "product/source": "https://capev2.readthedocs.io/"
+ },
+ {
+  "product/id": "velociraptor",
+  "product/name": "Velociraptor",
+  "product/vendor": "Velocidex (open source)",
+  "product/category": "Forensics/DFIR",
+  "product/platform": "Self-hosted",
+  "product/summary": "Endpoint forensics and incident response: collection, hunting, timeline analysis.",
+  "product/csf": [
+   "DE.CM-03",
+   "DE.CM-09",
+   "RS.AN-03",
+   "RS.AN-06",
+   "RS.AN-07",
+   "ID.RA-03"
+  ],
+  "product/source": "https://docs.velociraptor.app/"
+ }
+]

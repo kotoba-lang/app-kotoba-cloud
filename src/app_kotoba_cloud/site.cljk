@@ -7,6 +7,7 @@
             [cloud-kotoba-dds.graph-workbench :as graph-workbench]
             [app-kotoba-cloud.identity-site :as identity-site]
             [app-kotoba-cloud.admin-site :as admin-site]
+            [app-kotoba-cloud.csf2-site :as csf2-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.profile :as profile]
@@ -719,7 +720,7 @@
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css)
+                :app-css (str tokens/skin-css app-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css security-site/css)
                 :head (document-head locale :path (:title t) (:description t))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
@@ -732,6 +733,14 @@
      (page/->page {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
                   :css (document-css) :app-css (str tokens/skin-css tokens/bridge-css security-site/css)}
                  (security-site/view))))
+
+#?(:clj
+   (defn csf2-html []
+     (page/->page {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
+                   :description "サイバーセキュリティ製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをサポートするかを機能別チャートで表示します。"
+                   :css (document-css)
+                   :app-css (str tokens/skin-css tokens/bridge-css csf2-site/css)}
+                  (csf2-site/view))))
 
 #?(:clj
    (defn admin-html []
@@ -854,9 +863,17 @@
        (io/copy (io/file "assets" "security-data.js") (io/file js-dir "security-data.js"))
        (doseq [path ["ja/security/index.html" "security-data/index.html"]]
          (let [target (io/file root path)] (io/make-parents target) (spit target (security-html))))
+       ;; NIST CSF 2.0 product catalog: static page + sourced data blocks
+       (doseq [path ["csf2/index.html" "security/csf2/index.html" "ja/security/csf2/index.html"]]
+         (let [target (io/file root path)] (io/make-parents target) (spit target (csf2-html))))
+       (doseq [source (file-seq (io/file "assets" "csf2-catalog")) :when (.isFile ^java.io.File source)]
+         (let [rel (.relativize (.toPath (io/file "assets" "csf2-catalog")) (.toPath source))
+               target (io/file root (str "security-data/csf2/" rel))]
+           (io/make-parents target) (io/copy source target)))
        (spit (io/file js-dir "chat-components.js") chat-site/browser-script)
        (spit (io/file js-dir "graph-workbench.js") graph-workbench/script)
        (spit (io/file js-dir "knowledge-host.js") knowledge-site/script)
+       (io/copy (io/file "assets" "csf2-catalog.js") (io/file js-dir "csf2-catalog.js"))
        (io/copy (io/file "assets" "norbert-chat.js") (io/file js-dir "norbert-chat.js"))
        (doseq [name ["llms.txt" "llms-full.txt" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
          (io/copy (io/file "assets" name) (io/file root name)))

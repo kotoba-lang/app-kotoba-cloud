@@ -1,0 +1,1163 @@
+{
+ "head": {
+  "/": "baguqeerazdczxoxysyfvackeyxwjf3trecy6d5y5mzzyjy7r4agkly5ljbzq"
+ },
+ "headUrl": "/security-data/csf2/blocks/baguqeerazdczxoxysyfvackeyxwjf3trecy6d5y5mzzyjy7r4agkly5ljbzq.json",
+ "version": 1,
+ "generatedAt": "2026-09-14T01:36:21.698Z",
+ "subcategoryCount": 106,
+ "productCount": 39,
+ "products": [
+  {
+   "product/id": "crowdstrike-falcon",
+   "product/name": "CrowdStrike Falcon",
+   "product/vendor": "CrowdStrike",
+   "product/category": "EDR/XDR",
+   "product/platform": "SaaS agent",
+   "product/summary": "Endpoint detection and response: behavioral telemetry, threat intel correlation, managed threat hunting.",
+   "product/source": "https://www.crowdstrike.com/products/endpoint-security/",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-04",
+    "DE.AE-07",
+    "DE.AE-08",
+    "ID.RA-03",
+    "ID.RA-04",
+    "PR.PS-02",
+    "PR.PS-04",
+    "PR.PS-05",
+    "RS.AN-03",
+    "RS.AN-06",
+    "RS.AN-07",
+    "RS.MA-02",
+    "RS.MA-03",
+    "RS.MI-01",
+    "RS.MI-02",
+    "ID.AM-02"
+   ],
+   "record": {
+    "/": "baguqeeraupca7d47oumduj3bvnhg7w6dtrdg5zqk4vnaplsmsufupw7f3vja"
+   }
+  },
+  {
+   "product/id": "microsoft-defender-endpoint",
+   "product/name": "Microsoft Defender for Endpoint",
+   "product/vendor": "Microsoft",
+   "product/category": "EDR/XDR",
+   "product/platform": "SaaS agent",
+   "product/summary": "Endpoint EDR with threat and vulnerability management, attack surface reduction, automated investigation.",
+   "product/source": "https://www.microsoft.com/security/business/endpoint-security/microsoft-defender-endpoint",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-04",
+    "DE.AE-07",
+    "DE.AE-08",
+    "ID.RA-01",
+    "ID.RA-03",
+    "ID.AM-02",
+    "PR.PS-02",
+    "PR.PS-04",
+    "PR.PS-05",
+    "RS.AN-03",
+    "RS.MA-02",
+    "RS.MA-03",
+    "RS.MI-01",
+    "RS.MI-02",
+    "ID.IM-03"
+   ],
+   "record": {
+    "/": "baguqeerakbdkxryjn5xviki42biycg4wxetcbcedkpqztlgc2el25tira5kq"
+   }
+  },
+  {
+   "product/id": "sentinelone-singularity",
+   "product/name": "SentinelOne Singularity",
+   "product/vendor": "SentinelOne",
+   "product/category": "EDR/XDR",
+   "product/platform": "SaaS agent",
+   "product/summary": "Autonomous endpoint protection with AI-driven detection and automated rollback remediation.",
+   "product/source": "https://www.sentinelone.com/platform/",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-04",
+    "DE.AE-07",
+    "DE.AE-08",
+    "PR.PS-04",
+    "PR.PS-05",
+    "RS.AN-03",
+    "RS.MI-01",
+    "RS.MI-02",
+    "RC.RP-05"
+   ],
+   "record": {
+    "/": "baguqeeravumvrjhlvkwmx6sjn55tlbphwzou73powqkunybq2becbl5spcrq"
+   }
+  },
+  {
+   "product/id": "defender-atp-sensor-linux",
+   "product/name": "Wazuh",
+   "product/vendor": "Wazuh (open source)",
+   "product/category": "SIEM/EDR",
+   "product/platform": "Self-hosted",
+   "product/summary": "Open-source XDR and SIEM: log analysis, file integrity monitoring, vulnerability detection, compliance mapping.",
+   "product/source": "https://wazuh.com/",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-06",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-06",
+    "DE.AE-08",
+    "ID.AM-01",
+    "ID.AM-02",
+    "ID.AM-07",
+    "ID.RA-01",
+    "PR.PS-04",
+    "PR.PS-01",
+    "RS.AN-03",
+    "RS.AN-06",
+    "RS.AN-07",
+    "RS.MA-02"
+   ],
+   "record": {
+    "/": "baguqeeranhb7tkovfnjqb6igalghxv4s2ybytosni42nr2tvpvce6q5qps2q"
+   }
+  },
+  {
+   "product/id": "splunk-enterprise-security",
+   "product/name": "Splunk Enterprise Security",
+   "product/vendor": "Splunk (Cisco)",
+   "product/category": "SIEM",
+   "product/platform": "Self-hosted/SaaS",
+   "product/summary": "SIEM: security monitoring, correlation search, incident review, SOAR integration.",
+   "product/source": "https://www.splunk.com/en_us/products/enterprise-security.html",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-06",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-06",
+    "DE.AE-07",
+    "DE.AE-08",
+    "PR.PS-04",
+    "RS.MA-02",
+    "RS.MA-03",
+    "RS.AN-03",
+    "RS.AN-06",
+    "RS.AN-07",
+    "RS.CO-03",
+    "ID.RA-02"
+   ],
+   "record": {
+    "/": "baguqeerafdkay3nvulzfsguby65gjjsl4lav5cjopuwes3us7rkhixm3cewq"
+   }
+  },
+  {
+   "product/id": "elastic-security",
+   "product/name": "Elastic Security",
+   "product/vendor": "Elastic",
+   "product/category": "SIEM",
+   "product/platform": "Self-hosted/SaaS",
+   "product/summary": "SIEM and endpoint security on the Elastic Stack: detection rules, threat intel matching, case management.",
+   "product/source": "https://www.elastic.co/security",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-06",
+    "DE.AE-07",
+    "DE.AE-08",
+    "PR.PS-04",
+    "RS.AN-03",
+    "RS.AN-06",
+    "RS.AN-07",
+    "RS.MA-02",
+    "ID.RA-02"
+   ],
+   "record": {
+    "/": "baguqeeraplb6ubdvx7kmkbflzni3tufvd5ofzsxqlg2ljfblkudrqn3omefa"
+   }
+  },
+  {
+   "product/id": "ibm-qradar",
+   "product/name": "IBM QRadar Suite",
+   "product/vendor": "IBM",
+   "product/category": "SIEM",
+   "product/platform": "SaaS",
+   "product/summary": "SIEM/SOAR: analytics over security logs, automated incident response playbooks.",
+   "product/source": "https://www.ibm.com/products/qradar-siem",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-06",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-06",
+    "DE.AE-08",
+    "PR.PS-04",
+    "RS.MA-02",
+    "RS.MA-03",
+    "RS.AN-03",
+    "RS.CO-03",
+    "ID.RA-02"
+   ],
+   "record": {
+    "/": "baguqeeran5xjpm2lqnejsr7cbzhlm4kxrs5usp7yzjzimbpi45rtdb32tjaq"
+   }
+  },
+  {
+   "product/id": "graylog-security",
+   "product/name": "Graylog Security",
+   "product/vendor": "Graylog",
+   "product/category": "SIEM",
+   "product/platform": "Self-hosted/SaaS",
+   "product/summary": "Log management plus anomaly detection and pre-built detections mapped to MITRE ATT&CK.",
+   "product/source": "https://www.graylog.org/products/security",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-06",
+    "DE.AE-08",
+    "PR.PS-04",
+    "RS.AN-03",
+    "RS.AN-06"
+   ],
+   "record": {
+    "/": "baguqeera245ykvd3u5ibt5stcq5euiv5zbmhnuta7yfhan2msqsn44wdbp5q"
+   }
+  },
+  {
+   "product/id": "okta-workforce-identity",
+   "product/name": "Okta Workforce Identity",
+   "product/vendor": "Okta",
+   "product/category": "IAM",
+   "product/platform": "SaaS",
+   "product/summary": "Identity provider: SSO, MFA, lifecycle management, access policy.",
+   "product/source": "https://www.okta.com/products/single-sign-on/",
+   "product/csf": [
+    "PR.AA-01",
+    "PR.AA-02",
+    "PR.AA-03",
+    "PR.AA-04",
+    "PR.AA-05",
+    "ID.AM-08",
+    "DE.CM-03",
+    "PR.DS-02"
+   ],
+   "record": {
+    "/": "baguqeerameii4ro2tolkhxnzzffhsf3zteuthgex7knmzmvtyanib4ggajba"
+   }
+  },
+  {
+   "product/id": "microsoft-entra-id",
+   "product/name": "Microsoft Entra ID",
+   "product/vendor": "Microsoft",
+   "product/category": "IAM",
+   "product/platform": "SaaS",
+   "product/summary": "Azure AD successor: SSO, conditional access, identity protection, PIM.",
+   "product/source": "https://www.microsoft.com/security/business/identity-access/microsoft-entra-id",
+   "product/csf": [
+    "PR.AA-01",
+    "PR.AA-02",
+    "PR.AA-03",
+    "PR.AA-04",
+    "PR.AA-05",
+    "ID.AM-08",
+    "DE.CM-03",
+    "DE.AE-03",
+    "RS.MA-02"
+   ],
+   "record": {
+    "/": "baguqeerat7gewtnolclihxcygvqmpfurgbumnr7etjrortswtqhz4gcdfrzq"
+   }
+  },
+  {
+   "product/id": "keycloak",
+   "product/name": "Keycloak",
+   "product/vendor": "Keycloak (open source)",
+   "product/category": "IAM",
+   "product/platform": "Self-hosted",
+   "product/summary": "Open-source identity and access management: SSO, MFA, federation, fine-grained authorization.",
+   "product/source": "https://www.keycloak.org/",
+   "product/csf": [
+    "PR.AA-01",
+    "PR.AA-02",
+    "PR.AA-03",
+    "PR.AA-04",
+    "PR.AA-05",
+    "PR.DS-02"
+   ],
+   "record": {
+    "/": "baguqeerayk732rtno5int3sv5z3culqmz5gikmhjuekh2uthac3smbe7ftna"
+   }
+  },
+  {
+   "product/id": "cyberark-pam",
+   "product/name": "CyberArk Privilege Cloud",
+   "product/vendor": "CyberArk",
+   "product/category": "PAM",
+   "product/platform": "SaaS",
+   "product/summary": "Privileged access management: vaulting, session recording, just-in-time access.",
+   "product/source": "https://www.cyberark.com/products/privilege-cloud/",
+   "product/csf": [
+    "PR.AA-01",
+    "PR.AA-03",
+    "PR.AA-05",
+    "DE.CM-03",
+    "PR.DS-01",
+    "PR.PS-04",
+    "RS.AN-06"
+   ],
+   "record": {
+    "/": "baguqeera63elwn7xibzwdhdlevg73nsi7jeif5csioc5ooc7osysyvi72fxa"
+   }
+  },
+  {
+   "product/id": "yubico-yubihsm",
+   "product/name": "YubiHSM 2",
+   "product/vendor": "Yubico",
+   "product/category": "HSM",
+   "product/platform": "Hardware",
+   "product/summary": "Hardware security module for key storage and cryptographic operations.",
+   "product/source": "https://www.yubico.com/products/yubihsm2/",
+   "product/csf": [
+    "PR.DS-01",
+    "PR.DS-02",
+    "ID.RA-09",
+    "PR.AA-01"
+   ],
+   "record": {
+    "/": "baguqeerao4h7r3xfzeh2h3i55mw67etyuwe4dxm6ve5mov6y3iyngzwuhefq"
+   }
+  },
+  {
+   "product/id": "paloalto-ngfw",
+   "product/name": "Palo Alto Networks NGFW",
+   "product/vendor": "Palo Alto Networks",
+   "product/category": "Firewall",
+   "product/platform": "Hardware/VM",
+   "product/summary": "Next-generation firewall: app-ID, URL filtering, threat prevention, TLS decryption.",
+   "product/source": "https://www.paloaltonetworks.com/network-security/next-generation-firewall",
+   "product/csf": [
+    "PR.IR-01",
+    "PR.DS-02",
+    "DE.CM-01",
+    "DE.AE-03",
+    "DE.AE-08",
+    "PR.PS-04",
+    "PR.PS-05",
+    "RS.MI-01"
+   ],
+   "record": {
+    "/": "baguqeerawdbbo3ke73kwhl3rsb3k2hcp46vi3phb4c424jei3o4vcf57rclq"
+   }
+  },
+  {
+   "product/id": "pfense-plus",
+   "product/name": "pfSense Plus",
+   "product/vendor": "Netgate",
+   "product/category": "Firewall",
+   "product/platform": "Self-hosted",
+   "product/summary": "Open-source firewall/router: NAT, VPN, IDS/IPS integration, traffic shaping.",
+   "product/source": "https://www.netgate.com/pfsense-plus-software",
+   "product/csf": [
+    "PR.IR-01",
+    "PR.DS-02",
+    "DE.CM-01",
+    "PR.IR-03"
+   ],
+   "record": {
+    "/": "baguqeeraudkf3zlz32h2rabgx3lj3axe4iionhfeupaj3iifkjpksy5k5msq"
+   }
+  },
+  {
+   "product/id": "cloudflare-zero-trust",
+   "product/name": "Cloudflare Zero Trust",
+   "product/vendor": "Cloudflare",
+   "product/category": "ZTNA",
+   "product/platform": "SaaS",
+   "product/summary": "Zero trust network access, secure web gateway, DNS filtering, WAF, DLP.",
+   "product/source": "https://www.cloudflare.com/products/zero-trust/",
+   "product/csf": [
+    "PR.IR-01",
+    "PR.DS-02",
+    "DE.CM-01",
+    "DE.AE-03",
+    "PR.AA-03",
+    "PR.AA-05",
+    "PR.DS-01",
+    "PR.DS-10",
+    "PR.PS-04"
+   ],
+   "record": {
+    "/": "baguqeerakpk6n5fwqndwfpg6kqyfucuiksjqyvubtxibxvlfnsoov7pnvhaa"
+   }
+  },
+  {
+   "product/id": "zeek",
+   "product/name": "Zeek",
+   "product/vendor": "Zeek (open source)",
+   "product/category": "Network detection",
+   "product/platform": "Self-hosted",
+   "product/summary": "Network security monitor: rich telemetry and scripted detection on network traffic.",
+   "product/source": "https://zeek.org/",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.AE-03",
+    "DE.AE-07",
+    "PR.PS-04",
+    "RS.AN-03",
+    "RS.AN-07"
+   ],
+   "record": {
+    "/": "baguqeerarcwv67zprtxgfllkdcjlun4givn6qpypqrjwrcqz6cejwyq4lsuq"
+   }
+  },
+  {
+   "product/id": "suricata",
+   "product/name": "Suricata",
+   "product/vendor": "OISF (open source)",
+   "product/category": "Network detection",
+   "product/platform": "Self-hosted",
+   "product/summary": "IDS/IPS and network security monitoring with signature and protocol analysis.",
+   "product/source": "https://suricata.io/",
+   "product/csf": [
+    "DE.CM-01",
+    "DE.AE-03",
+    "DE.AE-08",
+    "PR.IR-01",
+    "PR.PS-04",
+    "RS.MI-01"
+   ],
+   "record": {
+    "/": "baguqeerapafkyqyedl763cxq4tnlqazkdgzcbeky733m64a4oll7ehgjzl2a"
+   }
+  },
+  {
+   "product/id": "tenable-nessus",
+   "product/name": "Tenable Nessus",
+   "product/vendor": "Tenable",
+   "product/category": "Vulnerability management",
+   "product/platform": "Self-hosted",
+   "product/summary": "Industry-standard vulnerability scanner with extensive plugin coverage.",
+   "product/source": "https://www.tenable.com/products/nessus",
+   "product/csf": [
+    "ID.RA-01",
+    "ID.RA-03",
+    "ID.RA-04",
+    "ID.AM-01",
+    "ID.AM-02",
+    "PR.PS-02",
+    "ID.IM-03"
+   ],
+   "record": {
+    "/": "baguqeerac46jkjr66nn6uleavvjbmwmowkpyuqvr4boy24yyfki6of3alena"
+   }
+  },
+  {
+   "product/id": "openvas-gvm",
+   "product/name": "OpenVAS (Greenbone)",
+   "product/vendor": "Greenbone (open source)",
+   "product/category": "Vulnerability management",
+   "product/platform": "Self-hosted",
+   "product/summary": "Open-source vulnerability scanning engine with regularly updated feed.",
+   "product/source": "https://www.greenbone.net/en/products/gvm/",
+   "product/csf": [
+    "ID.RA-01",
+    "ID.RA-03",
+    "ID.AM-01",
+    "PR.PS-02"
+   ],
+   "record": {
+    "/": "baguqeerawa4opccrfqjnp5gadodxz7z2iy3ixob2n4xemibrdvi4jdatsbiq"
+   }
+  },
+  {
+   "product/id": "qualys-vmdr",
+   "product/name": "Qualys VMDR",
+   "product/vendor": "Qualys",
+   "product/category": "Vulnerability management",
+   "product/platform": "SaaS",
+   "product/summary": "Cloud vulnerability management: discovery, prioritization, patch correlation.",
+   "product/source": "https://www.qualys.com/apps/vulnerability-management-detection-response/",
+   "product/csf": [
+    "ID.RA-01",
+    "ID.RA-03",
+    "ID.RA-04",
+    "ID.AM-01",
+    "ID.AM-02",
+    "ID.AM-08",
+    "PR.PS-02",
+    "ID.IM-03"
+   ],
+   "record": {
+    "/": "baguqeera6o34cvjtlw775pfr4bwxgsxthw4tqhkibhq3cydtpo3phbg5scqq"
+   }
+  },
+  {
+   "product/id": "hashicorp-vault",
+   "product/name": "HashiCorp Vault",
+   "product/vendor": "HashiCorp",
+   "product/category": "Secrets management",
+   "product/platform": "Self-hosted/SaaS",
+   "product/summary": "Secrets management, encryption as a service, dynamic credentials, PKI.",
+   "product/source": "https://developer.hashicorp.com/vault",
+   "product/csf": [
+    "PR.AA-01",
+    "PR.AA-03",
+    "PR.AA-05",
+    "PR.DS-01",
+    "PR.DS-02",
+    "ID.RA-09",
+    "PR.PS-01"
+   ],
+   "record": {
+    "/": "baguqeeraa5hhntsqk37b22ijbnazjd5zupvd5uusm2rr6qagnsm6ceew4j3q"
+   }
+  },
+  {
+   "product/id": "openbao",
+   "product/name": "OpenBao",
+   "product/vendor": "OpenBao (open source)",
+   "product/category": "Secrets management",
+   "product/platform": "Self-hosted",
+   "product/summary": "Open-source fork of Vault: secrets management and encryption as a service.",
+   "product/source": "https://openbao.org/",
+   "product/csf": [
+    "PR.AA-01",
+    "PR.AA-03",
+    "PR.AA-05",
+    "PR.DS-01",
+    "PR.DS-02"
+   ],
+   "record": {
+    "/": "baguqeerahdcrx22qldfhg2lh2u2j25kdy7ncbho7ik46bzo3vtjxuw2j6nlq"
+   }
+  },
+  {
+   "product/id": "trivy",
+   "product/name": "Trivy",
+   "product/vendor": "Aqua Security (open source)",
+   "product/category": "SCA/container scan",
+   "product/platform": "CLI/CI",
+   "product/summary": "Comprehensive scanner for containers, IaC, secrets and dependencies.",
+   "product/source": "https://trivy.dev/",
+   "product/csf": [
+    "ID.RA-01",
+    "ID.RA-09",
+    "PR.PS-01",
+    "PR.PS-02",
+    "PR.PS-06",
+    "GV.SC-07"
+   ],
+   "record": {
+    "/": "baguqeerattq6wmz5rcamgeeko23qkgrmolbvdomz5tugn3ao23tbcv643qja"
+   }
+  },
+  {
+   "product/id": "owasp-zap",
+   "product/name": "OWASP ZAP",
+   "product/vendor": "OWASP (open source)",
+   "product/category": "DAST",
+   "product/platform": "CLI/proxy",
+   "product/summary": "Open-source web app scanner and proxy for finding vulnerabilities dynamically.",
+   "product/source": "https://www.zaproxy.org/",
+   "product/csf": [
+    "ID.RA-01",
+    "PR.PS-06",
+    "ID.IM-02"
+   ],
+   "record": {
+    "/": "baguqeeradd57hthq45k5qs7ysqch6w2ylkqwkqeh4dgln7mweswks7gkrbra"
+   }
+  },
+  {
+   "product/id": "semgrep",
+   "product/name": "Semgrep",
+   "product/vendor": "Semgrep",
+   "product/category": "SAST",
+   "product/platform": "CLI/CI",
+   "product/summary": "Fast static analysis with custom rules and supply-chain dependency scanning.",
+   "product/source": "https://semgrep.dev/",
+   "product/csf": [
+    "PR.PS-06",
+    "ID.RA-01",
+    "GV.SC-05",
+    "GV.SC-07"
+   ],
+   "record": {
+    "/": "baguqeerazdohisvyg3qjhdcizb7d2safeuzw4eb5exfwsgyqqomgnuztoecq"
+   }
+  },
+  {
+   "product/id": "sonarqube",
+   "product/name": "SonarQube",
+   "product/vendor": "Sonar",
+   "product/category": "SAST",
+   "product/platform": "Self-hosted/SaaS",
+   "product/summary": "Code quality and security: static analysis with taint tracking in CI.",
+   "product/source": "https://www.sonarsource.com/products/sonarqube/",
+   "product/csf": [
+    "PR.PS-06",
+    "ID.RA-01",
+    "ID.IM-03"
+   ],
+   "record": {
+    "/": "baguqeerawjmd3ftjezpkcc7wlwmfb2yxtjakykr2fqv32e6bvi73ejxtf37q"
+   }
+  },
+  {
+   "product/id": "veeam-backup",
+   "product/name": "Veeam Backup & Replication",
+   "product/vendor": "Veeam",
+   "product/category": "Backup",
+   "product/platform": "Self-hosted",
+   "product/summary": "Enterprise backup, replication, immutable backups and instant recovery.",
+   "product/source": "https://www.veeam.com/products/veeam-backup-replication.html",
+   "product/csf": [
+    "PR.DS-11",
+    "RC.RP-01",
+    "RC.RP-02",
+    "RC.RP-03",
+    "RC.RP-05",
+    "PR.IR-03"
+   ],
+   "record": {
+    "/": "baguqeera4vuhgx3ybzqb5nyd5brvm546ldefitwhvdl4y7jdkgegxmkegx2q"
+   }
+  },
+  {
+   "product/id": "restic",
+   "product/name": "Restic",
+   "product/vendor": "Restic (open source)",
+   "product/category": "Backup",
+   "product/platform": "CLI",
+   "product/summary": "Fast, secure, deduplicated backup with client-side encryption and integrity checks.",
+   "product/source": "https://restic.net/",
+   "product/csf": [
+    "PR.DS-11",
+    "RC.RP-03",
+    "PR.DS-01"
+   ],
+   "record": {
+    "/": "baguqeerakl72grv3cini5gz2fde5q2mw6kzni5hf5ab3r3adgjxzaz2pnlwq"
+   }
+  },
+  {
+   "product/id": "borgbackup",
+   "product/name": "BorgBackup",
+   "product/vendor": "Borg (open source)",
+   "product/category": "Backup",
+   "product/platform": "CLI",
+   "product/summary": "Deduplicating backup with compression and authenticated encryption.",
+   "product/source": "https://www.borgbackup.org/",
+   "product/csf": [
+    "PR.DS-11",
+    "RC.RP-03",
+    "PR.DS-01"
+   ],
+   "record": {
+    "/": "baguqeeraxiankl6fek6mkgcq3z5qr53zjxuncrmdcqygrz4tzcljgsv7hlqa"
+   }
+  },
+  {
+   "product/id": "knowbe4-ksat",
+   "product/name": "KnowBe4 Security Awareness Training",
+   "product/vendor": "KnowBe4",
+   "product/category": "Training",
+   "product/platform": "SaaS",
+   "product/summary": "Security awareness training and simulated phishing platform.",
+   "product/source": "https://www.knowbe4.com/products/kevin-mitnick-security-awareness-training",
+   "product/csf": [
+    "PR.AT-01",
+    "PR.AT-02",
+    "DE.CM-03",
+    "ID.IM-02"
+   ],
+   "record": {
+    "/": "baguqeera637cd67zk2wfaspdzb5atgsui4kmx6zs36aeumukaazr33mwvrrq"
+   }
+  },
+  {
+   "product/id": "drata",
+   "product/name": "Drata",
+   "product/vendor": "Drata",
+   "product/category": "GRC",
+   "product/platform": "SaaS",
+   "product/summary": "Continuous compliance automation and control monitoring across frameworks.",
+   "product/source": "https://www.drata.com/",
+   "product/csf": [
+    "GV.PO-01",
+    "GV.PO-02",
+    "GV.OV-01",
+    "GV.OV-03",
+    "ID.AM-02",
+    "ID.IM-01",
+    "PR.PS-04",
+    "GV.SC-04",
+    "GV.SC-05"
+   ],
+   "record": {
+    "/": "baguqeera5cm3serwt6la2xx7yv5zf556gtfkoeez3jnlzt4az4ypxbi4vyqa"
+   }
+  },
+  {
+   "product/id": "opencre",
+   "product/name": "OpenCRE",
+   "product/vendor": "OWASP (open source)",
+   "product/category": "GRC",
+   "product/platform": "Self-hosted",
+   "product/summary": "Common Requirement Enumeration: machine-readable security requirements linked to standards.",
+   "product/source": "https://www.opencre.org/",
+   "product/csf": [
+    "GV.PO-01",
+    "GV.SC-05",
+    "PR.PS-06"
+   ],
+   "record": {
+    "/": "baguqeeraoyckogvihtcjnmqkhbjkmdpdt2ljthsh2u6c2s56hdjboe7eb3ua"
+   }
+  },
+  {
+   "product/id": "oscal-compass",
+   "product/name": "OSCAL Compass",
+   "product/vendor": "Compass (open source)",
+   "product/category": "GRC",
+   "product/platform": "Self-hosted",
+   "product/summary": "OSCAL-native policy-as-code and control cataloging (incl. NIST CSF mapping).",
+   "product/source": "https://github.com/oscal-compass",
+   "product/csf": [
+    "GV.PO-01",
+    "GV.PO-02",
+    "GV.OV-03",
+    "ID.IM-01"
+   ],
+   "record": {
+    "/": "baguqeeravgbi7e6242pdbcutd42r57omqsdchxqkc6kslzcbsdqclfbqfq2a"
+   }
+  },
+  {
+   "product/id": "gitleaks",
+   "product/name": "GitLeaks",
+   "product/vendor": "GitLeaks (open source)",
+   "product/category": "Secrets detection",
+   "product/platform": "CLI/CI",
+   "product/summary": "Detect and prevent hardcoded secrets in git repositories.",
+   "product/source": "https://github.com/gitleaks/gitleaks",
+   "product/csf": [
+    "PR.DS-01",
+    "ID.RA-09",
+    "PR.PS-06"
+   ],
+   "record": {
+    "/": "baguqeeraejmro3ztqyiyuiave4bfppamcxlhsdzilod2s5jnvh6zfaacroca"
+   }
+  },
+  {
+   "product/id": "misp",
+   "product/name": "MISP Threat Sharing",
+   "product/vendor": "MISP (open source)",
+   "product/category": "Threat intelligence",
+   "product/platform": "Self-hosted",
+   "product/summary": "Open-source threat intelligence platform for sharing, correlating indicators.",
+   "product/source": "https://www.misp-project.org/",
+   "product/csf": [
+    "ID.RA-02",
+    "ID.RA-03",
+    "DE.AE-07",
+    "RS.CO-03",
+    "GV.RM-05"
+   ],
+   "record": {
+    "/": "baguqeerafhbhvm6be24vihqgdsb2fgnutgy52qt6jgqdkqtecid7sxu4oiia"
+   }
+  },
+  {
+   "product/id": "opencti",
+   "product/name": "OpenCTI",
+   "product/vendor": "Filigran (open source)",
+   "product/category": "Threat intelligence",
+   "product/platform": "Self-hosted",
+   "product/summary": "Open cyber threat intelligence platform with knowledge graph of threats.",
+   "product/source": "https://www.filigran.io/products/opencti/",
+   "product/csf": [
+    "ID.RA-02",
+    "ID.RA-03",
+    "DE.AE-07",
+    "RS.CO-03"
+   ],
+   "record": {
+    "/": "baguqeera27jrulscbijfm5jhiwgt5fznph46ya74l2ckukovy75dgze64y7a"
+   }
+  },
+  {
+   "product/id": "cuckoo-sandbox",
+   "product/name": "CAPE Sandbox",
+   "product/vendor": "CAPE (open source)",
+   "product/category": "Sandbox",
+   "product/platform": "Self-hosted",
+   "product/summary": "Malware analysis sandbox with automated behavioral reporting.",
+   "product/source": "https://capev2.readthedocs.io/",
+   "product/csf": [
+    "ID.RA-03",
+    "DE.AE-07",
+    "RS.AN-03",
+    "RS.AN-07"
+   ],
+   "record": {
+    "/": "baguqeerarj5wtd2kptaqmcko7ucxq3kptbd2mj2ef6or4mamixmptrly6i6a"
+   }
+  },
+  {
+   "product/id": "velociraptor",
+   "product/name": "Velociraptor",
+   "product/vendor": "Velocidex (open source)",
+   "product/category": "Forensics/DFIR",
+   "product/platform": "Self-hosted",
+   "product/summary": "Endpoint forensics and incident response: collection, hunting, timeline analysis.",
+   "product/source": "https://docs.velociraptor.app/",
+   "product/csf": [
+    "DE.CM-03",
+    "DE.CM-09",
+    "RS.AN-03",
+    "RS.AN-06",
+    "RS.AN-07",
+    "ID.RA-03"
+   ],
+   "record": {
+    "/": "baguqeeraxvnvixiu4wiobn2mknglrv6xec5djdjfz3m5z6elwwd6b2gpq7fq"
+   }
+  }
+ ],
+ "subcategories": {
+  "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
+  "GV.OC-02": "Internal and external stakeholders are understood, and their needs and expectations regarding cybersecurity risk management are understood and considered",
+  "GV.OC-03": "Legal, regulatory, and contractual requirements regarding cybersecurity — including privacy and civil liberties obligations — are understood and managed",
+  "GV.OC-04": "Critical objectives, capabilities, and services that external stakeholders depend on or expect from the organization are understood and communicated",
+  "GV.OC-05": "Outcomes, capabilities, and services that the organization depends on are understood and communicated",
+  "GV.RM-01": "Risk management objectives are established and agreed to by organizational stakeholders",
+  "GV.RM-02": "Risk appetite and risk tolerance statements are established, communicated, and maintained",
+  "GV.RM-03": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes",
+  "GV.RM-04": "Strategic direction that describes appropriate risk response options is established and communicated",
+  "GV.RM-05": "Lines of communication across the organization are established for cybersecurity risks, including risks from suppliers and other third parties",
+  "GV.RM-06": "A standardized method for calculating, documenting, categorizing, and prioritizing cybersecurity risks is established and communicated",
+  "GV.RM-07": "Strategic opportunities (i.e., positive risks) are characterized and are included in organizational cybersecurity risk discussions",
+  "GV.RR-01": "Organizational leadership is responsible and accountable for cybersecurity risk and fosters a culture that is risk-aware, ethical, and continually improving",
+  "GV.RR-02": "Roles, responsibilities, and authorities related to cybersecurity risk management are established, communicated, understood, and enforced",
+  "GV.RR-03": "Adequate resources are allocated commensurate with the cybersecurity risk strategy, roles, responsibilities, and policies",
+  "GV.RR-04": "Cybersecurity is included in human resources practices",
+  "GV.PO-01": "Policy for managing cybersecurity risks is established based on organizational context, cybersecurity strategy, and priorities and is communicated and enforced",
+  "GV.PO-02": "Policy for managing cybersecurity risks is reviewed, updated, communicated, and enforced to reflect changes in requirements, threats, technology, and organizational mission",
+  "GV.OV-01": "Cybersecurity risk management strategy outcomes are reviewed to inform and adjust strategy and direction",
+  "GV.OV-02": "The cybersecurity risk management strategy is reviewed and adjusted to ensure coverage of organizational requirements and risks",
+  "GV.OV-03": "Organizational cybersecurity risk management performance is evaluated and reviewed for adjustments needed",
+  "GV.SC-01": "A cybersecurity supply chain risk management program, strategy, objectives, policies, and processes are established and agreed to by organizational stakeholders",
+  "GV.SC-02": "Cybersecurity roles and responsibilities for suppliers, customers, and partners are established, communicated, and coordinated internally and externally",
+  "GV.SC-03": "Cybersecurity supply chain risk management is integrated into cybersecurity and enterprise risk management, risk assessment, and improvement processes",
+  "GV.SC-04": "Suppliers are known and prioritized by criticality",
+  "GV.SC-05": "Requirements to address cybersecurity risks in supply chains are established, prioritized, and integrated into contracts and other types of agreements with suppliers and other relevant third parties",
+  "GV.SC-06": "Planning and due diligence are performed to reduce risks before entering into formal supplier or other third-party relationships",
+  "GV.SC-07": "The risks posed by a supplier, their products and services, and other third parties are understood, recorded, prioritized, assessed, responded to, and monitored over the course of the relationship",
+  "GV.SC-08": "Relevant suppliers and other third parties are included in incident planning, response, and recovery activities",
+  "GV.SC-09": "Supply chain security practices are integrated into cybersecurity and enterprise risk management programs, and their performance is monitored throughout the technology product and service life cycle",
+  "GV.SC-10": "Cybersecurity supply chain risk management plans include provisions for activities that occur after the conclusion of a partnership or service agreement",
+  "ID.AM-01": "Inventories of hardware managed by the organization are maintained",
+  "ID.AM-02": "Inventories of software, services, and systems managed by the organization are maintained",
+  "ID.AM-03": "Representations of the organization’s authorized network communication and internal and external network data flows are maintained",
+  "ID.AM-04": "Inventories of services provided by suppliers are maintained",
+  "ID.AM-05": "Assets are prioritized based on classification, criticality, resources, and impact on the mission",
+  "ID.AM-07": "Inventories of data and corresponding metadata for designated data types are maintained",
+  "ID.AM-08": "Systems, hardware, software, services, and data are managed throughout their life cycles",
+  "ID.RA-02": "Cyber threat intelligence is received from information sharing forums and sources",
+  "ID.RA-03": "Internal and external threats to the organization are identified and recorded",
+  "ID.RA-04": "Potential impacts and likelihoods of threats exploiting vulnerabilities are identified and recorded",
+  "ID.RA-05": "Threats, vulnerabilities, likelihoods, and impacts are used to understand inherent risk and inform risk response prioritization",
+  "ID.RA-06": "Risk responses are chosen, prioritized, planned, tracked, and communicated",
+  "ID.RA-07": "Changes and exceptions are managed, assessed for risk impact, recorded, and tracked",
+  "ID.RA-08": "Processes for receiving, analyzing, and responding to vulnerability disclosures are established",
+  "ID.RA-09": "The authenticity and integrity of hardware and software are assessed prior to acquisition and use",
+  "ID.RA-10": "Critical suppliers are assessed prior to acquisition",
+  "ID.IM-02": "Improvements are identified from security tests and exercises, including those done in coordination with suppliers and relevant third parties",
+  "ID.IM-03": "Improvements are identified from execution of operational processes, procedures, and activities",
+  "ID.IM-04": "Incident response plans and other cybersecurity plans that affect operations are established, communicated, maintained, and improved",
+  "PR.AA-01": "Identities and credentials for authorized users, services, and hardware are managed by the organization",
+  "PR.AA-02": "Identities are proofed and bound to credentials based on the context of interactions",
+  "PR.AA-03": "Users, services, and hardware are authenticated",
+  "PR.AA-04": "Identity assertions are protected, conveyed, and verified",
+  "PR.AA-05": "Access permissions, entitlements, and authorizations are defined in a policy, managed, enforced, and reviewed, and incorporate the principles of least privilege and separation of duties",
+  "PR.AA-06": "Physical access to assets is managed, monitored, and enforced commensurate with risk",
+  "PR.AT-01": "Personnel are provided with awareness and training so that they possess the knowledge and skills to perform general tasks with cybersecurity risks in mind",
+  "PR.AT-02": "Individuals in specialized roles are provided with awareness and training so that they possess the knowledge and skills to perform relevant tasks with cybersecurity risks in mind",
+  "PR.DS-01": "The confidentiality, integrity, and availability of data-at-rest are protected",
+  "PR.DS-02": "The confidentiality, integrity, and availability of data-in-transit are protected",
+  "PR.DS-10": "The confidentiality, integrity, and availability of data-in-use are protected",
+  "PR.DS-11": "Backups of data are created, protected, maintained, and tested",
+  "PR.PS-02": "Software is maintained, replaced, and removed commensurate with risk",
+  "PR.PS-03": "Hardware is maintained, replaced, and removed commensurate with risk",
+  "PR.PS-04": "Log records are generated and made available for continuous monitoring",
+  "PR.PS-05": "Installation and execution of unauthorized software are prevented",
+  "PR.PS-06": "Secure software development practices are integrated, and their performance is monitored throughout the software development life cycle",
+  "PR.IR-01": "Networks and environments are protected from unauthorized logical access and usage",
+  "PR.IR-02": "The organization’s technology assets are protected from environmental threats",
+  "PR.IR-03": "Mechanisms are implemented to achieve resilience requirements in normal and adverse situations",
+  "PR.IR-04": "Adequate resource capacity to ensure availability is maintained",
+  "DE.CM-01": "Networks and network services are monitored to find potentially adverse events",
+  "DE.CM-02": "The physical environment is monitored to find potentially adverse events",
+  "DE.CM-03": "Personnel activity and technology usage are monitored to find potentially adverse events",
+  "DE.CM-06": "External service provider activities and services are monitored to find potentially adverse events",
+  "DE.CM-09": "Computing hardware and software, runtime environments, and their data are monitored to find potentially adverse events",
+  "DE.AE-03": "Information is correlated from multiple sources",
+  "DE.AE-04": "The estimated impact and scope of adverse events are understood",
+  "DE.AE-06": "Information on adverse events is provided to authorized staff and tools",
+  "DE.AE-07": "Cyber threat intelligence and other contextual information are integrated into the analysis",
+  "DE.AE-08": "Incidents are declared when adverse events meet the defined incident criteria",
+  "RS.MA-01": "The incident response plan is executed in coordination with relevant third parties once an incident is declared",
+  "RS.MA-02": "Incident reports are triaged and validated",
+  "RS.MA-03": "Incidents are categorized and prioritized",
+  "RS.MA-04": "Incidents are escalated or elevated as needed",
+  "RS.MA-05": "The criteria for initiating incident recovery are applied",
+  "RS.AN-06": "Actions performed during an investigation are recorded, and the records’ integrity and provenance are preserved",
+  "RS.AN-07": "Incident data and metadata are collected, and their integrity and provenance are preserved",
+  "RS.AN-08": "An incident’s magnitude is estimated and validated",
+  "RS.CO-03": "Information is shared with designated internal and external stakeholders",
+  "RS.MI-02": "Incidents are eradicated",
+  "RC.RP-01": "The recovery portion of the incident response plan is executed once initiated from the incident response process",
+  "RC.RP-02": "Recovery actions are selected, scoped, prioritized, and performed",
+  "RC.RP-03": "The integrity of backups and other restoration assets is verified before using them for restoration",
+  "RC.RP-04": "Critical mission functions and cybersecurity risk management are considered to establish post-incident operational norms",
+  "RC.RP-05": "The integrity of restored assets is verified, systems and services are restored, and normal operating status is confirmed",
+  "RC.RP-06": "The end of incident recovery is declared based on criteria, and incident- related documentation is completed",
+  "RC.CO-03": "Recovery activities and progress in restoring operational capabilities are communicated to designated internal and external stakeholders",
+  "RC.CO-04": "Public updates on incident recovery are shared using approved methods and messaging",
+  "DE.AE-02": "Potentially adverse events are analyzed to better understand associated activities",
+  "ID.IM-01": "Improvements are identified from evaluations",
+  "ID.RA-01": "Vulnerabilities in assets are identified, validated, and recorded",
+  "PR.PS-01": "Configuration management practices are established and applied",
+  "RS.AN-03": "Analysis is performed to establish what has taken place during an incident and the root cause of the incident",
+  "RS.CO-02": "Internal and external stakeholders are notified of incidents",
+  "RS.MI-01": "Incidents are contained"
+ },
+ "source/framework": {
+  "name": "NIST Cybersecurity Framework 2.0",
+  "document": "NIST CSWP 29",
+  "published": "2024-02-26",
+  "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+  "subcategoryCount": 106
+ },
+ "blocks": {
+  "baguqeerazdczxoxysyfvackeyxwjf3trecy6d5y5mzzyjy7r4agkly5ljbzq": {
+   "path": "/security-data/csf2/blocks/baguqeerazdczxoxysyfvackeyxwjf3trecy6d5y5mzzyjy7r4agkly5ljbzq.json",
+   "bytes": 933,
+   "codec": "dag-json"
+  },
+  "baguqeeraupca7d47oumduj3bvnhg7w6dtrdg5zqk4vnaplsmsufupw7f3vja": {
+   "path": "/security-data/csf2/blocks/baguqeeraupca7d47oumduj3bvnhg7w6dtrdg5zqk4vnaplsmsufupw7f3vja.json",
+   "bytes": 599,
+   "codec": "dag-json"
+  },
+  "baguqeerakbdkxryjn5xviki42biycg4wxetcbcedkpqztlgc2el25tira5kq": {
+   "path": "/security-data/csf2/blocks/baguqeerakbdkxryjn5xviki42biycg4wxetcbcedkpqztlgc2el25tira5kq.json",
+   "bytes": 643,
+   "codec": "dag-json"
+  },
+  "baguqeeravumvrjhlvkwmx6sjn55tlbphwzou73powqkunybq2becbl5spcrq": {
+   "path": "/security-data/csf2/blocks/baguqeeravumvrjhlvkwmx6sjn55tlbphwzou73powqkunybq2becbl5spcrq.json",
+   "bytes": 501,
+   "codec": "dag-json"
+  },
+  "baguqeeranhb7tkovfnjqb6igalghxv4s2ybytosni42nr2tvpvce6q5qps2q": {
+   "path": "/security-data/csf2/blocks/baguqeeranhb7tkovfnjqb6igalghxv4s2ybytosni42nr2tvpvce6q5qps2q.json",
+   "bytes": 540,
+   "codec": "dag-json"
+  },
+  "baguqeerafdkay3nvulzfsguby65gjjsl4lav5cjopuwes3us7rkhixm3cewq": {
+   "path": "/security-data/csf2/blocks/baguqeerafdkay3nvulzfsguby65gjjsl4lav5cjopuwes3us7rkhixm3cewq.json",
+   "bytes": 561,
+   "codec": "dag-json"
+  },
+  "baguqeeraplb6ubdvx7kmkbflzni3tufvd5ofzsxqlg2ljfblkudrqn3omefa": {
+   "path": "/security-data/csf2/blocks/baguqeeraplb6ubdvx7kmkbflzni3tufvd5ofzsxqlg2ljfblkudrqn3omefa.json",
+   "bytes": 494,
+   "codec": "dag-json"
+  },
+  "baguqeeran5xjpm2lqnejsr7cbzhlm4kxrs5usp7yzjzimbpi45rtdb32tjaq": {
+   "path": "/security-data/csf2/blocks/baguqeeran5xjpm2lqnejsr7cbzhlm4kxrs5usp7yzjzimbpi45rtdb32tjaq.json",
+   "bytes": 455,
+   "codec": "dag-json"
+  },
+  "baguqeera245ykvd3u5ibt5stcq5euiv5zbmhnuta7yfhan2msqsn44wdbp5q": {
+   "path": "/security-data/csf2/blocks/baguqeera245ykvd3u5ibt5stcq5euiv5zbmhnuta7yfhan2msqsn44wdbp5q.json",
+   "bytes": 441,
+   "codec": "dag-json"
+  },
+  "baguqeerameii4ro2tolkhxnzzffhsf3zteuthgex7knmzmvtyanib4ggajba": {
+   "path": "/security-data/csf2/blocks/baguqeerameii4ro2tolkhxnzzffhsf3zteuthgex7knmzmvtyanib4ggajba.json",
+   "bytes": 411,
+   "codec": "dag-json"
+  },
+  "baguqeerat7gewtnolclihxcygvqmpfurgbumnr7etjrortswtqhz4gcdfrzq": {
+   "path": "/security-data/csf2/blocks/baguqeerat7gewtnolclihxcygvqmpfurgbumnr7etjrortswtqhz4gcdfrzq.json",
+   "bytes": 455,
+   "codec": "dag-json"
+  },
+  "baguqeerayk732rtno5int3sv5z3culqmz5gikmhjuekh2uthac3smbe7ftna": {
+   "path": "/security-data/csf2/blocks/baguqeerayk732rtno5int3sv5z3culqmz5gikmhjuekh2uthac3smbe7ftna.json",
+   "bytes": 392,
+   "codec": "dag-json"
+  },
+  "baguqeera63elwn7xibzwdhdlevg73nsi7jeif5csioc5ooc7osysyvi72fxa": {
+   "path": "/security-data/csf2/blocks/baguqeera63elwn7xibzwdhdlevg73nsi7jeif5csioc5ooc7osysyvi72fxa.json",
+   "bytes": 413,
+   "codec": "dag-json"
+  },
+  "baguqeerao4h7r3xfzeh2h3i55mw67etyuwe4dxm6ve5mov6y3iyngzwuhefq": {
+   "path": "/security-data/csf2/blocks/baguqeerao4h7r3xfzeh2h3i55mw67etyuwe4dxm6ve5mov6y3iyngzwuhefq.json",
+   "bytes": 351,
+   "codec": "dag-json"
+  },
+  "baguqeerawdbbo3ke73kwhl3rsb3k2hcp46vi3phb4c424jei3o4vcf57rclq": {
+   "path": "/security-data/csf2/blocks/baguqeerawdbbo3ke73kwhl3rsb3k2hcp46vi3phb4c424jei3o4vcf57rclq.json",
+   "bytes": 474,
+   "codec": "dag-json"
+  },
+  "baguqeeraudkf3zlz32h2rabgx3lj3axe4iionhfeupaj3iifkjpksy5k5msq": {
+   "path": "/security-data/csf2/blocks/baguqeeraudkf3zlz32h2rabgx3lj3axe4iionhfeupaj3iifkjpksy5k5msq.json",
+   "bytes": 370,
+   "codec": "dag-json"
+  },
+  "baguqeerakpk6n5fwqndwfpg6kqyfucuiksjqyvubtxibxvlfnsoov7pnvhaa": {
+   "path": "/security-data/csf2/blocks/baguqeerakpk6n5fwqndwfpg6kqyfucuiksjqyvubtxibxvlfnsoov7pnvhaa.json",
+   "bytes": 433,
+   "codec": "dag-json"
+  },
+  "baguqeerarcwv67zprtxgfllkdcjlun4givn6qpypqrjwrcqz6cejwyq4lsuq": {
+   "path": "/security-data/csf2/blocks/baguqeerarcwv67zprtxgfllkdcjlun4givn6qpypqrjwrcqz6cejwyq4lsuq.json",
+   "bytes": 376,
+   "codec": "dag-json"
+  },
+  "baguqeerapafkyqyedl763cxq4tnlqazkdgzcbeky733m64a4oll7ehgjzl2a": {
+   "path": "/security-data/csf2/blocks/baguqeerapafkyqyedl763cxq4tnlqazkdgzcbeky733m64a4oll7ehgjzl2a.json",
+   "bytes": 381,
+   "codec": "dag-json"
+  },
+  "baguqeerac46jkjr66nn6uleavvjbmwmowkpyuqvr4boy24yyfki6of3alena": {
+   "path": "/security-data/csf2/blocks/baguqeerac46jkjr66nn6uleavvjbmwmowkpyuqvr4boy24yyfki6of3alena.json",
+   "bytes": 413,
+   "codec": "dag-json"
+  },
+  "baguqeerawa4opccrfqjnp5gadodxz7z2iy3ixob2n4xemibrdvi4jdatsbiq": {
+   "path": "/security-data/csf2/blocks/baguqeerawa4opccrfqjnp5gadodxz7z2iy3ixob2n4xemibrdvi4jdatsbiq.json",
+   "bytes": 400,
+   "codec": "dag-json"
+  },
+  "baguqeera6o34cvjtlw775pfr4bwxgsxthw4tqhkibhq3cydtpo3phbg5scqq": {
+   "path": "/security-data/csf2/blocks/baguqeera6o34cvjtlw775pfr4bwxgsxthw4tqhkibhq3cydtpo3phbg5scqq.json",
+   "bytes": 449,
+   "codec": "dag-json"
+  },
+  "baguqeeraa5hhntsqk37b22ijbnazjd5zupvd5uusm2rr6qagnsm6ceew4j3q": {
+   "path": "/security-data/csf2/blocks/baguqeeraa5hhntsqk37b22ijbnazjd5zupvd5uusm2rr6qagnsm6ceew4j3q.json",
+   "bytes": 413,
+   "codec": "dag-json"
+  },
+  "baguqeerahdcrx22qldfhg2lh2u2j25kdy7ncbho7ik46bzo3vtjxuw2j6nlq": {
+   "path": "/security-data/csf2/blocks/baguqeerahdcrx22qldfhg2lh2u2j25kdy7ncbho7ik46bzo3vtjxuw2j6nlq.json",
+   "bytes": 369,
+   "codec": "dag-json"
+  },
+  "baguqeerattq6wmz5rcamgeeko23qkgrmolbvdomz5tugn3ao23tbcv643qja": {
+   "path": "/security-data/csf2/blocks/baguqeerattq6wmz5rcamgeeko23qkgrmolbvdomz5tugn3ao23tbcv643qja.json",
+   "bytes": 369,
+   "codec": "dag-json"
+  },
+  "baguqeeradd57hthq45k5qs7ysqch6w2ylkqwkqeh4dgln7mweswks7gkrbra": {
+   "path": "/security-data/csf2/blocks/baguqeeradd57hthq45k5qs7ysqch6w2ylkqwkqeh4dgln7mweswks7gkrbra.json",
+   "bytes": 341,
+   "codec": "dag-json"
+  },
+  "baguqeerazdohisvyg3qjhdcizb7d2safeuzw4eb5exfwsgyqqomgnuztoecq": {
+   "path": "/security-data/csf2/blocks/baguqeerazdohisvyg3qjhdcizb7d2safeuzw4eb5exfwsgyqqomgnuztoecq.json",
+   "bytes": 327,
+   "codec": "dag-json"
+  },
+  "baguqeerawjmd3ftjezpkcc7wlwmfb2yxtjakykr2fqv32e6bvi73ejxtf37q": {
+   "path": "/security-data/csf2/blocks/baguqeerawjmd3ftjezpkcc7wlwmfb2yxtjakykr2fqv32e6bvi73ejxtf37q.json",
+   "bytes": 348,
+   "codec": "dag-json"
+  },
+  "baguqeera4vuhgx3ybzqb5nyd5brvm546ldefitwhvdl4y7jdkgegxmkegx2q": {
+   "path": "/security-data/csf2/blocks/baguqeera4vuhgx3ybzqb5nyd5brvm546ldefitwhvdl4y7jdkgegxmkegx2q.json",
+   "bytes": 413,
+   "codec": "dag-json"
+  },
+  "baguqeerakl72grv3cini5gz2fde5q2mw6kzni5hf5ab3r3adgjxzaz2pnlwq": {
+   "path": "/security-data/csf2/blocks/baguqeerakl72grv3cini5gz2fde5q2mw6kzni5hf5ab3r3adgjxzaz2pnlwq.json",
+   "bytes": 332,
+   "codec": "dag-json"
+  },
+  "baguqeeraxiankl6fek6mkgcq3z5qr53zjxuncrmdcqygrz4tzcljgsv7hlqa": {
+   "path": "/security-data/csf2/blocks/baguqeeraxiankl6fek6mkgcq3z5qr53zjxuncrmdcqygrz4tzcljgsv7hlqa.json",
+   "bytes": 330,
+   "codec": "dag-json"
+  },
+  "baguqeera637cd67zk2wfaspdzb5atgsui4kmx6zs36aeumukaazr33mwvrrq": {
+   "path": "/security-data/csf2/blocks/baguqeera637cd67zk2wfaspdzb5atgsui4kmx6zs36aeumukaazr33mwvrrq.json",
+   "bytes": 400,
+   "codec": "dag-json"
+  },
+  "baguqeera5cm3serwt6la2xx7yv5zf556gtfkoeez3jnlzt4az4ypxbi4vyqa": {
+   "path": "/security-data/csf2/blocks/baguqeera5cm3serwt6la2xx7yv5zf556gtfkoeez3jnlzt4az4ypxbi4vyqa.json",
+   "bytes": 373,
+   "codec": "dag-json"
+  },
+  "baguqeeraoyckogvihtcjnmqkhbjkmdpdt2ljthsh2u6c2s56hdjboe7eb3ua": {
+   "path": "/security-data/csf2/blocks/baguqeeraoyckogvihtcjnmqkhbjkmdpdt2ljthsh2u6c2s56hdjboe7eb3ua.json",
+   "bytes": 351,
+   "codec": "dag-json"
+  },
+  "baguqeeravgbi7e6242pdbcutd42r57omqsdchxqkc6kslzcbsdqclfbqfq2a": {
+   "path": "/security-data/csf2/blocks/baguqeeravgbi7e6242pdbcutd42r57omqsdchxqkc6kslzcbsdqclfbqfq2a.json",
+   "bytes": 369,
+   "codec": "dag-json"
+  },
+  "baguqeeraejmro3ztqyiyuiave4bfppamcxlhsdzilod2s5jnvh6zfaacroca": {
+   "path": "/security-data/csf2/blocks/baguqeeraejmro3ztqyiyuiave4bfppamcxlhsdzilod2s5jnvh6zfaacroca.json",
+   "bytes": 343,
+   "codec": "dag-json"
+  },
+  "baguqeerafhbhvm6be24vihqgdsb2fgnutgy52qt6jgqdkqtecid7sxu4oiia": {
+   "path": "/security-data/csf2/blocks/baguqeerafhbhvm6be24vihqgdsb2fgnutgy52qt6jgqdkqtecid7sxu4oiia.json",
+   "bytes": 388,
+   "codec": "dag-json"
+  },
+  "baguqeera27jrulscbijfm5jhiwgt5fznph46ya74l2ckukovy75dgze64y7a": {
+   "path": "/security-data/csf2/blocks/baguqeera27jrulscbijfm5jhiwgt5fznph46ya74l2ckukovy75dgze64y7a.json",
+   "bytes": 379,
+   "codec": "dag-json"
+  },
+  "baguqeerarj5wtd2kptaqmcko7ucxq3kptbd2mj2ef6or4mamixmptrly6i6a": {
+   "path": "/security-data/csf2/blocks/baguqeerarj5wtd2kptaqmcko7ucxq3kptbd2mj2ef6or4mamixmptrly6i6a.json",
+   "bytes": 353,
+   "codec": "dag-json"
+  },
+  "baguqeeraxvnvixiu4wiobn2mknglrv6xec5djdjfz3m5z6elwwd6b2gpq7fq": {
+   "path": "/security-data/csf2/blocks/baguqeeraxvnvixiu4wiobn2mknglrv6xec5djdjfz3m5z6elwwd6b2gpq7fq.json",
+   "bytes": 405,
+   "codec": "dag-json"
+  }
+ }
+}
