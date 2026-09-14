@@ -184,8 +184,11 @@
                                     (let [record (or record {:status "none"
                                                              :principalId (:principalId body)
                                                              :scopes [] :applications []})
-                                          ;; challenge carries scope/tasks; record carries state
+                                          ;; challenge carries scope/tasks; record carries state.
+                                          ;; policyVersion marks consent to the current policy
+                                          ;; (edge eligibility checks it: policy-acceptance-required).
                                           next (-> record
+                                                   (assoc :policyVersion "whitehat-2026-09-12-v1")
                                                    (assoc :ekyc {:status "verified" :evidenceRef evidence
                                                                  :verifiedAt now :expiresAt (+ now ekyc-ttl-ms)})
                                                    (assoc :screening {:status "clear" :evidenceRef evidence
@@ -421,7 +424,9 @@
                             :submittedAt now
                             :policyVersion "whitehat-2026-09-12-v1"}
                        next (update record :applications (fnil conj []) app)]
-                   (-> (save-state storage next)
+                   ;; Consent via application also accepts the current policy
+                   ;; version, so the edge eligibility check passes after approval.
+                   (-> (save-state storage (assoc next :policyVersion "whitehat-2026-09-12-v1"))
                        (.then (fn [_] (response {:principalId (:principalId body)
                                                  :applicationId (:applicationId app)} 200))))))))))
 

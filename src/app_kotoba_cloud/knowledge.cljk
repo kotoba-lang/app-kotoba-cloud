@@ -2,7 +2,42 @@
   "Read-only retrieval of published evidence. No model call or research grant."
   (:require [clojure.string :as str]
             [app-kotoba-cloud.research-gateway :as shared]))
-(def paths #{"/v1/knowledge/search" "/v1/knowledge/context"})
+(def paths #{"/v1/knowledge/search" "/v1/knowledge/context"
+             "/.well-known/mcp-config.json" "/mcp.json"})
+(def mcp-config
+  ;; Machine-readable MCP onboarding for agents. Read-only public tools +
+  ;; authenticated research guidance. Agents wire the research surface through
+  ;; the browser session (credentials same-origin), never an API key.
+  {:schema "https://kotoba.cloud/schemas/mcp-config/v1"
+   :name "kotoba-cloud"
+   :description "Kotoba Cloud: public security evidence retrieval and Stripe-Identity-gated white-hat research inference."
+   :documentation {:llms "https://kotoba.cloud/llms-full.txt"
+                   :registration "https://kotoba.cloud/ekyc.md"
+                   :quickstart "https://kotoba.cloud/agent-quickstart.md"}
+   :servers
+   {:public
+    {:transport "http"
+     :url "https://kotoba.cloud/v1/knowledge/search?q=<query>"
+     :auth "none"
+     :note "Read-only evidence search/context; CORS-open. Not an MCP protocol endpoint: plain GET JSON the agent can wrap."}
+    :research
+    {:transport "http"
+     :auth "browser-session"
+     :endpoints
+     {:status "https://api.kotoba.cloud/v1/research/status"
+      :ekycStart "https://api.kotoba.cloud/v1/research/ekyc/start"
+      :ekycStatus "https://api.kotoba.cloud/v1/research/ekyc/status"
+      :jobs "https://api.kotoba.cloud/v1/research/jobs"
+      :job "https://api.kotoba.cloud/v1/research/job?jobId=<uuid>"
+      :models "https://kotoba.cloud/v1/models"}
+     :sessionSetup
+     ["Sign in at https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
+      "POST /v1/research/ekyc/start {\"scopeId\":\"owned\",\"tasks\":[\"code-review\"]} then the account holder completes https://verify.stripe.com (agents never do)"
+      "Approval is automatic on the Stripe webhook; poll /v1/research/status until eligible"]}}
+   :tools
+   [{:name "kotoba_knowledge_search" :description "Search published security evidence (ATT&CK etc). GET /v1/knowledge/search?q=" :inputSchema {:type "object" :properties {:q {:type "string" :maxLength 200}} :required ["q"]}}
+    {:name "kotoba_knowledge_context" :description "Fetch immutable evidence context for an item ID. GET /v1/knowledge/context?id=" :inputSchema {:type "object" :properties {:id {:type "string"}} :required ["id"]}}
+    {:name "kotoba_research_run" :description "Authenticated security-research inference (requires Stripe-Identity-verified session). POST /v1/research/jobs with Idempotency-Key." :inputSchema {:type "object" :properties {:task {:type "string" :enum ["code-review" "vulnerability-triage" "remediation"]} :scopeId {:type "string"} :messages {:type "array"}} :required ["task" "scopeId" "messages"] :auth "browser-session-verified"}}]})
 (defn reply [body status]
   (js/Response. (js/JSON.stringify (clj->js body))
                 #js {:status status :headers #js {"content-type" "application/json; charset=utf-8"
@@ -15,6 +50,9 @@
   (let [url (js/URL. (.-url request)) search? (= "/v1/knowledge/search" (.-pathname url))
         q (.get (.-searchParams url) (if search? "q" "id"))]
     (cond
+      (contains? #{"/.well-known/mcp-config.json" "/mcp.json"} (.-pathname url))
+      (reply mcp-config 200)
+
       (not= "GET" (.-method request)) (reply {:error "method-not-allowed"} 405)
       (or (not (string? q)) (str/blank? q) (> (count q) 200)) (reply {:error "query-required-max-200-characters"} 400)
       :else
