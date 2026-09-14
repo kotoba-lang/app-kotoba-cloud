@@ -23,7 +23,13 @@
   (js/Response. (js/JSON.stringify (clj->js body))
                 #js {:status status :headers #js {"content-type" "application/json"
                                                   "cache-control" "no-store, private"}}))
-(defn- decode [s] (when s (js->clj (js/JSON.parse s) :keywordize-keys true)))
+(defn- decode [value]
+  ;; Durable Object storage returns JSON strings, while Fetch Response.json()
+  ;; returns an object. Accept both at their explicit trust boundary.
+  (cond
+    (nil? value) nil
+    (string? value) (js->clj (js/JSON.parse value) :keywordize-keys true)
+    :else (js->clj value :keywordize-keys true)))
 
 (def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
@@ -33,7 +39,6 @@
 (def ekyc-ttl-ms (* 365 86400000))
 (def trust-window-ms 60000)
 (def session-window-ms 15000)
-(def upstream-url "https://api.murakumo.cloud/v1/chat/completions")
 (def upstream-model "qwen3.8-flash-next-cybersecurity-nvfp4")
 (def public-model "qwen3.8-flash-next-whitehacker")
 
@@ -137,30 +142,70 @@
        :messages (clj->js (:messages request))
        :max_tokens (:max_tokens request)})
 
+(defn- modal-upstream-url
+  "The Modal deployment URL is an operator secret/configuration, never a
+  browser field. Restrict it to Modal's deployment host so this private Worker
+  cannot be turned into an arbitrary authenticated HTTP relay."
+  [env]
+  (let [raw (aget env "MODAL_INFERENCE_URL")]
+    (when-not (text? raw 2048)
+      (throw (ex-info "modal-inference-not-configured" {:status 503})))
+    (let [url (js/URL. raw)
+          host (.toLowerCase (.-hostname url))]
+      (when-not (and (= "https:" (.-protocol url)) (.endsWith host ".modal.run"))
+        (throw (ex-info "modal-inference-url-invalid" {:status 503})))
+      raw)))
+
+(defn- upstream-usage-receipt
+  "Accept only Modal's measured OpenAI-compatible usage. Missing, negative, or
+  inconsistent values are a provider error; no request-derived estimate may
+  enter a future billing ledger."
+  [decoded job]
+  (let [usage (:usage decoded)
+        input (:prompt_tokens usage)
+        output (:completion_tokens usage)
+        total (:total_tokens usage)]
+    (when-not (and (integer? input) (<= 0 input)
+                   (integer? output) (<= 0 output)
+                   (integer? total) (= total (+ input output)))
+      (throw (ex-info "modal-usage-receipt-invalid" {})))
+    {:receiptVersion "kotoba-inference-usage-2026-09-v1"
+     :source "modal-openai-compatible"
+     :requestId (:jobId job)
+     :receiptId (:receiptId job)
+     :model public-model
+     :upstreamModel upstream-model
+     :inputTokens input
+     :cachedInputTokens 0
+     :outputTokens output
+     :totalTokens total
+     :observedAt (js/Date.now)}))
+
 (defn- run-inference! [env storage job-id]
   ;; Detached from the request: the Durable Object writes the terminal state; a
   ;; crashed run is reconciled on the next poll as "unknown", never re-dispatched.
   (let [p (load-job storage job-id)]
     (.then p (fn [job]
       (when (and job (= "queued" (:status job)))
-        (let [q (js/fetch upstream-url
+        (let [q (js/fetch (modal-upstream-url env)
                           #js {:method "POST" :redirect "error"
                                :signal (js/AbortSignal.timeout 2100000)
                                :headers #js {"content-type" "application/json"
-                                             "authorization" (str "Bearer " (or (aget env "MURAKUMO_API_TOKEN") ""))}
+                                             "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))}
                                :body (js/JSON.stringify (upstream-body (:request job)))})
               fail (fn [e]
                      (store-job! storage (assoc job :status "failed"
                                                 :error (str (or (.-message e) e))
                                                 :finishedAt (js/Date.now))))
-              succeed (fn [fallback]
+              succeed (fn [{:keys [content usage-receipt]}]
                         (store-job! storage (assoc job :status "succeeded"
-                                                   :content fallback
+                                                   :content content
+                                                   :usageReceipt usage-receipt
                                                    :finishedAt (js/Date.now))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
-                            (throw (ex-info "murakumo-inference-unavailable" {:status (.-status r)}))
+                            (throw (ex-info "modal-inference-unavailable" {:status (.-status r)}))
                             (.json r)))
                         fail)
               parsed (js-invoke fetched "then"
@@ -172,8 +217,9 @@
                            (if-not (and (= upstream-model (:model decoded))
                                         (= "chat.completion" (:object decoded))
                                         (text? fallback 65536))
-                             (throw (ex-info "unexpected-murakumo-model-or-response" {}))
-                             fallback)))
+                             (throw (ex-info "unexpected-modal-model-or-response" {}))
+                             {:content fallback
+                              :usage-receipt (upstream-usage-receipt decoded job)})))
                        fail)]
           (js-invoke parsed "then" succeed fail)))))))
 ;; --- request handling -------------------------------------------------------
