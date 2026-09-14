@@ -1,1 +1,526 @@
-[{"id": "jp-police-9110-cyber-windows", "country": "Japan", "title": "Japan: Police #9110, Prefectural Cybercrime Consultation Windows (都道府県警察サイバー犯罪相談窓口) and JAFIC", "desks": [{"name": "Police Consultation Hotline #9110 (警察相談専用電話)", "url": "https://www.npa.go.jp/bureau/cyber/soudan.html", "role": "National police consultation hotline for general and cybercrime consultation; directs callers to the right prefectural police", "how_to_report": "Dial #9110 from a mobile phone (or the local prefectural police number listed on the NPA site) and describe the crypto/investment scam; you will be routed to the appropriate prefectural police consulting desk."}, {"name": "Prefectural Police Cybercrime Consultation Windows (サイバー犯罪相談窓口) — nationwide list", "url": "https://www.npa.go.jp/bureau/cyber/ichiran.html", "role": "Each prefectural police operates a cybercrime consulting window for online fraud, unauthorized withdrawals, and crypto scams", "how_to_report": "Use the NPA nationwide directory to find your prefecture's cybercrime consulting window, then phone or visit; for online submission use the NPA unified online intake (via e-Gov, linked from https://www.npa.go.jp/bureau/cyber/soudan.html) which routes your report to the selected prefectural police headquarters or station."}, {"name": "Cybercrime Center (サイバー犯罪センター) / JAFIC", "url": "https://www.npa.go.jp/sosikihanzai/jafic/index.htm", "role": "National Police Agency joint financial-crime intelligence center; coordinates fraud asset tracing (JAFIC = Japanese Alert Network for Financial Crime / 犯罪収益移転防止対策支援センター)", "how_to_report": "Prefectural police submit coordinated fraud reports here; victims should report through local police, who can invoke JAFIC asset-tracing for crypto scams (commonly used for virtual-currency freezing requests under the 振り込め詐欺救済法 regime)."}], "steps": ["Freeze: Contact your bank/exchange immediately by phone to request a freeze/recovery of the transfer (振り込め詐欺救済法 procedures within minutes of sending). For crypto, contact the exchange and request withdrawal freeze; ask the bank to contact the receiving bank.", "Gather evidence: Keep emails, LINE/chat logs, wallet addresses, transaction hashes (txid), bank transfer statements, and the scammer's contact info; take screenshots.", "Report to exchange: Notify the crypto exchange or bank account involved so they can freeze and trace the funds.", "Report to police: Call #9110 or your prefectural cybercrime consultation window; submit 被害届 (criminal complaint) at the local station.", "Regulator/other: For suspected unlicensed investment advice, report to the Financial Services Agency (金融庁) via https://www.fsa.go.jp/soudan/index.html; consumer hotline #188 (消費者ホットライン) at https://www.consumer.go.jp/hotline."], "sources": ["https://www.npa.go.jp/bureau/cyber/soudan.html", "https://www.npa.go.jp/bureau/cyber/ichiran.html", "https://www.npa.go.jp/sosikihanzai/jafic/index.htm", "https://www.fsa.go.jp/soudan/index.html", "https://www.consumer.go.jp/hotline", "https://www.keishicho.metro.tokyo.lg.jp/kurashi/cyber/index.html", "https://www.kokusen.go.jp/map/index.html"]}, {"id": "jp-antiphishing-jsaipa-fsa", "country": "Japan", "title": "Japan: Anti-Phishing Council, Investment Advisory Association (JSAIPA/JIAA), FSA consumer desk, Consumer Hotline #188", "desks": [{"name": "Phishing Countermeasures Council (フィッシング対策協議会)", "url": "https://www.antiphishing.jp/", "role": "Industry/industry-government council that receives phishing-site and phishing-scam reports and publishes real-time alerts", "how_to_report": "Submit the phishing URL from their website report form; they distribute takedown requests and warnings."}, {"name": "Japan Investment Advisers Association (日本投資顧問業協会 / JSAIPA-related consultation desk)", "url": "https://www.jiaa.or.jp/", "role": "Industry association that answers questions about licensed investment advisers and impersonation/investment fraud", "how_to_report": "Use the 'お問い合わせ/相談' (contact/consultation) desk on the association homepage; also consult their impersonation and investment-fraud guidance pages under /contact/."}, {"name": "Financial Services Agency (金融庁) — consulting windows", "url": "https://www.fsa.go.jp/soudan/index.html", "role": "Financial regulator; publishes counseling windows for debt, investment, and fraud; issues warnings on crypto/investment scams (e.g. 2022 warning on crypto investment fraud: https://www.fsa.go.jp/news/r4/sonota/20221004.html)", "how_to_report": "Phone the Financial Services Hotline (0570-016811) or submit via the FSA consultation pages; for suspected unlicensed crypto business, report directly to FSA or the prefectural public safety commission (crypto exchange licensing under FIEA/PSEA is enforced with police)."}, {"name": "Consumer Hotline #188 (消費者ホットライン)", "url": "https://www.consumer.go.jp/hotline", "role": "National consumer hotline run by Consumer Affairs Agency + local consumer centers; first-line triage for investment/trading scams", "how_to_report": "Dial 188; you will be transferred to the local consumer affairs center for consultation and, if needed, filing."}, {"name": "National Consumer Affairs Center (国民生活センター) — consultation map", "url": "https://www.kokusen.go.jp/map/index.html", "role": "Receives consumer complaints nationwide; issues alerts on crypto/investment scams", "how_to_report": "Use the center map to find your local consumer center; in-person or phone consultation available."}], "steps": ["Freeze: Same-day bank/exchange freeze via phone (振込詐欺救済法); for crypto, notify the exchange's customer fraud desk immediately.", "Gather evidence: Save contract documents, chat logs, wallet addresses, txids, bank statements, and the website/screenshot of the fake platform.", "Report to exchange/operator: Report the receiving wallet to the exchange (they may have frozen similar addresses) and your bank.", "Report to police: #9110 or prefectural cybercrime window (see the Japan police entry).", "Regulator: Report unlicensed advice to FSA (https://www.fsa.go.jp/soudan/index.html) and phishing to the Phishing Countermeasures Council (https://www.antiphishing.jp/); consumer triage via #188 (https://www.consumer.go.jp/hotline)."], "sources": ["https://www.antiphishing.jp/", "https://www.jiaa.or.jp/", "https://www.fsa.go.jp/soudan/index.html", "https://www.fsa.go.jp/news/r4/sonota/20221004.html", "https://www.consumer.go.jp/hotline", "https://www.kokusen.go.jp/map/index.html"]}, {"id": "us-ic3-ftc-sec-cftc-ag", "country": "United States", "title": "United States: FBI IC3, FTC, SEC, CFTC, State Attorneys General", "desks": [{"name": "FBI Internet Crime Complaint Center (IC3)", "url": "https://www.ic3.gov/", "role": "Primary federal intake for internet-based crime including cryptocurrency fraud and investment scams", "how_to_report": "File at https://complaint.ic3.gov/ with details of the scam, wallet addresses, transaction hashes, and dollar losses; recovery-fraud scams (people claiming they can recover crypto) should also be reported here (see https://www.ic3.gov/PSA)."}, {"name": "Federal Trade Commission (FTC) — ReportFraud.ftc.gov", "url": "https://reportfraud.ftc.gov/", "role": "Consumer complaint intake feeding FTC enforcement and Consumer Sentinel (data shared with law enforcement worldwide)", "how_to_report": "Submit the report online at https://reportfraud.ftc.gov/ or via https://consumer.ftc.gov/; include scam communications and payment/crypto details."}, {"name": "Securities and Exchange Commission (SEC) — Tip, Complaint, Referral (TCR)", "url": "https://www.sec.gov/tcr", "role": "Regulator of securities; handles fraudulent crypto investment/token offerings and broker fraud", "how_to_report": "Submit at https://www.sec.gov/tcr (reported through the 'Report Suspected Securities Fraud or Wrongdoing' page, https://www.sec.gov/submit-tip-or-complaint/tips-complaints-resources/report-suspected-securities-fraud-or-wrongdoing); include the offering documents, platform names, and communications."}, {"name": "Commodity Futures Trading Commission (CFTC)", "url": "https://www.cftc.gov/ConsumerProtection/FileaTiporComplaint/index.htm", "role": "Regulator of futures/commodities and digital-asset derivatives; takes tips and complaints on fraudulent crypto trading platforms", "how_to_report": "File a tip or complaint at https://www.cftc.gov/ConsumerProtection/FileaTiporComplaint/index.htm or via the CFTC whistleblower program at https://whistleblower.gov/; check the CFTC RED list before investing: https://www.cftc.gov/LearnAndProtect/Resources/Check/redlist.htm"}, {"name": "State Attorneys General", "url": "https://www.usa.gov/stop-scams-frauds", "role": "State-level consumer-protection and securities enforcement; each state AG office accepts consumer fraud complaints", "how_to_report": "Find your state AG via https://www.usa.gov/stop-scams-frauds and file a consumer-fraud complaint; many states also have dedicated investor-protection bureaus."}], "steps": ["Freeze: Contact your bank/credit union to stop or reverse wire transfers; notify your crypto exchange to freeze the withdrawal; place fraud alerts with credit bureaus.", "Gather evidence: Keep all emails/texts, screenshots, wallet addresses, transaction hashes, bank transfer confirmations, and the scam website URL.", "Report to exchange/platform: Notify the exchange's fraud/compliance desk so they can freeze or trace the funds; request an internal investigation.", "Report to police/federal: File at IC3 (https://complaint.ic3.gov/), and optionally your local police department for a police report number.", "Regulator: File with SEC (https://www.sec.gov/tcr) for token/securities fraud, CFTC (https://www.cftc.gov/ConsumerProtection/FileaTiporComplaint/index.htm) for derivatives/futures fraud, FTC (https://reportfraud.ftc.gov/) for consumer fraud, and your state AG (https://www.usa.gov/stop-scams-frauds)."], "sources": ["https://www.ic3.gov/", "https://complaint.ic3.gov/", "https://reportfraud.ftc.gov/", "https://www.ftc.gov/complaint", "https://www.sec.gov/tcr", "https://www.cftc.gov/ConsumerProtection/FileaTiporComplaint/index.htm", "https://whistleblower.gov/", "https://www.usa.gov/stop-scams-frauds"]}, {"id": "uk-action-fraud-fca", "country": "United Kingdom", "title": "United Kingdom: Action Fraud / Report Fraud and FCA consumer reporting", "desks": [{"name": "Action Fraud (now branded 'Report Fraud', run by City of London Police)", "url": "https://www.reportfraud.police.uk/", "role": "UK's national fraud and cybercrime reporting centre; the primary police intake for crypto/investment fraud", "how_to_report": "File online at https://www.reportfraud.police.uk/ (legacy URL https://www.actionfraud.police.uk/ redirects here) or call 0300 123 2040; receive a crime reference number for bank/exchange follow-up."}, {"name": "Financial Conduct Authority (FCA)", "url": "https://www.fca.org.uk/consumers/report-scam", "role": "UK financial regulator; accepts reports of suspected scam investment platforms (including crypto) and maintains warning lists", "how_to_report": "Use https://www.fca.org.uk/consumers/report-scam or the FCA contact page https://www.fca.org.uk/contact; check the FCA Warning List before investing."}], "steps": ["Freeze: Contact your bank's fraud team immediately (UK banks are signatories of the Contingent Reimbursement Model); for crypto, ask the exchange to freeze the withdrawal and to cooperate with police tracing.", "Gather evidence: Save chats/emails, wallet addresses, transaction hashes, bank transfer details, and the scam website URL; take screenshots.", "Report to exchange: Notify the crypto exchange or bank involved; request trace/freeze support.", "Report to police: File at Action Fraud (https://www.reportfraud.police.uk/) or call 0300 123 2040; for Scotland call Police Scotland 101.", "Regulator: Report to FCA (https://www.fca.org.uk/consumers/report-scam); check FCA warning list first."], "sources": ["https://www.reportfraud.police.uk/", "https://www.actionfraud.police.uk/", "https://www.fca.org.uk/consumers/report-scam", "https://www.fca.org.uk/contact", "https://www.fca.org.uk/consumers"]}, {"id": "de-bafin-polizei-onlinewache", "country": "Germany", "title": "Germany: BaFin consumer complaint desk and state police (Online-Wache)", "desks": [{"name": "BaFin (Bundesanstalt für Finanzdienstleistungsaufsicht) — Consumer complaints & financial fraud", "url": "https://www.bafin.de/DE/verbraucherinnen-verbraucher/hilfe-kontakt/beschwerden-streitschlichtung/beschwerden-streitschlichtung_node.html", "role": "Federal financial regulator; maintains consumer-fraud pages on investment scams (Anlagebetrug), issues unauthorized-entity warnings, handles complaints about regulated entities and unauthorized crypto custodians", "how_to_report": "Use the BaFin consumer complaint & dispute-resolution page above, or the financial fraud guidance page https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/finanzbetrug-erkennen/finanzbetrug-erkennen_node.html; report suspected unauthorized crypto/business activity via BaFin contact desk."}, {"name": "Polizei (state police) — Online-Wache / local police stations", "url": "https://www.polizei.de/", "role": "Criminal complaint intake (Strafanzeige) for investment fraud, phishing, and crypto scams; each state (Land) police operates an Online-Wache for online filing", "how_to_report": "File a Strafanzeige online via your state police's Online-Wache (find your state police via https://www.polizei.de/ national portal; e.g., Berlin: https://www.berlin.de/polizei/) or in person at any police station."}], "steps": ["Freeze: Contact your bank immediately for a transfer recall (Überweisungsrückruf); for crypto, notify the exchange's compliance desk to freeze withdrawal.", "Gather evidence: Preserve chats, emails, wallet addresses, txids, bank transfer receipts, and the scam website; German police will ask for these.", "Report to exchange/platform: Notify the receiving exchange or bank; German banks can use the CyberAlliance against fraud (CyberAllianz) channels.", "Report to police: File a Strafanzeige at your local station or Online-Wache (state police portals via https://www.polizei.de/).", "Regulator: Report to BaFin (https://www.bafin.de/DE/verbraucherinnen-verbraucher/hilfe-kontakt/beschwerden-streitschlichtung/beschwerden-streitschlichtung_node.html); check BaFin's unauthorized business warnings."], "sources": ["https://www.bafin.de/DE/verbraucherinnen-verbraucher/hilfe-kontakt/beschwerden-streitschlichtung/beschwerden-streitschlichtung_node.html", "https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/finanzbetrug-erkennen/finanzbetrug-erkennen_node.html", "https://www.polizei.de/", "https://www.polizei-beratung.de/", "https://www.berlin.de/polizei/"]}, {"id": "fr-pharos-tracfin-amf", "country": "France", "title": "France: Pharos online signalement, Tracfin financial-intelligence reporting, AMF Épargnants desk", "desks": [{"name": "Pharos (Plateforme d'harmonisation, de recensement et d'analyse des signalements)", "url": "https://www.internet-signalement.gouv.fr/PharosWebReport/index.php", "role": "National police (Ministry of Interior) online reporting platform for cyber-malveillance, scams, and fraud", "how_to_report": "File at https://www.internet-signalement.gouv.fr/PharosWebReport/index.php — select 'scam/fraud' as the category, attach evidence; for urgent crypto-tracing victims also contact their local brigade or gendarmerie."}, {"name": "Tracfin (Traitement du renseignement et action contre les circuits financiers clandestins)", "url": "https://www.economie.gouv.fr/tracfin", "role": "Financial intelligence unit (Ministry of Economy) that combats money laundering and clandestine financial circuits; receives reports/alerts on suspicious finance including crypto scams", "how_to_report": "Individuals can report via the whistleblower channel https://www.economie.gouv.fr/tracfin/lanceur-dalerte-tracfin-recoit-vos-signalements ; professionals file suspicious-activity reports through the ERMES platform https://www.economie.gouv.fr/tracfin/ermes-la-plateforme-de-declaration-en-ligne-de-tracfin"}, {"name": "AMF Espace Épargnants (Autorité des marchés financiers)", "url": "https://www.amf-france.org/fr/espace-epargnants", "role": "Securities regulator's investor-protection desk; maintains blacklists of unauthorized crypto/FX trading sites and takes victim reports", "how_to_report": "Check/report unauthorized platforms at https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-noires-et-mises-en-garde ; the AMF Médiateur (https://www.amf-france.org/fr/le-mediateur) handles investor mediation."}], "steps": ["Freeze: Ask your bank for a 'rappel de virement' (transfer recall) immediately; notify your crypto exchange to freeze the withdrawal.", "Gather evidence: Keep screenshots, emails, wallet addresses, transaction hashes, and bank transfer receipts (RIB).", "Report to exchange/bank: Notify the receiving platform so they can freeze and trace.", "Report to police: File on Pharos (https://www.internet-signalement.gouv.fr/PharosWebReport/index.php) or at your local police/gendarmerie for a main courante.", "Regulator: Report unauthorized investment platforms to AMF (https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-noires-et-mises-en-garde); report money-laundering leads to Tracfin (https://www.economie.gouv.fr/tracfin/lanceur-dalerte-tracfin-recoit-vos-signalements)."], "sources": ["https://www.internet-signalement.gouv.fr/PharosWebReport/index.php", "https://www.economie.gouv.fr/tracfin", "https://www.economie.gouv.fr/tracfin/lanceur-dalerte-tracfin-recoit-vos-signalements", "https://www.amf-france.org/fr/espace-epargnants", "https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-noires-et-mises-en-garde"]}, {"id": "es-cnmv-bde-policia", "country": "Spain", "title": "Spain: CNMV investor queries, Banco de España claims desk, Policía Nacional denuncia", "desks": [{"name": "CNMV (Comisión Nacional del Mercado de Valores) — Investor queries/consultations", "url": "https://www.cnmv.es/portal/inversor/Consultas.aspx", "role": "Securities regulator; takes investor queries about unregistered trading platforms and maintains fraud warnings (chiringuitos financieros)", "how_to_report": "Submit a query via https://www.cnmv.es/portal/inversor/Consultas.aspx; check authorized entities at https://www.cnmv.es/portal/inversor/Entidades-Autorizadas.aspx and consult their 'Decálogo - chiringuitos financieros' guidance."}, {"name": "Banco de España — Servicio de Reclamaciones (claims service)", "url": "https://sedeelectronica.bde.es/sede/es/menu/ciudadanos/Reclamaciones___2e85b7714582d21.html", "role": "Handles complaints/claims against banks and payment service providers, including unauthorized withdrawals", "how_to_report": "File an electronic claim at https://sedeelectronica.bde.es/sede/es/menu/ciudadanos/Reclamaciones___2e85b7714582d21.html after first exhausting the bank's own complaints procedure."}, {"name": "Policía Nacional — Denuncias", "url": "https://www.policia.es/_es/denuncias.php", "role": "Police intake for criminal complaints (denuncias) of fraud and cybercrime", "how_to_report": "File at the Policía Nacional denuncias desk https://www.policia.es/_es/denuncias.php, or at a local comisaría; for urgent crypto-tracing, banks can invoke SEPA recall procedures."}], "steps": ["Freeze: Immediately contact your bank to attempt a recall (Orden SEPA); notify the crypto exchange to freeze withdrawal.", "Gather evidence: Save all chats, emails, wallet addresses, txids, transfer receipts, and the scam site URL.", "Report to exchange/bank: Notify the receiving platform for internal freeze/tracing.", "Report to police: File a denuncia at Policía Nacional (https://www.policia.es/_es/denuncias.php) or Guardia Civil for rural areas.", "Regulator: Query/report to CNMV (https://www.cnmv.es/portal/inversor/Consultas.aspx); file bank claims to Banco de España (https://sedeelectronica.bde.es/sede/es/menu/ciudadanos/Reclamaciones___2e85b7714582d21.html)."], "sources": ["https://www.cnmv.es/portal/inversor/Consultas.aspx", "https://www.cnmv.es/portal/inversor/Entidades-Autorizadas.aspx", "https://sedeelectronica.bde.es/sede/es/menu/ciudadanos/Reclamaciones___2e85b7714582d21.html", "https://www.policia.es/_es/denuncias.php"]}, {"id": "it-banca-ditalia-ivass-polizia", "country": "Italy", "title": "Italy: Banca d'Italia banking/financial education desk, IVASS claims, Polizia di Stato", "desks": [{"name": "Banca d'Italia — Tutela ed educazione (consumer protection & education)", "url": "https://www.bancaditalia.it/compiti/tutela-educazione/index.html", "role": "Central bank's consumer protection and financial-education desk; oversees banking complaints (ABF - Banking and Financial Ombudsman system)", "how_to_report": "File a complaint with your bank first, then escalate via the ABF (Arbitro Bancario Finanziario) system listed on the Banca d'Italia tutela-educazione page https://www.bancaditalia.it/compiti/tutela-educazione/index.html"}, {"name": "IVASS (Istituto per la vigilanza sulle assicurazioni) — Reclami (insurance claims)", "url": "https://www.ivass.it/consumatori/reclami/index.html", "role": "Insurance regulator; handles complaints about insurance/investment products and fraud-related insurance issues", "how_to_report": "File a reclamo (complaint) per the guidance at https://www.ivass.it/consumatori/reclami/index.html (guidance PDF and complaint form available there)."}, {"name": "Polizia di Stato / Comando Carabinieri", "url": "https://www.poliziadistato.it/", "role": "Police intake for criminal complaints (querela/denuncia) for crypto scams, phishing, and unauthorized withdrawals", "how_to_report": "File at the nearest commissariato or via the Polizia di Stato website; keep all wallet addresses and transfer receipts."}], "steps": ["Freeze: Contact your bank for an urgent bonifico recall; ask your crypto exchange to freeze the withdrawal.", "Gather evidence: Save chats, emails, wallet addresses, txids, and bank receipts.", "Report to exchange/bank: Notify the receiving platform so it can trace/freeze.", "Report to police: File a querela/denuncia at the Polizia di Stato or Carabinieri.", "Regulator/ombudsman: Escalate bank disputes via ABF (Banca d'Italia page https://www.bancaditalia.it/compiti/tutela-educazione/index.html); insurance/investment complaints to IVASS (https://www.ivass.it/consumatori/reclami/index.html)."], "sources": ["https://www.bancaditalia.it/compiti/tutela-educazione/index.html", "https://www.bancaditalia.it/compiti/vigilanza/index.html", "https://www.ivass.it/consumatori/reclami/index.html", "https://www.ivass.it/consumatori/index.html"]}, {"id": "nl-politie-afm-dnb", "country": "Netherlands", "title": "Netherlands: Politie aangifte/melding, AFM consumer fraud desk", "desks": [{"name": "Politie (Dutch National Police) — Aangifte of melding doen (filing reports)", "url": "https://www.politie.nl/aangifte-of-melding-doen", "role": "National police intake for criminal complaints (aangifte) or tips (melding) about fraud and crypto scams", "how_to_report": "File online at https://www.politie.nl/aangifte-of-melding-doen (choose aangifte for criminal complaints, melding for tips); emergency: 112, non-urgent: 0900-8844."}, {"name": "AFM (Autoriteit Financiële Markten) — Consumer fraud information", "url": "https://www.afm.nl/en/consumer/what-to-do/fraud", "role": "Financial markets regulator; maintains warning lists of unauthorized investment firms and accepts consumer fraud reports", "how_to_report": "See https://www.afm.nl/en/consumer/what-to-do/fraud for guidance; report via AFM contact desk; check their unauthorized-firms warning list before investing."}], "steps": ["Freeze: Contact your bank immediately for a SEPA recall; notify your crypto exchange to freeze the withdrawal.", "Gather evidence: Save chats, emails, wallet addresses, txids, and bank receipts.", "Report to exchange: Notify the receiving platform so they can trace and freeze.", "Report to police: File an aangifte at Politie (https://www.politie.nl/aangifte-of-melding-doen).", "Regulator: Report to AFM (https://www.afm.nl/en/consumer/what-to-do/fraud); also check DNB for payment-institution issues."], "sources": ["https://www.politie.nl/aangifte-of-melding-doen", "https://www.afm.nl/en/consumer/what-to-do/fraud", "https://www.afm.nl/nl/consument/consument-informatie/fraude"]}, {"id": "ca-cafc-cyber-centre", "country": "Canada", "title": "Canada: Canadian Anti-Fraud Centre (CAFC) and National Cybercrime Coordination Centre (NC3)", "desks": [{"name": "Canadian Anti-Fraud Centre (Centre antifraude du Canada)", "url": "https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm", "role": "National intake for fraud reports (investment scams, crypto fraud) run by RCMP/OPP; feeds national statistics and law-enforcement coordination", "how_to_report": "File at https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm or call 1-888-495-8501; gather bank/crypto details first."}, {"name": "NC3 (National Cybercrime Coordination Centre) — Cyber.gc.ca incident reporting", "url": "https://www.cyber.gc.ca/en/incident-management", "role": "Royal Canadian Mounted Police (RCMP) cybercrime coordination; online reporting for cybercrime including crypto-related fraud", "how_to_report": "Report cyber incidents at https://www.cyber.gc.ca/en/incident-management ; local police can be engaged after CAFC files a report."}], "steps": ["Freeze: Contact your bank immediately for a wire/Interac recall; notify your crypto exchange to freeze withdrawal.", "Gather evidence: Save chats, emails, wallet addresses, transaction hashes, transfer receipts, and the scam site URL.", "Report to exchange: Notify the crypto exchange or bank for internal trace/freeze.", "Report to police/CAFC: File with the Canadian Anti-Fraud Centre (https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm); your local police can use the CAFC report for investigation.", "Regulator/cyber: Report cyber incident to NC3 via https://www.cyber.gc.ca/en/incident-management ; for investment fraud also contact the provincial securities commission."], "sources": ["https://www.antifraudcentre-centreantifraude.ca/", "https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm", "https://www.cyber.gc.ca/en/incident-management"]}, {"id": "au-scamwatch-reportcyber", "country": "Australia", "title": "Australia: Scamwatch (ACCC) and ReportCyber (AFP/Australian Cyber Security Centre)", "desks": [{"name": "Scamwatch (National Anti-Scam Centre, ACCC)", "url": "https://www.scamwatch.gov.au/report-a-scam", "role": "National consumer-agency intake for scam reports (investment scams, crypto scams); feeds public warning data", "how_to_report": "File at https://www.scamwatch.gov.au/report-a-scam ; include the amount, method of payment (crypto or bank), and scammer contact details."}, {"name": "ReportCyber (Australian Federal Police / Australian Cyber Security Centre)", "url": "https://www.cyber.gov.au/report-and-recover/report", "role": "National police/cyber-security online reporting system for cybercrime including cryptocurrency investment fraud", "how_to_report": "File at https://www.cyber.gov.au/report-and-recover/report ; ReportCyber will route the report to the relevant state or federal law enforcement."}], "steps": ["Freeze: Contact your bank immediately (banks can attempt a recall); ask your crypto exchange to freeze withdrawal and comply with ASIC/AUSTRAC tracing.", "Gather evidence: Keep chats, emails, wallet addresses, transaction hashes, and bank transfer receipts.", "Report to exchange: Notify the receiving exchange's fraud desk for internal freeze and trace.", "Report to police: Use ReportCyber (https://www.cyber.gov.au/report-and-recover/report) and, if large amounts, contact your local police or AFP.", "Regulator: Report to Scamwatch (https://www.scamwatch.gov.au/report-a-scam); for regulated investments also file with ASIC."], "sources": ["https://www.scamwatch.gov.au/", "https://www.scamwatch.gov.au/report-a-scam", "https://www.cyber.gov.au/", "https://www.cyber.gov.au/report-and-recover/report"]}, {"id": "kr-fss-police-ecrm", "country": "South Korea", "title": "South Korea: Financial Supervisory Service (금융감독원) and Korean National Police (경찰청) e-Complaint", "desks": [{"name": "Financial Supervisory Service (금융감독원, FSS)", "url": "https://www.fss.or.kr/fss/bbs/B0000188/list.do", "role": "Financial regulator; handles complaints about unauthorized withdrawals, illegal investment solicitation, and crypto-related fraud via its consumer complaint desk (1332 hotline)", "how_to_report": "File via FSS online complaint system https://www.fss.or.kr/fss/bbs/B0000188/list.do or call 1332; the FSS can mediate with banks to freeze suspicious accounts."}, {"name": "Korean National Police Agency (경찰청) — e-CRM e-Complaint (전자민원)", "url": "https://ecrm.police.go.kr/minwon/main", "role": "Police intake for filing criminal complaints (고소/고발) of fraud and unauthorized withdrawals", "how_to_report": "File at https://ecrm.police.go.kr/minwon/main or visit a local police station; for urgent transfers ask the bank to invoke the 'account freeze (계좌 동결)' for fraud under the 특정금융정보법."}], "steps": ["Freeze: Immediately call your bank to request a freeze on the transfer (계좌 동결) under Korea's fraud-victim relief regime; for crypto, notify the exchange (Upbit/Bithumb etc.) to freeze the withdrawal.", "Gather evidence: Save chats (KakaoTalk), emails, wallet addresses, transaction hashes, and bank receipts.", "Report to exchange/bank: Notify the receiving platform; banks coordinate with FSS and police for asset tracing.", "Report to police: File at the Korean National Police e-Complaint portal (https://ecrm.police.go.kr/minwon/main) or a local station.", "Regulator: File with FSS (https://www.fss.or.kr/fss/bbs/B0000188/list.do) for unauthorized withdrawals/illegal solicitation."], "sources": ["https://www.fss.or.kr/", "https://www.fss.or.kr/eng/", "https://www.fss.or.kr/fss/bbs/B0000188/list.do", "https://ecrm.police.go.kr/minwon/main"]}, {"id": "sg-scamshield-police", "country": "Singapore", "title": "Singapore: ScamShield and Singapore Police Force (I-Witness / e-Services)", "desks": [{"name": "ScamShield (NCPC / Ministry of Home Affairs)", "url": "https://scamshield.gov.sg/", "role": "Government anti-scam platform; lets the public report scam calls, SMS/WhatsApp messages, and phishing sites; official scam-advisory database", "how_to_report": "Report scam messages/numbers at https://scamshield.gov.sg/ ; install the ScamShield app for automatic blocking."}, {"name": "Singapore Police Force — e-Services / i-Witness", "url": "https://www.police.gov.sg/e-services", "role": "Police intake for police reports and information on fraud, including unauthorized withdrawals and crypto scams", "how_to_report": "Submit a police report via https://www.police.gov.sg/e-services ; for emergency, call 999; for scam hotline, call 1800-722-6688."}], "steps": ["Freeze: Call your bank immediately (DBS/OCBC/UOB have 24h fraud hotlines) to attempt a freeze/recall; ask your crypto exchange to freeze the withdrawal.", "Gather evidence: Save chats, emails, wallet addresses, transaction hashes, and bank receipts.", "Report to exchange/bank: Notify the receiving platform for internal tracing and cooperation with police.", "Report to police: File a police report at https://www.police.gov.sg/e-services or at a Neighbourhood Police Post.", "Report scams: Log the scam messages/numbers on ScamShield (https://scamshield.gov.sg/) so others can be protected."], "sources": ["https://scamshield.gov.sg/", "https://www.police.gov.sg/", "https://www.police.gov.sg/e-services"]}, {"id": "international-interpol-chainabuse-ic3-recovery", "country": "International", "title": "International: INTERPOL financial crime, Chainabuse community reporting, IC3 crypto-recovery scam guidance", "desks": [{"name": "INTERPOL — Financial Crime desk", "url": "https://www.interpol.int/Crimes/Financial-crime", "role": "International criminal-police organization coordinating cross-border financial-crime investigations among member states", "how_to_report": "INTERPOL does not take direct victim reports; victims should report to national police (who can request INTERPOL coordination) and use Chainabuse for blockchain-level reporting."}, {"name": "Chainabuse (TRM Labs) — community crypto-scam reporting", "url": "https://chainabuse.com/", "role": "Cross-chain community platform to report scam wallet addresses, fake airdrops, and fraudulent DeFi sites; alerts other users and exchanges", "how_to_report": "Submit a report at https://chainabuse.com/report with the wallet address, blockchain, txid, and evidence; reports are visible to partner exchanges for flagging."}, {"name": "IC3 — cryptocurrency recovery scam guidance", "url": "https://www.ic3.gov/", "role": "FBI IC3 publishes public service announcements warning victims about 'recovery' scams after crypto fraud and accepting new complaints", "how_to_report": "Review IC3 PSAs at https://www.ic3.gov/PSA before engaging any self-described 'crypto recovery' service; file new/recovery-related complaints at https://complaint.ic3.gov/"}], "steps": ["Freeze: Contact the crypto exchange hosting the scammer's wallet (if known) to request a freeze; in parallel contact your own bank/exchange for a recall.", "Gather evidence: Preserve all chats/emails, wallet addresses, transaction hashes, and fiat-transfer receipts; use block explorers to document on-chain flows.", "Report to exchange: Use Chainabuse (https://chainabuse.com/) to publicly flag the wallet, and notify the receiving exchange's compliance desk.", "Report to police: File with your national police desk (see country entries); your report can be escalated internationally via INTERPOL by your national police, not directly by you.", "Beware recovery scams: Do not pay any 'crypto recovery' service; check FBI IC3 guidance (https://www.ic3.gov/) and file a fresh IC3 complaint if you are targeted again."], "sources": ["https://www.interpol.int/Crimes/Financial-crime", "https://chainabuse.com/", "https://chainabuse.com/report", "https://www.ic3.gov/", "https://complaint.ic3.gov/"]}]
+[
+  {
+    "id": "jp-police-9110-cyber-windows",
+    "country": "Japan",
+    "title": "Japan: Police #9110, Prefectural Cybercrime Consultation Windows (都道府県警察サイバー犯罪相談窓口) and JAFIC",
+    "desks": [
+      {
+        "name": "Police Consultation Hotline #9110 (警察相談専用電話)",
+        "url": "https://www.npa.go.jp/bureau/cyber/soudan.html",
+        "role": "National police consultation hotline for general and cybercrime consultation; directs callers to the right prefectural police",
+        "how_to_report": "Dial #9110 from a mobile phone (or the local prefectural police number listed on the NPA site) and describe the crypto/investment scam; you will be routed to the appropriate prefectural police consulting desk."
+      },
+      {
+        "name": "Prefectural Police Cybercrime Consultation Windows (サイバー犯罪相談窓口) — nationwide list",
+        "url": "https://www.npa.go.jp/bureau/cyber/ichiran.html",
+        "role": "Each prefectural police operates a cybercrime consulting window for online fraud, unauthorized withdrawals, and crypto scams",
+        "how_to_report": "Use the NPA nationwide directory to find your prefecture's cybercrime consulting window, then phone or visit; for online submission use the NPA unified online intake (via e-Gov, linked from https://www.npa.go.jp/bureau/cyber/soudan.html) which routes your report to the selected prefectural police headquarters or station."
+      },
+      {
+        "name": "Cybercrime Center (サイバー犯罪センター) / JAFIC",
+        "url": "https://www.npa.go.jp/sosikihanzai/jafic/index.htm",
+        "role": "National Police Agency joint financial-crime intelligence center; coordinates fraud asset tracing (JAFIC = Japanese Alert Network for Financial Crime / 犯罪収益移転防止対策支援センター)",
+        "how_to_report": "Prefectural police submit coordinated fraud reports here; victims should report through local police, who can invoke JAFIC asset-tracing for crypto scams (commonly used for virtual-currency freezing requests under the 振り込め詐欺救済法 regime)."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank/exchange immediately by phone to request a freeze/recovery of the transfer (振り込め詐欺救済法 procedures within minutes of sending). For crypto, contact the exchange and request withdrawal freeze; ask the bank to contact the receiving bank.",
+      "Gather evidence: Keep emails, LINE/chat logs, wallet addresses, transaction hashes (txid), bank transfer statements, and the scammer's contact info; take screenshots.",
+      "Report to exchange: Notify the crypto exchange or bank account involved so they can freeze and trace the funds.",
+      "Report to police: Call #9110 or your prefectural cybercrime consultation window; submit 被害届 (criminal complaint) at the local station.",
+      "Regulator/other: For suspected unlicensed investment advice, report to the Financial Services Agency (金融庁) via https://www.fsa.go.jp/soudan/index.html; consumer hotline #188 (消費者ホットライン) at https://www.consumer.go.jp/hotline."
+    ],
+    "sources": [
+      "https://www.npa.go.jp/bureau/cyber/soudan.html",
+      "https://www.npa.go.jp/bureau/cyber/ichiran.html",
+      "https://www.npa.go.jp/sosikihanzai/jafic/index.htm",
+      "https://www.fsa.go.jp/soudan/index.html",
+      "https://www.consumer.go.jp/hotline",
+      "https://www.keishicho.metro.tokyo.lg.jp/kurashi/cyber/index.html",
+      "https://www.kokusen.go.jp/map/index.html"
+    ]
+  },
+  {
+    "id": "jp-antiphishing-jsaipa-fsa",
+    "country": "Japan",
+    "title": "Japan: Anti-Phishing Council, Investment Advisory Association (JSAIPA/JIAA), FSA consumer desk, Consumer Hotline #188",
+    "desks": [
+      {
+        "name": "Phishing Countermeasures Council (フィッシング対策協議会)",
+        "url": "https://www.antiphishing.jp/",
+        "role": "Industry/industry-government council that receives phishing-site and phishing-scam reports and publishes real-time alerts",
+        "how_to_report": "Submit the phishing URL from their website report form; they distribute takedown requests and warnings."
+      },
+      {
+        "name": "Japan Investment Advisers Association (日本投資顧問業協会 / JSAIPA-related consultation desk)",
+        "url": "https://www.jiaa.or.jp/",
+        "role": "Industry association that answers questions about licensed investment advisers and impersonation/investment fraud",
+        "how_to_report": "Use the 'お問い合わせ/相談' (contact/consultation) desk on the association homepage; also consult their impersonation and investment-fraud guidance pages under /contact/."
+      },
+      {
+        "name": "Financial Services Agency (金融庁) — consulting windows",
+        "url": "https://www.fsa.go.jp/soudan/index.html",
+        "role": "Financial regulator; publishes counseling windows for debt, investment, and fraud; issues warnings on crypto/investment scams (e.g. 2022 warning on crypto investment fraud: https://www.fsa.go.jp/news/r4/sonota/20221004.html)",
+        "how_to_report": "Phone the Financial Services Hotline (0570-016811) or submit via the FSA consultation pages; for suspected unlicensed crypto business, report directly to FSA or the prefectural public safety commission (crypto exchange licensing under FIEA/PSEA is enforced with police)."
+      },
+      {
+        "name": "Consumer Hotline #188 (消費者ホットライン)",
+        "url": "https://www.consumer.go.jp/hotline",
+        "role": "National consumer hotline run by Consumer Affairs Agency + local consumer centers; first-line triage for investment/trading scams",
+        "how_to_report": "Dial 188; you will be transferred to the local consumer affairs center for consultation and, if needed, filing."
+      },
+      {
+        "name": "National Consumer Affairs Center (国民生活センター) — consultation map",
+        "url": "https://www.kokusen.go.jp/map/index.html",
+        "role": "Receives consumer complaints nationwide; issues alerts on crypto/investment scams",
+        "how_to_report": "Use the center map to find your local consumer center; in-person or phone consultation available."
+      }
+    ],
+    "steps": [
+      "Freeze: Same-day bank/exchange freeze via phone (振込詐欺救済法); for crypto, notify the exchange's customer fraud desk immediately.",
+      "Gather evidence: Save contract documents, chat logs, wallet addresses, txids, bank statements, and the website/screenshot of the fake platform.",
+      "Report to exchange/operator: Report the receiving wallet to the exchange (they may have frozen similar addresses) and your bank.",
+      "Report to police: #9110 or prefectural cybercrime window (see the Japan police entry).",
+      "Regulator: Report unlicensed advice to FSA (https://www.fsa.go.jp/soudan/index.html) and phishing to the Phishing Countermeasures Council (https://www.antiphishing.jp/); consumer triage via #188 (https://www.consumer.go.jp/hotline)."
+    ],
+    "sources": [
+      "https://www.antiphishing.jp/",
+      "https://www.jiaa.or.jp/",
+      "https://www.fsa.go.jp/soudan/index.html",
+      "https://www.fsa.go.jp/news/r4/sonota/20221004.html",
+      "https://www.consumer.go.jp/hotline",
+      "https://www.kokusen.go.jp/map/index.html"
+    ]
+  },
+  {
+    "id": "us-ic3-ftc-sec-cftc-ag",
+    "country": "United States",
+    "title": "United States: FBI IC3, FTC, SEC, CFTC, State Attorneys General",
+    "desks": [
+      {
+        "name": "FBI Internet Crime Complaint Center (IC3)",
+        "url": "https://www.ic3.gov/",
+        "role": "Primary federal intake for internet-based crime including cryptocurrency fraud and investment scams",
+        "how_to_report": "File at https://complaint.ic3.gov/ with details of the scam, wallet addresses, transaction hashes, and dollar losses; recovery-fraud scams (people claiming they can recover crypto) should also be reported here (see https://www.ic3.gov/PSA)."
+      },
+      {
+        "name": "Federal Trade Commission (FTC) — ReportFraud.ftc.gov",
+        "url": "https://reportfraud.ftc.gov/",
+        "role": "Consumer complaint intake feeding FTC enforcement and Consumer Sentinel (data shared with law enforcement worldwide)",
+        "how_to_report": "Submit the report online at https://reportfraud.ftc.gov/ or via https://consumer.ftc.gov/; include scam communications and payment/crypto details."
+      },
+      {
+        "name": "Securities and Exchange Commission (SEC) — Tip, Complaint, Referral (TCR)",
+        "url": "https://www.sec.gov/tcr",
+        "role": "Regulator of securities; handles fraudulent crypto investment/token offerings and broker fraud",
+        "how_to_report": "Submit at https://www.sec.gov/tcr (reported through the 'Report Suspected Securities Fraud or Wrongdoing' page, https://www.sec.gov/submit-tip-or-complaint/tips-complaints-resources/report-suspected-securities-fraud-or-wrongdoing); include the offering documents, platform names, and communications."
+      },
+      {
+        "name": "Commodity Futures Trading Commission (CFTC)",
+        "url": "https://www.cftc.gov/complaint",
+        "role": "Regulator of futures/commodities and digital-asset derivatives; takes tips and complaints on fraudulent crypto trading platforms",
+        "how_to_report": "File a tip or complaint at https://www.cftc.gov/complaint or via the CFTC whistleblower program at https://whistleblower.gov/; check the CFTC RED list before investing: https://www.cftc.gov/LearnAndProtect/Resources/Check/redlist.htm"
+      },
+      {
+        "name": "State Attorneys General",
+        "url": "https://www.usa.gov/stop-scams-frauds",
+        "role": "State-level consumer-protection and securities enforcement; each state AG office accepts consumer fraud complaints",
+        "how_to_report": "Find your state AG via https://www.usa.gov/stop-scams-frauds and file a consumer-fraud complaint; many states also have dedicated investor-protection bureaus."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank/credit union to stop or reverse wire transfers; notify your crypto exchange to freeze the withdrawal; place fraud alerts with credit bureaus.",
+      "Gather evidence: Keep all emails/texts, screenshots, wallet addresses, transaction hashes, bank transfer confirmations, and the scam website URL.",
+      "Report to exchange/platform: Notify the exchange's fraud/compliance desk so they can freeze or trace the funds; request an internal investigation.",
+      "Report to police/federal: File at IC3 (https://complaint.ic3.gov/), and optionally your local police department for a police report number.",
+      "Regulator: File with SEC (https://www.sec.gov/tcr) for token/securities fraud, CFTC (https://www.cftc.gov/complaint) for derivatives/futures fraud, FTC (https://reportfraud.ftc.gov/) for consumer fraud, and your state AG (https://www.usa.gov/stop-scams-frauds)."
+    ],
+    "sources": [
+      "https://www.ic3.gov/",
+      "https://complaint.ic3.gov/",
+      "https://reportfraud.ftc.gov/",
+      "https://www.ftc.gov/complaint",
+      "https://www.sec.gov/tcr",
+      "https://www.cftc.gov/complaint",
+      "https://whistleblower.gov/",
+      "https://www.usa.gov/stop-scams-frauds"
+    ]
+  },
+  {
+    "id": "uk-action-fraud-fca",
+    "country": "United Kingdom",
+    "title": "United Kingdom: Action Fraud / Report Fraud and FCA consumer reporting",
+    "desks": [
+      {
+        "name": "Action Fraud (now branded 'Report Fraud', run by City of London Police)",
+        "url": "https://www.reportfraud.police.uk/",
+        "role": "UK's national fraud and cybercrime reporting centre; the primary police intake for crypto/investment fraud",
+        "how_to_report": "File online at https://www.reportfraud.police.uk/ (legacy URL https://www.actionfraud.police.uk/ redirects here) or call 0300 123 2040; receive a crime reference number for bank/exchange follow-up."
+      },
+      {
+        "name": "Financial Conduct Authority (FCA)",
+        "url": "https://www.fca.org.uk/consumers/report-scam",
+        "role": "UK financial regulator; accepts reports of suspected scam investment platforms (including crypto) and maintains warning lists",
+        "how_to_report": "Use https://www.fca.org.uk/consumers/report-scam or the FCA contact page https://www.fca.org.uk/contact; check the FCA Warning List before investing."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank's fraud team immediately (UK banks are signatories of the Contingent Reimbursement Model); for crypto, ask the exchange to freeze the withdrawal and to cooperate with police tracing.",
+      "Gather evidence: Save chats/emails, wallet addresses, transaction hashes, bank transfer details, and the scam website URL; take screenshots.",
+      "Report to exchange: Notify the crypto exchange or bank involved; request trace/freeze support.",
+      "Report to police: File at Action Fraud (https://www.reportfraud.police.uk/) or call 0300 123 2040; for Scotland call Police Scotland 101.",
+      "Regulator: Report to FCA (https://www.fca.org.uk/consumers/report-scam); check FCA warning list first."
+    ],
+    "sources": [
+      "https://www.reportfraud.police.uk/",
+      "https://www.actionfraud.police.uk/",
+      "https://www.fca.org.uk/consumers/report-scam",
+      "https://www.fca.org.uk/contact",
+      "https://www.fca.org.uk/consumers"
+    ]
+  },
+  {
+    "id": "de-bafin-polizei-onlinewache",
+    "country": "Germany",
+    "title": "Germany: BaFin consumer complaint desk and state police (Online-Wache)",
+    "desks": [
+      {
+        "name": "BaFin (Bundesanstalt für Finanzdienstleistungsaufsicht) — Consumer complaints & financial fraud",
+        "url": "https://www.bafin.de/DE/verbraucherinnen-verbraucher/hilfe-kontakt/beschwerden-streitschlichtung/beschwerden-streitschlichtung_node.html",
+        "role": "Federal financial regulator; maintains consumer-fraud pages on investment scams (Anlagebetrug), issues unauthorized-entity warnings, handles complaints about regulated entities and unauthorized crypto custodians",
+        "how_to_report": "Use the BaFin consumer complaint & dispute-resolution page above, or the financial fraud guidance page https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/finanzbetrug-erkennen/finanzbetrug-erkennen_node.html; report suspected unauthorized crypto/business activity via BaFin contact desk."
+      },
+      {
+        "name": "Polizei (state police) — Online-Wache / local police stations",
+        "url": "https://www.polizei.de/",
+        "role": "Criminal complaint intake (Strafanzeige) for investment fraud, phishing, and crypto scams; each state (Land) police operates an Online-Wache for online filing",
+        "how_to_report": "File a Strafanzeige online via your state police's Online-Wache (find your state police via https://www.polizei.de/ national portal; e.g., Berlin: https://www.berlin.de/polizei/) or in person at any police station."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank immediately for a transfer recall (Überweisungsrückruf); for crypto, notify the exchange's compliance desk to freeze withdrawal.",
+      "Gather evidence: Preserve chats, emails, wallet addresses, txids, bank transfer receipts, and the scam website; German police will ask for these.",
+      "Report to exchange/platform: Notify the receiving exchange or bank; German banks can use the CyberAlliance against fraud (CyberAllianz) channels.",
+      "Report to police: File a Strafanzeige at your local station or Online-Wache (state police portals via https://www.polizei.de/).",
+      "Regulator: Report to BaFin (https://www.bafin.de/DE/verbraucherinnen-verbraucher/hilfe-kontakt/beschwerden-streitschlichtung/beschwerden-streitschlichtung_node.html); check BaFin's unauthorized business warnings."
+    ],
+    "sources": [
+      "https://www.bafin.de/DE/verbraucherinnen-verbraucher/hilfe-kontakt/beschwerden-streitschlichtung/beschwerden-streitschlichtung_node.html",
+      "https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/finanzbetrug-erkennen/finanzbetrug-erkennen_node.html",
+      "https://www.polizei.de/",
+      "https://www.polizei-beratung.de/",
+      "https://www.berlin.de/polizei/"
+    ]
+  },
+  {
+    "id": "fr-pharos-tracfin-amf",
+    "country": "France",
+    "title": "France: Pharos online signalement, Tracfin financial-intelligence reporting, AMF Épargnants desk",
+    "desks": [
+      {
+        "name": "Pharos (Plateforme d'harmonisation, de recensement et d'analyse des signalements)",
+        "url": "https://www.internet-signalement.gouv.fr/PharosWebReport/index.php",
+        "role": "National police (Ministry of Interior) online reporting platform for cyber-malveillance, scams, and fraud",
+        "how_to_report": "File at https://www.internet-signalement.gouv.fr/PharosWebReport/index.php — select 'scam/fraud' as the category, attach evidence; for urgent crypto-tracing victims also contact their local brigade or gendarmerie."
+      },
+      {
+        "name": "Tracfin (Traitement du renseignement et action contre les circuits financiers clandestins)",
+        "url": "https://www.economie.gouv.fr/tracfin",
+        "role": "Financial intelligence unit (Ministry of Economy) that combats money laundering and clandestine financial circuits; receives reports/alerts on suspicious finance including crypto scams",
+        "how_to_report": "Individuals can report via the whistleblower channel https://www.economie.gouv.fr/tracfin/lanceur-dalerte-tracfin-recoit-vos-signalements ; professionals file suspicious-activity reports through the ERMES platform https://www.economie.gouv.fr/tracfin/ermes-la-plateforme-de-declaration-en-ligne-de-tracfin"
+      },
+      {
+        "name": "AMF Espace Épargnants (Autorité des marchés financiers)",
+        "url": "https://www.amf-france.org/fr/espace-epargnants",
+        "role": "Securities regulator's investor-protection desk; maintains blacklists of unauthorized crypto/FX trading sites and takes victim reports",
+        "how_to_report": "Check/report unauthorized platforms at https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-noires-et-mises-en-garde ; the AMF Médiateur (https://www.amf-france.org/fr/le-mediateur) handles investor mediation."
+      }
+    ],
+    "steps": [
+      "Freeze: Ask your bank for a 'rappel de virement' (transfer recall) immediately; notify your crypto exchange to freeze the withdrawal.",
+      "Gather evidence: Keep screenshots, emails, wallet addresses, transaction hashes, and bank transfer receipts (RIB).",
+      "Report to exchange/bank: Notify the receiving platform so they can freeze and trace.",
+      "Report to police: File on Pharos (https://www.internet-signalement.gouv.fr/PharosWebReport/index.php) or at your local police/gendarmerie for a main courante.",
+      "Regulator: Report unauthorized investment platforms to AMF (https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-noires-et-mises-en-garde); report money-laundering leads to Tracfin (https://www.economie.gouv.fr/tracfin/lanceur-dalerte-tracfin-recoit-vos-signalements)."
+    ],
+    "sources": [
+      "https://www.internet-signalement.gouv.fr/PharosWebReport/index.php",
+      "https://www.economie.gouv.fr/tracfin",
+      "https://www.economie.gouv.fr/tracfin/lanceur-dalerte-tracfin-recoit-vos-signalements",
+      "https://www.amf-france.org/fr/espace-epargnants",
+      "https://www.amf-france.org/fr/espace-epargnants/proteger-son-epargne/listes-noires-et-mises-en-garde"
+    ]
+  },
+  {
+    "id": "es-cnmv-bde-policia",
+    "country": "Spain",
+    "title": "Spain: CNMV investor queries, Banco de España claims desk, Policía Nacional denuncia",
+    "desks": [
+      {
+        "name": "CNMV (Comisión Nacional del Mercado de Valores) — Investor queries/consultations",
+        "url": "https://www.cnmv.es/portal/inversor/Consultas.aspx",
+        "role": "Securities regulator; takes investor queries about unregistered trading platforms and maintains fraud warnings (chiringuitos financieros)",
+        "how_to_report": "Submit a query via https://www.cnmv.es/portal/inversor/Consultas.aspx; check authorized entities at https://www.cnmv.es/portal/inversor/Entidades-Autorizadas.aspx and consult their 'Decálogo - chiringuitos financieros' guidance."
+      },
+      {
+        "name": "Banco de España — Servicio de Reclamaciones (claims service)",
+        "url": "https://sedeelectronica.bde.es/sede/es/tramites/reclamaciones-transparencia-buenas-practicas-p104.html",
+        "role": "Handles complaints/claims against banks and payment service providers, including unauthorized withdrawals",
+        "how_to_report": "File an electronic claim at https://sedeelectronica.bde.es/sede/es/tramites/reclamaciones-transparencia-buenas-practicas-p104.html after first exhausting the bank's own complaints procedure."
+      },
+      {
+        "name": "Policía Nacional — Denuncias",
+        "url": "https://www.policia.es/_es/denuncias.php",
+        "role": "Police intake for criminal complaints (denuncias) of fraud and cybercrime",
+        "how_to_report": "File at the Policía Nacional denuncias desk https://www.policia.es/_es/denuncias.php, or at a local comisaría; for urgent crypto-tracing, banks can invoke SEPA recall procedures."
+      }
+    ],
+    "steps": [
+      "Freeze: Immediately contact your bank to attempt a recall (Orden SEPA); notify the crypto exchange to freeze withdrawal.",
+      "Gather evidence: Save all chats, emails, wallet addresses, txids, transfer receipts, and the scam site URL.",
+      "Report to exchange/bank: Notify the receiving platform for internal freeze/tracing.",
+      "Report to police: File a denuncia at Policía Nacional (https://www.policia.es/_es/denuncias.php) or Guardia Civil for rural areas.",
+      "Regulator: Query/report to CNMV (https://www.cnmv.es/portal/inversor/Consultas.aspx); file bank claims to Banco de España (https://sedeelectronica.bde.es/sede/es/tramites/reclamaciones-transparencia-buenas-practicas-p104.html)."
+    ],
+    "sources": [
+      "https://www.cnmv.es/portal/inversor/Consultas.aspx",
+      "https://www.cnmv.es/portal/inversor/Entidades-Autorizadas.aspx",
+      "https://sedeelectronica.bde.es/sede/es/tramites/reclamaciones-transparencia-buenas-practicas-p104.html",
+      "https://www.policia.es/_es/denuncias.php"
+    ]
+  },
+  {
+    "id": "it-banca-ditalia-ivass-polizia",
+    "country": "Italy",
+    "title": "Italy: Banca d'Italia banking/financial education desk, IVASS claims, Polizia di Stato",
+    "desks": [
+      {
+        "name": "Banca d'Italia — Tutela ed educazione (consumer protection & education)",
+        "url": "https://www.bancaditalia.it/compiti/tutela-educazione/index.html",
+        "role": "Central bank's consumer protection and financial-education desk; oversees banking complaints (ABF - Banking and Financial Ombudsman system)",
+        "how_to_report": "File a complaint with your bank first, then escalate via the ABF (Arbitro Bancario Finanziario) system listed on the Banca d'Italia tutela-educazione page https://www.bancaditalia.it/compiti/tutela-educazione/index.html"
+      },
+      {
+        "name": "IVASS (Istituto per la vigilanza sulle assicurazioni) — Reclami (insurance claims)",
+        "url": "https://www.ivass.it/consumatori/reclami/index.html",
+        "role": "Insurance regulator; handles complaints about insurance/investment products and fraud-related insurance issues",
+        "how_to_report": "File a reclamo (complaint) per the guidance at https://www.ivass.it/consumatori/reclami/index.html (guidance PDF and complaint form available there)."
+      },
+      {
+        "name": "Polizia di Stato / Comando Carabinieri",
+        "url": "https://www.poliziadistato.it/",
+        "role": "Police intake for criminal complaints (querela/denuncia) for crypto scams, phishing, and unauthorized withdrawals",
+        "how_to_report": "File at the nearest commissariato or via the Polizia di Stato website; keep all wallet addresses and transfer receipts."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank for an urgent bonifico recall; ask your crypto exchange to freeze the withdrawal.",
+      "Gather evidence: Save chats, emails, wallet addresses, txids, and bank receipts.",
+      "Report to exchange/bank: Notify the receiving platform so it can trace/freeze.",
+      "Report to police: File a querela/denuncia at the Polizia di Stato or Carabinieri.",
+      "Regulator/ombudsman: Escalate bank disputes via ABF (Banca d'Italia page https://www.bancaditalia.it/compiti/tutela-educazione/index.html); insurance/investment complaints to IVASS (https://www.ivass.it/consumatori/reclami/index.html)."
+    ],
+    "sources": [
+      "https://www.bancaditalia.it/compiti/tutela-educazione/index.html",
+      "https://www.bancaditalia.it/compiti/vigilanza/index.html",
+      "https://www.ivass.it/consumatori/reclami/index.html",
+      "https://www.ivass.it/consumatori/index.html"
+    ]
+  },
+  {
+    "id": "nl-politie-afm-dnb",
+    "country": "Netherlands",
+    "title": "Netherlands: Politie aangifte/melding, AFM consumer fraud desk",
+    "desks": [
+      {
+        "name": "Politie (Dutch National Police) — Aangifte of melding doen (filing reports)",
+        "url": "https://www.politie.nl/aangifte-of-melding-doen",
+        "role": "National police intake for criminal complaints (aangifte) or tips (melding) about fraud and crypto scams",
+        "how_to_report": "File online at https://www.politie.nl/aangifte-of-melding-doen (choose aangifte for criminal complaints, melding for tips); emergency: 112, non-urgent: 0900-8844."
+      },
+      {
+        "name": "AFM (Autoriteit Financiële Markten) — Consumer fraud information",
+        "url": "https://www.afm.nl/nl-nl/consumenten/waarschuwingen",
+        "role": "Financial markets regulator; maintains warning lists of unauthorized investment firms and accepts consumer fraud reports",
+        "how_to_report": "See https://www.afm.nl/nl-nl/consumenten/waarschuwingen for guidance; report via AFM contact desk; check their unauthorized-firms warning list before investing."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank immediately for a SEPA recall; notify your crypto exchange to freeze the withdrawal.",
+      "Gather evidence: Save chats, emails, wallet addresses, txids, and bank receipts.",
+      "Report to exchange: Notify the receiving platform so they can trace and freeze.",
+      "Report to police: File an aangifte at Politie (https://www.politie.nl/aangifte-of-melding-doen).",
+      "Regulator: Report to AFM (https://www.afm.nl/nl-nl/consumenten/waarschuwingen); also check DNB for payment-institution issues."
+    ],
+    "sources": [
+      "https://www.politie.nl/aangifte-of-melding-doen",
+      "https://www.afm.nl/nl-nl/consumenten/waarschuwingen",
+      "https://www.afm.nl/nl-nl/consumenten/waarschuwingen"
+    ]
+  },
+  {
+    "id": "ca-cafc-cyber-centre",
+    "country": "Canada",
+    "title": "Canada: Canadian Anti-Fraud Centre (CAFC) and National Cybercrime Coordination Centre (NC3)",
+    "desks": [
+      {
+        "name": "Canadian Anti-Fraud Centre (Centre antifraude du Canada)",
+        "url": "https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm",
+        "role": "National intake for fraud reports (investment scams, crypto fraud) run by RCMP/OPP; feeds national statistics and law-enforcement coordination",
+        "how_to_report": "File at https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm or call 1-888-495-8501; gather bank/crypto details first."
+      },
+      {
+        "name": "NC3 (National Cybercrime Coordination Centre) — Cyber.gc.ca incident reporting",
+        "url": "https://www.cyber.gc.ca/en/incident-management",
+        "role": "Royal Canadian Mounted Police (RCMP) cybercrime coordination; online reporting for cybercrime including crypto-related fraud",
+        "how_to_report": "Report cyber incidents at https://www.cyber.gc.ca/en/incident-management ; local police can be engaged after CAFC files a report."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank immediately for a wire/Interac recall; notify your crypto exchange to freeze withdrawal.",
+      "Gather evidence: Save chats, emails, wallet addresses, transaction hashes, transfer receipts, and the scam site URL.",
+      "Report to exchange: Notify the crypto exchange or bank for internal trace/freeze.",
+      "Report to police/CAFC: File with the Canadian Anti-Fraud Centre (https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm); your local police can use the CAFC report for investigation.",
+      "Regulator/cyber: Report cyber incident to NC3 via https://www.cyber.gc.ca/en/incident-management ; for investment fraud also contact the provincial securities commission."
+    ],
+    "sources": [
+      "https://www.antifraudcentre-centreantifraude.ca/",
+      "https://www.antifraudcentre-centreantifraude.ca/report-signalez-eng.htm",
+      "https://www.cyber.gc.ca/en/incident-management"
+    ]
+  },
+  {
+    "id": "au-scamwatch-reportcyber",
+    "country": "Australia",
+    "title": "Australia: Scamwatch (ACCC) and ReportCyber (AFP/Australian Cyber Security Centre)",
+    "desks": [
+      {
+        "name": "Scamwatch (National Anti-Scam Centre, ACCC)",
+        "url": "https://www.scamwatch.gov.au/report-a-scam",
+        "role": "National consumer-agency intake for scam reports (investment scams, crypto scams); feeds public warning data",
+        "how_to_report": "File at https://www.scamwatch.gov.au/report-a-scam ; include the amount, method of payment (crypto or bank), and scammer contact details."
+      },
+      {
+        "name": "ReportCyber (Australian Federal Police / Australian Cyber Security Centre)",
+        "url": "https://www.cyber.gov.au/report-and-recover/report",
+        "role": "National police/cyber-security online reporting system for cybercrime including cryptocurrency investment fraud",
+        "how_to_report": "File at https://www.cyber.gov.au/report-and-recover/report ; ReportCyber will route the report to the relevant state or federal law enforcement."
+      }
+    ],
+    "steps": [
+      "Freeze: Contact your bank immediately (banks can attempt a recall); ask your crypto exchange to freeze withdrawal and comply with ASIC/AUSTRAC tracing.",
+      "Gather evidence: Keep chats, emails, wallet addresses, transaction hashes, and bank transfer receipts.",
+      "Report to exchange: Notify the receiving exchange's fraud desk for internal freeze and trace.",
+      "Report to police: Use ReportCyber (https://www.cyber.gov.au/report-and-recover/report) and, if large amounts, contact your local police or AFP.",
+      "Regulator: Report to Scamwatch (https://www.scamwatch.gov.au/report-a-scam); for regulated investments also file with ASIC."
+    ],
+    "sources": [
+      "https://www.scamwatch.gov.au/",
+      "https://www.scamwatch.gov.au/report-a-scam",
+      "https://www.cyber.gov.au/",
+      "https://www.cyber.gov.au/report-and-recover/report"
+    ]
+  },
+  {
+    "id": "kr-fss-police-ecrm",
+    "country": "South Korea",
+    "title": "South Korea: Financial Supervisory Service (금융감독원) and Korean National Police (경찰청) e-Complaint",
+    "desks": [
+      {
+        "name": "Financial Supervisory Service (금융감독원, FSS)",
+        "url": "https://www.fss.or.kr/fss/bbs/B0000188/list.do",
+        "role": "Financial regulator; handles complaints about unauthorized withdrawals, illegal investment solicitation, and crypto-related fraud via its consumer complaint desk (1332 hotline)",
+        "how_to_report": "File via FSS online complaint system https://www.fss.or.kr/fss/bbs/B0000188/list.do or call 1332; the FSS can mediate with banks to freeze suspicious accounts."
+      },
+      {
+        "name": "Korean National Police Agency (경찰청) — e-CRM e-Complaint (전자민원)",
+        "url": "https://ecrm.police.go.kr/minwon/main",
+        "role": "Police intake for filing criminal complaints (고소/고발) of fraud and unauthorized withdrawals",
+        "how_to_report": "File at https://ecrm.police.go.kr/minwon/main or visit a local police station; for urgent transfers ask the bank to invoke the 'account freeze (계좌 동결)' for fraud under the 특정금융정보법."
+      }
+    ],
+    "steps": [
+      "Freeze: Immediately call your bank to request a freeze on the transfer (계좌 동결) under Korea's fraud-victim relief regime; for crypto, notify the exchange (Upbit/Bithumb etc.) to freeze the withdrawal.",
+      "Gather evidence: Save chats (KakaoTalk), emails, wallet addresses, transaction hashes, and bank receipts.",
+      "Report to exchange/bank: Notify the receiving platform; banks coordinate with FSS and police for asset tracing.",
+      "Report to police: File at the Korean National Police e-Complaint portal (https://ecrm.police.go.kr/minwon/main) or a local station.",
+      "Regulator: File with FSS (https://www.fss.or.kr/fss/bbs/B0000188/list.do) for unauthorized withdrawals/illegal solicitation."
+    ],
+    "sources": [
+      "https://www.fss.or.kr/",
+      "https://www.fss.or.kr/eng/",
+      "https://www.fss.or.kr/fss/bbs/B0000188/list.do",
+      "https://ecrm.police.go.kr/minwon/main"
+    ]
+  },
+  {
+    "id": "sg-scamshield-police",
+    "country": "Singapore",
+    "title": "Singapore: ScamShield and Singapore Police Force (I-Witness / e-Services)",
+    "desks": [
+      {
+        "name": "ScamShield (NCPC / Ministry of Home Affairs)",
+        "url": "https://scamshield.gov.sg/",
+        "role": "Government anti-scam platform; lets the public report scam calls, SMS/WhatsApp messages, and phishing sites; official scam-advisory database",
+        "how_to_report": "Report scam messages/numbers at https://scamshield.gov.sg/ ; install the ScamShield app for automatic blocking."
+      },
+      {
+        "name": "Singapore Police Force — e-Services / i-Witness",
+        "url": "https://www.police.gov.sg/e-services",
+        "role": "Police intake for police reports and information on fraud, including unauthorized withdrawals and crypto scams",
+        "how_to_report": "Submit a police report via https://www.police.gov.sg/e-services ; for emergency, call 999; for scam hotline, call 1800-722-6688."
+      }
+    ],
+    "steps": [
+      "Freeze: Call your bank immediately (DBS/OCBC/UOB have 24h fraud hotlines) to attempt a freeze/recall; ask your crypto exchange to freeze the withdrawal.",
+      "Gather evidence: Save chats, emails, wallet addresses, transaction hashes, and bank receipts.",
+      "Report to exchange/bank: Notify the receiving platform for internal tracing and cooperation with police.",
+      "Report to police: File a police report at https://www.police.gov.sg/e-services or at a Neighbourhood Police Post.",
+      "Report scams: Log the scam messages/numbers on ScamShield (https://scamshield.gov.sg/) so others can be protected."
+    ],
+    "sources": [
+      "https://scamshield.gov.sg/",
+      "https://www.police.gov.sg/",
+      "https://www.police.gov.sg/e-services"
+    ]
+  },
+  {
+    "id": "international-interpol-chainabuse-ic3-recovery",
+    "country": "International",
+    "title": "International: INTERPOL financial crime, Chainabuse community reporting, IC3 crypto-recovery scam guidance",
+    "desks": [
+      {
+        "name": "INTERPOL — Financial Crime desk",
+        "url": "https://www.interpol.int/Crimes/Financial-crime",
+        "role": "International criminal-police organization coordinating cross-border financial-crime investigations among member states",
+        "how_to_report": "INTERPOL does not take direct victim reports; victims should report to national police (who can request INTERPOL coordination) and use Chainabuse for blockchain-level reporting."
+      },
+      {
+        "name": "Chainabuse (TRM Labs) — community crypto-scam reporting",
+        "url": "https://chainabuse.com/",
+        "role": "Cross-chain community platform to report scam wallet addresses, fake airdrops, and fraudulent DeFi sites; alerts other users and exchanges",
+        "how_to_report": "Submit a report at https://chainabuse.com/report with the wallet address, blockchain, txid, and evidence; reports are visible to partner exchanges for flagging."
+      },
+      {
+        "name": "IC3 — cryptocurrency recovery scam guidance",
+        "url": "https://www.ic3.gov/",
+        "role": "FBI IC3 publishes public service announcements warning victims about 'recovery' scams after crypto fraud and accepting new complaints",
+        "how_to_report": "Review IC3 PSAs at https://www.ic3.gov/PSA before engaging any self-described 'crypto recovery' service; file new/recovery-related complaints at https://complaint.ic3.gov/"
+      }
+    ],
+    "steps": [
+      "Freeze: Contact the crypto exchange hosting the scammer's wallet (if known) to request a freeze; in parallel contact your own bank/exchange for a recall.",
+      "Gather evidence: Preserve all chats/emails, wallet addresses, transaction hashes, and fiat-transfer receipts; use block explorers to document on-chain flows.",
+      "Report to exchange: Use Chainabuse (https://chainabuse.com/) to publicly flag the wallet, and notify the receiving exchange's compliance desk.",
+      "Report to police: File with your national police desk (see country entries); your report can be escalated internationally via INTERPOL by your national police, not directly by you.",
+      "Beware recovery scams: Do not pay any 'crypto recovery' service; check FBI IC3 guidance (https://www.ic3.gov/) and file a fresh IC3 complaint if you are targeted again."
+    ],
+    "sources": [
+      "https://www.interpol.int/Crimes/Financial-crime",
+      "https://chainabuse.com/",
+      "https://chainabuse.com/report",
+      "https://www.ic3.gov/",
+      "https://complaint.ic3.gov/"
+    ]
+  }
+]
