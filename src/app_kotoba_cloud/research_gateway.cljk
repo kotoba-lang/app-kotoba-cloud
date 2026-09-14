@@ -3,8 +3,8 @@
   (:require [app-kotoba-cloud.research :as policy] [app-kotoba-cloud.session :as session]))
 
 (def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"
-             "/v1/research/jobs" "/v1/research/job" "/v1/research/review"
-             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook"})
+             "/v1/research/jobs" "/v1/research/job"
+             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook" "/v1/research/review"})
 (def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"
                "https://admin.kotoba.cloud"})
 
@@ -95,7 +95,7 @@
                                   (throw (ex-info "stripe-webhook-rejected"
                                                   {:status (if (contains? #{400 403} (.-status r))
                                                              (.-status r) 503)
-                                                   :eventId (str (:id event))})))))))))))
+                                                   :eventId (str (:id event))}))))))))))))
 
 (defn- status-response [record principal reference respond]
   (let [now (js/Date.now) reason (or (policy/eligibility principal record now)
@@ -239,6 +239,7 @@
                (respond {:error {:code "invalid-research-request"}} 400)
                (complete binding principal reference body respond))))))))))
 
+
 (defn route [request ^js env fetch-viewer respond]
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
         post? (= method "POST") binding (.-RESEARCH_AUTHORITY env)
@@ -283,4 +284,4 @@
                     (let [status (or (:status (ex-data e)) 503)]
                       (respond {:error {:code (case status 413 "body-too-large" 400 "invalid-json" 401 "sign-in-required"
                                                    403 "research-access-denied" 404 "job-not-found" 409 "idempotency-conflict"
-                                                   429 "free-quota-exhausted" "research-service-unavailable")}} status)))))))))
+                                                   429 "free-quota-exhausted" "research-service-unavailable")}} status))))))))
