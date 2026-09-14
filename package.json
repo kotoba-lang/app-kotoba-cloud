@@ -16,7 +16,9 @@
     "deploy:registry": "kbb --backend sci scripts/deploy-registry.cljk",
     "test:providers": "node test/research-providers.mjs",
     "build:security-data": "node scripts/build-security-data.mjs",
-    "test:security-data": "node test/security-data.mjs"
+    "test:security-data": "node test/security-data.mjs",
+    "build:crypto-catalog": "node scripts/build-crypto-catalog.mjs",
+    "test:crypto-catalog": "node test/crypto-catalog.mjs"
   },
   "devDependencies": {
     "shadow-cljs": "3.5.1",
