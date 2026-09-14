@@ -80,6 +80,36 @@
       (.setAttribute el "lang" "en")
       (.setAttribute el "dir" "ltr"))))
 
+(defn- signed-in-menu!
+  "cloud-kotoba-dds account-entry pattern: one entry point in the shell that
+  names the signed-in account and opens the account surface + sign-out.
+  Builds a details/summary disclosure (kc-session-menu) inside the existing
+  #kc-session-nav element; no inline handlers, listeners bound here."
+  [nav username]
+  (set! (.-innerHTML nav)
+        (str "<details class=\"kc-session-menu\">"
+             "<summary class=\"dads-button\" data-type=\"outline\" data-size=\"sm\">@" username "</summary>"
+             "<div class=\"kc-session-menu__panel\">"
+             "<a class=\"kc-session-menu__item\" href=\"/account\" id=\"kc-session-menu-account\">" 
+             (if (= "ja" (.-lang (.-documentElement js/document))) "アカウント管理" "Account")
+             "</a>"
+             "<button type=\"button\" class=\"kc-session-menu__item\" id=\"kc-session-signout\">"
+             (if (= "ja" (.-lang (.-documentElement js/document))) "ログアウト" "Sign out")
+             "</button>"
+             "</div></details>"))
+  (let [sign-out (.querySelector nav "#kc-session-signout")]
+    (when sign-out
+      (.addEventListener sign-out "click"
+                         (fn [_]
+                           (set! (.-disabled sign-out) true)
+                           (-> (js/fetch "/v1/logout"
+                                         #js {:method "POST" :credentials "same-origin"
+                                              :headers #js {"accept" "application/json"}})
+                               (.catch (fn [_] nil))
+                               (.finally (fn []
+                                           (.removeItem (.-sessionStorage js/window) "kc-funnel-signup-completed")
+                                           (set! (.-href (.-location js/window)) "/")))))))))
+
 (defn- signed-in! [payload]
   (let [username (:username payload)
         english? (not= "ja" (.-lang (.-documentElement js/document)))
@@ -93,8 +123,7 @@
                           "Signed-in session confirmed. Next: connect this Principal to Kotobase."
                           "ログイン済みの session を確認しました。次: この Principal を Kotobase へ接続します。"))]
     (when-let [nav (element "kc-session-nav")]
-      (set! (.-textContent nav) (str "@" username))
-      (.setAttribute nav "href" (if (element "kc-identity-done") "#identity" "/identity")))
+      (signed-in-menu! nav username))
     (when-let [action (element "kc-session-action")]
       (set! (.-textContent action) next-label)
       (.setAttribute action "href" next-href)

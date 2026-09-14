@@ -224,6 +224,37 @@
                  (emit-signup-completed! request env model)
                  (session-response model))))))
 
+(defn- route-logout
+  "Same-origin sign-out proxy. The authn cookie (gftd_session) is issued for
+  the apex (kotoba.cloud), but the page CSP keeps connect-src 'self', so the
+  browser cannot POST auth.kotoba.cloud/v1/logout directly. Forward the
+  session cookie to the authn worker's POST /v1/logout and pass the
+  clearing Set-Cookie back untouched."
+  [request]
+  (if-let [token (session/cookie-value (.get (.-headers request) "cookie")
+                                       session/cookie-name)]
+    (-> (js/fetch (str session/identity-logout-url)
+                  #js {:method "POST"
+                       :headers #js {"accept" "application/json"
+                                     "cookie" (str session/cookie-name "=" token)}})
+        (.then (fn [upstream]
+                 (let [headers (js/Headers.)]
+                   (.set headers "cache-control" "no-store, private")
+                   (.set headers "content-type" "application/json")
+                   (let [set-cookie (or (.get upstream "set-cookie") (.get upstream "Set-Cookie"))]
+                     (when set-cookie (.append headers "set-cookie" set-cookie)))
+                   (js/Response. (js/JSON.stringify #js {:ok true})
+                                 #js {:status (.-status upstream) :headers headers}))))
+        (.catch (fn [_]
+                  (js/Response. (js/JSON.stringify #js {:ok false})
+                                #js {:status 502
+                                     :headers #js {"content-type" "application/json"
+                                                   "cache-control" "no-store"}}))))
+    (js/Response. (js/JSON.stringify #js {:ok false :error "session-required"})
+                  #js {:status 401
+                       :headers #js {"content-type" "application/json"
+                                     "cache-control" "no-store"}})))
+
 (def publication-schema
   "https://kotoba.cloud/schemas/library-publication-request/v3")
 
@@ -725,6 +756,9 @@
 
       (= path "/v1/session")
       (route-session request env)
+
+      (and (= path "/v1/logout") (= method "POST"))
+      (route-logout request)
 
       (or (= path "/.well-known/kotoba-cloud.json")
           (= path "/v1/control-plane"))
