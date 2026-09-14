@@ -3,7 +3,8 @@
   (:require [app-kotoba-cloud.research :as policy] [app-kotoba-cloud.session :as session]))
 
 (def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"
-             "/v1/research/jobs" "/v1/research/job"})
+             "/v1/research/jobs" "/v1/research/job"
+             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook"})
 (def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"
                "https://admin.kotoba.cloud"})
 
@@ -36,7 +37,65 @@
       (.then (fn [r]
                (if (.-ok r)
                  (bounded-json r 131072)
-                 (throw (ex-info "research-service-unavailable" {:status (if (contains? #{403 404 409 429} (.-status r)) (.-status r) 503)})))))))
+                 ;; Surface the authority's own error body so operator-visible
+                 ;; codes (e.g. stripe-identity-not-configured) survive the hop.
+                 (-> (.text r)
+                     (.catch (fn [_] ""))
+                     (.then (fn [detail]
+                              (let [code (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
+                                              (catch :default _ nil))]
+                                (throw (ex-info (or code "research-service-unavailable")
+                                                {:status (if (contains? #{403 404 409 429 503} (.-status r))
+                                                           (.-status r) 503)})))))))))))
+
+(defn- ekyc-route [request path binding principal reference respond]
+  (if (= path "/v1/research/ekyc/status")
+    (-> (service binding "/ekyc/status" {:principalId principal :sessionRef reference})
+        (.then #(respond % 200)))
+    (-> (bounded-json request 32768)
+        (.then
+         (fn [body]
+           (if-not (and (policy/text? (:principalId body) 256)
+                        (policy/text? (:scopeId body) 256)
+                        (vector? (:tasks body)) (pos? (count (:tasks body))))
+             (respond {:error {:code "invalid-ekyc-request"}} 400)
+             (-> (service binding "/ekyc/start"
+                          {:principalId principal :sessionRef reference
+                           :scopeId (:scopeId body) :tasks (:tasks body)})
+                 (.then #(respond % 200)))))))))
+
+;; Stripe calls this server-to-server: no origin gate, no auth, no viewer. The
+;; edge only reads the raw body + signature header and extracts ROUTING HINTS
+;; (metadata.principal, client_reference_id); hints are never trusted for any
+;; decision — the authority verifies the signature and binding itself. Nothing
+;; beyond the event id is logged.
+(defn- public-webhook-route [request binding respond]
+  (let [signature (.get (.-headers request) "stripe-signature")]
+    (-> (.text request)
+        (.then (fn [raw]
+                 (let [event (try (js->clj (js/JSON.parse raw) :keywordize-keys true)
+                                  (catch :default _ nil))
+                       obj (get-in event [:data :object])]
+                   (when-not (map? obj)
+                     (throw (ex-info "stripe-event-invalid" {:status 400})))
+                   (-> (.fetch binding "https://research.internal/ekyc/webhook"
+                               #js {:method "POST" :redirect "error"
+                                    :signal (js/AbortSignal.timeout 60000)
+                                    :headers #js {"content-type" "application/json"}
+                                    :body (js/JSON.stringify
+                                           (clj->js {:principalId (get-in obj [:metadata :principal])
+                                                     :raw raw :signatureHeader signature
+                                                     :sessionId (:id obj)
+                                                     :externalId (:client_reference_id obj)}))})
+                       (.then (fn [r]
+                                (if (.-ok r)
+                                  (bounded-json r 131072)
+                                  ;; Fail closed on signature/bind mismatch; never
+                                  ;; echo the payload, only the event id.
+                                  (throw (ex-info "stripe-webhook-rejected"
+                                                  {:status (if (contains? #{400 403} (.-status r))
+                                                             (.-status r) 503)
+                                                   :eventId (str (:id event))})))))))))))
 
 (defn- status-response [record principal reference respond]
   (let [now (js/Date.now) reason (or (policy/eligibility principal record now)
@@ -169,11 +228,28 @@
 
 (defn route [request ^js env fetch-viewer respond]
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
-        post? (= method "POST") binding (.-RESEARCH_AUTHORITY env)]
+        post? (= method "POST") binding (.-RESEARCH_AUTHORITY env)
+        public-webhook? (= path "/v1/research/ekyc/webhook")
+        ekyc? (contains? #{"/v1/research/ekyc/start" "/v1/research/ekyc/status"} path)
+        required-method (cond
+                          (= path "/v1/research/applications") "POST"
+                          (= path "/v1/chat/completions") "POST"
+                          (= path "/v1/research/jobs") "POST"
+                          (or public-webhook? (= path "/v1/research/ekyc/start")) "POST"
+                          :else "GET")]
     (cond
-      (not= method (if (#{"/v1/research/applications" "/v1/chat/completions" "/v1/research/jobs"} path) "POST" "GET"))
+      (not= method required-method)
       (respond {:error {:code "method-not-allowed"}} 405)
       (= path "/v1/models") (respond policy/catalog 200)
+      ;; Stripe server-to-server webhook: no origin, auth or viewer gate.
+      public-webhook?
+      (-> (if-not binding
+            (js/Promise.reject (ex-info "research-service-unavailable" {:status 503}))
+            (public-webhook-route request binding respond))
+          (.catch (fn [e]
+                    (let [status (or (:status (ex-data e)) 503)]
+                      (respond {:error {:code (case status 400 "invalid-json" "stripe-webhook-rejected")
+                                  :eventId (str (:eventId (ex-data e)))}} status)))))
       (and post? (not (contains? origins (.get (.-headers request) "origin"))))
       (respond {:error {:code "origin-not-allowed"}} 403)
       (and post? (not (re-find #"(?i)^application/json(?:;|$)" (or (.get (.-headers request) "content-type") ""))))
@@ -186,9 +262,11 @@
                      (nil? binding) (respond {:error {:code "verification-provider-not-configured"}
                                              :status "pending-provider-setup" :freeTier policy/free-limits} 503)
                      :else (-> (session-reference request (:principalId viewer))
-                               (.then #(authorized-route request path binding (:principalId viewer) % respond))))))
+                               (.then #(if ekyc?
+                                         (ekyc-route request path binding (:principalId viewer) % respond)
+                                         (authorized-route request path binding (:principalId viewer) % respond)))))))
           (.catch (fn [e]
                     (let [status (or (:status (ex-data e)) 503)]
                       (respond {:error {:code (case status 413 "body-too-large" 400 "invalid-json" 401 "sign-in-required"
                                                    403 "research-access-denied" 404 "job-not-found" 409 "idempotency-conflict"
-                                                   429 "free-quota-exhausted" "research-service-unavailable")}} status))))))))
+                                                   429 "free-quota-exhausted" "research-service-unavailable")}} status)))))))))

@@ -42,6 +42,178 @@
 (def upstream-model "qwen3.8-flash-next-cybersecurity-nvfp4")
 (def public-model "qwen3.8-flash-next-whitehacker")
 
+;; --- Stripe Identity eKYC (sole verification/approval path) ------------------
+;; Challenges live under `ekyc:<principalId>`. The raw webhook payload and any
+;; document PII are never persisted and never logged; only the opaque challenge
+;; record and a receipt reference survive.
+(def stripe-origin "https://api.stripe.com")
+(declare load-state save-state hmac! timing-safe=?)
+(def challenge-ttl-ms 900000)
+
+(defn- stripe-credential! [env]
+  ;; Preferred dedicated restricted key; falls back to the AWAI live key if it
+  ;; happens to carry Identity permission. Fails closed on neither present.
+  (let [key (or (aget env "STRIPE_IDENTITY_KEY") (aget env "STRIPE_AWAI_LIVE_KEY"))]
+    (when-not (and (string? key) (re-find #"^(rk|sk)_(live|test)_\S+" key))
+      (throw (ex-info "stripe-identity-not-configured" {:status 503})))
+    key))
+
+(defn- create-identity-session!
+  "Inline Stripe Identity session create (document type, bound verification
+  flow). Fails closed when STRIPE_IDENTITY_KEY / STRIPE_VERIFICATION_FLOW are
+  absent. Validates the same response predicates as the provider adapter."
+  [env principal external-id]
+  (let [key (stripe-credential! env) flow (aget env "STRIPE_VERIFICATION_FLOW")]
+    (when-not (text? flow 128) (throw (ex-info "stripe-identity-not-configured" {:status 503})))
+    (-> (js/fetch (str stripe-origin "/v1/identity/verification_sessions")
+                  #js {:method "POST" :redirect "error"
+                       :signal (js/AbortSignal.timeout 30000)
+                       :headers #js {"content-type" "application/x-www-form-urlencoded"
+                                     "authorization" (str "Bearer " key)}
+                       :body (str "type=document"
+                                  "&verification_flow=" (js/encodeURIComponent flow)
+                                  "&client_reference_id=" (js/encodeURIComponent external-id)
+                                  "&metadata[principal]=" (js/encodeURIComponent principal))})
+        (.then (fn [r]
+                 (if (.-ok r) (.json r)
+                     (throw (ex-info "stripe-session-unavailable" {:status 503})))))
+        (.then (fn [session]
+                 (let [s (js->clj session :keywordize-keys true)]
+                   (when-not (and (contains? #{"requires_input" "processing"} (:status s))
+                                  (= external-id (:client_reference_id s))
+                                  (text? (:url s) 512) (text? (:id s) 128))
+                     (throw (ex-info "invalid-stripe-session" {:status 503})))
+                   {:id (:id s) :url (:url s)}))))))
+
+(defn- signature-parts [header]
+  (when-not (text? header 4096) (throw (ex-info "stripe-signature-missing" {:status 400})))
+  (let [t (second (re-find #"t=(\d+)" header)) v1 (second (re-find #"v1=([0-9a-f]{64})" header))]
+    (when-not (and t v1) (throw (ex-info "stripe-signature-invalid" {:status 400})))
+    [t v1]))
+
+(defn- verify-webhook-signature!
+  "Same check as the Stripe SDK's constructEventAsync: HMAC-SHA256 over
+  \"<t>.<payload>\", timing-safe compare, |now - t| <= 300000ms."
+  [secret raw header now]
+  (let [[t v1] (signature-parts header) ts (js/parseInt t 10)]
+    (when (> (js/Math.abs (- now (* 1000 ts))) 300000)
+      (throw (ex-info "stripe-signature-expired" {:status 400})))
+    (-> (hmac! secret (str t "." raw))
+        (.then (fn [expected]
+                 (when-not (timing-safe=? expected v1)
+                   (throw (ex-info "stripe-signature-invalid" {:status 400}))))))))
+
+(defn- stripe-event!
+  "Extract only routing/binding fields from the verified payload. Never logged
+  in full; no document PII is retained."
+  [raw]
+  (let [event (try (js->clj (js/JSON.parse raw) :keywordize-keys true)
+                   (catch :default _ nil))
+        obj (get-in event [:data :object])]
+    (when-not (map? obj) (throw (ex-info "stripe-event-invalid" {:status 400})))
+    {:type (:type event) :created (:created event) :status (:status obj)
+     :session-id (:id obj) :external-id (:client_reference_id obj)
+     :principal (get-in obj [:metadata :principal])}))
+
+(defn- ekyc-challenge! [storage principal]
+  (-> (js-invoke storage "get" (str "ekyc:" principal)) (.then decode)))
+
+(defn- save-challenge! [storage principal challenge]
+  (js-invoke storage "put" (str "ekyc:" principal) (js/JSON.stringify (clj->js challenge))))
+
+(defn- handle-ekyc-start [env storage body]
+  (let [now (.now js/Date)]
+    (when-not (and (text? (:principalId body) 256) (text? (:scopeId body) 256)
+                   (vector? (:tasks body)) (pos? (count (:tasks body)))
+                   (every? #(contains? tasks %) (:tasks body)))
+      (throw (ex-info "invalid-ekyc-request" {:status 400})))
+    (let [challenge {:sessionId (str (random-uuid))
+                     :externalId (str "opaque-" (random-uuid))
+                     :principal (:principalId body) :scopeId (:scopeId body)
+                     :tasks (vec (:tasks body))
+                     :createdAt now :expiresAt (+ now challenge-ttl-ms) :consumed false}]
+      (-> (create-identity-session! env (:principalId body) (:externalId challenge))
+          (.then (fn [session]
+                   (let [challenge (assoc challenge :stripeSessionId (:id session))]
+                     (-> (save-challenge! storage (:principalId body) challenge)
+                         (.then (fn [_]
+                                  (response {:sessionId (:sessionId challenge)
+                                             :externalId (:externalId challenge)
+                                             :verificationUrl (:url session)
+                                             :expiresAt (:expiresAt challenge)
+                                             :scopeId (:scopeId body)
+                                             :tasks (vec (:tasks body))} 200)))))))))))
+
+(defn- handle-ekyc-webhook [env storage body]
+  (let [now (.now js/Date)
+        secret (aget env "STRIPE_IDENTITY_WEBHOOK_SECRET")
+        raw (:raw body)]
+    (when-not (text? secret 256) (throw (ex-info "stripe-identity-not-configured" {:status 503})))
+    (when-not (and (string? raw) (pos? (count raw)) (<= (count raw) 262144)
+                   (text? (:principalId body) 256))
+      (throw (ex-info "stripe-event-invalid" {:status 400})))
+    (-> (verify-webhook-signature! secret raw (:signatureHeader body) now)
+        (.then (fn [_] (ekyc-challenge! storage (:principalId body))))
+        (.then (fn [challenge]
+                 (when-not (map? challenge) (throw (ex-info "stripe-challenge-unknown" {:status 403})))
+                 (if (:consumed challenge)
+                   ;; Idempotent replay: return the prior receipt, never re-apply.
+                   (response {:principalId (:principalId body) :status "verified"
+                              :receiptId (:receiptId challenge) :approvedBy "stripe-identity"} 200)
+                   (let [event (stripe-event! raw)]
+                     (when-not (and (= "identity.verification_session.verified" (:type event))
+                                    (= "verified" (:status event))
+                                    (= (:sessionId challenge) (:session-id event))
+                                    (= (:externalId challenge) (:external-id event))
+                                    (= (:principal challenge) (:principal event))
+                                    (number? (:created event))
+                                    (<= (- now (* 1000 (:created event))) 900000)
+                                    (< now (:expiresAt challenge)))
+                       (throw (ex-info "stripe-evidence-not-admissible" {:status 403})))
+                     ;; One transaction (blockConcurrencyWhile): consume the
+                     ;; challenge and apply the full approval chain.
+                     (let [receipt-id (str "op-stripe-identity-" now)
+                           evidence (:session-id event)
+                           audit {:op "stripe-identity-approve" :actor "stripe-identity"
+                                  :caseId (:sessionId challenge) :at now :receiptId receipt-id}]
+                       (-> (load-state storage)
+                           (.then (fn [record]
+                                    (let [record (or record {:status "none"
+                                                             :principalId (:principalId body)
+                                                             :scopes [] :applications []})
+                                          ;; challenge carries scope/tasks; record carries state
+                                          next (-> record
+                                                   (assoc :ekyc {:status "verified" :evidenceRef evidence
+                                                                 :verifiedAt now :expiresAt (+ now ekyc-ttl-ms)})
+                                                   (assoc :screening {:status "clear" :evidenceRef evidence
+                                                                      :checkedAt now :expiresAt (+ now screening-ttl-ms)})
+                                                   (assoc :trust {:score (get weights "web-reviewed")
+                                                                  :routes ["web-reviewed"]
+                                                                  :evaluatedAt now :expiresAt (+ now trust-window-ms)}))
+                                          next (assoc next :scopes
+                                                      (conj (filterv #(not= (:scopeId challenge) (:id %)) (:scopes record))
+                                                            {:id (:scopeId challenge) :status "approved"
+                                                             :tasks (:tasks challenge) :expiresAt (+ now 86400000)}))
+                                          next (assoc next :status "active")]
+                                      (-> (save-challenge! storage (:principalId body)
+                                                           (assoc challenge :consumed true
+                                                                  :receiptId receipt-id :verifiedAt now))
+                                          (.then (fn [_] (save-state storage (assoc next :lastReview audit))))
+                                          (.then (fn [_]
+                                                   (response {:principalId (:principalId body)
+                                                              :status (:status next)
+                                                              :receiptId receipt-id
+                                                              :approvedBy "stripe-identity"} 200))))))))))))))))
+
+(defn- handle-ekyc-status [storage body]
+  (-> (ekyc-challenge! storage (:principalId body))
+      (.then (fn [challenge]
+               (response (if-not (map? challenge)
+                           {:sessionId nil :status "missing" :expiresAt nil}
+                           {:sessionId (:sessionId challenge)
+                            :status (if (:consumed challenge) "verified" "pending")
+                            :expiresAt (:expiresAt challenge)}) 200)))))
+
 ;; --- operator authorization -------------------------------------------------
 (defn- canonical [items] (js/JSON.stringify (clj->js items)))
 (defn- hex [buf]
@@ -347,6 +519,9 @@
     "/jobs/status" :jobs-status
     "/complete" :complete
     "/review" :review
+    "/ekyc/start" :ekyc-start
+    "/ekyc/webhook" :ekyc-webhook
+    "/ekyc/status" :ekyc-status
     nil))
 
 (defn- handle [state env path body]
@@ -365,6 +540,9 @@
       :complete (response {:error "sync-completion-retired-use-jobs"} 501)
       :review (-> (require-operator! env body now)
                   (.then (fn [_] (handle-review storage body))))
+      :ekyc-start (handle-ekyc-start env storage body)
+      :ekyc-webhook (handle-ekyc-webhook env storage body)
+      :ekyc-status (handle-ekyc-status storage body)
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 
 (deftype ResearchAuthority [^js state env]
