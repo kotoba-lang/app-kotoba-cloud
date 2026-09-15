@@ -12,6 +12,7 @@
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
             [app-kotoba-cloud.crypto-site :as crypto-site]
+            [app-kotoba-cloud.compliance-site :as compliance-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.apps-site :as apps-site]
             [app-kotoba-cloud.docs-site :as docs-site]
@@ -873,7 +874,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css app-sidebar-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css security-site/css)
+                :app-css (str tokens/skin-css app-css app-sidebar-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
                 :head (document-head locale :path (:title t) (:description t))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
@@ -928,6 +929,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
                    :description "全世界の暗号資産取引所の情報・セキュリティ通報窓口と、国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログ。"
                    :extra-css (str tokens/bridge-css dds-catalog/css)}
       (crypto-site/view)))
+
+(defn compliance-html []
+     (site-layout {:title "コンプライアンス & 脆弱性対策製品カタログ — Kotoba Cloud" :lang "ja"
+                   :description "全世界のコンプライアンス基準と脆弱性対策製品のカテゴリ・価格・プロバイダーをまとめた公開データカタログ。"
+                   :extra-css (str tokens/bridge-css dds-catalog/css compliance-site/css)}
+      (compliance-site/view)))
 
 (defn admin-html []
      (site-layout {:title "管理者コンソール — Kotoba Cloud" :lang "ja"
@@ -1324,6 +1331,15 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "security" "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "ja" "security" "crypto" "index.html") (crypto-html))
+      (spit-file (node-path/join root "compliance" "index.html") (compliance-html))
+      (spit-file (node-path/join root "security" "compliance" "index.html") (compliance-html))
+      (spit-file (node-path/join root "ja" "security" "compliance" "index.html") (compliance-html))
+      ;; compliance catalog data blocks + browser script (data at /compliance-data/compliance/)
+      (doseq [source (fs-walk-files (node-path/join "assets" "compliance-catalog"))]
+        (let [rel (node-path/relative (node-path/join "assets" "compliance-catalog") source)
+              target (node-path/join root "compliance-data" "compliance" rel)]
+          (copy-file source target)))
+      (copy-file (node-path/join "assets" "compliance-catalog.js") (node-path/join js-dir "compliance-catalog.js"))
       ;; graph docs: former kotobase.net content surface
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))

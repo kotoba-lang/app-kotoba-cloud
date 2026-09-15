@@ -1,0 +1,44 @@
+(ns app-kotoba-cloud.compliance-site
+  "Compliance & vulnerability-product catalog (worldwide): frameworks,
+   product categories, providers and pricing. Shell from the
+   cloud-kotoba-dds catalog pattern; this file keeps the callout and copy."
+  (:require [cloud-kotoba-dds.catalog :as catalog]))
+
+(def css
+  (str ".kc-comp-row{list-style:none;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);margin-bottom:var(--hig-spacing-2)}
+.kc-comp-row__btn{all:unset;display:block;inline-size:100%;padding:var(--hig-spacing-3) var(--hig-spacing-4);cursor:pointer}
+.kc-comp-row__btn:hover{background:var(--hig-color-secondary-system-background)}
+.kc-comp-row__name{display:block;font-weight:600}
+.kc-comp-row__meta{display:block;color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}
+.kc-comp-empty{color:var(--hig-color-secondary-label);list-style:none;padding:var(--hig-spacing-4)}
+.kc-comp-detail{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);padding:var(--hig-spacing-5);background:var(--hig-color-secondary-system-background)}"))
+
+(defn view
+  ([] (view false))
+  ([embedded?]
+   (catalog/page
+    {:title "コンプライアンス & 脆弱性対策製品カタログ（基準・カテゴリ・価格・プロバイダ）"
+     :lead "全世界のコンプライアンス基準（ISO / SOC 2 / PCI DSS / GDPR / DORA / CRA ほか）と、脆弱性管理・AppSec・EDR・GRC などの製品カテゴリ、プロバイダーと価格帯を 1 つの出典付きカタログにまとめた公開データです。"
+       :nav (catalog/breadcrumb
+          "カタログ"
+          [["ホーム" "/ja/"]
+           ["セキュリティ公開データ" "/ja/security/"]
+           ["このカタログ" nil]])
+     :embedded? embedded?
+     :id "kcp-main"}
+    (catalog/callout
+     [:strong "使い方："]
+     " 「基準」タブでフレームワークを、「製品」タブでカテゴリ・プロバイダ・価格帯を検索できます。価格は各ベンダー公開ページの list 価格（2026-09 時点、layer: secondary-reported）または「見積り」の別であり、実際の契約条件・為替・割引は反映しません。必ず出典の公式ページで最新情報を確認してください。")
+    (catalog/status "kcp-summary" "データを読み込んでいます…")
+    (catalog/tabs {:id "kcp-tabs" :label "カタログ種別"})
+    (catalog/tools
+     {:search-id "kcp-search" :search-label "検索"
+      :search-placeholder "基準名・発行機関／製品名・プロバイダーで検索"})
+    (catalog/grid
+     {:list-id "kcp-results" :list-label "一覧"}
+     (catalog/detail {:id "kcp-detail" :label "詳細"}))
+    (catalog/about
+     {:summary "このカタログについて"
+      :links [[:a {:href "/compliance-data/compliance/index.json"} "IPLD インデックス"]]
+      :footnote "データはコード生成による content-addressed block（IPLD形式）として公開されています。商標・製品名は各所有者に帰属します。価格・適合情報は各ベンダーの公開ページに基づく収集データで、各レコードに出典URLを付けています。価格は変更されることがあるため、購入判断の前に必ず公式ページで最新情報を確認してください。掲載は網羅を主張するものではなく、代表的なカテゴリの代表的なプロバイダのスナップショットです。"})
+    [:script {:src "/js/compliance-catalog.js" :defer true}])))

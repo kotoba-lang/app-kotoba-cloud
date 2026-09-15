@@ -1,0 +1,1 @@
+{"categoryId":"siem","complianceFits":["pci-dss-40","dora","fedramp"],"id":"splunk-es","name":"Splunk Enterprise Security","pricingMode":"quote-based","pricingNote":"Ingest (GB/day) or workload pricing; Enterprise Security add-on via quote.","pricingUrl":"https://www.splunk.com/en_us/products/enterprise-security.html","provider":"Cisco (Splunk)","providerHq":"US"}
