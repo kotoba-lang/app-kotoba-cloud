@@ -38,9 +38,9 @@
                    :body (js/JSON.stringify (clj->js payload))})
       (.then (fn [r]
                (if (.-ok r)
-                 ;; 1 MiB: a /jobs/status answer carries the whole completion
-                 ;; (32k output tokens can be several hundred KB in UTF-8)
-                 (bounded-json r 1048576)
+                 ;; 2 MiB: a /jobs/status answer carries the whole request and
+                 ;; completion (128k-token prompts, 32k-token answers, UTF-8)
+                 (bounded-json r 2097152)
                  ;; Surface the authority's own error body so operator-visible
                  ;; codes (e.g. card-verification-not-configured) survive the hop.
                  (-> (.text r)
@@ -362,8 +362,8 @@
     (if (= path "/v1/research/status")
     (-> (service binding "/status" {:principalId principal :sessionRef reference :action "code-review"})
         (.then #(status-response % principal reference respond)))
-    ;; 1 MiB: 128k input characters JSON-escaped and UTF-8 encoded
-    (-> (bounded-json request 1048576)
+    ;; 2 MiB: 524,288 input characters JSON-escaped and UTF-8 encoded
+    (-> (bounded-json request 2097152)
         (.then
          (fn [body]
            (if (= path "/v1/research/applications")

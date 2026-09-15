@@ -41,11 +41,16 @@
 (def model-ids (set (keys models)))
 (def upstream-model-id (get-in models [model-id :upstream]))
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
-;; Per-request ceilings (owner direction 2026-09-15: input 128k characters,
-;; output 32k tokens — an agent's system prompt alone is ~60k characters, and
-;; the origin serves a 131,072-token window: 128k chars ≈ 32–43k tokens of
-;; input + 32k output fits). The daily request count is unchanged.
-(def max-input-characters 128000)
+;; Per-request ceilings (owner direction 2026-09-15: a 128k-TOKEN context and
+;; 32k output tokens). The gateway counts characters, not tokens: 524,288
+;; characters is ~128k tokens of English, the origin's 131,072-token window.
+;; hermes refuses any model window under 64k tokens and packs its context to
+;; that window while sending max_tokens 2048, so the window must be declared
+;; at the origin's size, not at a character-derived fraction of it. The origin
+;; enforces the true token window (prompt + max_tokens <= 131,072); a prompt
+;; that only fits in characters fails there as inference-failed. The daily
+;; request count is unchanged.
+(def max-input-characters 524288)
 (def max-output-tokens 32768)
 (def free-limits {:requestsPerDay 50 :maxOutputTokens max-output-tokens :maxInputCharacters max-input-characters})
 (def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
