@@ -1,0 +1,428 @@
+{
+ "generatedAt": "2026-09-15T16:15:17.296Z",
+ "source/kind": "VC fund catalog: funds, funding rounds, exit outcomes, cross-fund co-investment relations, system dynamics",
+ "corpus": "vc-fund-public",
+ "verified": "2026-09",
+ "fundCount": 3,
+ "companyCount": 5,
+ "claimCount": 10,
+ "clusterCount": 2,
+ "ontology": {
+  "nodes": 8,
+  "claims": 10,
+  "linkedData": {
+   "/": "baguqeeraku5s3niidxgq3qx7fxmjbgt3t2uwvhuznddujw3b552tkbfbvk4a"
+  }
+ },
+ "funds": [
+  {
+   "id": "dnx-capital",
+   "name": "DNX Capital (Draper Nexus)",
+   "founded": 2011,
+   "hq": [
+    "Tokyo (Shinagawa InterCity A, SPROUND)",
+    "San Mateo CA (DNX Technology Ventures)"
+   ],
+   "aumUsdM": 500,
+   "portfolioCount": "100+",
+   "corporatePartners": "200+",
+   "focus": [
+    "B2B",
+    "AI software",
+    "cybersecurity",
+    "deep tech",
+    "retail tech",
+    "fintech"
+   ],
+   "stages": "seed through growth (cross-border JP/ASEAN + US)",
+   "fundEntities": [
+    "Draper Nexus Venture Partners II",
+    "DNX III",
+    "DNX Partners S3",
+    "DNX Annex II",
+    "DNX Global Seed",
+    "DNX Seed",
+    "DNX Venture Partners IV",
+    "DNX Japan IV",
+    "DNX Annex Japan III"
+   ],
+   "affiliates": [
+    "SPROUND (incubation, with Nippon Steel & Sumikin Kinzai Real Estate)",
+    "venture studio (with Alloy Partners)"
+   ],
+   "network": "Draper Network (Draper Associates, Draper Esprit, Draper Nexus)",
+   "sourceUrl": "https://www.dnxcapital.vc/",
+   "layer": "primary-fetched",
+   "record": {
+    "/": "baguqeerajn5l3lnzplguoktkjbmqot2cctf6eh2mbh4atspcyrbjfox3zgla"
+   }
+  },
+  {
+   "id": "in-q-tel",
+   "name": "In-Q-Tel (IQT)",
+   "founded": 1999,
+   "type": "government-backed (US IC) VC",
+   "portfolioCount": "800+",
+   "focus": [
+    "cybersecurity",
+    "industrial security",
+    "national defense",
+    "privacy",
+    "regulatory compliance",
+    "data governance"
+   ],
+   "sourceUrl": "https://www.iqt.org/",
+   "layer": "primary-fetched",
+   "note": "2019 archived portfolio page exposes 238 static tiles (Cylance among them); JASK/Mitiga/Fyde/ICEYE were not in the fetched static portion (lazy-loaded pages).",
+   "record": {
+    "/": "baguqeeraoochnx7rmpke3p6li7lghmapqwwdtnje56uw76mgemb7bhjrk3xa"
+   }
+  },
+  {
+   "id": "syn-ventures",
+   "name": "SYN Ventures, Inc.",
+   "founded": 2021,
+   "aumUsdM": 900,
+   "focus": [
+    "cybersecurity",
+    "industrial security",
+    "national defense",
+    "privacy",
+    "regulatory compliance",
+    "data governance"
+   ],
+   "model": "operator-led (former CISOs, CEOs, CTOs, founders); non-capital value: CISO network, design partners, acquirer network",
+   "sourceUrl": "https://www.syncapital.vc/",
+   "layer": "primary-fetched",
+   "note": "About page: 'Started in 2021 ... manages $900m AUM across its funds.' Same focus-area list as In-Q-Tel; site lineage noted as secondary-reported.",
+   "record": {
+    "/": "baguqeeracdc66qiyzaqmqddcjxybu6uzn4kjykcrmtf3w2mgcylclbwccqfa"
+   }
+  }
+ ],
+ "companies": [
+  {
+   "id": "iceye",
+   "name": "ICEYE",
+   "domain": "SAR Earth observation / satellite data",
+   "rounds": [
+    {
+     "series": "B",
+     "usdM": 34,
+     "date": "2018-05-24",
+     "lead": "True Ventures",
+     "participants": [
+      "True Ventures",
+      "Draper Nexus",
+      "Draper Associates",
+      "Seraphim Capital",
+      "Space Angels",
+      "OTB",
+      "Tesi",
+      "Draper Esprit",
+      "Promus Ventures"
+     ],
+     "sourceUrl": "https://www.iceye.com/press/press-releases/iceye-raises-34-million-dollars-series-b-financing-confirms-nine-sar-satellite-launches-by-end-of-2019",
+     "layer": "primary-fetched"
+    }
+   ],
+   "fundInvestments": {
+    "dnx-capital": "listed as 'Iceye' on DNX US fund portfolio (archive 2023-02-07)",
+    "in-q-tel": "not in the fetched static portion of the 2019 portfolio page; treated as not verified there"
+   },
+   "record": {
+    "/": "baguqeera6rfbpdmjfjyfnlksrknefe4wp3cygt7bzw4gaytiobbujrveusca"
+   }
+  },
+  {
+   "id": "cylance",
+   "name": "Cylance",
+   "domain": "endpoint security (AI/ML antivirus)",
+   "rounds": [
+    {
+     "series": "early",
+     "usdM": 42,
+     "date": "2015-07",
+     "lead": null,
+     "participants": [
+      "Draper Fisher Jurvetson",
+      "KKR",
+      "Dell",
+      "Capital One",
+      "TenEleven Ventures"
+     ],
+     "sourceUrl": "https://en.wikipedia.org/wiki/Cylance",
+     "layer": "primary-fetched"
+    },
+    {
+     "series": "IQT",
+     "usdM": null,
+     "date": "2015-09",
+     "lead": "In-Q-Tel",
+     "participants": [
+      "In-Q-Tel"
+     ],
+     "sourceUrl": "https://en.wikipedia.org/wiki/Cylance",
+     "layer": "primary-fetched"
+    },
+    {
+     "series": "D",
+     "usdM": 100,
+     "date": "2016-06",
+     "lead": null,
+     "participants": [
+      "Blackstone",
+      "Insight Venture Partners"
+     ],
+     "sourceUrl": "https://en.wikipedia.org/wiki/Cylance",
+     "layer": "primary-fetched"
+    }
+   ],
+   "outcome": {
+    "type": "acquired",
+    "by": "BlackBerry",
+    "usdB": 1.4,
+    "date": "2019-02",
+    "sourceUrl": "https://en.wikipedia.org/wiki/Cylance"
+   },
+   "fundInvestments": {
+    "dnx-capital": "listed 'Cylance — Exited — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)",
+    "in-q-tel": "listed on iqt.org 2019 portfolio static list (238 tiles)"
+   },
+   "record": {
+    "/": "baguqeeratq3inqlfrwgffniyxpvpcxnoxdwpl2ka42pmlj776vs4t5qaceva"
+   }
+  },
+  {
+   "id": "jask",
+   "name": "JASK",
+   "domain": "security operations (SIEM/alert triage)",
+   "rounds": [],
+   "fundInvestments": {
+    "dnx-capital": "listed 'JASK — Exited — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)",
+    "in-q-tel": "not in the fetched static portion of the 2019 portfolio page"
+   },
+   "record": {
+    "/": "baguqeeradisktt76nz45fhfg2pqwynawco4z4kmexwbfw64gssk2te2fzj5a"
+   }
+  },
+  {
+   "id": "mitiga",
+   "name": "Mitiga",
+   "domain": "cloud/network security",
+   "rounds": [],
+   "fundInvestments": {
+    "dnx-capital": "listed 'Mitiga — Active — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)",
+    "in-q-tel": "not in the fetched static portion of the 2019 portfolio page"
+   },
+   "record": {
+    "/": "baguqeerast4zapdv6clz7fucld3air3sgjzkalj5yvuuewsje3g6rfwkclfa"
+   }
+  },
+  {
+   "id": "fyde",
+   "name": "Fyde",
+   "domain": "endpoint OS / firmware security",
+   "rounds": [],
+   "fundInvestments": {
+    "dnx-capital": "listed 'Fyde — Exited — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)",
+    "in-q-tel": "not in the fetched static portion of the 2019 portfolio page"
+   },
+   "record": {
+    "/": "baguqeera64adhbckdez5raqtbvv4azikbvfb4lawpswsgjs2e3gye3wce3la"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "s": "fund/dnx-capital",
+   "p": "invested",
+   "o": "company/iceye",
+   "via": "Series B 2018-05-24",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/dnx-capital",
+   "p": "invested",
+   "o": "company/cylance",
+   "via": "DNX US fund portfolio (Exited)",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/dnx-capital",
+   "p": "invested",
+   "o": "company/jask",
+   "via": "DNX US fund portfolio (Exited)",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/dnx-capital",
+   "p": "invested",
+   "o": "company/mitiga",
+   "via": "DNX US fund portfolio (Active)",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/dnx-capital",
+   "p": "invested",
+   "o": "company/fyde",
+   "via": "DNX US fund portfolio (Exited)",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/in-q-tel",
+   "p": "invested",
+   "o": "company/cylance",
+   "via": "2015-09",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "company/cylance",
+   "p": "acquired-by",
+   "o": "BlackBerry",
+   "via": "USD 1.4B, 2019-02",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/dnx-capital",
+   "p": "member-of",
+   "o": "Draper Network",
+   "via": "Draper Associates / Draper Esprit share the lineage",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/dnx-capital",
+   "p": "co-invested-with",
+   "o": "fund/in-q-tel",
+   "via": "same rounds: Cylance",
+   "layer": "primary-fetched"
+  },
+  {
+   "s": "fund/in-q-tel",
+   "p": "lineage-of",
+   "o": "fund/syn-ventures",
+   "via": "same focus list + $900m AUM 2021 start on syncapital.vc; hypothesis (secondary-reported)",
+   "layer": "secondary-reported"
+  }
+ ],
+ "coInvestmentClusters": [
+  {
+   "fundA": "fund/dnx-capital",
+   "fundB": "fund/in-q-tel",
+   "companies": [
+    "company/cylance"
+   ]
+  },
+  {
+   "fundA": "fund/dnx-capital",
+   "fundB": "fund/syn-ventures",
+   "companies": [
+    "company/cylance"
+   ],
+   "note": "via In-Q-Tel lineage"
+  }
+ ],
+ "systemDynamics": [
+  {
+   "id": "loop-1",
+   "name": "Exit-recycling loop",
+   "steps": [
+    "Government/IC demand pulls early security startups (IQT/SYN)",
+    "platform acquirers buy them (Cylance->BlackBerry USD 1.4B 2019)",
+    "exit proceeds recycle into next fund vintage",
+    "category knowledge concentrates in operator-led funds"
+   ]
+  },
+  {
+   "id": "loop-2",
+   "name": "Cross-border diffusion loop (DNX)",
+   "steps": [
+    "DNX takes Japan/ASEAN early-stage B2B",
+    "200+ corporate partners + SPROUND provide first customers",
+    "US fund (San Mateo) adds second-stage capital",
+    "portfolio count compounds (100+)"
+   ]
+  },
+  {
+   "id": "stock-1",
+   "name": "Non-capital moat",
+   "notes": [
+    "IQT/SYN: CISO network + design partners + acquirer network",
+    "DNX: corporate-partner network + venture studio (Alloy Partners)",
+    "both reduce cash need vs pure capital funds"
+   ]
+  }
+ ],
+ "strategy": [
+  {
+   "id": "st-1",
+   "for": "JP/ASEAN B2B & AI startups",
+   "read": "DNX path: seed->growth with corporate design customers; the 200+ partner base is the diffusion stock."
+  },
+  {
+   "id": "st-2",
+   "for": "security-category startups",
+   "read": "IQT/SYN path: acquirer-network exits; expect acquired outcomes rather than IPO in category."
+  },
+  {
+   "id": "st-3",
+   "for": "fund selection",
+   "read": "co-investment overlap (Cylance cluster) shows DNX and IQT/SYN are complementary (diffusion vs acquirer network), not competing."
+  }
+ ],
+ "blocks": {
+  "baguqeeraku5s3niidxgq3qx7fxmjbgt3t2uwvhuznddujw3b552tkbfbvk4a": {
+   "path": "/vc-data/vc/blocks/baguqeeraku5s3niidxgq3qx7fxmjbgt3t2uwvhuznddujw3b552tkbfbvk4a.json",
+   "bytes": 43,
+   "codec": "dag-json"
+  },
+  "baguqeerajn5l3lnzplguoktkjbmqot2cctf6eh2mbh4atspcyrbjfox3zgla": {
+   "path": "/vc-data/vc/blocks/baguqeerajn5l3lnzplguoktkjbmqot2cctf6eh2mbh4atspcyrbjfox3zgla.json",
+   "bytes": 822,
+   "codec": "dag-json"
+  },
+  "baguqeeraoochnx7rmpke3p6li7lghmapqwwdtnje56uw76mgemb7bhjrk3xa": {
+   "path": "/vc-data/vc/blocks/baguqeeraoochnx7rmpke3p6li7lghmapqwwdtnje56uw76mgemb7bhjrk3xa.json",
+   "bytes": 466,
+   "codec": "dag-json"
+  },
+  "baguqeeracdc66qiyzaqmqddcjxybu6uzn4kjykcrmtf3w2mgcylclbwccqfa": {
+   "path": "/vc-data/vc/blocks/baguqeeracdc66qiyzaqmqddcjxybu6uzn4kjykcrmtf3w2mgcylclbwccqfa.json",
+   "bytes": 547,
+   "codec": "dag-json"
+  },
+  "baguqeera6rfbpdmjfjyfnlksrknefe4wp3cygt7bzw4gaytiobbujrveusca": {
+   "path": "/vc-data/vc/blocks/baguqeera6rfbpdmjfjyfnlksrknefe4wp3cygt7bzw4gaytiobbujrveusca.json",
+   "bytes": 698,
+   "codec": "dag-json"
+  },
+  "baguqeeratq3inqlfrwgffniyxpvpcxnoxdwpl2ka42pmlj776vs4t5qaceva": {
+   "path": "/vc-data/vc/blocks/baguqeeratq3inqlfrwgffniyxpvpcxnoxdwpl2ka42pmlj776vs4t5qaceva.json",
+   "bytes": 1005,
+   "codec": "dag-json"
+  },
+  "baguqeeradisktt76nz45fhfg2pqwynawco4z4kmexwbfw64gssk2te2fzj5a": {
+   "path": "/vc-data/vc/blocks/baguqeeradisktt76nz45fhfg2pqwynawco4z4kmexwbfw64gssk2te2fzj5a.json",
+   "bytes": 290,
+   "codec": "dag-json"
+  },
+  "baguqeerast4zapdv6clz7fucld3air3sgjzkalj5yvuuewsje3g6rfwkclfa": {
+   "path": "/vc-data/vc/blocks/baguqeerast4zapdv6clz7fucld3air3sgjzkalj5yvuuewsje3g6rfwkclfa.json",
+   "bytes": 279,
+   "codec": "dag-json"
+  },
+  "baguqeera64adhbckdez5raqtbvv4azikbvfb4lawpswsgjs2e3gye3wce3la": {
+   "path": "/vc-data/vc/blocks/baguqeera64adhbckdez5raqtbvv4azikbvfb4lawpswsgjs2e3gye3wce3la.json",
+   "bytes": 282,
+   "codec": "dag-json"
+  },
+  "baguqeerahlaob4oudjp4oz75i2nbvlamqxpvrqdpl5ssjk3p646rbvefj5ja": {
+   "path": "/vc-data/vc/blocks/baguqeerahlaob4oudjp4oz75i2nbvlamqxpvrqdpl5ssjk3p646rbvefj5ja.json",
+   "bytes": 10010,
+   "codec": "dag-json"
+  }
+ },
+ "head": {
+  "/": "baguqeerahlaob4oudjp4oz75i2nbvlamqxpvrqdpl5ssjk3p646rbvefj5ja"
+ }
+}

@@ -16,6 +16,7 @@
             [app-kotoba-cloud.fake-report-gateway :as fake-report-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
+[app-kotoba-cloud.sousa :as sousa]
             [app-kotoba-cloud.console :as console]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
@@ -1154,6 +1155,20 @@
       (json-response {:type "object"
                       :required ["schema" "service" "roles" "deploy" "security"]
                       :constSchema profile/schema})
+
+      (= path "/schemas/sousa-ontology/v1")
+      (json-response {:type "object"
+                      :required ["name" "version" "entityKinds" "caseStatuses"
+                                 "caseTransitions" "attributes" "relations"]
+                      :constSchema "sousa-ontology/v2"})
+
+      (= path "/v1/sousa/case-statuses")
+      (json-response {:statuses (mapv name sousa/case-statuses)
+                      :initial (name sousa/initial-case-status)
+                      :transitions (into (sorted-map)
+                                         (map (fn [[k v]]
+                                                [(name k) (mapv name (sort v))]))
+                                         sousa/case-transitions)})
 
       (= path "/schemas/aiueos-boot-catalog/v1")
       (json-response {:type "object"

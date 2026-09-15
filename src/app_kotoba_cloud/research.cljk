@@ -64,6 +64,13 @@
 ;; request count is unchanged.
 (def max-input-characters 524288)
 (def max-output-tokens 32768)
+;; Turn ceiling. 256 was the pre-agent browser-demo shape; it 400'd live agent
+;; sessions (134+ API-call Hermes bots) that were well inside every real
+;; ceiling — characters, tools, body size and billing all scale by size, not
+;; by count — and the terse "messages: 1..256 turns" was misread by clients as
+;; context overflow. 2,048 keeps a hard bound for pathological payloads while
+;; the 524,288-character sum remains the binding limit.
+(def max-turns 2048)
 ;; 1,000 requests/day (owner direction 2026-09-15): an agent coding session
 ;; spends 3–10 calls per task; the previous 50 ran out within one day of
 ;; verification. The per-day count is the only enforced quota (the token
@@ -286,7 +293,9 @@
       (not (or (nil? (:task body)) (contains? tasks (:task body)))) "task: unknown"
       (not (or (nil? (:scopeId body)) (text? (:scopeId body) 256))) "scopeId: not text"
       (not (vector? ms)) "messages: not an array"
-      (not (<= 1 (count ms) 256)) "messages: 1..256 turns"
+      ;; name the measured count: a terse "1..256 turns" reads as a generic
+      ;; error body and clients misdiagnose it as context overflow
+      (not (<= 1 (count ms) max-turns)) (str "messages: 1.." max-turns " turns (got " (count ms) ")")
       (not (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))) "messages: no turn after the system turn"
       (and sys-only (not (and (every? #{:role :content :name} (keys (first ms)))
                               (text? (:content (first ms)) max-input-characters))))

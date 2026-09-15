@@ -12,6 +12,7 @@
   (:require [app-kotoba-cloud.code-block :as code-block]
             [app-kotoba-cloud.billing :as billing]
             [app-kotoba-cloud.research :as research]
+            [app-kotoba-cloud.secure :as secure]
             [clojure.string :as cstr]))
 
 (def css
@@ -52,6 +53,7 @@
   [{:id :start :ja "はじめる" :en "Get started"
     :pages [{:href "/docs/" :ja "はじめに" :en "Introduction"}
             {:href "/docs/reference/quickstart/" :ja "クイックスタート" :en "Quickstart"}
+            {:href "/docs/reference/sign-in/" :ja "サインインと本人確認" :en "Sign in & identity"}
             {:href "/docs/reference/get-api-token/" :ja "API トークンを取得" :en "Get an API token"}
             {:href "/docs/reference/models/" :ja "モデル" :en "Models"}
             {:href "/docs/reference/cli-cheatsheet/" :ja "CLI 早見表" :en "CLI cheat sheet"}]}
@@ -68,6 +70,8 @@
             {:href "/docs/reference/reasoning/" :ja "推論（reasoning）" :en "Reasoning"}]}
    {:id :features :ja "機能" :en "Features"
     :pages [{:href "/docs/reference/guardrails-firewall/" :ja "ガードレール・ファイアウォール" :en "Guardrails & firewall"}
+            {:href "/docs/reference/firewall-rules/" :ja "ファイアウォール規則" :en "Firewall rules"}
+            {:href "/docs/reference/organizations/" :ja "組織とチーム SSO" :en "Organizations & SSO"}
             {:href "/docs/reference/security-services/" :ja "セキュリティサービス" :en "Security services"}
             {:href "/docs/graph/" :ja "グラフ・オントロジー DB" :en "Graph & ontology DB"}]}
    {:id :operations :ja "運用" :en "Operations"
@@ -76,6 +80,7 @@
             {:href "/docs/reference/errors/" :ja "エラー" :en "Errors"}
             {:href "/docs/reference/billing-and-usage/" :ja "課金と利用量" :en "Billing & usage"}
             {:href "/docs/reference/per-request-cost/" :ja "リクエストごとの費用" :en "Per-request cost"}
+            {:href "/docs/reference/refunds/" :ja "解約と返金" :en "Refunds & cancellation"}
             {:href "/docs/reference/byok/" :ja "BYOK" :en "BYOK"}
             {:href "/docs/reference/zero-data-retention/" :ja "データの取り扱い" :en "Data handling"}]}])
 
@@ -216,9 +221,16 @@
                  "# the openai/ prefix stacks on our model id\naider --model openai/" model-id)}
    {:id "hermes-agent" :name "Hermes Agent"
     :protocol :openai :status :verified
-    :desc-ja "Nous Research のターミナルエージェント (Linux/macOS/WSL2)。config.yaml にエンドポイント、.env にキー。"
-    :desc-en "Nous Research's terminal agent (Linux/macOS/WSL2). Endpoint in config.yaml, key in .env."
-    :config (str "# config.yaml\nprovider:\n  base_url: \"" openai-base "\"\n  model: " model-id "\n\n# .env\nKOTOBA_API_TOKEN=kc_pat_<your-token>")}
+    :desc-ja "Nous Research のターミナルエージェント (Linux/macOS/WSL2)。providers に kotoba を足し、model.provider で選ぶ。2026-09-15 に profile 単位で実測（ツール呼び出しはネイティブ、stream は 1 チャンク）。"
+    :desc-en "Nous Research's terminal agent (Linux/macOS/WSL2). Add a kotoba provider and select it with model.provider. Measured per profile on 2026-09-15 (native tool calls, one-chunk stream)."
+    :config (str "# ~/.hermes/config.yaml (or a profile's config.yaml)\n"
+                 "model:\n  provider: kotoba\n  default: " model-id "\n  max_tokens: 8192\n"
+                 "providers:\n  kotoba:\n    api: ${KOTOBA_API_BASE}/v1\n    key_env: KOTOBA_API_TOKEN\n    transport: chat_completions\n"
+                 "    request_timeout_seconds: 900\n    models:\n      " model-id ":\n        context_length: 1000000\n\n"
+                 "# ~/.hermes/.env\nKOTOBA_API_BASE=" base-origin "\nKOTOBA_API_TOKEN=kc_pat_<your-token>\n\n"
+                 "hermes chat -Q --oneshot -q \"Reply with exactly: OK\"")
+    :note-ja "auxiliary の title 生成は 1 回ごとに無料枠を 1 件使います（`auxiliary.title_generation.enabled: false` で止められます）。長い応答は同期呼び出しで最大 14 分待つので request_timeout_seconds は 900 に。"
+    :note-en "Auxiliary title generation spends one free request per turn (`auxiliary.title_generation.enabled: false` stops it). Long answers wait up to 14 minutes on the synchronous call, so request_timeout_seconds 900."}
    {:id "open-webui" :name "Open WebUI"
     :protocol :openai :status :should-work
     :desc-ja "セルフホストのチャット UI。環境変数で接続して起動します。"
@@ -291,6 +303,18 @@
   [{:id "quickstart" :name "Quickstart"
     :desc-ja "サインイン → カード認証 → トークン発行 → 最初のリクエスト。"
     :desc-en "Sign in, verify with a card, issue a token, first request."}
+   {:id "sign-in" :name "Sign in & identity"
+    :desc-ja "パスキー / ウォレットでのサインイン、カード本人確認、assurance ladder、トークンの取消。"
+    :desc-en "Passkey / wallet sign-in, card verification, the assurance ladder, token revocation."}
+   {:id "firewall-rules" :name "Firewall rules"
+    :desc-ja "ガードレール template とファイアウォールの task × rung 表。enforced policy から生成。"
+    :desc-en "Guardrail templates and the firewall's task × rung table, rendered from the enforced policy."}
+   {:id "organizations" :name "Organizations & SSO"
+    :desc-ja "組織（did:webvh）、ロール、メンバー招待、組織 SSO（OIDC）。"
+    :desc-en "Organizations (did:webvh), roles, member invitations, organization SSO (OIDC)."}
+   {:id "refunds" :name "Refunds & cancellation"
+    :desc-ja "期末解約、按分なし、枠の失効、返金・チャージバック時の扱い。"
+    :desc-en "Cancel at period end, no proration, allowance expiry, refunds and disputes."}
    {:id "get-api-token" :name "Get an API token"
     :desc-ja "アカウントコンソールで接続トークンを発行し、環境変数に置く。"
     :desc-en "Issue a connection token in the account console and put it in the environment."}
@@ -782,8 +806,8 @@
                                     "admission: サインイン済み principal・無料枠・ガードレール（標準 3 タスクのみ）")
                            (if red? "Admission: card verification, AUP consent, approved scope (code-review comes with verification), free quota, guardrails"
                                     "Admission: a signed-in principal, free quota, guardrails (the three standard tasks only)"))]
-                 [:li (txt "上限: 入力 524,288 文字 · 出力 32,768 tokens（reasoning 込み）· tools 128 · turn 256"
-                           "Ceilings: 524,288 input characters · 32,768 output tokens (reasoning included) · 128 tools · 256 turns")]
+                 [:li (txt "上限: 入力 524,288 文字 · 出力 32,768 tokens（reasoning 込み）· tools 128 · turn 2,048"
+                           "Ceilings: 524,288 input characters · 32,768 output tokens (reasoning included) · 128 tools · 2,048 turns")]
                  [:li (txt (str "応答の model は " (:upstream spec) (if (:strictAttribution spec) "（厳密に照合）" "（形と本文で検証）"))
                            (str "The answer's model echoes " (:upstream spec) (if (:strictAttribution spec) " (strictly matched)" " (validated on shape and content)")))]]
                 (config-block {:ja? ja?} (str "curl -s -X POST " openai-base "/chat/completions -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
@@ -882,7 +906,7 @@
                         "console.log(r.choices[0].message.content);"))
      [:h2 (txt "何が通るか" "What passes")]
      [:ul
-      [:li (txt "messages（system は先頭 1 つ、user / assistant / tool の turn、最大 256 turn、入力合計 524,288 文字）" "messages (one leading system turn; user / assistant / tool turns; up to 256 turns; 524,288 input characters in total)")]
+      [:li (txt "messages（system は先頭 1 つ、user / assistant / tool の turn、最大 2,048 turn、入力合計 524,288 文字）" "messages (one leading system turn; user / assistant / tool turns; up to 2,048 turns; 524,288 input characters in total)")]
       [:li (txt "max_tokens または max_completion_tokens（1..32,768）、stream（1 チャンク SSE）、n（1 のみ）" "max_tokens or max_completion_tokens (1..32,768), stream (one-chunk SSE), n (must be 1)")]
       [:li (txt "tools（最大 128 個の function 定義）と tool_choice — ネイティブな tool_calls が返ります" "tools (up to 128 function definitions) and tool_choice — native tool_calls come back")]
       [:li (txt "受理して落とす: temperature, top_p, presence/frequency_penalty, stop, response_format, parallel_tool_calls, stream_options, user, seed, logit_bias, logprobs, top_logprobs, metadata, store, service_tier, reasoning_effort, reasoning, prompt_cache_key, safety_identifier, modalities" "Accepted and dropped: temperature, top_p, presence/frequency_penalty, stop, response_format, parallel_tool_calls, stream_options, user, seed, logit_bias, logprobs, top_logprobs, metadata, store, service_tier, reasoning_effort, reasoning, prompt_cache_key, safety_identifier, modalities")]
@@ -1066,8 +1090,130 @@
       (txt "共通: エラーは {\"error\":{\"code\":…}}（Errors）。POST の本文上限は 2 MiB、content-type は application/json 必須。"
            "Common to all: errors are {\"error\":{\"code\":…}} (see Errors). POST bodies are capped at 2 MiB and must be application/json."))]))
 
+(defn sign-in-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "サインインと本人確認" "Sign in & identity")]
+     [:p {:class "kc-docs__lead"}
+      (txt "サインインはパスキー（WebAuthn）またはウォレット署名（SIWE）だけです。パスワード・メール・SMS・OAuth はログイン手段ではありません。Google / GitHub の連携はアカウントの目印で、証明はパスキーかウォレットが行います。"
+           "Sign-in is a passkey (WebAuthn) or a wallet signature (SIWE) — nothing else. Passwords, email, SMS and OAuth are not ways to sign in. Linking Google / GitHub names the account; the passkey or wallet proves it.")]
+     [:h2 (txt "principal" "The principal")]
+     [:p (txt "サインインすると安定した ID（principal、did:web:kotoba.cloud:tenant:…）が付きます。パスキーやウォレットを替えても変わらず、本人確認・スコープ・残高・ジョブはすべてこの ID に束縛されます。"
+              "Signing in yields a stable identifier (the principal, did:web:kotoba.cloud:tenant:…). It survives passkey and wallet changes; verification, scopes, balances and jobs are all bound to it.")]
+     [:h2 (txt "本人確認と assurance ladder" "Verification and the assurance ladder")]
+     [:p (txt "レッドチームのモデルは本人確認の上でだけ動きます。確認の段（rung）ごとに証拠と 1 日の token 枠が決まっています（/v1/secure と同じ表）。"
+              "Red-team models run only behind verification. Each rung names its evidence and a daily token allowance (the same table /v1/secure serves).")]
+     [:div {:class "kc-docs__scroll"}
+      [:table {:class "kc-docs__table"}
+       [:thead [:tr [:th "rung"] [:th (txt "証拠" "Evidence")] [:th "tokens/day"] [:th (txt "開く band" "Band")]]]
+       (into [:tbody]
+             (for [r (:rungs research/assurance-ladder)]
+               [:tr [:td [:code (:id r)] " · L" (:level r)] [:td (:evidence r)]
+                [:td (str (:defaultTokensPerDay r) " (ceiling " (:ceilingTokensPerDay r) ")")] [:td (:grantsBand r)]]))]]
+     [:ul
+      [:li (txt "カード認証: クレジットまたはデビットカードを Stripe Checkout（setup モード、請求なし）で登録。プリペイド・バーチャルカードは 403 prepaid-card-not-accepted。承認は Stripe の webhook から数秒で届き、code-review スコープが同時に承認されます。"
+                "Card verification: register a credit or debit card through Stripe Checkout (setup mode, no charge). Prepaid and virtual cards answer 403 prepaid-card-not-accepted. Approval arrives from Stripe's webhook within seconds; the code-review scope is approved with it.")]
+      [:li (txt "書類確認（Stripe Identity）は追加できます。証拠本体は Stripe にのみ残り、kotoba.cloud は状態・有効期限・証跡参照だけを持ちます。"
+                "Document verification (Stripe Identity) can be added. The evidence itself stays at Stripe; kotoba.cloud keeps status, expiry and an evidence reference.")]
+      [:li (txt "有効期限: 本人確認 365 日、AML/CTF 照合 24 時間、信頼経路 60 秒の projection（読むたびに再刻印）。"
+                "Expiry: verification 365 days, AML/CTF screening 24 hours, the trust route as a 60-second projection re-stamped on every read.")]]
+     [:h2 (txt "接続トークン（PAT）" "Connection tokens (PAT)")]
+     [:ul
+      [:li (txt "アカウントコンソールで発行。一度だけ表示。principal の代理として研究 API と残高の読み取りができ、購入・組織操作はできません。"
+                "Issued in the account console, shown once. Acts as the principal on the research API and the balance read; cannot buy or manage organizations.")]
+      [:li (txt "1 つずつ取り消せます（コンソールの一覧 → 取消）。取り消したトークンは 401 token-revoked。以前の形式（v1）のトークンは「旧トークンをすべて取り消す」で一括無効化され、その後は同じ 401 になります。"
+                "Revocable one by one (the console's list → revoke). A revoked token answers 401 token-revoked. Older (v1) tokens are invalidated together by “revoke legacy tokens” and answer the same 401 afterwards.")]]
+     (config-block {:ja? ja? :lang :http} (str "401 {\"error\": {\"code\": \"token-revoked\", \"message\": \"personal API token refused: legacy-token-revoked — issue a new one at https://kotoba.cloud/account\"}}"))
+     (note-block
+      (txt "復旧（パスキーもウォレットも失った場合）は 48 時間以上のサーバ側遅延とオフラインの one-time secret を伴います。運用者が代わりにログインを開けることはありません。"
+           "Recovery (both passkey and wallet lost) carries a server-enforced delay of at least 48 hours and an offline one-time secret. No operator can open a sign-in on your behalf."))]))
+
+(defn firewall-rules-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))
+        rungs ["none" "card" "identity" "business" "contracted"]]
+    [[:h1 (txt "ファイアウォール規則" "Firewall rules")]
+     [:p {:class "kc-docs__lead"}
+      (txt (str "この頁は enforced policy そのもの（secure.cljk、guardrails " secure/guardrail-version " / firewall " secure/firewall-version "）から描画されます。GET /v1/secure が同じ版を返します。")
+           (str "This page is rendered from the enforced policy itself (secure.cljk, guardrails " secure/guardrail-version " / firewall " secure/firewall-version "). GET /v1/secure serves the same versions."))]
+     [:h2 (txt "ガードレール template" "Guardrail templates")]
+     [:p (txt "毎リクエスト、両チームで決定的に評価されます。block はジョブ作成前に 403 guardrail-blocked で拒否し耐久レシートに残す。redact はモデルに渡る前にマスク。flag は審査用の印で、拒否しません。"
+              "Evaluated deterministically on every request, both teams. block refuses with 403 guardrail-blocked before a job exists and leaves a durable receipt; redact masks before the model sees it; flag marks for review and never refuses.")]
+     [:div {:class "kc-docs__scroll"}
+      [:table {:class "kc-docs__table"}
+       [:thead [:tr [:th "id"] [:th "action"] [:th (txt "内容" "What")]]]
+       (into [:tbody]
+             (for [t secure/guardrail-templates]
+               [:tr [:td [:code (:id t)]] [:td (:action t)] [:td (:description t)]]))]]
+     [:h2 (txt "ファイアウォール: タスク × rung" "Firewall: task × rung")]
+     [:p (txt "task はリクエストの用途（bearer 経路の既定は code-review）。表の各行は「この rung 以上で開く」。ブルーチームには rung が無く、標準 3 タスクだけが開きます。observe mode は off（判定はそのまま enforce）。"
+              "task is the request's purpose (the bearer path defaults to code-review). Each row opens at its rung and above. The blue team has no rungs: the three standard tasks only. Observe mode is off (decisions are enforced).")]
+     [:div {:class "kc-docs__scroll"}
+      [:table {:class "kc-docs__table"}
+       [:thead (into [:tr [:th "task"] [:th "min rung"]] (for [r rungs] [:th r]))]
+       (into [:tbody]
+             (for [[task pol] secure/tool-policy]
+               (let [min-idx (.indexOf rungs (:minRung pol))
+                     open? (seq (:tasks pol))]
+                 (into [:tr [:td [:code (name task)]] [:td (:minRung pol)]]
+                       (for [[i _] (map-indexed vector rungs)]
+                         [:td (if (and open? (>= i min-idx)) "✓" "—")])))))]]
+     (note-block
+      (txt "payload-crafting と c2-tooling は tasks が空 — contracted rung が記録に載っても、開放は運用側の決定で別途行われます。拒否は 403 firewall-denied（tool 名付き）。"
+           "payload-crafting and c2-tooling have an empty task list — even a contracted rung on the record does not open them; that is a separate operator decision. Refusals are 403 firewall-denied naming the tool."))]))
+
+(defn organizations-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "組織とチーム SSO" "Organizations & SSO")]
+     [:p {:class "kc-docs__lead"}
+      (txt "組織はアカウントコンソールからハンドル（com-example.kotoba.cloud）で作ります。did:webvh の DID として発行され、メンバーシップは検証可能なクレデンシャル（VC）で管理されます。作成者は owner。"
+           "Create an organization from the account console with a handle (com-example.kotoba.cloud). It is issued as a did:webvh DID; membership is managed with verifiable credentials (VC). The creator is the owner.")]
+     [:h2 (txt "ロール" "Roles")]
+     [:ul
+      [:li [:code "owner"] (txt " — 組織の作成者。すべて。IdP から付与されることはない。" " — the creator; everything; never granted by an IdP.")]
+      [:li [:code "admin"] (txt " — メンバー・SSO の管理。" " — manages members and SSO.")]
+      [:li [:code "member"] (txt " — API トークン・スコープを共有して利用。" " — uses the shared tokens and scopes.")]
+      [:li [:code "billing"] (txt " — 請求だけ。" " — billing only.")]]
+     [:h2 (txt "チーム（Team / Enterprise）" "Teams (Team / Enterprise)")]
+     [:p (txt "メンバー招待と組織 SSO は Team / Enterprise プランの組織で開きます（owner の有効なプランから判定）。招待されたメンバーは API トークン・スコープ・請求を共有します。"
+              "Member invitations and organization SSO open for organizations on the Team / Enterprise plans (judged from the owner's active plan). Invited members share API tokens, scopes and billing.")]
+     [:h2 (txt "組織 SSO（OpenID Connect）" "Organization SSO (OpenID Connect)")]
+     [:ol
+      [:li (txt "admin がコンソールで issuer・client id・client secret・メールドメイン・ロール対応（group=role）・再認証間隔・必須フラグを保存します。" "An admin saves issuer, client id, client secret, email domains, role mapping (group=role), the re-authentication interval and the enforce flag in the console.")]
+      [:li (txt "メンバーは先にパスキーかウォレットでサインインし、その上で「組織の IdP で認証する」を押してメンバーシップを得ます。IdP はログイン手段ではありません。" "A member first signs in with a passkey or a wallet, then presses “Authenticate with the organization's IdP” to obtain membership. The IdP is not a way to sign in.")]
+      [:li (txt "IdP から外れたメンバーは次の再認証間隔で組織へのアクセスを失います。ロールは admin / member / billing のいずれか。" "A member removed from the IdP loses organization access at the next re-authentication interval. Roles: admin / member / billing.")]]
+     (note-block
+      (txt "SAML は未対応。Google Workspace / Microsoft Entra ID / Okta などの OIDC で動作します。組織 API（/v1/org/*）はブラウザセッション専用です。"
+           "SAML is not supported; OIDC providers (Google Workspace, Microsoft Entra ID, Okta and others) work. The organization API (/v1/org/*) is browser-session only."))]))
+
+(defn refunds-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "解約と返金" "Refunds & cancellation")]
+     [:p {:class "kc-docs__lead"}
+      (txt "解約は kotoba.cloud/billing/ の「請求・解約の管理」（Stripe Customer Portal）から、請求期間の末日付けで行います。按分はなく、支払済みの期間はそのまま使えます。プランの変更・一時停止はポータルでは行えません。"
+           "Cancel from “Manage billing and cancellation” on kotoba.cloud/billing/ (the Stripe Customer Portal), effective at the end of the billing period. No proration; the paid period stays usable. Plan changes and pauses are not offered in the portal.")]
+     [:h2 (txt "枠の失効" "Allowance expiry")]
+     [:ul
+      [:li (txt "月額プランの AI credits と保存容量は、その請求期間の末日で失効します（繰越なし）。" "A plan's monthly AI credits and storage expire at the end of that billing period (no rollover).")]
+      [:li (txt "$25 の都度購入（AI / Storage credits）は購入から 12 か月有効。" "$25 top-ups (AI / Storage credits) last 12 months from purchase.")]
+      [:li (txt "残高が尽きると新しい有料処理は止まり、無料枠に戻ります。保存済みデータは自動削除されません。" "When the balance runs out, new paid work stops and you are back on the free allowance. Stored data is not deleted automatically.")]]
+     [:h2 (txt "返金・チャージバック" "Refunds and disputes")]
+     [:ul
+      [:li (txt "返金は support@kotoba.cloud に依頼してください。付与済みの枠は返金と同時に台帳で照合（取り消し）されます。" "Request a refund at support@kotoba.cloud. Granted allowances are reconciled (reversed) in the ledger with the refund.")]
+      [:li (txt "チャージバックや未解決の返金の間は新しい有料処理を止め、読み取りとエクスポートは残します。財務記録は消しません。" "During a dispute or an unresolved refund, new paid work is frozen; reads and exports remain. Financial history is never erased.")]
+      [:li (txt "無料枠はこの手続きの影響を受けません。" "The free allowance is unaffected by any of this.")]]
+     (note-block
+      (txt "価格は USD・税別。Adaptive Pricing は使わず、カード側で換算されます。領収書とインボイスはポータルの履歴から。"
+           "Prices are USD, tax excluded; Adaptive Pricing is off and the card converts. Receipts and invoices are in the portal's history."))]))
+
 (defn ref-view [id locale]
   (case id
+    "sign-in" (sign-in-view locale)
+    "firewall-rules" (firewall-rules-view locale)
+    "organizations" (organizations-view locale)
+    "refunds" (refunds-view locale)
     "cli-cheatsheet" (cheatsheet-view locale)
     "endpoints" (endpoints-view locale)
     "openai-sdk" (openai-sdk-view locale)

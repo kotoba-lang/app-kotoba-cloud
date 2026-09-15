@@ -1,0 +1,63 @@
+{
+ "@context": {
+  "vc-fund": "https://kotoba.cloud/vocab/vc#fund",
+  "portfolio-company": "https://kotoba.cloud/vocab/vc#company",
+  "invested": "https://kotoba.cloud/vocab/vc#invested",
+  "acquired-by": "https://kotoba.cloud/vocab/vc#acquiredBy",
+  "co-invested-with": "https://kotoba.cloud/vocab/vc#coInvestedWith"
+ },
+ "generatedAt": "2026-09-15T16:15:17.296Z",
+ "@graph": [
+  {
+   "@id": "vc/fund/dnx-capital",
+   "@type": "vc-fund",
+   "name": "DNX Capital (Draper Nexus)",
+   "source-url": "https://www.dnxcapital.vc/",
+   "layer": "primary-fetched"
+  },
+  {
+   "@id": "vc/fund/in-q-tel",
+   "@type": "vc-fund",
+   "name": "In-Q-Tel (IQT)",
+   "source-url": "https://www.iqt.org/",
+   "layer": "primary-fetched"
+  },
+  {
+   "@id": "vc/fund/syn-ventures",
+   "@type": "vc-fund",
+   "name": "SYN Ventures, Inc.",
+   "source-url": "https://www.syncapital.vc/",
+   "layer": "primary-fetched"
+  },
+  {
+   "@id": "vc/company/iceye",
+   "@type": "portfolio-company",
+   "name": "ICEYE",
+   "domain": "SAR Earth observation / satellite data"
+  },
+  {
+   "@id": "vc/company/cylance",
+   "@type": "portfolio-company",
+   "name": "Cylance",
+   "domain": "endpoint security (AI/ML antivirus)"
+  },
+  {
+   "@id": "vc/company/jask",
+   "@type": "portfolio-company",
+   "name": "JASK",
+   "domain": "security operations (SIEM/alert triage)"
+  },
+  {
+   "@id": "vc/company/mitiga",
+   "@type": "portfolio-company",
+   "name": "Mitiga",
+   "domain": "cloud/network security"
+  },
+  {
+   "@id": "vc/company/fyde",
+   "@type": "portfolio-company",
+   "name": "Fyde",
+   "domain": "endpoint OS / firmware security"
+  }
+ ]
+}

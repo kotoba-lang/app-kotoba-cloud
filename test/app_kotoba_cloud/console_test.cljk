@@ -1,12 +1,30 @@
 (ns app-kotoba-cloud.console-test
   (:require [app-kotoba-cloud.console :as console]
+            [app-kotoba-cloud.console-locales :as cl]
+            [app-kotoba-cloud.public-locales :as locales]
             [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
 (deftest every-destination-is-unique-and-labelled
   (let [items (mapcat :items console/groups)]
     (is (= (count items) (count (set (map :href items)))) "one home per destination")
-    (is (every? #(and (seq (:ja %)) (seq (:en %)) (str/starts-with? (:href %) "/")) items))))
+    (is (every? #(and (seq (console/label % :ja)) (seq (console/label % :en)) (str/starts-with? (:href %) "/")) items))))
+
+(deftest every-console-label-exists-in-every-public-locale
+  ;; the landing page carries 22 locales; the console chrome must too
+  ;; (owner direction 2026-09-15). Every key of the authored source, in
+  ;; every locale of the public catalog, non-blank, placeholders kept.
+  (let [keys (keys cl/source)]
+    (is (= 38 (count keys)))
+    (doseq [loc locales/locale-order k keys]
+      (let [v (get-in cl/copy [loc k])]
+        (is (and (string? v) (seq v)) (str (name loc) " " (name k)))
+        (is (= (set (re-seq #"\{[a-z]+\}" (get-in cl/source [k :en])))
+               (set (re-seq #"\{[a-z]+\}" (str v))))
+            (str (name loc) " " (name k) " placeholders"))))
+    (is (= "Mulai {done}/{total}" (cl/t :id :setup-progress)) "a generated locale answers")
+    (is (= "Get started {done}/{total}" (cl/t :xx :setup-progress)) "an unknown locale reads English, never a blank")
+    (is (= "Get started 1/3" (cl/fill (cl/t :en :setup-progress) {:done 1 :total 3})))))
 
 (deftest current-item-follows-exact-href-then-document
   (is (= :account (:id (console/current-item "/account"))))

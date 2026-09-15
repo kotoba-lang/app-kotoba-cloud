@@ -1604,6 +1604,20 @@ assert.equal(healthBody.ok, true);
 assert.equal(Object.hasOwn(healthBody, "registrant"), false);
 assert.equal(Object.hasOwn(healthBody, "registrants"), false);
 
+// sousa ontology: read-only schema routes (GET only, synthetic data only).
+{
+  const caseStatuses = await route(new Request("https://kotoba.cloud/v1/sousa/case-statuses"), env);
+  assert.equal(caseStatuses.status, 200);
+  const caseStatusesBody = await caseStatuses.json();
+  assert.deepEqual(caseStatusesBody.statuses, ["reported", "accepted", "investigating", "referred"]);
+  assert.equal(caseStatusesBody.initial, "reported");
+  assert.deepEqual(caseStatusesBody.transitions.referred, []);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/sousa/case-statuses", { method: "POST" }), env)).status, 405);
+  const sousaSchema = await route(new Request("https://kotoba.cloud/schemas/sousa-ontology/v1"), env);
+  assert.equal(sousaSchema.status, 200);
+  assert.equal((await sousaSchema.json()).constSchema, "sousa-ontology/v2");
+}
+
 const visitorOnce = await route(new Request("https://kotoba.cloud/api/funnel/event", {
   method: "POST",
   headers: { "content-type": "application/json" },

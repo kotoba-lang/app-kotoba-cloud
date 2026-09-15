@@ -13,38 +13,47 @@
   badge is a fact, not a decoration.
 
   Pure .cljk: no DOM, no fetch. site.cljk renders it; shell-browser
-  hydrates the chips from the session."
-  (:require [kotoba.lang.text :as str]))
+  hydrates the chips from the session. Every label is a KEY into
+  console-locales (22 public locales, ADR-2609091700); the table holds no
+  copy of its own."
+  (:require [kotoba.lang.text :as str]
+            [app-kotoba-cloud.console-locales :as cl]))
 
 (def groups
-  "Sidebar groups in order. :items are {:id :ja :en :href :badge?}.
-   :href is where the item lands; a fragment on a document is a view of
-   that document (one document, several views — never a second page)."
-  [{:id :main :label "MAIN"
-    :items [{:id :docs :ja "ドキュメント" :en "Docs" :href "/docs/"}
-            {:id :apps :ja "アプリ" :en "Apps" :href "/apps/"}
-            {:id :blog :ja "ブログ" :en "Blog" :href "/blog/"}]}
-   {:id :manage :label "MANAGE"
-    :items [{:id :keys :ja "接続トークン" :en "API tokens" :href "/account#account-panel-cli"}
-            {:id :models :ja "モデル" :en "Models" :href "/models/"}
-            {:id :register :ja "研究者登録" :en "Researcher registration" :href "/#research-register"}
-            {:id :usage :ja "利用とインサイト" :en "Usage & insights" :href "/docs/reference/billing-and-usage/"}]}
-   {:id :secure :label "SECURE"
-    :items [{:id :guardrails :ja "ガードレール" :en "Guardrails" :href "/secure/#guardrails"}
-            {:id :firewall :ja "ファイアウォール" :en "Firewall" :href "/secure/#firewall"}
-            {:id :compliance :ja "コンプライアンス" :en "Compliance" :href "/secure/#compliance"}
-            {:id :services :ja "セキュリティサービス" :en "Security services" :href "/security/services/"}
-            {:id :aup :ja "利用ポリシー" :en "Acceptable use" :href "/security/aup/"}]}
-   {:id :account :label "ACCOUNT"
-    :items [{:id :account :ja "アカウント" :en "Account" :href "/account"}
-            {:id :team :ja "チーム" :en "Team" :href "/account#account-panel-org" :badge "Team"}
-            {:id :billing :ja "料金・決済" :en "Billing" :href "/billing/"}]}])
+  "Sidebar groups in order. :items are {:id :key :href :badge?}; :key names
+   the label in console-locales. :href is where the item lands; a fragment
+   on a document is a view of that document (one document, several views —
+   never a second page). The group :label is the reference IA's own
+   uppercase mark (MAIN / MANAGE / SECURE / ACCOUNT) and is not translated;
+   the top bar's section name is (:group-key)."
+  [{:id :main :label "MAIN" :group-key :group-main
+    :items [{:id :docs :key :nav-docs :href "/docs/"}
+            {:id :apps :key :nav-apps :href "/apps/"}
+            {:id :blog :key :nav-blog :href "/blog/"}]}
+   {:id :manage :label "MANAGE" :group-key :group-manage
+    :items [{:id :keys :key :nav-keys :href "/account#account-panel-cli"}
+            {:id :models :key :nav-models :href "/models/"}
+            {:id :register :key :nav-register :href "/#research-register"}
+            {:id :usage :key :nav-usage :href "/docs/reference/billing-and-usage/"}]}
+   {:id :secure :label "SECURE" :group-key :group-secure
+    :items [{:id :guardrails :key :nav-guardrails :href "/secure/#guardrails"}
+            {:id :firewall :key :nav-firewall :href "/secure/#firewall"}
+            {:id :compliance :key :nav-compliance :href "/secure/#compliance"}
+            {:id :services :key :nav-services :href "/security/services/"}
+            {:id :aup :key :nav-aup :href "/security/aup/"}]}
+   {:id :account :label "ACCOUNT" :group-key :group-account
+    :items [{:id :account :key :nav-account :href "/account"}
+            {:id :team :key :nav-team :href "/account#account-panel-org" :badge "Team"}
+            {:id :billing :key :nav-billing :href "/billing/"}]}])
 
 (def get-started
   "The sidebar's primary action — the quickstart, once."
-  {:ja "＋ はじめる" :en "＋ Get started" :href "/docs/reference/quickstart/"})
+  {:key :get-started :href "/docs/reference/quickstart/"})
 
-(defn- label [item locale] (if (= locale :ja) (:ja item) (:en item)))
+(defn label
+  "An item's label in `locale` (console-locales; English when the locale
+   has no entry)."
+  [item locale] (cl/t locale (:key item)))
 
 ;; --- surfaces ---------------------------------------------------------------
 ;; One emit tree, two hosts (owner direction 2026-09-15: /docs/ moves to
@@ -111,11 +120,7 @@
   [current locale]
   (when-let [item (current-item current)]
     (let [group (some #(when (some #{item} (:items %)) %) groups)]
-      {:group (case (:id group)
-                :main (if (= locale :ja) "メイン" "Main")
-                :manage (if (= locale :ja) "管理" "Manage")
-                :secure (if (= locale :ja) "セキュリティ" "Secure")
-                :account (if (= locale :ja) "アカウント" "Account"))
+      {:group (cl/t locale (:group-key group))
        :item (label item locale)})))
 
 (defn sidebar-items
@@ -136,19 +141,22 @@
 ;; a step whose state cannot be read is not a step.
 
 (def setup-steps
-  [{:id :sign-in :ja "サインイン" :en "Sign in" :href "/account"}
-   {:id :verify :ja "本人確認" :en "Verify identity" :href "/account#account-panel-identity"}
-   {:id :eligible :ja "研究環境の利用資格" :en "Research eligibility" :href "/account#account-panel-eligibility"}])
+  [{:id :sign-in :key :step-sign-in :href "/account"}
+   {:id :verify :key :step-verify :href "/account#account-panel-identity"}
+   {:id :eligible :key :step-eligible :href "/account#account-panel-eligibility"}])
 
 (defn setup-progress
   "state: {:signed-in? bool :ekyc \"verified\"|\"pending\"|\"missing\"|nil :eligible? bool|nil}
    → {:done n :total 3 :steps [{:id :label :done? :href}] :next step-or-nil}.
-   Unknown (nil) never counts as done."
-  [{:keys [signed-in? ekyc eligible?]} locale]
+   Unknown (nil) never counts as done. `labels` is a locale (console-
+   locales) or a fn of the step's :key → label (the browser reads the
+   document's own copy, not the map)."
+  [{:keys [signed-in? ekyc eligible?]} labels]
   (let [done {:sign-in (true? signed-in?)
               :verify (= "verified" ekyc)
               :eligible (true? eligible?)}
-        steps (mapv (fn [s] {:id (:id s) :label (label s locale) :href (:href s)
+        label-of (if (fn? labels) labels (fn [k] (cl/t labels k)))
+        steps (mapv (fn [s] {:id (:id s) :label (label-of (:key s)) :href (:href s)
                              :done? (get done (:id s))})
                     setup-steps)]
     {:done (count (filter :done? steps))

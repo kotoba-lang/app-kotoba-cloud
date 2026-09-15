@@ -25,6 +25,7 @@
   "src/app_kotoba_cloud/database_gateway.cljk" ".cljc"
   "src/app_kotoba_cloud/database_session.cljk" ".cljc"
   "src/app_kotoba_cloud/delegation_root.cljk" ".cljc"
+  "src/app_kotoba_cloud/enforcement_site.cljk" ".cljc"
   "src/app_kotoba_cloud/extended_translations.cljk" ".cljc"
   "src/app_kotoba_cloud/free_sites.cljk" ".cljc"
   "src/app_kotoba_cloud/free_sites_claim.cljk" ".cljc"
