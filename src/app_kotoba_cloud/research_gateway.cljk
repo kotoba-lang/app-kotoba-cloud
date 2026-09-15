@@ -397,6 +397,20 @@
                    ;; the terminal result: the envelope is built by the caller,
                    ;; which knows whether a reservation has to be settled first
                    (select-keys result [:content :toolCalls :finishReason :receiptId :billing :usageReceipt])
+                   ;; the origin refused the REQUEST (400/413/422: context
+                   ;; window, shape): that is the caller's 400 with the
+                   ;; origin's reason, not a 502 — measured 2026-09-15:
+                   ;; 480,018 characters passed the edge's character ceiling
+                   ;; and were 131,057 tokens at the origin's 131,072 window
+                   (and (= "failed" status) (contains? #{400 413 422} (:upstreamStatus result)))
+                   (throw (ex-info "inference-rejected"
+                                   {:status 400
+                                    :message (let [m (get-in result [:upstreamError :message])]
+                                               (if (policy/text? m 2000) m "the inference route refused the request"))}))
+                   ;; the route refused the AUTHORITY (401/403/404: token, URL):
+                   ;; operator configuration, served as unavailable
+                   (and (= "failed" status) (contains? #{401 403 404} (:upstreamStatus result)))
+                   (throw (ex-info "inference-route-misconfigured" {:status 503}))
                    (contains? #{"failed" "cancelled" "unknown"} status)
                    (throw (ex-info (if (= "unknown" status) "inference-job-timeout" "inference-run-failed")
                                    {:status (if (= "unknown" status) 504 502)}))
@@ -434,7 +448,10 @@
                         (.then (fn [_] (poll-completion-job binding principal reference job-id (:model body) 0 started)))
                         (.then (fn [terminal]
                                  (if-not (or paid? (= "paid" (:billing terminal)))
-                                   (completion-envelope job-id terminal (:model body))
+                                   ;; the provider's measured usage rides on free completions
+                                   ;; too: an agent budgets its context from it (hermes logged
+                                   ;; usage=unavailable on every free call, 2026-09-15)
+                                   (completion-envelope job-id terminal (:model body) {:usage (:usageReceipt terminal)})
                                    (-> (settle-paid! env principal job-id (usage-receipt terminal job-id))
                                        (.then (fn [{:keys [charged settlement]}]
                                                 (completion-envelope job-id terminal (:model body)
@@ -452,12 +469,19 @@
          ;; the authority code is the ex-info MESSAGE (see `service`); ex-data
          ;; never carried :message, so every failure read as unavailable
          (let [code (or (ex-message e) (str e))]
-           (respond {:error {:code (case code
-                                     "inference-run-failed" "inference-failed"
-                                     "inference-job-timeout" "inference-timeout"
-                                     "invalid-job-receipt" "invalid-inference-receipt"
-                                     "job-input-conflict" "invalid-research-request"
-                                     "research-service-unavailable")}}
+           (respond {:error (case code
+                              ;; the origin's refusal of the request, in the
+                              ;; OpenAI error shape an agent's log shows a person
+                              "inference-rejected" {:code "invalid-research-request"
+                                                    :message (:message (ex-data e))
+                                                    :type "invalid_request_error"}
+                              {:code (case code
+                                       "inference-run-failed" "inference-failed"
+                                       "inference-job-timeout" "inference-timeout"
+                                       "inference-route-misconfigured" "research-service-unavailable"
+                                       "invalid-job-receipt" "invalid-inference-receipt"
+                                       "job-input-conflict" "invalid-research-request"
+                                       "research-service-unavailable")})}
                     (or (:status (ex-data e)) 503)))))))
 
 (defn- complete [^js env binding principal reference body respond & [opts]]
