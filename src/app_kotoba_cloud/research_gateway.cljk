@@ -96,7 +96,7 @@
              (-> (service binding "/ekyc/start"
                           {:principalId principal :sessionRef reference
                            :scopeId (:scopeId body) :tasks (:tasks body)})
-                 (.then #(respond % 200)))))))))
+                 (.then #(respond % 200))))))))
 
 ;; Stripe calls this server-to-server: no origin gate, no auth, no viewer. The
 ;; edge only reads the raw body + signature header and extracts ROUTING HINTS
