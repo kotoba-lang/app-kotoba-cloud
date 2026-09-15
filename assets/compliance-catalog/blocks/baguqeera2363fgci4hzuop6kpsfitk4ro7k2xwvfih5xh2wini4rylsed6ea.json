@@ -1,0 +1,1 @@
+{"categoryId":"sbom","complianceFits":["cra"],"id":"syft","name":"Syft SBOM generator","pricingMode":"public-list","pricingNote":"free open source SBOM generator (SPDX/CycloneDX)","pricingUrl":"https://github.com/anchore/syft","provider":"Anchore (OSS)","providerHq":"US"}

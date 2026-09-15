@@ -22,7 +22,7 @@
   ([embedded?]
    (catalog/page
     {:title "コンプライアンス & 脆弱性対策製品カタログ（基準・カテゴリ・価格・プロバイダ）"
-     :lead "全世界のコンプライアンス基準（ISO / SOC 2 / PCI DSS / GDPR / DORA / CRA ほか）と、脆弱性管理・AppSec・EDR・GRC などの製品カテゴリ、プロバイダーと価格帯を 1 つの出典付きカタログにまとめた公開データです。"
+     :lead "全世界のコンプライアンス基準（ISO / SOC 2 / PCI DSS / GDPR / DORA / CRA ほか）と、脆弱性管理・AppSec・EDR・GRC などの製品カテゴリ、プロバイダーと価格帯を 1 つの出典付きカタログにまとめた公開データです。各カテゴリは「対応する脆弱性・脅威クラス」と NIST CSF 2.0 のサブカテゴリ対応 (オントロジー) を持ち、製品はカテゴリ経由で transitive に CSF 対応へ結びつきます。"
        :nav (catalog/breadcrumb
           "カタログ"
           [["ホーム" "/ja/"]
@@ -43,7 +43,9 @@
      (catalog/detail {:id "kcp-detail" :label "詳細"}))
     (catalog/about
      {:summary "このカタログについて"
-      :links [[:a {:href "/compliance-data/compliance/index.json"} "IPLD インデックス"]]
+      :links [[:a {:href "/compliance-data/compliance/index.json"} "IPLD インデックス"]
+               [:a {:href "/compliance-data/compliance/ontology.jsonld"} "オントロジー (JSON-LD)"]
+               [:a {:href "/compliance-data/compliance/relations.json"} "関係 (claims)"]]
       :footnote "データはコード生成による content-addressed block（IPLD形式）として公開されています。商標・製品名は各所有者に帰属します。価格・適合情報は各ベンダーの公開ページに基づく収集データで、各レコードに出典URLを付けています。価格は変更されることがあるため、購入判断の前に必ず公式ページで最新情報を確認してください。掲載は網羅を主張するものではなく、代表的なカテゴリの代表的なプロバイダのスナップショットです。"})
     [:section {:id "compliance-fit" :class "kcp-fit"}
      (dds/heading 2 "第一次セキュリティサービスのコンプライアンス適合（Fit Finder）" {:size "24"})

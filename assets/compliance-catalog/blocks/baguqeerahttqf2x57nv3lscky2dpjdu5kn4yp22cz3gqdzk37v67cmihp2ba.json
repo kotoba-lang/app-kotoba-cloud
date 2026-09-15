@@ -1,0 +1,1 @@
+{"categoryId":"waf","complianceFits":["fedramp","iso-27001","pci-dss-40","soc2"],"id":"aws-waf","name":"AWS WAF","pricingMode":"public-list","pricingNote":"public usage-based list: about $5/rule + $1/million requests + $5/web ACL (us-east-1)","pricingUrl":"https://aws.amazon.com/waf/pricing/","provider":"Amazon Web Services","providerHq":"US"}

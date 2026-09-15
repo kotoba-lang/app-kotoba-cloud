@@ -25,7 +25,6 @@ assert.ok(index.generatedAt.length > 0);
 // every index row resolves to a real block file on disk + full fields inline
 for (const row of [...index.frameworks, ...index.products]) {
   assert.ok(row.record && row.record['/'], 'row without record: ' + row.id);
-  const p = out + row.record['/'].replace(/^b/, '/blocks/b').replace(/^\/blocks\/b/, '/blocks/');
   const path = out + '/blocks/' + row.record['/'] + '.json';
   assert.ok(existsSync(path), 'missing block for ' + row.id + ' at ' + path);
 }
@@ -45,10 +44,27 @@ for (const p of products) {
   assert.ok(catIds.has(p.categoryId), 'unknown category: ' + p.categoryId);
   for (const fw of p.complianceFits || []) assert.ok(fwIds.has(fw), p.id + ' references unknown framework ' + fw);
 }
-// unique ids
+// unique ids + unique name|provider
 assert.equal(new Set(products.map(p => p.id)).size, products.length);
 assert.equal(new Set(frameworks.map(f => f.id)).size, frameworks.length);
+assert.equal(new Set(products.map(p => p.name + '|' + p.provider)).size, products.length, 'duplicate name+provider record');
 // honesty: every product states its pricing mode
 for (const p of products) assert.ok(['public-list', 'quote-based'].includes(p.pricingMode), p.id);
 
-console.log('compliance-catalog test: OK —', frameworks.length, 'frameworks,', products.length, 'products,', categories.length, 'categories');
+// ontology integrity: every category mapped, every csf id valid against the csf2 catalog
+const onto = JSON.parse(readFileSync(src + '/category-ontology.json', 'utf8')).categories;
+const csfSubcats = Object.keys(JSON.parse(readFileSync(resolve(here, '../assets/csf2-catalog/subcategories.json'), 'utf8')));
+const csfSet = new Set(csfSubcats);
+assert.equal(Object.keys(onto).length, categories.length, 'ontology must cover every category');
+for (const [cid, o] of Object.entries(onto)) {
+  assert.ok(catIds.has(cid), 'ontology category not in catalog: ' + cid);
+  assert.ok(o.addresses.length >= 2 && o.csf.length >= 2, 'ontology too thin: ' + cid);
+  for (const s of o.csf) assert.ok(csfSet.has(s), 'unknown CSF id ' + s + ' on ' + cid);
+}
+const indexOnto = JSON.parse(readFileSync(out + '/index.json', 'utf8')).ontologyCategories;
+assert.deepEqual(indexOnto, onto, 'index.json ontologyCategories must mirror the source file');
+assert.ok(existsSync(out + '/ontology.jsonld') && existsSync(out + '/relations.json'), 'ontology artifacts missing');
+const rel = JSON.parse(readFileSync(out + '/relations.json', 'utf8'));
+assert.ok(rel.claims.length > products.length, 'claims must cover product edges');
+
+console.log('compliance-catalog test: OK —', frameworks.length, 'frameworks,', products.length, 'products,', categories.length, 'categories,', rel.claims.length, 'ontology claims');

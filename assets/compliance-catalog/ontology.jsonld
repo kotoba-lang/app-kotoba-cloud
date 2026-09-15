@@ -1,0 +1,1136 @@
+{
+ "@context": {
+  "service-category": "https://kotoba.cloud/vocab/compliance#service-category",
+  "addresses": "https://kotoba.cloud/vocab/compliance#addresses",
+  "csf-subcategories": "https://kotoba.cloud/vocab/csf2#subcategory"
+ },
+ "generatedAt": "2026-09-15T08:04:50.494Z",
+ "csf2/subcategory-labels": {
+  "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
+  "GV.OC-02": "Internal and external stakeholders are understood, and their needs and expectations regarding cybersecurity risk management are understood and considered",
+  "GV.OC-03": "Legal, regulatory, and contractual requirements regarding cybersecurity — including privacy and civil liberties obligations — are understood and managed",
+  "GV.OC-04": "Critical objectives, capabilities, and services that external stakeholders depend on or expect from the organization are understood and communicated",
+  "GV.OC-05": "Outcomes, capabilities, and services that the organization depends on are understood and communicated",
+  "GV.RM-01": "Risk management objectives are established and agreed to by organizational stakeholders",
+  "GV.RM-02": "Risk appetite and risk tolerance statements are established, communicated, and maintained",
+  "GV.RM-03": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes",
+  "GV.RM-04": "Strategic direction that describes appropriate risk response options is established and communicated",
+  "GV.RM-05": "Lines of communication across the organization are established for cybersecurity risks, including risks from suppliers and other third parties",
+  "GV.RM-06": "A standardized method for calculating, documenting, categorizing, and prioritizing cybersecurity risks is established and communicated",
+  "GV.RM-07": "Strategic opportunities (i.e., positive risks) are characterized and are included in organizational cybersecurity risk discussions",
+  "GV.RR-01": "Organizational leadership is responsible and accountable for cybersecurity risk and fosters a culture that is risk-aware, ethical, and continually improving",
+  "GV.RR-02": "Roles, responsibilities, and authorities related to cybersecurity risk management are established, communicated, understood, and enforced",
+  "GV.RR-03": "Adequate resources are allocated commensurate with the cybersecurity risk strategy, roles, responsibilities, and policies",
+  "GV.RR-04": "Cybersecurity is included in human resources practices",
+  "GV.PO-01": "Policy for managing cybersecurity risks is established based on organizational context, cybersecurity strategy, and priorities and is communicated and enforced",
+  "GV.PO-02": "Policy for managing cybersecurity risks is reviewed, updated, communicated, and enforced to reflect changes in requirements, threats, technology, and organizational mission",
+  "GV.OV-01": "Cybersecurity risk management strategy outcomes are reviewed to inform and adjust strategy and direction",
+  "GV.OV-02": "The cybersecurity risk management strategy is reviewed and adjusted to ensure coverage of organizational requirements and risks",
+  "GV.OV-03": "Organizational cybersecurity risk management performance is evaluated and reviewed for adjustments needed",
+  "GV.SC-01": "A cybersecurity supply chain risk management program, strategy, objectives, policies, and processes are established and agreed to by organizational stakeholders",
+  "GV.SC-02": "Cybersecurity roles and responsibilities for suppliers, customers, and partners are established, communicated, and coordinated internally and externally",
+  "GV.SC-03": "Cybersecurity supply chain risk management is integrated into cybersecurity and enterprise risk management, risk assessment, and improvement processes",
+  "GV.SC-04": "Suppliers are known and prioritized by criticality",
+  "GV.SC-05": "Requirements to address cybersecurity risks in supply chains are established, prioritized, and integrated into contracts and other types of agreements with suppliers and other relevant third parties",
+  "GV.SC-06": "Planning and due diligence are performed to reduce risks before entering into formal supplier or other third-party relationships",
+  "GV.SC-07": "The risks posed by a supplier, their products and services, and other third parties are understood, recorded, prioritized, assessed, responded to, and monitored over the course of the relationship",
+  "GV.SC-08": "Relevant suppliers and other third parties are included in incident planning, response, and recovery activities",
+  "GV.SC-09": "Supply chain security practices are integrated into cybersecurity and enterprise risk management programs, and their performance is monitored throughout the technology product and service life cycle",
+  "GV.SC-10": "Cybersecurity supply chain risk management plans include provisions for activities that occur after the conclusion of a partnership or service agreement",
+  "ID.AM-01": "Inventories of hardware managed by the organization are maintained",
+  "ID.AM-02": "Inventories of software, services, and systems managed by the organization are maintained",
+  "ID.AM-03": "Representations of the organization’s authorized network communication and internal and external network data flows are maintained",
+  "ID.AM-04": "Inventories of services provided by suppliers are maintained",
+  "ID.AM-05": "Assets are prioritized based on classification, criticality, resources, and impact on the mission",
+  "ID.AM-07": "Inventories of data and corresponding metadata for designated data types are maintained",
+  "ID.AM-08": "Systems, hardware, software, services, and data are managed throughout their life cycles",
+  "ID.RA-02": "Cyber threat intelligence is received from information sharing forums and sources",
+  "ID.RA-03": "Internal and external threats to the organization are identified and recorded",
+  "ID.RA-04": "Potential impacts and likelihoods of threats exploiting vulnerabilities are identified and recorded",
+  "ID.RA-05": "Threats, vulnerabilities, likelihoods, and impacts are used to understand inherent risk and inform risk response prioritization",
+  "ID.RA-06": "Risk responses are chosen, prioritized, planned, tracked, and communicated",
+  "ID.RA-07": "Changes and exceptions are managed, assessed for risk impact, recorded, and tracked",
+  "ID.RA-08": "Processes for receiving, analyzing, and responding to vulnerability disclosures are established",
+  "ID.RA-09": "The authenticity and integrity of hardware and software are assessed prior to acquisition and use",
+  "ID.RA-10": "Critical suppliers are assessed prior to acquisition",
+  "ID.IM-02": "Improvements are identified from security tests and exercises, including those done in coordination with suppliers and relevant third parties",
+  "ID.IM-03": "Improvements are identified from execution of operational processes, procedures, and activities",
+  "ID.IM-04": "Incident response plans and other cybersecurity plans that affect operations are established, communicated, maintained, and improved",
+  "PR.AA-01": "Identities and credentials for authorized users, services, and hardware are managed by the organization",
+  "PR.AA-02": "Identities are proofed and bound to credentials based on the context of interactions",
+  "PR.AA-03": "Users, services, and hardware are authenticated",
+  "PR.AA-04": "Identity assertions are protected, conveyed, and verified",
+  "PR.AA-05": "Access permissions, entitlements, and authorizations are defined in a policy, managed, enforced, and reviewed, and incorporate the principles of least privilege and separation of duties",
+  "PR.AA-06": "Physical access to assets is managed, monitored, and enforced commensurate with risk",
+  "PR.AT-01": "Personnel are provided with awareness and training so that they possess the knowledge and skills to perform general tasks with cybersecurity risks in mind",
+  "PR.AT-02": "Individuals in specialized roles are provided with awareness and training so that they possess the knowledge and skills to perform relevant tasks with cybersecurity risks in mind",
+  "PR.DS-01": "The confidentiality, integrity, and availability of data-at-rest are protected",
+  "PR.DS-02": "The confidentiality, integrity, and availability of data-in-transit are protected",
+  "PR.DS-10": "The confidentiality, integrity, and availability of data-in-use are protected",
+  "PR.DS-11": "Backups of data are created, protected, maintained, and tested",
+  "PR.PS-02": "Software is maintained, replaced, and removed commensurate with risk",
+  "PR.PS-03": "Hardware is maintained, replaced, and removed commensurate with risk",
+  "PR.PS-04": "Log records are generated and made available for continuous monitoring",
+  "PR.PS-05": "Installation and execution of unauthorized software are prevented",
+  "PR.PS-06": "Secure software development practices are integrated, and their performance is monitored throughout the software development life cycle",
+  "PR.IR-01": "Networks and environments are protected from unauthorized logical access and usage",
+  "PR.IR-02": "The organization’s technology assets are protected from environmental threats",
+  "PR.IR-03": "Mechanisms are implemented to achieve resilience requirements in normal and adverse situations",
+  "PR.IR-04": "Adequate resource capacity to ensure availability is maintained",
+  "DE.CM-01": "Networks and network services are monitored to find potentially adverse events",
+  "DE.CM-02": "The physical environment is monitored to find potentially adverse events",
+  "DE.CM-03": "Personnel activity and technology usage are monitored to find potentially adverse events",
+  "DE.CM-06": "External service provider activities and services are monitored to find potentially adverse events",
+  "DE.CM-09": "Computing hardware and software, runtime environments, and their data are monitored to find potentially adverse events",
+  "DE.AE-03": "Information is correlated from multiple sources",
+  "DE.AE-04": "The estimated impact and scope of adverse events are understood",
+  "DE.AE-06": "Information on adverse events is provided to authorized staff and tools",
+  "DE.AE-07": "Cyber threat intelligence and other contextual information are integrated into the analysis",
+  "DE.AE-08": "Incidents are declared when adverse events meet the defined incident criteria",
+  "RS.MA-01": "The incident response plan is executed in coordination with relevant third parties once an incident is declared",
+  "RS.MA-02": "Incident reports are triaged and validated",
+  "RS.MA-03": "Incidents are categorized and prioritized",
+  "RS.MA-04": "Incidents are escalated or elevated as needed",
+  "RS.MA-05": "The criteria for initiating incident recovery are applied",
+  "RS.AN-06": "Actions performed during an investigation are recorded, and the records’ integrity and provenance are preserved",
+  "RS.AN-07": "Incident data and metadata are collected, and their integrity and provenance are preserved",
+  "RS.AN-08": "An incident’s magnitude is estimated and validated",
+  "RS.CO-03": "Information is shared with designated internal and external stakeholders",
+  "RS.MI-02": "Incidents are eradicated",
+  "RC.RP-01": "The recovery portion of the incident response plan is executed once initiated from the incident response process",
+  "RC.RP-02": "Recovery actions are selected, scoped, prioritized, and performed",
+  "RC.RP-03": "The integrity of backups and other restoration assets is verified before using them for restoration",
+  "RC.RP-04": "Critical mission functions and cybersecurity risk management are considered to establish post-incident operational norms",
+  "RC.RP-05": "The integrity of restored assets is verified, systems and services are restored, and normal operating status is confirmed",
+  "RC.RP-06": "The end of incident recovery is declared based on criteria, and incident- related documentation is completed",
+  "RC.CO-03": "Recovery activities and progress in restoring operational capabilities are communicated to designated internal and external stakeholders",
+  "RC.CO-04": "Public updates on incident recovery are shared using approved methods and messaging",
+  "DE.AE-02": "Potentially adverse events are analyzed to better understand associated activities",
+  "ID.IM-01": "Improvements are identified from evaluations",
+  "ID.RA-01": "Vulnerabilities in assets are identified, validated, and recorded",
+  "PR.PS-01": "Configuration management practices are established and applied",
+  "RS.AN-03": "Analysis is performed to establish what has taken place during an incident and the root cause of the incident",
+  "RS.CO-02": "Internal and external stakeholders are notified of incidents",
+  "RS.MI-01": "Incidents are contained"
+ },
+ "@graph": [
+  {
+   "@id": "compliance/category/vm-scanner",
+   "@type": "service-category",
+   "name": "Vulnerability Assessment / VM",
+   "name-ja": "脆弱性診断・管理",
+   "description": "Authenticated/unauthenticated vulnerability scanning and risk-based VM platforms.",
+   "addresses": [
+    "known-CVE exploitation on unpatched software",
+    "insecure default configurations",
+    "expired/weak certificates",
+    "unsupported EOL software"
+   ],
+   "csf-subcategories": [
+    "ID.RA-01",
+    "ID.RA-02",
+    "ID.RA-07",
+    "DE.CM-02",
+    "PR.PS-01",
+    "ID.AM-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/attack-surface",
+   "@type": "service-category",
+   "name": "Attack Surface Management / EASM",
+   "name-ja": "攻撃対象領域管理",
+   "description": "External asset discovery, digital footprint monitoring, dark-web exposure.",
+   "addresses": [
+    "unknown internet-facing assets",
+    "shadow IT exposure",
+    "leaked credentials on dark web",
+    "orphaned domains and services"
+   ],
+   "csf-subcategories": [
+    "ID.AM-01",
+    "ID.AM-02",
+    "ID.AM-05",
+    "ID.RA-01",
+    "DE.CM-02",
+    "DE.CM-06",
+    "DE.AE-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/patch-mgmt",
+   "@type": "service-category",
+   "name": "Patch Management",
+   "name-ja": "パッチ管理",
+   "description": "OS/third-party patch automation, reboot orchestration, patch intelligence.",
+   "addresses": [
+    "known-vulnerable versions in production",
+    "delayed remediation windows",
+    "third-party application drift"
+   ],
+   "csf-subcategories": [
+    "PR.PS-01",
+    "PR.PS-02",
+    "ID.RA-07",
+    "ID.IM-03",
+    "DE.CM-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/ptesp",
+   "@type": "service-category",
+   "name": "Penetration Testing / PTaaS",
+   "name-ja": "ペネトレーションテスト",
+   "description": "Human + tooling pentest services and continuous PTaaS platforms.",
+   "addresses": [
+    "exploitable paths unknown to defenders",
+    "authentication bypass",
+    "injection vulnerabilities",
+    "privilege escalation chains"
+   ],
+   "csf-subcategories": [
+    "ID.RA-01",
+    "ID.RA-04",
+    "ID.IM-02",
+    "ID.IM-03",
+    "PR.AA-01"
+   ]
+  },
+  {
+   "@id": "compliance/category/bug-bounty",
+   "@type": "service-category",
+   "name": "Bug Bounty / Crowdsourced Testing",
+   "name-ja": "バグバウンティ",
+   "description": "Crowdsourced vulnerability discovery marketplaces and managed programs.",
+   "addresses": [
+    "zero-day web application flaws",
+    "logic vulnerabilities invisible to scanners",
+    "design weaknesses"
+   ],
+   "csf-subcategories": [
+    "ID.RA-04",
+    "ID.RA-05",
+    "ID.IM-02",
+    "GV.RM-04",
+    "ID.RA-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/edr-xdr",
+   "@type": "service-category",
+   "name": "EDR / XDR",
+   "name-ja": "EDR・XDR",
+   "description": "Endpoint detection & response, extended detection & response platforms.",
+   "addresses": [
+    "malware execution",
+    "ransomware detonation",
+    "fileless attacks",
+    "living-off-the-land abuse of admin tools",
+    "C2 beaconing"
+   ],
+   "csf-subcategories": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-04",
+    "DE.AE-07",
+    "DE.AE-08",
+    "RS.MI-01",
+    "RS.MI-02",
+    "RS.AN-03",
+    "PR.PS-04"
+   ]
+  },
+  {
+   "@id": "compliance/category/ndr",
+   "@type": "service-category",
+   "name": "NDR / Network Detection",
+   "name-ja": "ネットワーク検知",
+   "description": "Network detection & response, traffic analysis, Zeek-based platforms.",
+   "addresses": [
+    "lateral movement",
+    "C2 traffic over encrypted channels",
+    "data exfiltration at the network layer",
+    "unmanaged devices on the network"
+   ],
+   "csf-subcategories": [
+    "DE.CM-01",
+    "DE.CM-02",
+    "DE.CM-06",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-06",
+    "RS.AN-06"
+   ]
+  },
+  {
+   "@id": "compliance/category/siem",
+   "@type": "service-category",
+   "name": "SIEM / Log Analytics",
+   "name-ja": "SIEM・ログ分析",
+   "description": "Security information & event management, log ingestion and correlation.",
+   "addresses": [
+    "detection gaps across log sources",
+    "uncoordinated alert triage",
+    "compliance-driven audit evidence needs"
+   ],
+   "csf-subcategories": [
+    "DE.AE-02",
+    "DE.AE-03",
+    "DE.AE-04",
+    "DE.AE-06",
+    "DE.AE-07",
+    "DE.AE-08",
+    "RS.AN-06",
+    "RS.AN-07",
+    "RS.AN-08",
+    "ID.AM-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/soar",
+   "@type": "service-category",
+   "name": "SOAR / Orchestration",
+   "name-ja": "SOAR・自動化",
+   "description": "Security orchestration, automation and response playbooks.",
+   "addresses": [
+    "manual response latency",
+    "inconsistent incident handling",
+    "alert fatigue and missed escalations"
+   ],
+   "csf-subcategories": [
+    "RS.MA-01",
+    "RS.MA-02",
+    "RS.MA-03",
+    "RS.MA-04",
+    "RS.MA-05",
+    "RS.CO-02",
+    "RS.CO-03",
+    "RS.MI-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/ti",
+   "@type": "service-category",
+   "name": "Threat Intelligence",
+   "name-ja": "脅威インテリジェンス",
+   "description": "Commercial CTI feeds, IOC platforms, CTI TIPs.",
+   "addresses": [
+    "emerging attacker TTPs unknown to local detection",
+    "targeted campaign attribution",
+    "IOC matching against local telemetry"
+   ],
+   "csf-subcategories": [
+    "ID.RA-02",
+    "ID.RA-03",
+    "ID.RA-04",
+    "ID.IM-02",
+    "DE.AE-06",
+    "DE.CM-09",
+    "GV.OV-01"
+   ]
+  },
+  {
+   "@id": "compliance/category/sbom",
+   "@type": "service-category",
+   "name": "SBOM / VEX",
+   "name-ja": "SBOM・VEX",
+   "description": "SBOM generation, ingestion, VEX authoring, EU-CRA pipeline tooling.",
+   "addresses": [
+    "undisclosed third-party components",
+    "transitive dependency risk",
+    "license noncompliance",
+    "EU-CRA vulnerability-handling obligations"
+   ],
+   "csf-subcategories": [
+    "ID.AM-07",
+    "ID.RA-01",
+    "ID.RA-03",
+    "GV.SC-04",
+    "GV.SC-07",
+    "GV.SC-10",
+    "ID.IM-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/sast-dast",
+   "@type": "service-category",
+   "name": "AppSec (SAST/DAST/SCA)",
+   "name-ja": "アプリケーションセキュリティ",
+   "description": "Static/dynamic analysis, software composition analysis, code-level VM.",
+   "addresses": [
+    "injection flaws (SQL/command/XSS)",
+    "hardcoded secrets in code",
+    "vulnerable open-source dependencies",
+    "broken access control"
+   ],
+   "csf-subcategories": [
+    "ID.RA-01",
+    "ID.RA-08",
+    "PR.PS-01",
+    "PR.PS-06",
+    "GV.SC-04",
+    "ID.IM-02",
+    "ID.IM-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/iast-fuzz",
+   "@type": "service-category",
+   "name": "IAST / Fuzzing",
+   "name-ja": "IAST・ファジング",
+   "description": "Instrumented application testing, API fuzzing, coverage-guided fuzzers.",
+   "addresses": [
+    "input-validation flaws missed by static tools",
+    "API parsing edge cases",
+    "parser confusion and deserialization bugs"
+   ],
+   "csf-subcategories": [
+    "ID.RA-04",
+    "ID.RA-08",
+    "PR.PS-01",
+    "ID.IM-02",
+    "ID.IM-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/container",
+   "@type": "service-category",
+   "name": "Container / Kubernetes Security",
+   "name-ja": "コンテナ・K8sセキュリティ",
+   "description": "Image scanning, K8s admission control, runtime protection for clusters.",
+   "addresses": [
+    "vulnerable container images",
+    "over-privileged pods",
+    "container escape",
+    "unsafe K8s admission defaults"
+   ],
+   "csf-subcategories": [
+    "PR.PS-01",
+    "PR.PS-02",
+    "PR.IR-03",
+    "PR.AA-05",
+    "DE.CM-01",
+    "ID.RA-01",
+    "ID.RA-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/cspm",
+   "@type": "service-category",
+   "name": "CSPM / CNAPP",
+   "name-ja": "クラウド態勢管理",
+   "description": "Cloud posture management, CWPP, misconfiguration and entitlement risk.",
+   "addresses": [
+    "cloud misconfigurations (public buckets, open security groups)",
+    "over-privileged cloud identities",
+    "compliance drift against cloud benchmarks",
+    "exposed storage"
+   ],
+   "csf-subcategories": [
+    "ID.AM-03",
+    "ID.AM-05",
+    "ID.RA-01",
+    "PR.PS-01",
+    "PR.IR-03",
+    "PR.AA-05",
+    "DE.CM-02",
+    "GV.OV-01",
+    "GV.OV-02",
+    "GV.OV-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/api-sec",
+   "@type": "service-category",
+   "name": "API Security",
+   "name-ja": "APIセキュリティ",
+   "description": "API discovery, testing, runtime protection, schema governance.",
+   "addresses": [
+    "BOLA/IDOR on API objects",
+    "undocumented shadow APIs",
+    "excessive data exposure in responses",
+    "broken API authentication"
+   ],
+   "csf-subcategories": [
+    "ID.AM-02",
+    "PR.AA-01",
+    "PR.AA-03",
+    "PR.PS-01",
+    "PR.DS-02",
+    "DE.CM-01",
+    "DE.CM-06",
+    "DE.CM-09"
+   ]
+  },
+  {
+   "@id": "compliance/category/waf",
+   "@type": "service-category",
+   "name": "WAF / DDoS",
+   "name-ja": "WAF・DDoS防御",
+   "description": "Web application firewalls, bot management, DDoS mitigation.",
+   "addresses": [
+    "OWASP Top 10 web attacks",
+    "SQL injection and XSS at the edge",
+    "application-layer DDoS",
+    "credential stuffing waves"
+   ],
+   "csf-subcategories": [
+    "PR.IR-01",
+    "PR.DS-02",
+    "DE.CM-01",
+    "DE.CM-09",
+    "DE.AE-03",
+    "RS.MI-01"
+   ]
+  },
+  {
+   "@id": "compliance/category/bot",
+   "@type": "service-category",
+   "name": "Bot Management / Anti-Fraud",
+   "name-ja": "ボット・不正対策",
+   "description": "Bot detection, account takeover prevention, payment fraud scoring.",
+   "addresses": [
+    "credential stuffing",
+    "scalping and inventory abuse",
+    "account takeover",
+    "payment fraud",
+    "ad/content scraping"
+   ],
+   "csf-subcategories": [
+    "PR.AA-01",
+    "PR.AA-02",
+    "PR.AA-03",
+    "PR.DS-10",
+    "PR.DS-11",
+    "DE.CM-06",
+    "DE.AE-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/email-sec",
+   "@type": "service-category",
+   "name": "Email Security",
+   "name-ja": "メールセキュリティ",
+   "description": "Phishing defense, DMARC/SPF/DKIM tooling, secure email gateways.",
+   "addresses": [
+    "phishing and BEC",
+    "malicious attachments",
+    "domain spoofing (SPF/DKIM/DMARC gaps)",
+    "account compromise via email lures"
+   ],
+   "csf-subcategories": [
+    "PR.AT-01",
+    "PR.AT-02",
+    "PR.DS-02",
+    "PR.PS-03",
+    "DE.CM-03",
+    "DE.AE-03",
+    "PR.AA-01"
+   ]
+  },
+  {
+   "@id": "compliance/category/dlp",
+   "@type": "service-category",
+   "name": "DLP / Data Security",
+   "name-ja": "情報漏洩対策",
+   "description": "Data loss prevention, data classification, DSPM, database activity monitoring.",
+   "addresses": [
+    "sensitive-data exfiltration via email/cloud/USB",
+    "accidental disclosure by employees",
+    "shadow copies of regulated data"
+   ],
+   "csf-subcategories": [
+    "PR.DS-01",
+    "PR.DS-02",
+    "PR.DS-10",
+    "PR.DS-11",
+    "PR.PS-04",
+    "DE.CM-06",
+    "DE.CM-09",
+    "GV.OC-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/dspm",
+   "@type": "service-category",
+   "name": "DSPM / Data Discovery",
+   "name-ja": "データセキュリティ態勢管理",
+   "description": "Cloud data discovery, sensitive-data posture, access graph.",
+   "addresses": [
+    "unclassified sensitive data in cloud stores",
+    "publicly exposed S3/queues",
+    "stale data copies without owners",
+    "excessive data-sharing links"
+   ],
+   "csf-subcategories": [
+    "ID.AM-03",
+    "ID.AM-05",
+    "PR.DS-01",
+    "PR.DS-02",
+    "PR.AA-05",
+    "ID.RA-01",
+    "GV.OV-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/encryption",
+   "@type": "service-category",
+   "name": "Encryption / KMS",
+   "name-ja": "暗号化・鍵管理",
+   "description": "Key management, HSM, database/app-layer encryption, tokenization.",
+   "addresses": [
+    "plaintext data at rest",
+    "unencrypted backups",
+    "weak/legacy cipher use",
+    "key material exposure"
+   ],
+   "csf-subcategories": [
+    "PR.DS-01",
+    "PR.DS-02",
+    "PR.DS-10",
+    "PR.DS-11",
+    "PR.IR-03",
+    "ID.AM-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/secrets",
+   "@type": "service-category",
+   "name": "Secrets Management",
+   "name-ja": "シークレット管理",
+   "description": "Vaulting of credentials, certificates, keys; dynamic secrets.",
+   "addresses": [
+    "hardcoded credentials in repos",
+    "long-lived API keys",
+    "secret sprawl across CI/CD",
+    "certificate/token expiry outages"
+   ],
+   "csf-subcategories": [
+    "PR.AA-01",
+    "PR.AA-02",
+    "PR.AA-03",
+    "PR.AA-05",
+    "PR.DS-01",
+    "PR.DS-10",
+    "ID.AM-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/pki",
+   "@type": "service-category",
+   "name": "PKI / Certificate Management",
+   "name-ja": "PKI・証明書管理",
+   "description": "Certificate lifecycle, code signing, CLM, mTLS tooling.",
+   "addresses": [
+    "expired certificates causing outages",
+    "weak private-key custody",
+    "code-signing key compromise",
+    "unmanaged TLS lifecycles"
+   ],
+   "csf-subcategories": [
+    "PR.DS-10",
+    "PR.DS-11",
+    "PR.AA-01",
+    "PR.AA-05",
+    "ID.AM-07",
+    "ID.AM-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/iam",
+   "@type": "service-category",
+   "name": "IAM / SSO / MFA",
+   "name-ja": "ID・アクセス管理",
+   "description": "Identity providers, SSO, MFA, workforce identity.",
+   "addresses": [
+    "password reuse and weak credentials",
+    "phishing-resistant-MFA gaps",
+    "orphaned accounts",
+    "excessive standing privileges"
+   ],
+   "csf-subcategories": [
+    "PR.AA-01",
+    "PR.AA-02",
+    "PR.AA-03",
+    "PR.AA-04",
+    "PR.AA-05",
+    "PR.AA-06",
+    "PR.AT-01",
+    "ID.AM-05"
+   ]
+  },
+  {
+   "@id": "compliance/category/igam",
+   "@type": "service-category",
+   "name": "Identity Governance (IGA)",
+   "name-ja": "IDガバナンス",
+   "description": "Provisioning, access reviews, recertification workflows.",
+   "addresses": [
+    "access rights drift over tenure",
+    "unreviewed third-party access",
+    "Segregation-of-Duties conflicts",
+    "evidence gaps for audit recertification"
+   ],
+   "csf-subcategories": [
+    "PR.AA-01",
+    "PR.AA-03",
+    "PR.AA-05",
+    "GV.RR-01",
+    "GV.RR-02",
+    "GV.RR-03",
+    "GV.RR-04",
+    "GV.OV-03",
+    "ID.AM-05"
+   ]
+  },
+  {
+   "@id": "compliance/category/pam",
+   "@type": "service-category",
+   "name": "PAM / Privileged Access",
+   "name-ja": "特権アクセス管理",
+   "description": "Privileged session management, vaulting, just-in-time access.",
+   "addresses": [
+    "shared admin credentials",
+    "unmonitored privileged sessions",
+    "vault-less service accounts",
+    "abuse of domain admin rights"
+   ],
+   "csf-subcategories": [
+    "PR.AA-01",
+    "PR.AA-03",
+    "PR.AA-04",
+    "PR.AA-05",
+    "PR.PS-02",
+    "DE.CM-03",
+    "DE.CM-09",
+    "PR.DS-10"
+   ]
+  },
+  {
+   "@id": "compliance/category/itdr",
+   "@type": "service-category",
+   "name": "ITDR / Identity Threat Detection",
+   "name-ja": "ID脅威検知",
+   "description": "Identity threat detection & response, AD security, attack-path analysis.",
+   "addresses": [
+    "AD/Kerberos attacks (kerberoasting, dcsync)",
+    "dormant-but-privileged accounts",
+    "impossible-travel and token theft",
+    "identity-driven ransomware entry"
+   ],
+   "csf-subcategories": [
+    "DE.CM-01",
+    "DE.CM-03",
+    "DE.CM-09",
+    "DE.AE-03",
+    "DE.AE-04",
+    "DE.AE-08",
+    "PR.AA-01",
+    "RS.MI-01",
+    "ID.IM-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/ztna",
+   "@type": "service-category",
+   "name": "Zero Trust / SASE",
+   "name-ja": "ゼロトラスト・SASE",
+   "description": "ZTNA network access, SWG, CASB, SASE bundles.",
+   "addresses": [
+    "flat-network lateral movement",
+    "VPN-wide exposure",
+    "unmanaged-device access to internal apps",
+    "casual shadow SaaS use"
+   ],
+   "csf-subcategories": [
+    "PR.IR-01",
+    "PR.IR-02",
+    "PR.IR-03",
+    "PR.IR-04",
+    "PR.AA-05",
+    "PR.AA-06",
+    "DE.CM-01",
+    "DE.CM-06",
+    "PR.DS-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/nac",
+   "@type": "service-category",
+   "name": "NAC / Network Security",
+   "name-ja": "ネットワークアクセス制御",
+   "description": "Network access control, microsegmentation, firewall management.",
+   "addresses": [
+    "rogue device onboarding",
+    "unsegmented flat networks",
+    "unmanaged switch/IoT access",
+    "excessive east-west reachability"
+   ],
+   "csf-subcategories": [
+    "PR.IR-01",
+    "PR.IR-03",
+    "PR.AA-05",
+    "DE.CM-01",
+    "DE.CM-02",
+    "ID.AM-02",
+    "ID.AM-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/dns-sec",
+   "@type": "service-category",
+   "name": "DNS / RMM Security",
+   "name-ja": "DNS・リモート監視",
+   "description": "Protective DNS, DNS filtering, remote monitoring & management security.",
+   "addresses": [
+    "C2 via DNS tunneling",
+    "typosquatting and malicious domains",
+    "data exfiltration through DNS",
+    "malware redirect chains"
+   ],
+   "csf-subcategories": [
+    "PR.IR-01",
+    "PR.IR-04",
+    "DE.CM-06",
+    "DE.CM-09",
+    "DE.AE-03",
+    "ID.IM-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/mdm",
+   "@type": "service-category",
+   "name": "UEM / MDM",
+   "name-ja": "端末管理",
+   "description": "Unified endpoint management, mobile device management, BYOD compliance.",
+   "addresses": [
+    "unmanaged/BYOD device access",
+    "missing device encryption and screen locks",
+    "lost-device data exposure",
+    "stale OS on fleet devices"
+   ],
+   "csf-subcategories": [
+    "ID.AM-03",
+    "PR.PS-01",
+    "PR.PS-02",
+    "PR.PS-04",
+    "PR.DS-01",
+    "PR.AA-05",
+    "PR.AA-06",
+    "DE.CM-01"
+   ]
+  },
+  {
+   "@id": "compliance/category/mobile-sec",
+   "@type": "service-category",
+   "name": "Mobile App Security",
+   "name-ja": "モバイルアプリセキュリティ",
+   "description": "Mobile app testing, RASP, app shielding, MTP.",
+   "addresses": [
+    "insecure mobile data storage",
+    "weak TLS pinning",
+    "reverse-engineering and repackaging",
+    "mobile phishing"
+   ],
+   "csf-subcategories": [
+    "PR.PS-01",
+    "PR.PS-06",
+    "PR.DS-01",
+    "PR.DS-02",
+    "ID.RA-08",
+    "ID.IM-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/ot-ics",
+   "@type": "service-category",
+   "name": "OT / ICS Security",
+   "name-ja": "OT・制御系セキュリティ",
+   "description": "OT network monitoring, ICS protocol inspection, unidirectional gateways.",
+   "addresses": [
+    "ICS protocol abuse (Modbus/S7 misuse)",
+    "OT network reconnaissance",
+    "safety-impacting process manipulation",
+    "IT/OT boundary crossing"
+   ],
+   "csf-subcategories": [
+    "ID.AM-01",
+    "ID.AM-02",
+    "ID.AM-03",
+    "PR.IR-01",
+    "PR.IR-03",
+    "DE.CM-01",
+    "DE.CM-02",
+    "DE.CM-03",
+    "GV.OC-02",
+    "GV.OC-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/iot-sec",
+   "@type": "service-category",
+   "name": "IoT / Embedded Security",
+   "name-ja": "IoT・組込みセキュリティ",
+   "description": "Firmware analysis, SBOM for devices, device identity, secure OTA.",
+   "addresses": [
+    "default device credentials",
+    "unpatchable embedded firmware",
+    "device identity spoofing",
+    "insecure OTA updates"
+   ],
+   "csf-subcategories": [
+    "ID.AM-01",
+    "ID.AM-03",
+    "PR.PS-01",
+    "PR.PS-02",
+    "PR.PS-06",
+    "PR.AA-01",
+    "PR.DS-10",
+    "ID.AM-07"
+   ]
+  },
+  {
+   "@id": "compliance/category/cloud-mail-workspace",
+   "@type": "service-category",
+   "name": "SaaS / Workspace Security",
+   "name-ja": "SaaS・ワークスペース防御",
+   "description": "SaaS posture management, M365/Workspace hardening, SSPM.",
+   "addresses": [
+    "M365/Workspace tenant misconfigurations",
+    "risky OAuth app grants",
+    "excessive external sharing",
+    "mailbox rule abuse for persistence"
+   ],
+   "csf-subcategories": [
+    "ID.AM-03",
+    "ID.AM-05",
+    "PR.AA-01",
+    "PR.AA-05",
+    "PR.PS-01",
+    "DE.CM-06",
+    "DE.CM-09",
+    "DE.AE-04",
+    "GV.OV-01",
+    "GV.OV-02",
+    "GV.OV-03"
+   ]
+  },
+  {
+   "@id": "compliance/category/grc",
+   "@type": "service-category",
+   "name": "GRC / Compliance Automation",
+   "name-ja": "GRC・コンプライアンス自動化",
+   "description": "Control monitoring, evidence collection, multi-framework audit automation.",
+   "addresses": [
+    "multi-framework control duplication",
+    "stale evidence at audit time",
+    "unclosed findings without owners",
+    "unclear accountability for controls"
+   ],
+   "csf-subcategories": [
+    "GV.OC-01",
+    "GV.OC-02",
+    "GV.OC-03",
+    "GV.OC-04",
+    "GV.OC-05",
+    "GV.RM-01",
+    "GV.RM-02",
+    "GV.RM-03",
+    "GV.RM-04",
+    "GV.RM-05",
+    "GV.RM-06",
+    "GV.RM-07",
+    "GV.PO-01",
+    "GV.PO-02",
+    "GV.OV-01",
+    "GV.OV-02",
+    "GV.OV-03",
+    "ID.IM-01",
+    "ID.IM-04",
+    "GV.RR-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/risk-quant",
+   "@type": "service-category",
+   "name": "Risk Quantification / CTEM",
+   "name-ja": "リスク定量化",
+   "description": "Cyber risk quantification, continuous threat exposure management, BRE.",
+   "addresses": [
+    "unprioritized remediation spend",
+    "unmeasured third-party cyber risk",
+    "board-level risk reporting gaps",
+    "continuous exposure blind spots"
+   ],
+   "csf-subcategories": [
+    "GV.RM-01",
+    "GV.RM-02",
+    "GV.RM-03",
+    "GV.RM-04",
+    "GV.RM-05",
+    "GV.RM-06",
+    "GV.RM-07",
+    "GV.OV-01",
+    "GV.OV-02",
+    "GV.OV-03",
+    "ID.RA-03",
+    "ID.RA-04",
+    "ID.RA-05",
+    "ID.RA-06",
+    "ID.RA-09",
+    "ID.RA-10",
+    "GV.SC-06",
+    "GV.SC-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/awareness",
+   "@type": "service-category",
+   "name": "Security Awareness / Phishing Sim",
+   "name-ja": "セキュリティ教育",
+   "description": "Awareness training, phishing simulation, human-risk platforms.",
+   "addresses": [
+    "phishing susceptibility",
+    "unsafe data handling by staff",
+    "social-engineering entry points",
+    "unreported suspicious contact"
+   ],
+   "csf-subcategories": [
+    "PR.AT-01",
+    "PR.AT-02",
+    "ID.IM-02",
+    "ID.IM-03",
+    "GV.RR-04",
+    "DE.AE-08"
+   ]
+  },
+  {
+   "@id": "compliance/category/backup-recovery",
+   "@type": "service-category",
+   "name": "Backup / Cyber Resilience",
+   "name-ja": "バックアップ・レジリエンス",
+   "description": "Immutable backup, ransomware recovery, DR orchestration.",
+   "addresses": [
+    "ransomware encryption of primary data",
+    "backup omission of critical systems",
+    "untested recovery plans",
+    "immutable-copy gaps"
+   ],
+   "csf-subcategories": [
+    "RC.RP-01",
+    "RC.RP-02",
+    "RC.RP-03",
+    "RC.RP-04",
+    "RC.RP-05",
+    "RC.RP-06",
+    "RC.CO-03",
+    "RC.CO-04",
+    "PR.DS-11",
+    "ID.IM-03",
+    "ID.IM-04"
+   ]
+  },
+  {
+   "@id": "compliance/category/sandbox",
+   "@type": "service-category",
+   "name": "Sandbox / Malware Analysis",
+   "name-ja": "サンドボックス・マルウェア分析",
+   "description": "Detonation, reverse-engineering, file reputation services.",
+   "addresses": [
+    "zero-day malware detonation",
+    "weaponized document analysis",
+    "IOC extraction from samples",
+    "file reputation triage"
+   ],
+   "csf-subcategories": [
+    "DE.AE-02",
+    "DE.AE-03",
+    "DE.AE-04",
+    "DE.AE-06",
+    "DE.AE-08",
+    "RS.AN-03",
+    "RS.AN-06",
+    "RS.AN-07",
+    "ID.IM-02"
+   ]
+  },
+  {
+   "@id": "compliance/category/vuln-intel",
+   "@type": "service-category",
+   "name": "Vulnerability Intelligence",
+   "name-ja": "脆弱性インテリジェンス",
+   "description": "CVE enrichment, exploit intel (EPSS/KEV-derived), prioritization feeds.",
+   "addresses": [
+    "CVE overload without prioritization",
+    "exploited-in-the-wild misses (KEV/EPSS-style signals)",
+    "vendor advisory latency",
+    "false-positive triage burden"
+   ],
+   "csf-subcategories": [
+    "ID.RA-01",
+    "ID.RA-02",
+    "ID.RA-03",
+    "ID.RA-04",
+    "ID.RA-07",
+    "ID.RA-08",
+    "ID.RA-09",
+    "ID.RA-10",
+    "DE.AE-06",
+    "GV.RM-05",
+    "GV.RM-06"
+   ]
+  },
+  {
+   "@id": "compliance/category/password-mgr",
+   "@type": "service-category",
+   "name": "Password Managers",
+   "name-ja": "パスワードマネージャ",
+   "description": "Personal/team password vaults, secrets sharing for humans.",
+   "addresses": [
+    "password reuse across services",
+    "weak/password-manager-less credentials",
+    "shared team credential exposure",
+    "breached-password reuse"
+   ],
+   "csf-subcategories": [
+    "PR.AA-01",
+    "PR.AA-02",
+    "PR.AA-03",
+    "PR.DS-01",
+    "PR.DS-10",
+    "PR.AT-01"
+   ]
+  },
+  {
+   "@id": "compliance/category/ddil-forensics",
+   "@type": "service-category",
+   "name": "DFIR / Digital Forensics",
+   "name-ja": "フォレンジック・インシデント対応",
+   "description": "Forensic imaging, memory analysis, IR retainer platforms.",
+   "addresses": [
+    "post-incident evidence loss",
+    "root-cause unknown after breach",
+    "timeline reconstruction across endpoints",
+    "legal/regulatory evidence handling"
+   ],
+   "csf-subcategories": [
+    "RS.MA-01",
+    "RS.MA-02",
+    "RS.MA-04",
+    "RS.MA-05",
+    "RS.AN-03",
+    "RS.AN-06",
+    "RS.AN-07",
+    "RS.AN-08",
+    "RS.CO-02",
+    "RS.CO-03",
+    "RS.MI-01",
+    "RS.MI-02",
+    "RC.RP-04",
+    "ID.IM-01"
+   ]
+  }
+ ]
+}
