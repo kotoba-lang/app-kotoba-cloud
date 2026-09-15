@@ -1,5 +1,5 @@
 {:paths ["src" "build/shadow-src"]
- :deps {io.github.kotoba-lang/cloud-kotoba-dds {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git" :git/sha "6eb8c827b5dd5561d1eef28b3c8648aef272b3e8"}
+ :deps {io.github.kotoba-lang/cloud-kotoba-dds {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git" :git/sha "255b93f63a1651827a5844daa19393937a3a2c16"}
 
         ;; kotoba.lang.text, not clojure.string. Pinned as an explicit floor:
         ;; tools.deps takes the NEWEST sha it is shown, so without a floor here
