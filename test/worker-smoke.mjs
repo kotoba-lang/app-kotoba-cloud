@@ -792,6 +792,20 @@ assert.equal(eligibleStatusBody.trust.score, 60);
 assert.deepEqual(eligibleStatusBody.trust.routes, ['web-reviewed']);
 assert.equal(eligibleStatusBody.trust.evidenceRef, undefined);
 assert.match(eligibleStatus.headers.get("cache-control"), /no-store/);
+// The authority stamps projections on another machine: a stamp a few
+// seconds in the edge's future is still current (one live 403
+// trust-route-required between two eligible reads, 2026-09-15); a stamp
+// beyond the tolerance is not.
+for (const [skewMs, expect] of [[2000, "eligible"], [10000, "pending"]]) {
+  const saved = structuredClone(researchRecord);
+  researchRecord.trust.evaluatedAt = Date.now() + skewMs;
+  researchRecord.trust.expiresAt = researchRecord.trust.evaluatedAt + 60000;
+  researchRecord.continuous.evaluatedAt = Date.now() + skewMs;
+  researchRecord.continuous.expiresAt = researchRecord.continuous.evaluatedAt + 15000;
+  const skewed = await (await route(researchRequest("/v1/research/status"), researchEnv)).json();
+  assert.equal(skewed.status, expect, "skew " + skewMs + ": " + JSON.stringify({ status: skewed.status, reason: skewed.reason }));
+  researchRecord = saved;
+}
 for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 40000 }]) {
   assert.equal((await route(researchRequest("/v1/chat/completions", { ...researchBody, ...extra }), researchEnv)).status, 400);
 }
