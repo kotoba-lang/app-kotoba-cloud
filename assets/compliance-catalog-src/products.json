@@ -2682,6 +2682,16 @@
       "pricingNote": "quote-based; per-workload/endpoint subscription via quote"
     },
     {
+      "id": "trend-threat-intelligence",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "Trend Micro Threat Intelligence (TrendAI Vision One)",
+      "categoryId": "ti",
+      "pricingMode": "quote-based",
+      "pricingUrl": "https://www.trendaisecurity.com/ja/platform/threat-intelligence",
+      "pricingNote": "quote-based; no public list pricing — sales contact via the product page. https://www.trendmicro.com/ja_jp/business/products/threat-intelligence.html 301-redirects to this TrendAI (JP) product page (verified 200, 2026-09-15)."
+    },
+    {
       "id": "checkpoint-harmony-endpoint",
       "provider": "Check Point",
       "providerHq": "IL",
