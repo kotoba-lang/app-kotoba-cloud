@@ -31,7 +31,7 @@
    ".kc-billing__price{font-family:var(--hig-font-mono);font-size:var(--hig-text-title1-font-size);font-weight:700}"
    ".kc-billing__price small{font-size:var(--hig-text-caption1-font-size);font-weight:400;color:var(--hig-color-secondary-label)}"
    ".kc-billing__bonus{color:var(--hig-palette-green);font-weight:700}"
-   ".kc-billing__plan ul{margin:0;padding-inline-start:1.1em;color:var(--hig-color-secondary-label);font-size:var(--hig-text-footnote1-font-size)}"
+   ".kc-billing__plan ul{margin:0;padding-inline-start:1.1em;color:var(--hig-color-secondary-label);font-size:var(--hig-text-footnote-font-size)}"
    ".kc-billing__plan .dads-button{margin-top:auto;justify-self:start}"
    ".kc-billing details{margin-top:var(--hig-spacing-2)}"
    ".kc-billing summary{cursor:pointer;font-weight:700;color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}"

@@ -122,6 +122,13 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(!/@hanako/.test(s.foot)||!/個人/.test(s.foot))throw Error('account chip '+s.foot);
   if(s.section!=='アカウント')throw Error('section '+s.section);
   if(!s.brand.loaded||s.brand.left>32||s.brand.top>40||s.brand.h<20||s.brand.h>40)throw Error('brand mark not top-left / not loaded '+JSON.stringify(s.brand));
+  await page.click('.kc-account-chip'); await page.waitForTimeout(200);
+  const nav=await page.evaluate(()=>{const nav=document.querySelector('.kc-sb');const rects=[...nav.children].map(e=>e.getBoundingClientRect());let overlaps=0;for(let i=1;i<rects.length;i++){if(rects[i].top<rects[i-1].bottom-1)overlaps++;}
+    const item=nav.querySelectorAll(':scope > a')[3].getBoundingClientRect();const chip=document.querySelector('.kc-account-chip').getBoundingClientRect();
+    return {overlaps,itemH:Math.round(item.height),chipH:Math.round(chip.height),open:document.querySelector('#kc-session-nav-side details').open,menuItems:document.querySelectorAll('#kc-session-nav-side .kc-session-menu__item').length}});
+  if(nav.overlaps)throw Error('sidebar children overlap ('+nav.overlaps+') — a shrunken foot paints its chip over the items');
+  if(nav.itemH>36||nav.chipH>44)throw Error('sidebar menu not compact '+JSON.stringify(nav));
+  if(!nav.open||nav.menuItems!==3)throw Error('account menu '+JSON.stringify(nav));
   await page.close();
  }
  console.log('block secure');
