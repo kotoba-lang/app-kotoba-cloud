@@ -523,6 +523,16 @@ assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
 assert(idFromHeader.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 
+// Every document links /css/site.css (abc2c4f). A CSP whose style-src lacks
+// 'self' blocks that sheet silently and the page ships unstyled — measured
+// live 2026-09-15: the sidebar rendered position:static under the content on
+// every band while the audit over the HTML + CSS bytes said 100. The header
+// is the document's behaviour too; pin it on the app, account and admin docs.
+for (const [name, res] of [["apex", headerBeatsCountry], ["account", sharedUntouched]]) {
+  const csp = res.headers.get("content-security-policy") || "";
+  assert.match(csp, /style-src [^;]*'self'/, name + " CSP must allow the same-origin stylesheet: " + csp);
+}
+
 const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/session"), env);
 assert.equal(sessionUntouched.status, 200);
 assert.equal(sessionUntouched.headers.get("location"), null);
