@@ -217,11 +217,19 @@
      [:span {:class "ck-console__label"} "curl"]
      [:span {:class "ck-console__value" :id "account-pat-curl"} "—"]
      (dds/button "コピー" {:id "account-pat-copy-curl" :type :outline :size "sm"})]]
+   ;; issued tokens: one row per token (label · issued · id), each with its own
+   ;; 取り消し; filled by account-browser from /v1/account/api-tokens. Legacy
+   ;; tokens (issued before the registry) have no row; one action revokes them all.
+   [:div {:id "account-pat-list"}
+    (row "発行済みトークン" "account-pat-list-state")]
+   (dds/row
+    (dds/button "登録前に発行したトークンをすべて失効" {:id "account-pat-revoke-legacy" :type :outline :size "sm"}))
+   (console/note "" {:id "account-pat-list-note" :role "status"})
    (details "エージェントからの利用"
             [:span "Claude Code など MCP 対応エージェントは "
              [:a {:href "/mcp.json"} "/mcp.json"] " を参照してください。完全なガイドは "
              [:a {:href "/llms.txt"} "/llms.txt"] " と " [:a {:href "/ekyc.md"} "/ekyc.md"]
-             " にあります。取り消しは署名鍵の交換（サポート連絡）で行われます: support@kotoba.cloud"])
+             " にあります。トークンは上の一覧から 1 本ずつ取り消せます。取り消した瞬間から API は 401 token-revoked を返します。"])
    {:id "account-panel-cli"}))
 
 (def sign-in-href
