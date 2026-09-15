@@ -69,7 +69,7 @@
       "missing" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "未確認" "Not verified"))
                     (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) false))
-                    (say! "account-ekyc-note" (t "開始すると Stripe の確認画面（verify.stripe.com）へ移動します。" "Starting moves you to the Stripe check at verify.stripe.com.")))
+                    (say! "account-ekyc-note" (t "開始すると Stripe の確認画面へ移動します（カード未登録なら checkout.stripe.com でカード登録、書類確認は verify.stripe.com）。" "Starting moves you to the Stripe check (card setup at checkout.stripe.com when no card is on file, documents at verify.stripe.com).")))
       (do (state! "account-ekyc-state" :error)
           (say! "account-ekyc-state" (t "確認不可" "Unavailable"))
           (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true))
@@ -164,7 +164,8 @@
                    (set! (.-location js/window) (:verificationUrl r))
                    (do (say! "account-ekyc-note"
                              (case (get-in r [:error :code])
-                               "stripe-identity-not-configured" (t "本人確認サービスは一時的に利用できません。時間をおいて再試行してください。" "Verification is temporarily unavailable. Try again later.")
+                               "card-verification-not-configured" (t "本人確認サービスは一時的に利用できません。時間をおいて再試行してください。" "Verification is temporarily unavailable. Try again later.")
+                               "prepaid-card-not-accepted" (t "プリペイドカード・バーチャルカードは本人確認に使えません。クレジットカードまたはデビットカードを登録してください。" "Prepaid and virtual cards cannot be used for verification. Add a regular credit or debit card.")
                                "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
                                (t "開始できませんでした。状態を更新してください。" "Could not start. Refresh and retry.")))
                        (set! (.-disabled b) false))))))

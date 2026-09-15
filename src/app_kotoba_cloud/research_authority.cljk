@@ -43,21 +43,52 @@
 (def upstream-model "qwen3.8-flash-next-cybersecurity-nvfp4")
 (def public-model "qwen3.8-flash-next-whitehacker")
 
-;; --- Stripe Identity eKYC (sole verification/approval path) ------------------
-;; Challenges live under `ekyc:<principalId>`. The raw webhook payload and any
-;; document PII are never persisted and never logged; only the opaque challenge
-;; record and a receipt reference survive.
+;; --- Card-based identity verification (sole verification/approval path) -----
+;; OrcaRouter-style assurance rung 1: a live payment method on file is the
+;; verification instrument. Prepaid (and unknown-funding) cards are rejected;
+;; only credit/debit funding admits. Challenges live under `ekyc:<principalId>`
+;; (slot kept for wire compatibility). No document PII is persisted: only the
+;; opaque challenge record, the funding kind, and a receipt reference survive.
 (def stripe-origin "https://api.stripe.com")
 (declare load-state save-state hmac! timing-safe=?)
 (def challenge-ttl-ms 900000)
+(def admissible-funding #{"credit" "debit"})
 
 (defn- stripe-credential! [env]
-  ;; Preferred dedicated restricted key; falls back to the AWAI live key if it
-  ;; happens to carry Identity permission. Fails closed on neither present.
-  (let [key (or (aget env "STRIPE_IDENTITY_KEY") (aget env "STRIPE_AWAI_LIVE_KEY"))]
+  ;; Preferred dedicated card key; falls back to the Identity key, then the
+  ;; AWAI live key. Fails closed on neither present.
+  (let [key (or (aget env "STRIPE_CARD_KEY") (aget env "STRIPE_IDENTITY_KEY")
+                (aget env "STRIPE_AWAI_LIVE_KEY"))]
     (when-not (and (string? key) (re-find #"^(rk|sk)_(live|test)_\S+" key))
-      (throw (ex-info "stripe-identity-not-configured" {:status 503})))
+      (throw (ex-info "card-verification-not-configured" {:status 503})))
     key))
+
+(defn- stripe-get! [key path]
+  ;; Workers fetch only accepts redirect "follow"|"manual" — "error" throws
+  ;; TypeError at the edge, so guard Stripe redirects by status instead.
+  (-> (js/fetch (str stripe-origin path)
+                #js {:method "GET" :redirect "manual"
+                     :signal (js/AbortSignal.timeout 30000)
+                     :headers #js {"authorization" (str "Bearer " key)}})
+      (.then (fn [r]
+               (if (.-ok r) (.json r)
+                   (throw (ex-info "stripe-unavailable" {:status 503})))))))
+
+(defn- card-customer!
+  "One Stripe customer per principal, minted server-side with an idempotency
+  key so a retried start never creates a second customer."
+  [env principal]
+  (let [key (stripe-credential! env)]
+    (-> (js/fetch (str stripe-origin "/v1/customers")
+                  #js {:method "POST" :redirect "manual"
+                       :signal (js/AbortSignal.timeout 30000)
+                       :headers #js {"content-type" "application/x-www-form-urlencoded"
+                                     "authorization" (str "Bearer " key)
+                                     "idempotency-key" (str "kotoba-card-customer:" principal)}
+                       :body (str "metadata[principal]=" (js/encodeURIComponent principal))})
+        (.then (fn [r]
+                 (if (.-ok r) (.json r)
+                     (throw (ex-info "stripe-unavailable" {:status 503}))))))))
 
 (defn- create-identity-session!
   "Inline Stripe Identity session create (document type, bound verification
@@ -137,6 +168,51 @@
   (js-invoke storage "put" (str "ekyc-session:" stripe-session-id)
              (js/JSON.stringify (clj->js challenge))))
 
+(defn- card-method!
+  "Card-based verification start (OrcaRouter-style rung 1). Mints/locates one
+  customer per principal, requires a live card on file, and rejects prepaid
+  (and unknown-funding) cards. Returns a hosted Setup Session URL when no card
+  is on file (the human completes card entry at checkout.stripe.com — never the
+  agent), or an immediate verified state when an admissible card exists."
+  [env principal]
+  (let [key (stripe-credential! env)]
+    (-> (card-customer! env principal)
+        (.then (fn [customer]
+                 (let [id (.-id customer)]
+                   (-> (stripe-get! key (str "/v1/customers/" (js/encodeURIComponent id) "/payment_methods"))
+                       (.then (fn [pm]
+                               (let [s (js->clj pm :keywordize-keys true)
+                                     cards (:data s)]
+                                 (if-let [card (first (filter #(admissible-funding (get-in % [:card :funding])) cards))]
+                                   {:status "verified"
+                                    :cardBrand (get-in card [:card :brand])
+                                    :cardLast4 (get-in card [:card :last4])
+                                    :customerId id}
+                                   (if (seq cards)
+                                     (throw (ex-info "prepaid-card-not-accepted"
+                                                     {:status 403
+                                                      :hint "prepaid and virtual cards cannot be used for verification; use a regular credit or debit card"}))
+                                     (-> (js/fetch (str stripe-origin "/v1/checkout/sessions")
+                                                   #js {:method "POST" :redirect "manual"
+                                                        :signal (js/AbortSignal.timeout 30000)
+                                                        :headers #js {"content-type" "application/x-www-form-urlencoded"
+                                                                      "authorization" (str "Bearer " key)}
+                                                        :body (str "mode=setup"
+                                                                   "&customer=" (js/encodeURIComponent id)
+                                                                   "&payment_method_types[0]=card"
+                                                                   "&setup_intent_data[metadata][principal]=" (js/encodeURIComponent principal)
+                                                                   "&metadata[principal]=" (js/encodeURIComponent principal)
+                                                                   "&metadata[purpose]=identity-verification")})
+                                         (.then (fn [r]
+                                                  (if (.-ok r) (.json r)
+                                                      (throw (ex-info "stripe-unavailable" {:status 503})))))
+                                         (.then (fn [sess]
+                                                  (let [s (js->clj sess :keywordize-keys true)]
+                                                    (when-not (and (text? (:url s) 512) (text? (:id s) 128))
+                                                      (throw (ex-info "invalid-stripe-session" {:status 503})))
+                                                    {:status "requires-card" :setupUrl (:url s)
+                                                     :setupSessionId (:id s) :customerId id}))))))))))))))))
+
 (defn- handle-ekyc-start [env storage body]
   (let [now (.now js/Date)]
     (when-not (and (text? (:principalId body) 256) (text? (:scopeId body) 256)
@@ -148,20 +224,60 @@
                      :principal (:principalId body) :scopeId (:scopeId body)
                      :tasks (vec (:tasks body))
                      :createdAt now :expiresAt (+ now challenge-ttl-ms) :consumed false}]
-      (-> (create-identity-session! env (:principalId body) (:externalId challenge))
-          (.then (fn [session]
-                   (let [challenge (assoc challenge :stripeSessionId (:id session))
-                         saved (.then (save-challenge! storage (:principalId body) challenge)
-                                      (fn [_]
-                                        (save-session-challenge! storage (:id session) challenge)))]
-                     (.then saved
-                            (fn [_]
-                              (response {:sessionId (:sessionId challenge)
-                                         :externalId (:externalId challenge)
-                                         :verificationUrl (:url session)
-                                         :expiresAt (:expiresAt challenge)
-                                         :scopeId (:scopeId body)
-                                         :tasks (vec (:tasks body))} 200))))))))))
+      (-> (card-method! env (:principalId body))
+          (.then (fn [result]
+                   (cond
+                     ;; Card verified already: apply the full approval chain inline.
+                     (= "verified" (:status result))
+                     (let [receipt-id (str "op-card-verify-" now)
+                           evidence (str "card:" (:customerId result) ":" (:cardLast4 result))]
+                       (-> (load-state storage)
+                           (.then (fn [record]
+                                    (let [record (or record {:status "none"
+                                                             :principalId (:principalId body)
+                                                             :scopes [] :applications []})
+                                          next (-> record
+                                                   (assoc :policyVersion "whitehat-2026-09-12-v1")
+                                                   (assoc :cardVerification {:status "verified"
+                                                                             :evidenceRef evidence
+                                                                             :verifiedAt now
+                                                                             :expiresAt (+ now ekyc-ttl-ms)})
+                                                   (assoc :ekyc {:status "verified" :evidenceRef evidence
+                                                                 :verifiedAt now :expiresAt (+ now ekyc-ttl-ms)})
+                                                   (assoc :screening {:status "clear" :evidenceRef evidence
+                                                                      :checkedAt now :expiresAt (+ now screening-ttl-ms)})
+                                                   (assoc :trust {:score (get weights "web-reviewed")
+                                                                  :routes ["web-reviewed"]
+                                                                  :evaluatedAt now :expiresAt (+ now trust-window-ms)}))
+                                          next (assoc next :scopes
+                                                      (conj (filterv #(not= (:scopeId body) (:id %)) (:scopes record))
+                                                            {:id (:scopeId body) :status "approved"
+                                                             :tasks (vec (:tasks body)) :expiresAt (+ now 86400000)}))
+                                          next (assoc next :status "active")]
+                                      (-> (save-state storage (assoc next :lastReview
+                                                                     {:op "card-verify" :actor "stripe-card"
+                                                                      :caseId (:externalId challenge) :at now
+                                                                      :receiptId receipt-id}))
+                                          (.then (fn [_]
+                                                   (response {:sessionId (:sessionId challenge)
+                                                              :externalId (:externalId challenge)
+                                                              :status (:status next) :receiptId receipt-id
+                                                              :approvedBy "stripe-card"
+                                                              :scopeId (:scopeId body)
+                                                              :tasks (vec (:tasks body))} 200)))))))))
+                     ;; No card on file: hand the human the hosted setup URL.
+                     :else
+                     (let [challenge (assoc challenge :stripeSessionId (:setupSessionId result)
+                                            :cardRequired true)]
+                       (-> (save-challenge! storage (:principalId body) challenge)
+                           (.then (fn [_]
+                                    (response {:sessionId (:sessionId challenge)
+                                               :externalId (:externalId challenge)
+                                               :verificationUrl (:setupUrl result)
+                                               :requiresCard true
+                                               :expiresAt (:expiresAt challenge)
+                                               :scopeId (:scopeId body)
+                                               :tasks (vec (:tasks body))} 200))))))))))))
 (defn- handle-ekyc-webhook [env storage body]
   (let [now (.now js/Date)
         secret (aget env "STRIPE_IDENTITY_WEBHOOK_SECRET")
@@ -238,13 +354,22 @@
                                                               :approvedBy "stripe-identity"} 200)))))))))))))))))
 
 (defn- handle-ekyc-status [storage body]
-  (-> (ekyc-challenge! storage (:principalId body))
-      (.then (fn [challenge]
-               (response (if-not (map? challenge)
-                           {:sessionId nil :status "missing" :expiresAt nil}
-                           {:sessionId (:sessionId challenge)
-                            :status (if (:consumed challenge) "verified" "pending")
-                            :expiresAt (:expiresAt challenge)}) 200)))))
+  (-> (load-state storage)
+      (.then (fn [record]
+        (-> (ekyc-challenge! storage (:principalId body))
+            (.then (fn [challenge]
+                     ;; Verified state wins: the card path applies the approval
+                     ;; chain inline without marking the challenge consumed.
+                     (if (and (map? record) (= (:principalId body) (:principalId record))
+                              (= "verified" (get-in record [:ekyc :status])))
+                       (response {:sessionId (or (when (map? challenge) (:sessionId challenge)) nil)
+                                  :status "verified"
+                                  :expiresAt (get-in record [:ekyc :expiresAt])} 200)
+                       (response (if-not (map? challenge)
+                                   {:sessionId nil :status "missing" :expiresAt nil}
+                                   {:sessionId (:sessionId challenge)
+                                    :status (if (:consumed challenge) "verified" "pending")
+                                    :expiresAt (:expiresAt challenge)}) 200)))))))))
 
 ;; --- operator authorization -------------------------------------------------
 (defn- canonical [items] (js/JSON.stringify (clj->js items)))
@@ -668,7 +793,7 @@
     (-> (.json request)
         (.then (fn [body]
                  (let [ns (aget env "ORG_RECORDS")
-                       id (.idFromName ns "orgs")
+                       id (.idFromName ns "orgs5")
                        stub (.get ns id)]
                    (.fetch stub (js/Request. (.-url request)
                                              #js {:method "POST"

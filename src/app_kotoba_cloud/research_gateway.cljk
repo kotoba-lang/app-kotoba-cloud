@@ -40,7 +40,7 @@
                (if (.-ok r)
                  (bounded-json r 131072)
                  ;; Surface the authority's own error body so operator-visible
-                 ;; codes (e.g. stripe-identity-not-configured) survive the hop.
+                 ;; codes (e.g. card-verification-not-configured) survive the hop.
                  (-> (.text r)
                      (.catch (fn [_] ""))
                      (.then (fn [detail]
