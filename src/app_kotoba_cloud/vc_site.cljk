@@ -37,5 +37,5 @@
       :links [[:a {:href "/vc-data/vc/index.json"} "IPLD インデックス"]
               [:a {:href "/vc-data/vc/ontology.jsonld"} "オントロジー (JSON-LD)"]
               [:a {:href "/vc-data/vc/relations.json"} "関係 (claims)"]]
-      :footnote "2026-09-15/16 実 fetch（HTTP 200）: dnxcapital.vc / dnx.vc (archive) / iqt.org / syncapital.vc / iceye.com PR / en.wikipedia.org。layer: primary-fetched = 本文を読了、secondary-reported = 静的スナップショット partial 由来。iqt.org の portfolio は lazy-load のため静的 portion に 238 タイルのみ含まれる（Cylance を含む）。"})
+      :footnote "2026-09-15/16 実 fetch（HTTP 200）: dnxcapital.vc / dnx.vc (archive) / iqt.org / synventures.com / iceye.com PR / en.wikipedia.org。SYN Ventures の出典は 2026-09-16 に synventures.com へ訂正（旧 syncapital.vc は誤帰属 — Wayback 2021-2023 は無関係の boutique firm、現 NXDOMAIN）。layer: primary-fetched = 本文を読了、secondary-reported = 静的スナップショット partial 由来。iqt.org の portfolio は lazy-load のため静的 portion に 238 タイルのみ含まれる（Cylance を含む）。"})
     [:script {:src "/js/vc-catalog.js" :defer true}])))

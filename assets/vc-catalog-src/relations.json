@@ -9,7 +9,7 @@
     {"s": "company/cylance", "p": "acquired-by", "o": "BlackBerry", "via": "USD 1.4B, 2019-02", "layer": "primary-fetched"},
     {"s": "fund/dnx-capital", "p": "member-of", "o": "Draper Network", "via": "Draper Associates / Draper Esprit share the lineage", "layer": "primary-fetched"},
     {"s": "fund/dnx-capital", "p": "co-invested-with", "o": "fund/in-q-tel", "via": "same rounds: Cylance", "layer": "primary-fetched"},
-    {"s": "fund/in-q-tel", "p": "lineage-of", "o": "fund/syn-ventures", "via": "same focus list + $900m AUM 2021 start on syncapital.vc; hypothesis (secondary-reported)", "layer": "secondary-reported"}
+    {"s": "fund/in-q-tel", "p": "lineage-of", "o": "fund/syn-ventures", "via": "same focus list + $900m AUM 2021 start verified on synventures.com (2026-09-16); the IQT lineage itself remains hypothesis", "layer": "secondary-reported"}
   ],
   "coInvestmentClusters": [
     {"fundA": "fund/dnx-capital", "fundB": "fund/in-q-tel", "companies": ["company/cylance"]},

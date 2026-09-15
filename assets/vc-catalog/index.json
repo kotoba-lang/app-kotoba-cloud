@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T16:15:17.296Z",
+ "generatedAt": "2026-09-15T16:46:31.186Z",
  "source/kind": "VC fund catalog: funds, funding rounds, exit outcomes, cross-fund co-investment relations, system dynamics",
  "corpus": "vc-fund-public",
  "verified": "2026-09",
@@ -92,11 +92,11 @@
     "data governance"
    ],
    "model": "operator-led (former CISOs, CEOs, CTOs, founders); non-capital value: CISO network, design partners, acquirer network",
-   "sourceUrl": "https://www.syncapital.vc/",
+   "sourceUrl": "https://synventures.com/",
    "layer": "primary-fetched",
-   "note": "About page: 'Started in 2021 ... manages $900m AUM across its funds.' Same focus-area list as In-Q-Tel; site lineage noted as secondary-reported.",
+   "note": "Corrected 2026-09-16: live fetch of synventures.com confirms 'Started in 2021 by a team of former CISOs, CEOs, CTOs, and Founders ... SYN Ventures manages $900m AUM across its funds' + the focus-area list. Prior sourceUrl syncapital.vc was a misattribution (Wayback 2021-2023 shows an unrelated boutique firm 'Syncapital', Afrooz Brothers; domain now NXDOMAIN). Same focus-area list as In-Q-Tel; IQT lineage remains hypothesis (secondary-reported).",
    "record": {
-    "/": "baguqeeracdc66qiyzaqmqddcjxybu6uzn4kjykcrmtf3w2mgcylclbwccqfa"
+    "/": "baguqeeraoj6vdeum2oc2p3hwclvawug2ieikskp46gsnglfcjtxvbf3faz2a"
    }
   }
  ],
@@ -301,7 +301,7 @@
    "s": "fund/in-q-tel",
    "p": "lineage-of",
    "o": "fund/syn-ventures",
-   "via": "same focus list + $900m AUM 2021 start on syncapital.vc; hypothesis (secondary-reported)",
+   "via": "same focus list + $900m AUM 2021 start verified on synventures.com (2026-09-16); the IQT lineage itself remains hypothesis",
    "layer": "secondary-reported"
   }
  ],
@@ -386,9 +386,9 @@
    "bytes": 466,
    "codec": "dag-json"
   },
-  "baguqeeracdc66qiyzaqmqddcjxybu6uzn4kjykcrmtf3w2mgcylclbwccqfa": {
-   "path": "/vc-data/vc/blocks/baguqeeracdc66qiyzaqmqddcjxybu6uzn4kjykcrmtf3w2mgcylclbwccqfa.json",
-   "bytes": 547,
+  "baguqeeraoj6vdeum2oc2p3hwclvawug2ieikskp46gsnglfcjtxvbf3faz2a": {
+   "path": "/vc-data/vc/blocks/baguqeeraoj6vdeum2oc2p3hwclvawug2ieikskp46gsnglfcjtxvbf3faz2a.json",
+   "bytes": 848,
    "codec": "dag-json"
   },
   "baguqeera6rfbpdmjfjyfnlksrknefe4wp3cygt7bzw4gaytiobbujrveusca": {
@@ -416,13 +416,13 @@
    "bytes": 282,
    "codec": "dag-json"
   },
-  "baguqeerahlaob4oudjp4oz75i2nbvlamqxpvrqdpl5ssjk3p646rbvefj5ja": {
-   "path": "/vc-data/vc/blocks/baguqeerahlaob4oudjp4oz75i2nbvlamqxpvrqdpl5ssjk3p646rbvefj5ja.json",
-   "bytes": 10010,
+  "baguqeera36yaanhv4zsvm6uixb4miqbt4k5or5laa4zupindwby6nwe5uqga": {
+   "path": "/vc-data/vc/blocks/baguqeera36yaanhv4zsvm6uixb4miqbt4k5or5laa4zupindwby6nwe5uqga.json",
+   "bytes": 10345,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerahlaob4oudjp4oz75i2nbvlamqxpvrqdpl5ssjk3p646rbvefj5ja"
+  "/": "baguqeera36yaanhv4zsvm6uixb4miqbt4k5or5laa4zupindwby6nwe5uqga"
  }
 }
