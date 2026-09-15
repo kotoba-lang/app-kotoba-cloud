@@ -767,7 +767,8 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     expiresAt: Date.now() + 900000, scopeId: body.scopeId, tasks: body.tasks });
   if (path === "/applications") return Response.json({ principalId: body.principalId, applicationId: "application-1" });
   if (path === "/jobs/create") {
-    if (exhausted) return new Response("limit", { status: 429 });
+    // the authority's own refusal shape (research_authority handle-jobs-create)
+    if (exhausted) return Response.json({ error: "free-quota-exhausted" }, { status: 429 });
     if (corruptReceipt) return new Response("authority-write-failed", { status: 502 });
     let job = jobs.get(body.jobId);
     if (!job) {
@@ -989,7 +990,17 @@ corruptReceipt = false; oldTrustReceipt = true;
 // distinct edge-visible 502.
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 200);
 oldTrustReceipt = false; exhausted = true;
-assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 429);
+{
+  // the 429 keeps its NAME across the edge: an agent must be able to tell
+  // "quota gone for today" from "service down" (it read unavailable and fell
+  // back to another provider, live probe 2026-09-16)
+  const quota = await route(researchRequest("/v1/chat/completions", researchBody), researchEnv);
+  assert.equal(quota.status, 429);
+  const quotaBody = await quota.json();
+  assert.equal(quotaBody.error.code, "free-quota-exhausted");
+  assert.equal(quotaBody.error.type, "insufficient_quota");
+  assert.match(quotaBody.error.message, /1000 requests per UTC day/);
+}
 exhausted = false;
 const application = { verificationMode: "new", policyVersion: researchPolicy, purpose: "Review owned code",
   scope: "My repository", consent: true, authorizedResearch: true };
