@@ -16,6 +16,7 @@
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.apps-site :as apps-site]
                         [app-kotoba-cloud.security-services-site :as security-services-site]
+            [app-kotoba-cloud.blog-site :as blog-site]
             [app-kotoba-cloud.docs-site :as docs-site]
             [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.research :as research]
@@ -24,6 +25,7 @@
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.extended-translations :as extended]
             [kotoba.lang.text :as str]
+            [cljs.reader :as reader]
             [app-kotoba-cloud.session :as session]
             [jp-go-dds.behavior :as behavior]
             [jp-go-dds.core :as dds]
@@ -480,6 +482,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
      [:div {:class "kc-sb__group"} (:sb-secure t)]
      (item (:menu-security t) "/security/aup/")
      (item (txt "セキュリティサービス" "Security services") "/security/services/")
+     (item (:blog t) "/blog/")
      (item (txt "エラーリファレンス" "Error reference") "/docs/reference/errors/")
      [:div {:class "kc-sb__group"} (:sb-account t)]
      (item (:menu-account t) "/account")
@@ -507,6 +510,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
     [:a {:href "/billing/"} (:menu-billing t)]
     [:a {:href "/account"} (:menu-account t)]
     [:a {:href "/security/csf2/"} (:menu-security t)]
+    [:a {:href "/blog/"} (:blog t)]
     [:a {:href "/apps/"} (:menu-apps t)]]])
 
 (defn site-header
@@ -528,6 +532,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
          [:a {:class "kc-nav__secondary" :href "/billing/"} (:nav-billing t)]
          [:a {:class "kc-nav__secondary" :href "/account"} (:nav-account t)]
          [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]
+         [:a {:class "kc-nav__secondary" :href "/blog/"} (:blog t)]
          [:a {:class "kc-nav__secondary" :href "/apps/"} (:menu-apps t)]])
       (language-links locale (:language-label t)
                       {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
@@ -934,6 +939,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        knowledge-site/css "\n" tokens/bridge-css "\n"
        security-site/css "\n" csf2-site/css "\n"
        crypto-site/css "\n" compliance-site/css "\n"
+       blog-site/css "\n"
        dds-console/css "\n" account-site/css "\n"
        apps-site/css "\n" docs-site/css "\n"
        security-services-site/css))
@@ -999,6 +1005,26 @@ body:has(.kc-sb){padding-inline-start:15rem}
                    :description "全世界のコンプライアンス基準と脆弱性対策製品のカテゴリ・価格・プロバイダーをまとめた公開データカタログ。"
                    :extra-css (str tokens/bridge-css dds-catalog/css compliance-site/css)}
       (compliance-site/view)))
+
+(defn blog-posts []
+  "Authored articles from assets/blog/posts.edn, newest date first."
+  (let [posts (reader/read-string
+               (str (fs/readFileSync (node-path/join "assets" "blog" "posts.edn") "utf8")))]
+    (vec (reverse (sort-by :date posts)))))
+
+(defn blog-html [locale]
+     (site-layout {:title "セキュリティ観測ブログ — Kotoba Cloud"
+                   :description "cybersecurity の最新ニュース・インシデント・AI モデル動向の毎日観測レポート。"
+                   :lang (name locale)
+                   :extra-css (str tokens/bridge-css blog-site/css)}
+      (blog-site/list-view locale (blog-posts))))
+
+(defn blog-article-html [locale post]
+     (site-layout {:title (str (if (= locale :ja) (:title-ja post) (:title-en post)) " — Kotoba Cloud")
+                   :description (if (= locale :ja) (:summary-ja post) (:summary-en post))
+                   :lang (name locale)
+                   :extra-css (str tokens/bridge-css blog-site/css)}
+      (blog-site/article-view locale post)))
 
 (defn admin-html []
      (site-layout {:title "管理者コンソール — Kotoba Cloud" :lang "ja"
@@ -1445,6 +1471,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "compliance" "index.html") (compliance-html))
       (spit-file (node-path/join root "security" "compliance" "index.html") (compliance-html))
       (spit-file (node-path/join root "ja" "security" "compliance" "index.html") (compliance-html))
+      ;; blog: security-research thinktank feed (articles = assets/blog/posts.edn)
+      (spit-file (node-path/join root "blog" "index.html") (blog-html :en))
+      (spit-file (node-path/join root "ja" "blog" "index.html") (blog-html :ja))
+      (doseq [p (blog-posts)]
+        (spit-file (node-path/join root "blog" (:slug p) "index.html") (blog-article-html :en p))
+        (spit-file (node-path/join root "ja" "blog" (:slug p) "index.html") (blog-article-html :ja p)))
       ;; compliance catalog data blocks + browser script (data at /compliance-data/compliance/)
       (doseq [source (fs-walk-files (node-path/join "assets" "compliance-catalog"))]
         (let [rel (node-path/relative (node-path/join "assets" "compliance-catalog") source)
