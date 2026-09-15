@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T16:46:31.186Z",
+ "generatedAt": "2026-09-15T20:52:09.613Z",
  "source/kind": "VC fund catalog: funds, funding rounds, exit outcomes, cross-fund co-investment relations, system dynamics",
  "corpus": "vc-fund-public",
  "verified": "2026-09",
- "fundCount": 3,
- "companyCount": 5,
- "claimCount": 10,
- "clusterCount": 2,
+ "fundCount": 4,
+ "companyCount": 6,
+ "claimCount": 12,
+ "clusterCount": 3,
  "ontology": {
-  "nodes": 8,
-  "claims": 10,
+  "nodes": 10,
+  "claims": 12,
   "linkedData": {
-   "/": "baguqeeraku5s3niidxgq3qx7fxmjbgt3t2uwvhuznddujw3b552tkbfbvk4a"
+   "/": "baguqeerahzn2dimzj27s6f6erqhowx7eihw3b7wnds7rdscmqkthyyb64zia"
   }
  },
  "funds": [
@@ -97,6 +97,21 @@
    "note": "Corrected 2026-09-16: live fetch of synventures.com confirms 'Started in 2021 by a team of former CISOs, CEOs, CTOs, and Founders ... SYN Ventures manages $900m AUM across its funds' + the focus-area list. Prior sourceUrl syncapital.vc was a misattribution (Wayback 2021-2023 shows an unrelated boutique firm 'Syncapital', Afrooz Brothers; domain now NXDOMAIN). Same focus-area list as In-Q-Tel; IQT lineage remains hypothesis (secondary-reported).",
    "record": {
     "/": "baguqeeraoj6vdeum2oc2p3hwclvawug2ieikskp46gsnglfcjtxvbf3faz2a"
+   }
+  },
+  {
+   "id": "andreiessen-horowitz",
+   "name": "Andreessen Horowitz (a16z)",
+   "focus": [
+    "cybersecurity",
+    "software",
+    "infrastructure"
+   ],
+   "sourceUrl": "https://en.wikipedia.org/wiki/Barrett_Lyon",
+   "layer": "secondary-reported",
+   "note": "Stub record added 2026-09-16 as SYN Ventures co-investor in Netography's $45M round, per Wikipedia 'Barrett_Lyon' (live fetch). Not yet verified against a16z primary pages; expand in a later run.",
+   "record": {
+    "/": "baguqeeracqfdbltz4kaoyblfjbxv3bso5c3nnr3bbalis566ppjuw67j56ga"
    }
   }
  ],
@@ -231,6 +246,41 @@
    "record": {
     "/": "baguqeera64adhbckdez5raqtbvv4azikbvfb4lawpswsgjs2e3gye3wce3la"
    }
+  },
+  {
+   "id": "netography",
+   "name": "Netography",
+   "domain": "cloud-native network observability (Netography Fusion; now Vectra Fusion)",
+   "rounds": [
+    {
+     "series": "B",
+     "usdM": 45,
+     "date": "2022",
+     "lead": null,
+     "participants": [
+      "Andreessen Horowitz",
+      "SYN Ventures"
+     ],
+     "sourceUrl": "https://en.wikipedia.org/wiki/Barrett_Lyon",
+     "layer": "secondary-reported",
+     "note": "Wikipedia 'Barrett Lyon' (fetched 2026-09-16): 'then raised $45M from Andreessen Horowitz and SYN Ventures.' Amount not confirmed in a company/VC primary PR body."
+    }
+   ],
+   "outcome": {
+    "type": "acquired",
+    "by": "Vectra AI",
+    "date": "2025-10",
+    "sourceUrl": "https://www.vectra.ai/about/news/vectra-ai-acquires-netography-to-expand-its-ai-driven-cybersecurity-platform-with-pioneering-cloud-native-network-observability",
+    "layer": "primary-fetched",
+    "note": "Vectra AI news release body (fetched 2026-09-16): 'today announced the acquisition of Netography, a pioneer in cloud-native network observability ... As part of the acquisition, Netography Fusion will join the Vectra AI portfolio as Vectra Fusion.' Dated 'San Jose, CA - October'. No price disclosed in the release body."
+   },
+   "fundInvestments": {
+    "syn-ventures": "round participant per Wikipedia 'Barrett_Lyon' (secondary-reported)",
+    "andreiessen-horowitz": "round participant per Wikipedia 'Barrett_Lyon' (secondary-reported); also seed 'from Andreesson Horowitz and Mango Capital' per same article"
+   },
+   "record": {
+    "/": "baguqeeravmi3sy4f6tbjctm73x3d2z6esswuzvujvicesq2mefocxdek6d7a"
+   }
   }
  ],
  "relations": [
@@ -303,6 +353,20 @@
    "o": "fund/syn-ventures",
    "via": "same focus list + $900m AUM 2021 start verified on synventures.com (2026-09-16); the IQT lineage itself remains hypothesis",
    "layer": "secondary-reported"
+  },
+  {
+   "s": "fund/syn-ventures",
+   "p": "invested",
+   "o": "company/netography",
+   "via": "Netography $45M round (2022, with Andreessen Horowitz)",
+   "layer": "secondary-reported"
+  },
+  {
+   "s": "fund/andreiessen-horowitz",
+   "p": "invested",
+   "o": "company/netography",
+   "via": "Netography $45M round (2022, with SYN Ventures)",
+   "layer": "secondary-reported"
   }
  ],
  "coInvestmentClusters": [
@@ -320,6 +384,14 @@
     "company/cylance"
    ],
    "note": "via In-Q-Tel lineage"
+  },
+  {
+   "fundA": "fund/syn-ventures",
+   "fundB": "fund/andreiessen-horowitz",
+   "companies": [
+    "company/netography"
+   ],
+   "note": "Netography $45M round (2022) per Wikipedia 'Barrett_Lyon' (fetched 2026-09-16); exit: Vectra AI acquisition 2025-10 per Vectra AI news release (primary-fetched)"
   }
  ],
  "systemDynamics": [
@@ -371,9 +443,9 @@
   }
  ],
  "blocks": {
-  "baguqeeraku5s3niidxgq3qx7fxmjbgt3t2uwvhuznddujw3b552tkbfbvk4a": {
-   "path": "/vc-data/vc/blocks/baguqeeraku5s3niidxgq3qx7fxmjbgt3t2uwvhuznddujw3b552tkbfbvk4a.json",
-   "bytes": 43,
+  "baguqeerahzn2dimzj27s6f6erqhowx7eihw3b7wnds7rdscmqkthyyb64zia": {
+   "path": "/vc-data/vc/blocks/baguqeerahzn2dimzj27s6f6erqhowx7eihw3b7wnds7rdscmqkthyyb64zia.json",
+   "bytes": 44,
    "codec": "dag-json"
   },
   "baguqeerajn5l3lnzplguoktkjbmqot2cctf6eh2mbh4atspcyrbjfox3zgla": {
@@ -389,6 +461,11 @@
   "baguqeeraoj6vdeum2oc2p3hwclvawug2ieikskp46gsnglfcjtxvbf3faz2a": {
    "path": "/vc-data/vc/blocks/baguqeeraoj6vdeum2oc2p3hwclvawug2ieikskp46gsnglfcjtxvbf3faz2a.json",
    "bytes": 848,
+   "codec": "dag-json"
+  },
+  "baguqeeracqfdbltz4kaoyblfjbxv3bso5c3nnr3bbalis566ppjuw67j56ga": {
+   "path": "/vc-data/vc/blocks/baguqeeracqfdbltz4kaoyblfjbxv3bso5c3nnr3bbalis566ppjuw67j56ga.json",
+   "bytes": 410,
    "codec": "dag-json"
   },
   "baguqeera6rfbpdmjfjyfnlksrknefe4wp3cygt7bzw4gaytiobbujrveusca": {
@@ -416,13 +493,18 @@
    "bytes": 282,
    "codec": "dag-json"
   },
-  "baguqeera36yaanhv4zsvm6uixb4miqbt4k5or5laa4zupindwby6nwe5uqga": {
-   "path": "/vc-data/vc/blocks/baguqeera36yaanhv4zsvm6uixb4miqbt4k5or5laa4zupindwby6nwe5uqga.json",
-   "bytes": 10345,
+  "baguqeeravmi3sy4f6tbjctm73x3d2z6esswuzvujvicesq2mefocxdek6d7a": {
+   "path": "/vc-data/vc/blocks/baguqeeravmi3sy4f6tbjctm73x3d2z6esswuzvujvicesq2mefocxdek6d7a.json",
+   "bytes": 1364,
+   "codec": "dag-json"
+  },
+  "baguqeeraevlzsfz4uybvnjppknhn3cnl6qljurseobjrhcni2wodcl357l7a": {
+   "path": "/vc-data/vc/blocks/baguqeeraevlzsfz4uybvnjppknhn3cnl6qljurseobjrhcni2wodcl357l7a.json",
+   "bytes": 13253,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera36yaanhv4zsvm6uixb4miqbt4k5or5laa4zupindwby6nwe5uqga"
+  "/": "baguqeeraevlzsfz4uybvnjppknhn3cnl6qljurseobjrhcni2wodcl357l7a"
  }
 }

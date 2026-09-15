@@ -6,7 +6,7 @@
   "acquired-by": "https://kotoba.cloud/vocab/vc#acquiredBy",
   "co-invested-with": "https://kotoba.cloud/vocab/vc#coInvestedWith"
  },
- "generatedAt": "2026-09-15T16:46:31.186Z",
+ "generatedAt": "2026-09-15T20:52:09.613Z",
  "@graph": [
   {
    "@id": "vc/fund/dnx-capital",
@@ -28,6 +28,13 @@
    "name": "SYN Ventures, Inc.",
    "source-url": "https://synventures.com/",
    "layer": "primary-fetched"
+  },
+  {
+   "@id": "vc/fund/andreiessen-horowitz",
+   "@type": "vc-fund",
+   "name": "Andreessen Horowitz (a16z)",
+   "source-url": "https://en.wikipedia.org/wiki/Barrett_Lyon",
+   "layer": "secondary-reported"
   },
   {
    "@id": "vc/company/iceye",
@@ -58,6 +65,12 @@
    "@type": "portfolio-company",
    "name": "Fyde",
    "domain": "endpoint OS / firmware security"
+  },
+  {
+   "@id": "vc/company/netography",
+   "@type": "portfolio-company",
+   "name": "Netography",
+   "domain": "cloud-native network observability (Netography Fusion; now Vectra Fusion)"
   }
  ]
 }
