@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T10:19:06.070Z",
+ "generatedAt": "2026-09-15T19:21:29.201Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
@@ -3439,8 +3439,12 @@
    "pricingMode": "public-list",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/ivb.html",
    "pricingNote": "ダウンロード1年版 4,070円（税込）／1台・1年（ja_jp product page, verified 2026-09-15）",
+   "complianceFits": [
+    "cis-controls",
+    "nist-csf-20"
+   ],
    "record": {
-    "/": "baguqeera2vn2pcjgpwivk2m7dig5idksdd2wg6t6ehw4cm4qglcg2scydfra"
+    "/": "baguqeeraoxoayapy7lpskl5pw7vqpavshue34fow4dyzx4ssi2j2jmzfvkja"
    }
   },
   {
@@ -8099,9 +8103,9 @@
    "bytes": 354,
    "codec": "dag-json"
   },
-  "baguqeera2vn2pcjgpwivk2m7dig5idksdd2wg6t6ehw4cm4qglcg2scydfra": {
-   "path": "/compliance-data/compliance/blocks/baguqeera2vn2pcjgpwivk2m7dig5idksdd2wg6t6ehw4cm4qglcg2scydfra.json",
-   "bytes": 357,
+  "baguqeeraoxoayapy7lpskl5pw7vqpavshue34fow4dyzx4ssi2j2jmzfvkja": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraoxoayapy7lpskl5pw7vqpavshue34fow4dyzx4ssi2j2jmzfvkja.json",
+   "bytes": 405,
    "codec": "dag-json"
   },
   "baguqeera5zjh3w4uciv3uafh3atl7ntmndm7edervznsibmjxe54hhc4utta": {
@@ -9389,13 +9393,13 @@
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerah2nwfgjdj4jk27mr5gctwxq3qzkycpj52bvwoh34jtfpidkmuura": {
-   "path": "/compliance-data/compliance/blocks/baguqeerah2nwfgjdj4jk27mr5gctwxq3qzkycpj52bvwoh34jtfpidkmuura.json",
-   "bytes": 266719,
+  "baguqeeranqmotcjmwdqfznz3tk3bwok4wmlzlddiv4yb3smu6zoyissoh5ea": {
+   "path": "/compliance-data/compliance/blocks/baguqeeranqmotcjmwdqfznz3tk3bwok4wmlzlddiv4yb3smu6zoyissoh5ea.json",
+   "bytes": 266767,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerah2nwfgjdj4jk27mr5gctwxq3qzkycpj52bvwoh34jtfpidkmuura"
+  "/": "baguqeeranqmotcjmwdqfznz3tk3bwok4wmlzlddiv4yb3smu6zoyissoh5ea"
  }
 }
