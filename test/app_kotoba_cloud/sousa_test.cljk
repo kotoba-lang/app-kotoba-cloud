@@ -77,6 +77,21 @@
     (is (= {:ok false :reason :evidence-not-found}
            (s/chain-of-custody s/sample-records "case-sample-001" "nope")))))
 
+(deftest evidence-by-kind-query
+  (testing "closed-world kind set matches the schema"
+    (is (= #{:physical :document :digital :testimony} s/evidence-kinds))
+    (is (contains? (get-in s/ontology-schema-document
+                           [:attributes "evidence" "evidence-kind" "oneOf"]
+                           #{})
+                   "digital")))
+  (testing "filters by kind and case"
+    (is (= 1 (count (s/evidence-by-kind s/sample-records "case-sample-001" :digital))))
+    (is (empty? (s/evidence-by-kind s/sample-records "case-sample-001" :physical)))
+    (is (empty? (s/evidence-by-kind s/sample-records "no-such-case" :digital))))
+  (testing "unknown kind throws, never returns an empty set"
+    (is (thrown-with-msg? #?(:clj Exception :cljs js/Error) #"unknown evidence kind"
+                          (s/evidence-by-kind s/sample-records "case-sample-001" :warrant)))))
+
 (deftest ontology-schema-document
   (testing "document covers every kind, status, and relation"
     (is (= (mapv name (sort s/entity-kinds)) (:entityKinds s/ontology-schema-document)))
