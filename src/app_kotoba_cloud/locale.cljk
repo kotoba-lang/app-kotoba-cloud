@@ -179,7 +179,10 @@
   ["billing" "legal" "security" "csf2" "docs" "blog" "apps" "account"
    ;; 2026-09-15 (owner, driven in Chrome): the remaining console documents
    ;; that answered in Japanese to an English reader
-   "secure" "models" "identity" "security-data"])
+   "secure" "models" "identity" "security-data"
+   ;; 2026-09-16: vc_site.cljk emits public/ja/vc/ (PR #223) — the smoke's
+   ;; emit-tree derivation caught the missing root before deploy
+   "vc"])
 
 (defn- forkable-path?
   "Content paths that have per-locale emit variants: the landing apex and
