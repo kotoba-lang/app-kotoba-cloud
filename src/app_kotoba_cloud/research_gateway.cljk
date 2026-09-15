@@ -91,8 +91,13 @@
                        obj (get-in event [:data :object])]
                    (when-not (map? obj)
                      (throw (ex-info "stripe-event-invalid" {:status 400})))
+                   ;; :redirect "manual", never "error": workerd rejects "error" with a
+                   ;; TypeError before any request leaves (the authority hops already
+                   ;; say so). Here it made EVERY Stripe delivery a 503 with an empty
+                   ;; eventId — 5 of 5 this week, an identity.verification_session
+                   ;; .verified for a real person among them (AWAI dashboard, 2026-09-15).
                    (-> (.fetch binding "https://research.internal/ekyc/webhook"
-                               #js {:method "POST" :redirect "error"
+                               #js {:method "POST" :redirect "manual"
                                     :signal (js/AbortSignal.timeout 60000)
                                     :headers #js {"content-type" "application/json"}
                                     :body (js/JSON.stringify
@@ -102,7 +107,12 @@
                                                      :externalId (:client_reference_id obj)}))})
                        (.then (fn [r]
                                 (if (.-ok r)
-                                  (bounded-json r 131072)
+                                  ;; Stripe needs a 2xx Response to stop retrying;
+                                  ;; the authority's receipt (no PII) is the body.
+                                  ;; Returning the parsed map here was a
+                                  ;; non-Response worker result.
+                                  (-> (bounded-json r 131072)
+                                      (.then #(respond % 200)))
                                   ;; Fail closed on signature/bind mismatch; never
                                   ;; echo the payload, only the event id.
                                   (throw (ex-info "stripe-webhook-rejected"
@@ -399,6 +409,12 @@
             (public-webhook-route request binding respond))
           (.catch (fn [e]
                     (let [status (or (:status (ex-data e)) 503)]
+                      ;; Name the failure on the log line (error name + message +
+                      ;; event id only, never the payload): a 503 that says nothing
+                      ;; hid the redirect-mode TypeError behind Stripe's retries.
+                      (js/console.error "stripe-webhook-failed" status
+                                        (or (ex-message e) (str (.-name e) ": " (.-message e)))
+                                        (str (:eventId (ex-data e))))
                       (respond {:error {:code (case status 400 "invalid-json" "stripe-webhook-rejected")
                                   :eventId (str (:eventId (ex-data e)))}} status)))))
       ;; Bearer PAT: no browser origin, no cookie. This gate must sit BEFORE

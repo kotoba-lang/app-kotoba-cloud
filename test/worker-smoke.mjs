@@ -567,12 +567,25 @@ let exhausted = false;
 // When set, /ekyc/start answers with the authority's own error shape
 // ({ error: <code> }, status) so the edge's code surfacing can be measured.
 let ekycAuthorityRefusal = null;
+// The authority's answer to a forwarded Stripe webhook ({ error } + status
+// when set, else the approval receipt).
+let webhookAuthorityAnswer = null;
 const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => {
   const body = JSON.parse(init.body);
   const path = new URL(url).pathname;
-  researchCalls.push({ path, body, headers: new Headers(init.headers) });
+  researchCalls.push({ path, body, headers: new Headers(init.headers), redirect: init.redirect });
   assert.equal(new Headers(init.headers).get("cookie"), null);
+  // workerd's fetch accepts only "follow" | "manual"; "error" throws a
+  // TypeError before the hop — the real binding never sees the request.
+  // Mirror that here so a bundle that regresses fails the same way live did.
+  if (init.redirect !== undefined && init.redirect !== "follow" && init.redirect !== "manual") {
+    throw new TypeError("Invalid redirect mode: " + init.redirect);
+  }
   if (path === "/status") return Response.json(researchRecord);
+  if (path === "/ekyc/webhook") {
+    if (webhookAuthorityAnswer) return Response.json({ error: webhookAuthorityAnswer.error }, { status: webhookAuthorityAnswer.status });
+    return Response.json({ principalId: body.principalId, status: "active", receiptId: "op-card-setup-1", approvedBy: "stripe-card" });
+  }
   if (path === "/ekyc/start" && ekycAuthorityRefusal) {
     return Response.json({ error: ekycAuthorityRefusal.error }, { status: ekycAuthorityRefusal.status });
   }
@@ -747,6 +760,48 @@ console.log("research gateway identity, evidence, scope, free-only receipts and 
   }
   ekycAuthorityRefusal = null;
   console.log("account console ekyc/start: session principal, spoof ignored, authority codes surfaced");
+}
+
+// Stripe -> /v1/research/ekyc/webhook (server-to-server: no origin, no cookie).
+// The edge forwards raw body + signature and only ROUTING HINTS; the
+// authority decides. Live, every delivery was 503 with an empty eventId
+// because the hop asked for redirect "error" (2026-09-15, 5/5 that week).
+{
+  const checkoutEvent = { id: "evt_setup_1", type: "checkout.session.completed", created: Math.floor(Date.now() / 1000),
+    data: { object: { id: "cs_test_setup_1", object: "checkout.session", mode: "setup", status: "complete",
+      client_reference_id: null, metadata: { principal: researchPrincipal, purpose: "identity-verification" } } } };
+  const deliver = (event) => route(new Request("https://api.kotoba.cloud/v1/research/ekyc/webhook", {
+    method: "POST", headers: { "content-type": "application/json", "stripe-signature": "t=1,v1=" + "ab".repeat(32) },
+    body: JSON.stringify(event) }), researchEnv);
+  const before = researchCalls.length;
+  const ok = await deliver(checkoutEvent);
+  const okText = await ok.text();
+  assert.equal(ok.status, 200, okText);
+  assert.equal(JSON.parse(okText).approvedBy, "stripe-card");
+  const hop = researchCalls.slice(before).filter(c => c.path === "/ekyc/webhook");
+  assert.equal(hop.length, 1, "exactly one authority hop per delivery");
+  assert.equal(hop[0].redirect, "manual");
+  assert.equal(hop[0].body.principalId, researchPrincipal);
+  assert.equal(hop[0].body.sessionId, "cs_test_setup_1");
+  assert.equal(hop[0].body.signatureHeader, "t=1,v1=" + "ab".repeat(32));
+  assert.equal(hop[0].body.raw, JSON.stringify(checkoutEvent), "raw body must reach the authority byte-for-byte for HMAC");
+  // Authority refusals keep their status and carry the event id, nothing else.
+  for (const [answer, expectStatus] of [[{ status: 403, error: "stripe-evidence-not-admissible" }, 403],
+    [{ status: 400, error: "stripe-signature-invalid" }, 400], [{ status: 500, error: "authority-internal" }, 503]]) {
+    webhookAuthorityAnswer = answer;
+    const r = await deliver(checkoutEvent);
+    const j = await r.json();
+    assert.equal(r.status, expectStatus, JSON.stringify(answer));
+    assert.equal(j.error.code, expectStatus === 400 ? "invalid-json" : "stripe-webhook-rejected");
+    assert.equal(j.error.eventId, "evt_setup_1");
+  }
+  webhookAuthorityAnswer = null;
+  // A body that is not a Stripe event never reaches the authority.
+  const junk = await route(new Request("https://api.kotoba.cloud/v1/research/ekyc/webhook", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hello: 1 }) }), researchEnv);
+  assert.equal(junk.status, 400);
+  assert.equal(researchCalls.slice(before).filter(c => c.path === "/ekyc/webhook").length, 4, "junk must not reach the authority");
+  console.log("stripe webhook edge hop: manual redirect, raw+signature forwarded, refusals carry the event id");
 }
 
 // PAT (personal API token) path for local CLI/IDE agents: stateless HMAC
