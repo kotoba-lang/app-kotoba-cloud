@@ -960,19 +960,25 @@ assert.deepEqual(orgRegistryBody.organizations, []);
   assert.equal(lrb.organizations.length,1);
   assert.equal(lrb.organizations[0].handle,'com-live.kotoba.cloud');
   assert.equal(lrb.statusLists.length,1);
-  // authority unreachable → static policy doc, never an error
-  const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>Response.error('down')}};
+  // authority non-ok HTTP → explicit error (live intent, fef2dbd); authority
+  // unreachable (fetch rejects) → static policy doc, never an error.
+  const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>new Response('503',{status:503})}};
   const dr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),downEnv);
   assert.equal(dr.status,200);
-  assert.deepEqual((await dr.json()).organizations,[]);
+  assert.equal((await dr.json()).error,'registry-authority-error');
+  const deadEnv={...env, ORG_AUTHORITY:{fetch:async()=>{throw new Error('binding down');}}};
+  const rr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),deadEnv);
+  assert.equal(rr.status,200);
+  assert.deepEqual((await rr.json()).organizations,[]);
 }
 // Public per-org did:webvh log: worker proxies the private authority's
 // /didlog and serves it as application/jsonl (ADR-2609141633 layer 1).
 {
   const didLogEnv={...env, ORG_AUTHORITY:{fetch:async(url,init)=>{
     const b=JSON.parse(init && init.body ? init.body : await url.text());
-    if (b.handle==='com-pub.kotoba.cloud') return Response.json({did:'did:webvh:zS:com-pub.kotoba.cloud',
-      scid:'zS',log:'{"versionId":"1-zS"}',publishedAt:1700000000000});
+    if (b.handle==='com-pub.kotoba.cloud') return Response.json({organizations:[{
+      handle:'com-pub.kotoba.cloud', did:'did:webvh:zS:com-pub.kotoba.cloud',
+      scid:'zS', log:'{"versionId":"1-zS"}', publishedAt:1700000000000}]});
     return Response.json({error:'org-unknown'},{status:404});
   }}};
   const pubLog=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-dids/com-pub.kotoba.cloud/did.jsonl'),didLogEnv);
