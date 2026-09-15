@@ -1,0 +1,1 @@
+{"categoryId":"iam","complianceFits":["fedramp","iso-27001","pci-dss-40","soc2"],"id":"aws-iam-identity-center","name":"AWS IAM Identity Center","pricingMode":"public-list","pricingNote":"free AWS feature (included); underlying AWS usage billed normally","pricingUrl":"https://aws.amazon.com/iam/identity-center/","provider":"AWS","providerHq":"US"}

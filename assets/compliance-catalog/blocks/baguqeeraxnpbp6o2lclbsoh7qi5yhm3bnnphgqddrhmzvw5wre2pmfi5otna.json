@@ -1,0 +1,1 @@
+{"categoryId":"encryption","complianceFits":["fedramp","iso-27001","pci-dss-40","soc2"],"id":"fortanix-ksm","name":"Fortanix Self-Defending KMS","pricingMode":"quote-based","pricingNote":"quote-based; per-node/usage licensing","pricingUrl":"https://www.fortanix.com/products/kms","provider":"Fortanix","providerHq":"US"}
