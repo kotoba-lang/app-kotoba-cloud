@@ -1308,6 +1308,53 @@ try {
 } finally {globalThis.fetch=oldFetchBilling;}
 console.log('billing provider, invoice replay, tenant and durable usage checks passed');
 
+// Live environment (2026-09-15): the AWAI account, live price map, launch
+// flags. While either flag is "false" nothing can be sold; the catalog
+// still names the mode and the SKUs a live price exists for; the portal
+// never sends a test configuration id to the live account.
+{
+  const liveBase = {BILLING_MODE:'live', BILLING_SANDBOX_ENABLED:'false', BILLING_ENVIRONMENT_ID:'acct_1TuxvPIzvFrqWhXK-live',
+    STRIPE_AWAI_LIVE_KEY:'sk_live_fixture_not_a_real_key', STRIPE_AWAI_LIVE_WEBHOOK_SECRET:'whsec_live_fixture',
+    STRIPE_PRICE_IDS:JSON.stringify({pro:'price_live_pro', 'ai-credits-25':'price_live_topup'}), STRIPE_PORTAL_CONFIGURATION_ID:'', BILLING_ACCOUNTS:{}};
+  const closed = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'false', BILLING_METERING_READY:'false'})).json();
+  assert.equal(closed.mode, 'live');
+  assert.equal(closed.checkoutEnabled, false, 'live mode with a launch flag off sells nothing');
+  assert.deepEqual(closed.purchasable, ['pro','ai-credits-25'], 'the catalog names the SKUs a live price exists for');
+  const halfOpen = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'false'})).json();
+  assert.equal(halfOpen.checkoutEnabled, false, 'both flags are required');
+  const open = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true'})).json();
+  assert.equal(open.checkoutEnabled, true, 'live: both flags + live key + webhook secret + price map; no portal id needed');
+  const wrongEnv = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true', BILLING_ENVIRONMENT_ID:'acct_other-live'})).json();
+  assert.equal(wrongEnv.checkoutEnabled, false, 'a different live account never becomes configured');
+  // portal in live mode: resolved from the live account, stored, reused; the test id is never sent
+  const liveMemory = new Map([['customer', '{:stripe "cus_live_fixture"}']]);
+  const liveState = {storage:{get:async k=>liveMemory.get(k), put:async(k,v)=>liveMemory.set(k,v), list:async()=>new Map(), setAlarm:async()=>{}}, blockConcurrencyWhile: f=>f()};
+  const liveDO = BillingAccount(liveState, {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true', STRIPE_PORTAL_CONFIGURATION_ID:'bpc_TESTID_MUST_NOT_LEAK'});
+  const portalCalls = [];
+  const oldFetchLive = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url); portalCalls.push({url:u, body:String(init?.body||'')});
+    if (u.startsWith('https://api.stripe.com/v1/billing_portal/configurations?')) return Response.json({data:[], has_more:false});
+    if (u === 'https://api.stripe.com/v1/billing_portal/configurations') return Response.json({id:'bpc_live_created'});
+    if (u === 'https://api.stripe.com/v1/billing_portal/sessions') return Response.json({url:'https://billing.stripe.com/p/session/fixture'});
+    throw new Error('Unexpected live billing URL ' + u);
+  };
+  try {
+    const r = await liveDO.fetch(new Request('https://billing.internal/portal', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({principal:'principal_live'})}));
+    assert.equal(r.status, 200, 'portal session created against the live account');
+    const session = portalCalls.find(c => c.url === 'https://api.stripe.com/v1/billing_portal/sessions');
+    assert(session && /configuration=bpc_live_created/.test(session.body), 'the created live configuration is used: ' + session?.body);
+    assert(!portalCalls.some(c => /bpc_TESTID_MUST_NOT_LEAK/.test(c.body)), 'the test portal id never reaches the live account');
+    const created = decodeURIComponent(portalCalls.find(c => c.url === 'https://api.stripe.com/v1/billing_portal/configurations').body);
+    assert(/subscription_cancel\]\[mode\]=at_period_end/.test(created) && /subscription_update\]\[enabled\]=false/.test(created) && /subscription_pause\]\[enabled\]=false/.test(created), 'live configuration mirrors the qualified test features: ' + created);
+    assert.equal(liveMemory.get('portal-configuration'), '{:id "bpc_live_created"}', 'stored for reuse');
+    portalCalls.length = 0;
+    await liveDO.fetch(new Request('https://billing.internal/portal', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({principal:'principal_live'})}));
+    assert(!portalCalls.some(c => c.url.includes('billing_portal/configurations')), 'second portal session reuses the stored configuration');
+  } finally { globalThis.fetch = oldFetchLive; }
+  console.log('billing live environment: flags gate checkout, purchasable SKUs named, live portal configuration resolved without the test id');
+}
+
 // Raw-body Stripe signature/mode enforcement precedes any account mutation.
 const webhookSecret = 'whsec_fixture_only';
 const webhookCalls = [];

@@ -8,13 +8,24 @@
   (aget env (if (= "live" (aget env "BILLING_MODE")) "STRIPE_AWAI_LIVE_KEY" "STRIPE_RESTRICTED_KEY")))
 (defn webhook-secret [env]
   (aget env (if (= "live" (aget env "BILLING_MODE")) "STRIPE_AWAI_LIVE_WEBHOOK_SECRET" "STRIPE_WEBHOOK_SECRET")))
+(defn live? [env] (= "live" (aget env "BILLING_MODE")))
+(defn- present? [v] (and (string? v) (pos? (count v))))
 (defn configured? [env]
   (and (or (and (= "test" (aget env "BILLING_MODE")) (= "true" (aget env "BILLING_SANDBOX_ENABLED")))
-           (and (= "live" (aget env "BILLING_MODE")) (= "false" (aget env "BILLING_SANDBOX_ENABLED"))
+           (and (live? env) (= "false" (aget env "BILLING_SANDBOX_ENABLED"))
                 (= "acct_1TuxvPIzvFrqWhXK-live" (aget env "BILLING_ENVIRONMENT_ID"))
                 (= "true" (aget env "BILLING_ENABLED")) (= "true" (aget env "BILLING_METERING_READY"))))
        (stripe-key env) (webhook-secret env)
-       (every? #(aget env %) ["BILLING_ACCOUNTS" "STRIPE_PRICE_IDS" "STRIPE_PORTAL_CONFIGURATION_ID" "BILLING_ENVIRONMENT_ID"])))
+       (every? #(aget env %) ["BILLING_ACCOUNTS" "STRIPE_PRICE_IDS" "BILLING_ENVIRONMENT_ID"])
+       ;; the portal configuration is a test-mode setting; in live mode the
+       ;; billing account resolves (or creates) it against the live account
+       (or (live? env) (present? (aget env "STRIPE_PORTAL_CONFIGURATION_ID")))))
+(defn purchasable-skus
+  "The SKUs a live price exists for — what the page may offer. A SKU in
+   billing/plans without a price in STRIPE_PRICE_IDS is shown, not sold."
+  [env]
+  (try (vec (keys (js->clj (js/JSON.parse (or (aget env "STRIPE_PRICE_IDS") "{}")))))
+       (catch :default _ [])))
 (defn client [env]
   (let [live? (= "live" (aget env "BILLING_MODE")) key (stripe-key env)]
     (when-not (re-find (if live? #"^(rk|sk)_live_" #"^(rk|sk)_test_") (or key ""))
@@ -67,7 +78,9 @@
         read? (contains? #{"/v1/billing/readiness" "/v1/billing/catalog" "/v1/billing/status"} path)]
     (cond
       (not= method (if read? "GET" "POST")) (respond {:error "method-not-allowed"} 405)
-      (= path "/v1/billing/catalog") (respond (assoc billing/catalog :mode (aget env "BILLING_MODE") :creditsTerms billing/credits-terms :checkoutEnabled (boolean (configured? env))) 200)
+      (= path "/v1/billing/catalog") (respond (assoc billing/catalog :mode (aget env "BILLING_MODE") :creditsTerms billing/credits-terms
+                                                     :checkoutEnabled (boolean (configured? env))
+                                                     :purchasable (purchasable-skus env)) 200)
       (= path "/v1/billing/webhook")
       (webhook request env respond)
       (and (not read?) (not (shared/origins (.get (.-headers request) "origin"))))
