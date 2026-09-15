@@ -1118,6 +1118,16 @@
       ]
     },
     {
+      "id": "trend-container-security",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "Trend Micro Container Security",
+      "categoryId": "container",
+      "pricingMode": "quote-based",
+      "pricingNote": "quote-based; product page offers a 'Get pricing' CTA with no public list pricing (en_us page HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+      "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-container-image-security.html"
+    },
+    {
       "id": "trend-industrial-network-security",
       "provider": "Trend Micro",
       "providerHq": "JP",
