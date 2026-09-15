@@ -31,7 +31,12 @@
 .kc-docs__nav h2{margin:0 0 var(--hig-spacing-2);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);letter-spacing:.06em;text-transform:uppercase;color:var(--hig-color-secondary-label)}
 .kc-docs__nav ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--hig-spacing-1)}
 .kc-docs__nav a{text-decoration:none;color:var(--hig-color-label)}
-.kc-docs__nav a[aria-current=page]{font-weight:700;color:var(--hig-color-tint)}")
+.kc-docs__nav a[aria-current=page]{font-weight:700;color:var(--hig-color-tint)}
+.kc-docs__table{inline-size:100%;border-collapse:collapse;font-size:var(--hig-text-footnote-font-size)}
+.kc-docs__table th,.kc-docs__table td{text-align:start;vertical-align:top;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-block-end:1px solid var(--hig-color-separator)}
+.kc-docs__table th{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);letter-spacing:.06em;text-transform:uppercase;color:var(--hig-color-secondary-label)}
+.kc-docs__table code{font-family:var(--hig-font-mono);font-size:.92em}
+.kc-docs__scroll{overflow-x:auto}")
 
 (def base-origin "https://api.kotoba.cloud")
 (def openai-base "https://api.kotoba.cloud/v1")
@@ -49,9 +54,11 @@
             {:href "/docs/reference/get-api-token/" :ja "API トークンを取得" :en "Get an API token"}
             {:href "/docs/reference/models/" :ja "モデル" :en "Models"}]}
    {:id :compat :ja "互換性" :en "Compatibility"
-    :pages [{:href "/docs/integrations/" :ja "エージェントと IDE" :en "Agents & IDEs"}
-            {:href "/docs/integrations/generic-openai/" :ja "OpenAI SDK" :en "OpenAI SDK"}
-            {:href "/docs/integrations/claude-code/" :ja "Anthropic プロトコル" :en "Anthropic protocol"}]}
+    :pages [{:href "/docs/reference/openai-sdk/" :ja "OpenAI SDK" :en "OpenAI SDK"}
+            {:href "/docs/reference/anthropic-sdk/" :ja "Anthropic SDK" :en "Anthropic SDK"}
+            {:href "/docs/reference/google-genai-sdk/" :ja "Google GenAI SDK" :en "Google GenAI SDK"}
+            {:href "/docs/reference/frameworks/" :ja "フレームワーク" :en "Frameworks"}
+            {:href "/docs/integrations/" :ja "エージェントと IDE" :en "Agents & IDEs"}]}
    {:id :advanced :ja "応用" :en "Advanced"
     :pages [{:href "/docs/reference/streaming/" :ja "ストリーミング" :en "Streaming"}
             {:href "/docs/reference/tools/" :ja "ツール呼び出し" :en "Tool calling"}
@@ -158,15 +165,18 @@
   "One entry per client page. protocol: openai (base URL with /v1) or
   anthropic (bare host). status mirrors the reference chips honestly."
   [{:id "claude-code" :name "Claude Code"
-    :protocol :anthropic :status :verified
+    ;; :caveat — POST /v1/messages on api.kotoba.cloud answers 405 (measured
+    ;; 2026-09-15 22:45 JST); an Anthropic-protocol client reaches the model
+    ;; only through a translating proxy (docs/reference/anthropic-sdk/)
+    :protocol :anthropic :status :caveat
     :desc-ja "Anthropic 製ターミナルコーディングエージェント。Anthropic プロトコル (ベース URL に /v1 を付けない)。"
     :desc-en "Anthropic's terminal coding agent. Anthropic protocol (base URL without /v1)."
     :config (str "export KOTOBA_API_BASE=\"" base-origin "\"\n"
                  "export KOTOBA_API_TOKEN=\"kc_pat_<your-token>\"\n"
                  "export KOTOBA_MODEL=\"" model-id "\"\n\n"
                  "# test the connection\nclaude -p \"Reply with exactly: OK\"")
-    :note-ja "Anthropic プロトコルはベアホストです。/v1 を足すと /v1/v1/messages になって失敗します。"
-    :note-en "Anthropic protocol — bare host, no /v1. Adding /v1 produces /v1/v1/messages and fails."}
+    :note-ja "注意: api.kotoba.cloud は Anthropic Messages API の wire（POST /v1/messages）をまだ提供していません（2026-09-15 実測 405）。Claude Code から使うには、Anthropic 形式を OpenAI 形式に変換するローカルプロキシ（LiteLLM など）を挟み、ANTHROPIC_BASE_URL をそのプロキシに向けます。詳細は Anthropic SDK のページ。"
+    :note-en "Caveat: api.kotoba.cloud does not serve the Anthropic Messages wire (POST /v1/messages) yet — measured 405 on 2026-09-15. To use Claude Code, put a local proxy that translates Anthropic → OpenAI (LiteLLM, for example) in between and point ANTHROPIC_BASE_URL at it. See the Anthropic SDK page."}
    {:id "codex-cli" :name "Codex CLI"
     :protocol :openai :status :verified
     :desc-ja "OpenAI 製ターミナルコーディングエージェント。OpenAI 互換 (Responses API)。"
@@ -284,6 +294,18 @@
    {:id "models" :name "Models"
     :desc-ja "カタログ /v1/models: レッドチーム（専用経路）とブルーチーム（共有経路）、各モデルの admission。"
     :desc-en "The catalog at /v1/models: red-team (dedicated route) and blue-team (shared route) models and what admits each."}
+   {:id "openai-sdk" :name "OpenAI SDK"
+    :desc-ja "Python / TypeScript の OpenAI SDK を base_url 1 行で向ける。何が通り、何が落とされるか。"
+    :desc-en "Point the Python / TypeScript OpenAI SDK with one base_url line. What passes, what is dropped."}
+   {:id "anthropic-sdk" :name "Anthropic SDK"
+    :desc-ja "Messages API の wire は提供していません（実測 405）。OpenAI wire か、変換プロキシ経由。"
+    :desc-en "The Messages wire is not served (measured 405). Use the OpenAI wire, or a translating proxy."}
+   {:id "google-genai-sdk" :name "Google GenAI SDK"
+    :desc-ja "Gemini の wire は提供していません（実測 405）。OpenAI wire を使う。"
+    :desc-en "The Gemini wire is not served (measured 405). Use the OpenAI wire."}
+   {:id "frameworks" :name "Frameworks"
+    :desc-ja "LangChain、LlamaIndex、Vercel AI SDK、OpenAI Agents SDK、LiteLLM の設定。"
+    :desc-en "LangChain, LlamaIndex, Vercel AI SDK, OpenAI Agents SDK, LiteLLM."}
    {:id "streaming" :name "Streaming"
     :desc-ja "stream: true は 1 チャンクの SSE として配信。裏はジョブ（submit → poll）。"
     :desc-en "stream: true is served as a one-chunk SSE; underneath, a job (submit, poll)."}
@@ -311,9 +333,9 @@
    {:id "per-request-cost" :name "Per-request cost"
     :desc-ja "応答の billing / usage / chargedMicroUSD の読み方と、無料か有料かの決まり方。"
     :desc-en "Reading billing / usage / chargedMicroUSD on a response, and how free vs paid is decided."}
-   {:id "zero-data-retention" :name "Zero data retention"
-    :desc-ja "ZDR 設計: 保持するのは最小限の状態だけ。"
-    :desc-en "ZDR design: only minimal state is retained."}
+   {:id "zero-data-retention" :name "Data handling"
+    :desc-ja "何が・どこに・どれだけ残るか。プロンプトの経路、ジョブ記録、監査レシート、決済データ、ログ、削除。"
+    :desc-en "What is kept, where, for how long: the prompt's path, job records, audit receipts, payment data, logs, deletion."}
    {:id "byok" :name "BYOK"
     :desc-ja "上流プロバイダキーの持ち込みは現在提供していません (first-party 推論)。"
     :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}
@@ -452,25 +474,105 @@
            "response_format is accepted and dropped (not forwarded). To constrain output, ask for JSON in the prompt and validate on your side.")]
      (config-block {:ja? ja? :lang :json} "response_format: {\"type\": \"json_object\"}  // accepted-and-dropped\n\n# do this instead:\n# messages: [{\"role\":\"user\",\"content\":\"Return JSON: {\\\"finding\\\": string}\"}]\n# then parse and validate the content yourself")]))
 
+(def error-catalog
+  "Every code the edge answers, from the code that answers it (research-
+   gateway, billing-gateway, worker, the authority's codes that pass
+   through and the status families they collapse to). Kept as data so the
+   page cannot list a code that does not exist."
+  [{:status 400 :code "invalid-json" :ja "本文が JSON として読めない、または空。" :en "The body is not JSON, or empty."
+    :do-ja "content-type: application/json と正しい JSON を送る。" :do-en "Send content-type: application/json and valid JSON."}
+   {:status 400 :code "invalid-research-request" :ja "リクエストが admission の形に合わない。bearer 経路では error.message が破った規則を名指しする（例: \"max_tokens: 1..32768\"）。" :en "The request does not fit the admission shape. On the bearer path error.message names the rule (for example \"max_tokens: 1..32768\")."
+    :do-ja "message を読んで直す。unknown parameter は落とすか、ignorable な名前に。" :do-en "Read message and fix it; drop unknown parameters."}
+   {:status 400 :code "invalid-job-id" :ja "/v1/research/jobs の idempotency-key（または jobId）が v4 UUID でない。" :en "The idempotency-key (or jobId) on /v1/research/jobs is not a v4 UUID."
+    :do-ja "UUID v4 を使う。" :do-en "Use a UUID v4."}
+   {:status 400 :code "invalid-application" :ja "研究者登録の申請本文が不正。" :en "The researcher application body is malformed."
+    :do-ja "verificationMode / consent / purpose / scope を揃える。" :do-en "Provide verificationMode, consent, purpose and scope."}
+   {:status 400 :code "invalid-ekyc-request" :ja "本人確認の開始本文が不正（scopeId / tasks）。" :en "The verification start body is malformed (scopeId / tasks)."
+    :do-ja "アカウントコンソールから開始する。" :do-en "Start it from the account console."}
+   {:status 401 :code "sign-in-required" :ja "cookie セッションも有効な PAT も無い。" :en "No cookie session and no valid PAT."
+    :do-ja "Authorization: Bearer kc_pat_… を付ける。" :do-en "Send Authorization: Bearer kc_pat_…."}
+   {:status 401 :code "token-revoked" :ja "取り消された（または登録の無い）トークン。" :en "A revoked (or never registered) token."
+    :do-ja "アカウントコンソールで新しいトークンを発行する。" :do-en "Issue a new token in the account console."}
+   {:status 403 :code "origin-not-allowed" :ja "ブラウザからの POST が許可外の Origin。" :en "A browser POST from a foreign origin."
+    :do-ja "kotoba.cloud 上のページから呼ぶか、PAT を使う。" :do-en "Call from a kotoba.cloud page, or use a PAT."}
+   {:status 403 :code "research-access-denied" :ja "PAT の検証に失敗、または authority が 403 で拒否（本人確認・スコープ以外の理由）。" :en "The PAT failed verification, or the authority refused with 403 for a reason other than the ones below."
+    :do-ja "トークンを確認し、/v1/research/status で状態を見る。" :do-en "Check the token; read /v1/research/status."}
+   {:status 403 :code "verification-required" :ja "本人確認（カード）が未完了または期限切れ（レッドチームのみ）。" :en "Identity verification (card) missing or expired (red team only)."
+    :do-ja "アカウントコンソールの本人確認を完了する。" :do-en "Complete verification in the account console."}
+   {:status 403 :code "verification-expired" :ja "本人確認が 365 日を過ぎた。" :en "Verification is older than 365 days."
+    :do-ja "再確認する。" :do-en "Re-verify."}
+   {:status 403 :code "trust-route-required" :ja "現在の信頼経路が無い。" :en "No current trust route."
+    :do-ja "本人確認をやり直す。数秒後の再試行で解けることもある。" :do-en "Restart verification; a retry a few seconds later can also clear it."}
+   {:status 403 :code "screening-expired" :ja "AML/CTF 照合が 24 時間を過ぎた。" :en "AML/CTF screening older than 24 hours."
+    :do-ja "再審査を待つ。" :do-en "Wait for re-review."}
+   {:status 403 :code "review-required" :ja "審査中、または追加確認が必要。" :en "Under review, or additional checks are needed."
+    :do-ja "アカウントコンソールの案内に従う。" :do-en "Follow the account console."}
+   {:status 403 :code "policy-acceptance-required" :ja "利用ポリシーの版が変わり、再同意が必要。" :en "The policy version changed; re-acceptance is required."
+    :do-ja "アカウントコンソールで同意する。" :do-en "Accept it in the account console."}
+   {:status 403 :code "session-reverification-required" :ja "継続セッションの証跡が古い。" :en "The continuous-session evidence is stale."
+    :do-ja "ページを再読み込みするか、PAT で再試行。" :do-en "Reload the page, or retry with the PAT."}
+   {:status 403 :code "identity-mismatch" :ja "記録の principal と一致しない。" :en "The record's principal does not match."
+    :do-ja "support@kotoba.cloud に連絡。" :do-en "Contact support@kotoba.cloud."}
+   {:status 403 :code "research-scope-required" :ja "task が承認済みスコープに含まれない。" :en "The task is not covered by an approved scope."
+    :do-ja "code-review は本人確認と同時に承認される。他はスコープ申請。" :do-en "code-review is approved with verification; apply for others."}
+   {:status 403 :code "model-route-not-configured" :ja "カタログにあるが経路の無いモデル。無料枠は消費しない。" :en "A listed model whose route is not configured; no quota is spent."
+    :do-ja "/v1/models の availability が served のモデルを使う。" :do-en "Use a model whose availability is served in /v1/models."}
+   {:status 403 :code "guardrail-blocked" :ja "内容ポリシー（CSAM・CBRN・大規模詐欺）。耐久レシートに残る。" :en "Content policy (CSAM, CBRN, fraud-as-a-service). Recorded as a durable receipt."
+    :do-ja "再送しない。" :do-en "Do not resend."}
+   {:status 403 :code "firewall-denied" :ja "そのタスク種別が現在の assurance rung では閉じている。" :en "That task kind is closed at your assurance rung."
+    :do-ja "標準 3 タスクを使うか、rung を上げる。" :do-en "Use the three standard tasks, or raise the rung."}
+   {:status 403 :code "job-reverification-required" :ja "ジョブの poll 時に ladder の再検証に失敗。" :en "The ladder re-verification failed while polling a job."
+    :do-ja "/v1/research/status で理由を確認。" :do-en "Read /v1/research/status for the reason."}
+   {:status 403 :code "prepaid-card-not-accepted" :ja "本人確認でプリペイド／バーチャルカード。" :en "A prepaid / virtual card in verification."
+    :do-ja "クレジットまたはデビットカードで。" :do-en "Use a credit or debit card."}
+   {:status 404 :code "job-not-found" :ja "その jobId のジョブが無い（別 principal のものも含む）。" :en "No job with that id (including another principal's)."
+    :do-ja "作成時の id を使う。" :do-en "Use the id from creation."}
+   {:status 405 :code "method-not-allowed" :ja "経路に対して method が違う。/v1/messages・/v1/responses・Gemini wire もここ（提供なし）。" :en "Wrong method for the route. /v1/messages, /v1/responses and the Gemini wire land here too (not served)."
+    :do-ja "OpenAI の chat.completions wire を使う。" :do-en "Use the OpenAI chat.completions wire."}
+   {:status 409 :code "idempotency-conflict" :ja "同じ job id に別の入力。" :en "The same job id with different input."
+    :do-ja "入力が変わるなら新しい id。" :do-en "New input, new id."}
+   {:status 413 :code "body-too-large" :ja "本文が 2 MiB を超えた。" :en "The body exceeds 2 MiB."
+    :do-ja "入力を 524,288 文字以内に。" :do-en "Keep input within 524,288 characters."}
+   {:status 415 :code "json-required" :ja "content-type が application/json でない。" :en "content-type is not application/json."
+    :do-ja "ヘッダを付ける。" :do-en "Send the header."}
+   {:status 429 :code "free-quota-exhausted" :ja "無料枠 1,000 件/日を使い切った（UTC 深夜にリセット、Retry-After なし）。残高があれば有料で走る。" :en "The free 1,000/day allowance is used up (resets at UTC midnight, no Retry-After). With a balance the request runs paid instead."
+    :do-ja "翌日（UTC）か、credits を足す。" :do-en "Retry the next UTC day, or add credits."}
+   {:status 502 :code "inference-failed" :ja "推論の実行が失敗（上流の拒否・エラー）。有料の予約は解放される。" :en "The inference run failed (upstream refusal or error). A paid hold is released."
+    :do-ja "再送する。続くなら status ページと support。" :do-en "Resend; if it persists, the status page and support."}
+   {:status 502 :code "invalid-inference-receipt" :ja "ジョブは succeeded だが本文も tool_calls も無い。" :en "The job succeeded without text or tool calls."
+    :do-ja "再送する。" :do-en "Resend."}
+   {:status 502 :code "invalid-job-receipt" :ja "authority の応答が契約の形でない。" :en "The authority's answer is not in the contract shape."
+    :do-ja "再送する。続くなら support。" :do-en "Resend; if it persists, support."}
+   {:status 503 :code "research-service-unavailable" :ja "authority に到達できない、または名前の無い失敗。" :en "The authority is unreachable, or an unnamed failure."
+    :do-ja "少し待って再送。" :do-en "Wait and resend."}
+   {:status 503 :code "verification-provider-not-configured" :ja "この環境に研究 authority が無い。" :en "No research authority in this environment."
+    :do-ja "本番 api.kotoba.cloud を使う。" :do-en "Use production api.kotoba.cloud."}
+   {:status 503 :code "pat-not-configured" :ja "この環境に PAT の署名鍵が無い。" :en "No PAT signing key in this environment."
+    :do-ja "本番 api.kotoba.cloud を使う。" :do-en "Use production api.kotoba.cloud."}
+   {:status 503 :code "card-verification-not-configured" :ja "本人確認の決済側が一時的に利用不可。" :en "The card side of verification is temporarily unavailable."
+    :do-ja "後で再試行。" :do-en "Retry later."}
+   {:status 504 :code "inference-timeout" :ja "サーバ側の待ち（14 分）を超えた。ジョブは続いている。" :en "The server-side wait (14 minutes) elapsed; the job continues."
+    :do-ja "同じリクエストを再送すると同じジョブに再接続する。" :do-en "Resend the identical request to re-attach to the same job."}])
+
 (defn errors-view [locale]
   (let [ja? (= :ja locale)
         txt (fn [ja en] (if ja? ja en))]
-    [[:h1 (txt "Errors" "Errors")]
+    [[:h1 (txt "エラー" "Errors")]
      [:p {:class "kc-docs__lead"}
-      (txt "エラーは OpenAI 互換の形です: {\"error\": {\"code\": \"...\"}}。code で原因を判定してください。"
-           "Errors use the OpenAI-compatible shape: {\"error\": {\"code\": \"...\"}}. Match on code.")]
-     (config-block {:ja? ja? :lang :http :title (txt "エラーコード" "Error codes")} (str "401 sign-in-required          // no cookie session, no/invalid PAT\n"
-                        "403 origin-not-allowed        // browser POST from a foreign origin\n"
-                        "403 verification-required     // identity verification missing/expired\n"
-                        "403 research-scope-required   // task not covered by an approved scope\n"
-                        "403 guardrail-blocked         // CSAM/CBRN/fraud content policy (durable)\n"
-                        "403 firewall-denied           // task tool closed at your assurance rung\n"
-                        "403 prepaid-card-not-accepted // prepaid/virtual card in verification\n"
-                        "429 free-quota-exhausted      // 1,000 requests/day used up (resets UTC midnight)\n"
-                        "503 card-verification-not-configured // temporary; retry later"))
+      (txt "エラーは OpenAI 互換の形 {\"error\": {\"code\": \"...\"}} です。code で分岐してください。bearer 経路の 400 には message（破った規則）と type: invalid_request_error が付きます。下の表は edge が返す全 code を、返すコードから生成しています。"
+           "Errors use the OpenAI-compatible shape {\"error\": {\"code\": \"...\"}}; branch on code. A 400 on the bearer path also carries message (the rule that was broken) and type: invalid_request_error. The table below lists every code the edge answers, generated from the code that answers it.")]
+     (config-block {:ja? ja? :lang :json} (str "{\"error\": {\"code\": \"invalid-research-request\",\n"
+                        "           \"message\": \"max_tokens: 1..32768\",\n"
+                        "           \"type\": \"invalid_request_error\"}}"))
+     [:div {:class "kc-docs__scroll"}
+      [:table {:class "kc-docs__table"}
+       [:thead [:tr [:th "HTTP"] [:th "code"] [:th (txt "いつ" "When")] [:th (txt "対処" "What to do")]]]
+       (into [:tbody]
+             (for [e error-catalog]
+               [:tr [:td (str (:status e))] [:td [:code (:code e)]] [:td (if ja? (:ja e) (:en e))] [:td (if ja? (:do-ja e) (:do-en e))]]))]]
      (note-block
-      (txt "429 の無料枠は UTC 深夜にリセットされ、Retry-After は付きません。リトライは翌日 (UTC) に。"
-           "The free-tier 429 resets at UTC midnight and carries no Retry-After — retry the next UTC day."))]))
+      (txt "ガードレールとファイアウォールの 403 は耐久レシートとして残ります。429 は UTC 深夜にリセットされ Retry-After は付きません。有料の応答にはエラーではなく settlement: \"pending\" が付くことがあります（Per-request cost）。"
+           "Guardrail and firewall 403s are recorded as durable receipts. The 429 resets at UTC midnight without Retry-After. A paid answer may carry settlement: \"pending\" instead of an error (see Per-request cost)."))]))
 
 (defn ratelimits-view [locale]
   (let [ja? (= :ja locale)
@@ -520,14 +622,50 @@
 (defn zdr-view [locale]
   (let [ja? (= :ja locale)
         txt (fn [ja en] (if ja? ja en))]
-    [[:h1 (txt "Data handling / Zero data retention" "Data handling / Zero data retention")]
+    [[:h1 (txt "データの取り扱い" "Data handling")]
      [:p {:class "kc-docs__lead"}
-      (txt "設計は ZDR です: プロンプトと出力はメモリで処理され、推論ログは保持しません。保持するのは最小限の状態 (確認状態・有効期限・証跡参照・監査レシート) だけです。"
-           "Designed for zero data retention: prompts and outputs are processed in memory; no inference logs are kept. Only minimal state survives (verification status, expiry, evidence references, audit receipts).")]
-     (config-block {:ja? ja? :lang :text :title (txt "保持するもの・しないもの" "Kept / never kept")} (str "kept:   verification status/expiry · evidence refs · audit receipts · usage counters\n"
-                        "never:  prompts · outputs · document images · card numbers\n\n"
-                        "screened in memory for: CSAM, CBRN (AUP strictly-prohibited)\n"
-                        "audit-log retention: 180 days (compliance surface: /v1/secure)"))]))
+      (txt "設計は zero data retention です: 推論ログを持たず、プロンプトは学習に使われません。ただし「何も残らない」ではありません。この頁は、何が・どこに・どれだけ残るかを、それを書き込むコードから列挙します。"
+           "The design is zero data retention: no inference logs, and prompts are never used for training. That is not the same as \"nothing remains\". This page lists what is kept, where and for how long, from the code that writes it.")]
+     [:h2 (txt "プロンプトの経路" "The prompt's path")]
+     [:ol
+      [:li (txt "edge（api.kotoba.cloud）はリクエストを検証し、ガードレールを走らせ、プロンプトを private authority に渡します。edge のログは数値だけ（job id、token 数、拒否の理由コード）で、プロンプト本文は書きません。"
+                "The edge (api.kotoba.cloud) validates the request, runs guardrails and hands the prompt to the private authority. Edge logs carry numbers only (job id, token counts, refusal codes) — never prompt text.")]
+      [:li (txt "authority は principal ごとの Durable Object に **ジョブ記録** を書きます: リクエスト（messages, tools, max_tokens）、状態、結果本文または tool_calls、provider の usage receipt（token 数）。再送が同じジョブに再接続し、有料の精算がレシートから行えるのはこの記録があるからです。"
+                "The authority writes a **job record** in the principal's own Durable Object: the request (messages, tools, max_tokens), the state, the answer text or tool_calls, and the provider's usage receipt (token counts). This record is what lets a retry re-attach and a paid job settle from a receipt.")]
+      [:li (txt "推論の origin（専用経路・共有経路）はプロンプトをメモリで処理して応答を返します。どのプロバイダが背後にあるかは運用設定で、公開ポリシーではありません。"
+                "The inference origin (dedicated route, shared route) processes the prompt in memory and returns the answer. Which providers stand behind a route is operator configuration, not public policy.")]]
+     [:h2 (txt "残るもの・残らないもの" "Kept / never kept")]
+     [:div {:class "kc-docs__scroll"}
+      [:table {:class "kc-docs__table"}
+       [:thead [:tr [:th (txt "データ" "Data")] [:th (txt "どこに" "Where")] [:th (txt "どれだけ" "How long")]]]
+       [:tbody
+        [:tr [:td (txt "ジョブ記録（プロンプト・応答・tool_calls・usage）" "Job records (prompt, answer, tool_calls, usage)")]
+         [:td (txt "principal ごとの private authority storage" "The principal's private authority storage")]
+         [:td (txt "現在は自動削除なし（保持期間は未設定 — 設定されるまでここに明記）。削除依頼は support@kotoba.cloud。" "No automatic deletion today (a retention window is not yet set — stated here until it is). Deletion on request: support@kotoba.cloud.")]]
+        [:tr [:td (txt "本人確認の状態・有効期限・証跡参照" "Verification status, expiry, evidence reference")]
+         [:td (txt "同上" "Same")] [:td (txt "365 日で失効。証跡本体（書類・カード）は Stripe にのみ。" "Expires after 365 days. The evidence itself (documents, card) lives at Stripe only.")]]
+        [:tr [:td (txt "AML/CTF 照合の状態" "AML/CTF screening status")] [:td (txt "同上" "Same")] [:td (txt "24 時間で失効。" "Expires after 24 hours.")]]
+        [:tr [:td (txt "ガードレール・ファイアウォールの拒否レシート" "Guardrail / firewall refusal receipts")] [:td (txt "同上" "Same")] [:td (txt "監査ログとして 180 日（/v1/secure の auditLogRetentionDays）。" "As audit log, 180 days (auditLogRetentionDays at /v1/secure).")]]
+        [:tr [:td (txt "無料枠の利用数（日次）" "Free-quota counters (daily)")] [:td (txt "同上" "Same")] [:td (txt "翌 UTC 日に上書き。" "Overwritten the next UTC day.")]]
+        [:tr [:td (txt "プリペイド台帳（付与・予約・精算・レシート id と token 数）" "Prepaid ledger (grants, holds, settlements, receipt ids and token counts)")]
+         [:td (txt "principal ごとの BillingAccount" "The principal's BillingAccount")] [:td (txt "財務記録として保持（消去しない）。プロンプト本文は含まれません。" "Kept as financial history (never erased). Contains no prompt text.")]]
+        [:tr [:td (txt "決済データ（カード番号・請求先）" "Payment data (card numbers, billing address)")] [:td "Stripe"] [:td (txt "kotoba.cloud は customer id と invoice id だけを持ちます。" "kotoba.cloud holds only the customer id and invoice ids.")]]
+        [:tr [:td (txt "推論ログ・学習データ" "Inference logs, training data")] [:td "—"] [:td (txt "作りません。" "Never created.")]]]]]
+     [:h2 (txt "誰が読めるか" "Who can read it")]
+     [:ul
+      [:li (txt "あなた: /v1/research/status（状態）、/v1/research/job?jobId=（自分のジョブ）、/v1/billing/status（残高）。PAT でも cookie でも同じ principal だけ。" "You: /v1/research/status (state), /v1/research/job?jobId= (your own jobs), /v1/billing/status (balance) — the same principal only, by PAT or cookie.")]
+      [:li (txt "運用者: HMAC 署名付きの review 操作（admin origin）で状態を変えられますが、ジョブ本文を読む公開経路はありません。" "Operators: HMAC-signed review operations (admin origin) change state; there is no public route that reads job text.")]
+      [:li (txt "他の principal: 何も読めません（ジョブは principal に束縛、job-owner-mismatch）。" "Other principals: nothing (jobs are bound to their principal — job-owner-mismatch).")]]
+     [:h2 (txt "境界" "Boundaries")]
+     [:ul
+      [:li (txt "サーバはツール・コード・コマンド・ネットワーク操作を実行しません。tool_calls はテキストとして返り、実行はあなたのエージェント側です。" "The server executes no tools, code, commands or network actions. tool_calls are returned as text; execution is your agent's.")]
+      [:li (txt "内容の審査（CSAM・CBRN・大規模詐欺）はメモリで行われ、ブロックだけがレシートに残ります。" "Content screening (CSAM, CBRN, fraud-as-a-service) runs in memory; only a block is recorded.")]
+      [:li (txt "データ所在は未指定（/v1/secure の dataResidency: unspecified）。" "Data residency is unspecified (dataResidency at /v1/secure).")]]
+     (config-block {:ja? ja? :lang :http} (str "GET " openai-base "/secure\n"
+                        "→ {\"compliance\": {\"auditLogRetentionDays\": 180, \"dataResidency\": \"unspecified\", \"zeroDataRetention\": \"designed-for-zdr\", ...}}"))
+     (note-block
+      (txt "ジョブ記録の保持期間は未設定です。期間が設定され自動削除が入ったら、この頁の表とコードの両方が変わります。それまで「ZDR」は「ログを持たない・学習に使わない」の意味であって「ジョブ記録が無い」ではありません。"
+           "Job-record retention is not yet set. When a window is set and automatic deletion lands, both this table and the code change. Until then, \"ZDR\" means no logs and no training — not the absence of job records."))]))
 
 (defn byok-view [locale]
   (let [ja? (= :ja locale)
@@ -662,8 +800,143 @@
      [:p [:a {:href "/secure/"} (txt "セキュリティ管理（規則と版）を開く" "Open the security controls (rules and versions)")]
       " · " [:a {:href "/security/aup/"} (txt "利用ポリシー" "Acceptable Use Policy")]]]))
 
+(defn openai-sdk-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 "OpenAI SDK"]
+     [:p {:class "kc-docs__lead"}
+      (txt (str "base_url を " openai-base " に、api_key を接続トークンにするだけです。chat.completions がそのまま動きます。")
+           (str "Set base_url to " openai-base " and api_key to your connection token. chat.completions works unchanged."))]
+     (config-block {:ja? ja? :lang :text :title "Python"}
+                   (str "from openai import OpenAI\n\n"
+                        "client = OpenAI(base_url=\"" openai-base "\", api_key=os.environ[\"KOTOBA_API_TOKEN\"])\n\n"
+                        "r = client.chat.completions.create(\n"
+                        "    model=\"" model-id "\",\n"
+                        "    max_tokens=2048,\n"
+                        "    messages=[{\"role\": \"user\", \"content\": \"Review this login handler for auth bypasses: ...\"}],\n"
+                        ")\n"
+                        "print(r.choices[0].message.content)\n"
+                        "print(r.model_extra[\"billing\"], r.usage)   # \"free\" or \"paid\"; usage on paid answers"))
+     (config-block {:ja? ja? :lang :text :title "TypeScript"}
+                   (str "import OpenAI from \"openai\";\n\n"
+                        "const client = new OpenAI({ baseURL: \"" openai-base "\", apiKey: process.env.KOTOBA_API_TOKEN });\n\n"
+                        "const r = await client.chat.completions.create({\n"
+                        "  model: \"" model-id "\",\n"
+                        "  max_tokens: 2048,\n"
+                        "  messages: [{ role: \"user\", content: \"Review this login handler for auth bypasses: ...\" }],\n"
+                        "});\n"
+                        "console.log(r.choices[0].message.content);"))
+     [:h2 (txt "何が通るか" "What passes")]
+     [:ul
+      [:li (txt "messages（system は先頭 1 つ、user / assistant / tool の turn、最大 256 turn、入力合計 524,288 文字）" "messages (one leading system turn; user / assistant / tool turns; up to 256 turns; 524,288 input characters in total)")]
+      [:li (txt "max_tokens または max_completion_tokens（1..32,768）、stream（1 チャンク SSE）、n（1 のみ）" "max_tokens or max_completion_tokens (1..32,768), stream (one-chunk SSE), n (must be 1)")]
+      [:li (txt "tools（最大 128 個の function 定義）と tool_choice — ネイティブな tool_calls が返ります" "tools (up to 128 function definitions) and tool_choice — native tool_calls come back")]
+      [:li (txt "受理して落とす: temperature, top_p, presence/frequency_penalty, stop, response_format, parallel_tool_calls, stream_options, user, seed, logit_bias, logprobs, top_logprobs, metadata, store, service_tier, reasoning_effort, reasoning, prompt_cache_key, safety_identifier, modalities" "Accepted and dropped: temperature, top_p, presence/frequency_penalty, stop, response_format, parallel_tool_calls, stream_options, user, seed, logit_bias, logprobs, top_logprobs, metadata, store, service_tier, reasoning_effort, reasoning, prompt_cache_key, safety_identifier, modalities")]
+      [:li (txt "それ以外の key は 400 invalid-research-request（message が key を名指し）" "Any other key is a 400 invalid-research-request whose message names it")]]
+     [:h2 (txt "応答の追加フィールド" "Extra fields on the answer")]
+     [:p (txt "OpenAI の形に billing（\"free\" / \"paid\"）、receiptId、有料なら usage と chargedMicroUSD が加わります。SDK は未知のフィールドを model_extra（Python）/ そのまま（TypeScript）に残します。"
+              "The OpenAI shape plus billing (\"free\" / \"paid\"), receiptId, and on paid answers usage and chargedMicroUSD. SDKs keep unknown fields (model_extra in Python; as-is in TypeScript).")]
+     (note-block
+      (txt "他の wire（/v1/responses、/v1/embeddings、/v1/images）は提供していません（405）。Responses API を既定にする SDK 設定は chat.completions に戻してください。"
+           "Other wires (/v1/responses, /v1/embeddings, /v1/images) are not served (405). SDK settings that default to the Responses API must go back to chat.completions."))]))
+
+(defn anthropic-sdk-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 "Anthropic SDK"]
+     [:p {:class "kc-docs__lead"}
+      (txt "api.kotoba.cloud は Anthropic Messages API の wire（POST /v1/messages）を提供していません — 2026-09-15 に実測して 405 でした。Anthropic SDK は base_url を変えても OpenAI の wire を話せないので、選択肢は 2 つです。"
+           "api.kotoba.cloud does not serve the Anthropic Messages wire (POST /v1/messages) — measured 405 on 2026-09-15. The Anthropic SDK cannot speak the OpenAI wire by changing base_url, so there are two options.")]
+     [:h2 (txt "1. OpenAI SDK に切り替える" "1. Switch to the OpenAI SDK")]
+     [:p (txt "自分のコードなら、これが最短です。messages の形はほぼ同じ（system は先頭 turn へ、tool の結果は role: tool）。" "In your own code this is the shortest path; the messages shape is nearly the same (system becomes the leading turn; tool results are role: tool).")]
+     [:h2 (txt "2. 変換プロキシを挟む" "2. Put a translating proxy in between")]
+     [:p (txt "Claude Code のように Anthropic プロトコルしか話せないクライアントは、Anthropic → OpenAI の変換をローカルで行うプロキシ（LiteLLM のプロキシモードなど）に向け、そのプロキシが kotoba.cloud を呼びます。" "A client that speaks only the Anthropic protocol (Claude Code, for example) points at a local proxy that translates Anthropic → OpenAI (LiteLLM's proxy mode, for one); the proxy calls kotoba.cloud.")]
+     (config-block {:ja? ja? :lang :text :title "litellm config.yaml"}
+                   (str "model_list:\n"
+                        "  - model_name: kotoba\n"
+                        "    litellm_params:\n"
+                        "      model: openai/" model-id "\n"
+                        "      api_base: " openai-base "\n"
+                        "      api_key: os.environ/KOTOBA_API_TOKEN\n\n"
+                        "# litellm --config config.yaml --port 4000\n"
+                        "# export ANTHROPIC_BASE_URL=http://127.0.0.1:4000\n"
+                        "# export ANTHROPIC_API_KEY=anything   # the proxy holds the real token"))
+     (note-block
+      (txt "プロキシを挟んでも admission は同じです（本人確認・スコープ・無料枠・ガードレール）。ツール定義と tool_calls はプロキシが両形式を変換します。Messages wire のネイティブ提供は検討中で、提供したらこの頁が変わります。"
+           "Admission is the same through a proxy (verification, scope, quota, guardrails). Tool definitions and tool_calls are translated by the proxy. Native support for the Messages wire is under consideration; this page changes when it lands."))]))
+
+(defn google-sdk-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 "Google GenAI SDK"]
+     [:p {:class "kc-docs__lead"}
+      (txt "Gemini の wire（/v1beta/models/…:generateContent）は提供していません — 2026-09-15 に実測して 405 でした。google-genai SDK は OpenAI の wire を話さないため、OpenAI SDK（または OpenAI 互換の任意のクライアント）を使ってください。"
+           "The Gemini wire (/v1beta/models/…:generateContent) is not served — measured 405 on 2026-09-15. The google-genai SDK does not speak the OpenAI wire; use the OpenAI SDK (or any OpenAI-compatible client).")]
+     (config-block {:ja? ja? :lang :text :title "Python (openai)"}
+                   (str "from openai import OpenAI\n"
+                        "client = OpenAI(base_url=\"" openai-base "\", api_key=os.environ[\"KOTOBA_API_TOKEN\"])\n"
+                        "r = client.chat.completions.create(model=\"" model-id "\", max_tokens=2048,\n"
+                        "    messages=[{\"role\": \"user\", \"content\": \"...\"}])"))
+     (note-block
+      (txt "Gemini 形式の contents / parts / systemInstruction は、messages（role + content 文字列）に写してください。画像・音声の入力は現在受け付けていません（content は文字列のみ）。"
+           "Map Gemini's contents / parts / systemInstruction to messages (role + string content). Image and audio inputs are not accepted today (content is a string)."))]))
+
+(defn frameworks-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "フレームワーク" "Frameworks")]
+     [:p {:class "kc-docs__lead"}
+      (txt "OpenAI 互換の chat.completions を話すフレームワークは、base URL と model id の 2 つで動きます。それぞれの設定と、ぶつかりやすい点。"
+           "Any framework that speaks OpenAI chat.completions works on two settings: the base URL and the model id. Each one's configuration, and where it tends to snag.")]
+     [:h2 "LangChain"]
+     (config-block {:ja? ja? :lang :text :title "Python"}
+                   (str "from langchain_openai import ChatOpenAI\n"
+                        "llm = ChatOpenAI(model=\"" model-id "\", base_url=\"" openai-base "\",\n"
+                        "                 api_key=os.environ[\"KOTOBA_API_TOKEN\"], max_tokens=2048)\n"
+                        "llm.invoke(\"Summarize the auth flow in this file: ...\")"))
+     [:p {:class "kc-docs__note"} (txt "streaming=True でも動きます（1 チャンクで届く）。bind_tools はネイティブ tool_calls で動きます。" "streaming=True works (the answer arrives as one chunk). bind_tools works on native tool_calls.")]
+     [:h2 "LlamaIndex"]
+     (config-block {:ja? ja? :lang :text :title "Python"}
+                   (str "from llama_index.llms.openai_like import OpenAILike\n"
+                        "llm = OpenAILike(model=\"" model-id "\", api_base=\"" openai-base "\",\n"
+                        "                 api_key=os.environ[\"KOTOBA_API_TOKEN\"], is_chat_model=True, max_tokens=2048)"))
+     [:p {:class "kc-docs__note"} (txt "OpenAI クラスではなく OpenAILike を使う（未知の model id を拒否しない）。" "Use OpenAILike, not OpenAI (it does not reject an unknown model id).")]
+     [:h2 "Vercel AI SDK"]
+     (config-block {:ja? ja? :lang :text :title "TypeScript"}
+                   (str "import { createOpenAI } from \"@ai-sdk/openai\";\n"
+                        "import { generateText } from \"ai\";\n\n"
+                        "const kotoba = createOpenAI({ baseURL: \"" openai-base "\", apiKey: process.env.KOTOBA_API_TOKEN });\n"
+                        "const { text } = await generateText({ model: kotoba.chat(\"" model-id "\"), maxTokens: 2048, prompt: \"...\" });"))
+     [:p {:class "kc-docs__note"} (txt "kotoba.chat(...) を使う: 既定の kotoba(...) は Responses API を選ぶことがあり、それは 405 です。" "Use kotoba.chat(...): the default kotoba(...) may pick the Responses API, which is 405 here.")]
+     [:h2 "OpenAI Agents SDK"]
+     (config-block {:ja? ja? :lang :text :title "Python"}
+                   (str "from agents import Agent, Runner, OpenAIChatCompletionsModel, set_tracing_disabled\n"
+                        "from openai import AsyncOpenAI\n\n"
+                        "client = AsyncOpenAI(base_url=\"" openai-base "\", api_key=os.environ[\"KOTOBA_API_TOKEN\"])\n"
+                        "set_tracing_disabled(True)   # tracing posts to OpenAI, not here\n"
+                        "agent = Agent(name=\"reviewer\", model=OpenAIChatCompletionsModel(model=\"" model-id "\", openai_client=client))\n"
+                        "Runner.run_sync(agent, \"Review src/auth.py\")"))
+     [:p {:class "kc-docs__note"} (txt "OpenAIChatCompletionsModel を明示する（既定は Responses API）。" "Name OpenAIChatCompletionsModel explicitly (the default is the Responses API).")]
+     [:h2 "LiteLLM"]
+     (config-block {:ja? ja? :lang :text :title "Python"}
+                   (str "import litellm\n"
+                        "litellm.completion(model=\"openai/" model-id "\", api_base=\"" openai-base "\",\n"
+                        "                   api_key=os.environ[\"KOTOBA_API_TOKEN\"], max_tokens=2048,\n"
+                        "                   messages=[{\"role\": \"user\", \"content\": \"...\"}])"))
+     [:p {:class "kc-docs__note"} (txt "openai/ プレフィックスで chat.completions に固定。プロキシモードは Anthropic SDK の頁を参照。" "The openai/ prefix pins chat.completions. For proxy mode see the Anthropic SDK page.")]
+     [:h2 (txt "共通の注意" "Common snags")]
+     [:ul
+      [:li (txt "n > 1、logprobs、embeddings、画像入力は提供していません。" "n > 1, logprobs, embeddings and image input are not offered.")]
+      [:li (txt "max_tokens は明示する（既定 2,048 は reasoning を含む）。" "Set max_tokens explicitly (the default 2,048 includes reasoning).")]
+      [:li (txt "レッドチームのモデルは本人確認とスコープが要ります。最初の 403 は /v1/research/status で理由を読む。" "Red-team models need verification and a scope; read the first 403's reason at /v1/research/status.")]
+      [:li (txt "同じリクエストの再送は同じジョブに再接続します（二重課金なし）— リトライは安全です。" "Resending the identical request re-attaches to the same job (never charged twice) — retries are safe.")]]]))
+
 (defn ref-view [id locale]
   (case id
+    "openai-sdk" (openai-sdk-view locale)
+    "anthropic-sdk" (anthropic-sdk-view locale)
+    "google-genai-sdk" (google-sdk-view locale)
+    "frameworks" (frameworks-view locale)
     "get-api-token" (token-view locale)
     "models" (models-view locale)
     "reasoning" (reasoning-view locale)
