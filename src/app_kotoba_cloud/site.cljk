@@ -6,6 +6,7 @@
             [app-kotoba-cloud.knowledge-site :as knowledge-site]
             [cloud-kotoba-dds.graph-workbench :as graph-workbench]
             [app-kotoba-cloud.identity-site :as identity-site]
+            [app-kotoba-cloud.fake-report-site :as fake-report-site]
             [app-kotoba-cloud.account-site :as account-site]
             [cloud-kotoba-dds.console :as dds-console]
             [cloud-kotoba-dds.shell :as shell]
@@ -1065,6 +1066,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        tokens/skin-css "\n" app-css "\n" app-sidebar-css "\n"
        research-site/css "\n" chat-site/css "\n"
        knowledge-site/css "\n" tokens/bridge-css "\n"
+       fake-report-site/css "\n"
        security-site/css "\n" csf2-site/css "\n"
        crypto-site/css "\n" compliance-site/css "\n" enforcement-site/css "\n"
        vc-site/css "\n"
@@ -1240,6 +1242,27 @@ body:has(.kc-sb){padding-inline-start:15rem}
                  "A first-party console (browser capture, operator review) is maintained as a tested component but is not published or accepting requests today.")]
         (dds/row (dds/button (txt "研究者登録（Stripe Identity）" "Researcher registration (Stripe Identity)") {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
                  (dds/button (txt "登録ガイド" "Registration guide") {:href "https://kotoba.cloud/llms.txt" :type :outline}))))))))
+
+(defn fake-report-html
+  "ADR-2609141800 Phase 3: the toC fake-account (impersonation) report
+   surface — one document per public locale, the fragment `#fake-report`
+   inside (fake-report-site/section). The session keeps the C3 (eKYC)
+   boundary at the gateway; the browser (fake-report-browser) reveals the
+   console once /v1/session answers signed-in."
+  ([] (fake-report-html :ja))
+  ([locale]
+   (let [t (translation locale)
+         ja? (= locale :ja)
+         txt (fn [ja en] (if ja? ja en))]
+     (site-layout {:title (txt "偽アカウント (なりすまし) 報告 — Kotoba Cloud"
+                               "Fake-account (impersonation) reporting — Kotoba Cloud")
+                   :description (txt "なりすまし被害の証拠つき公式通報を、あなた自身の手で。ドラフト生成と手順案内のみで、自動送信はありません。"
+                                     "Evidence-backed impersonation reports to the official channels, submitted by you. Draft generation and a step guide only; nothing is sent automatically.")
+                   :lang (:html-lang t) :locale locale
+                   :robots "noindex"
+                   :extra-css (str research-site/css fake-report-site/css)}
+      (console-body locale
+       (fake-report-site/section locale))))))
 
 (defn account-html
   "Account console: session, identity verification, research eligibility,
@@ -1677,6 +1700,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
         (when (fs/existsSync headers)
           (copy-file headers (node-path/join root "_headers"))))
       (spit-locale-variants! root "identity" identity-html)
+      ;; fake-report: the #fake-report fragment, one document per locale
+      (spit-locale-variants! root "fake-report" fake-report-html)
       ;; the account console: one variant per public locale (en at the
       ;; locale-free root, the rest under their locale directory)
       (spit-file (node-path/join root "account" "index.html") (account-html :en))

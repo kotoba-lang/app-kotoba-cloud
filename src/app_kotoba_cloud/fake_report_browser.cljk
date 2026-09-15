@@ -1,0 +1,223 @@
+(ns app-kotoba-cloud.fake-report-browser
+  "Client for the #fake-report fragment (ADR-2609141800 Phase 3). The
+   authority owns the ledger and every charter gate; this file only
+   collects the form, POSTs to the same-origin gateway paths and renders
+   what comes back. There is deliberately no direct-to-platform send, no
+   upload rail and no third-party network call (C4): the only network
+   traffic is the kotoba.cloud gateway."
+  (:require [app-kotoba-cloud.fake-report-site :as site]))
+
+(defn- el [id] (.getElementById js/document id))
+
+(defn- text! [id s]
+  (when-let [e (el id)]
+    (set! (.-textContent e) s)))
+
+(defn- value [id]
+  (when-let [e (el id)]
+    (.-value e)))
+
+(defn- english? []
+  (not= "ja" (.-lang (.-documentElement js/document))))
+
+(defn- msg [ja en] (if (english?) en ja))
+
+(defn- post! [path body]
+  (-> (js/fetch path #js {:method "POST" :credentials "same-origin"
+                          :headers #js {"content-type" "application/json"
+                                        "accept" "application/json"}
+                          :body (js/JSON.stringify (clj->js body))})
+      (.then (fn [r]
+               (-> (.json r)
+                   (.then (fn [payload]
+                            [(.-ok r) (js->clj payload :keywordize-keys true)])))))))
+
+(defn- err-code [payload]
+  (name (or (get-in payload [:error :code]) (:error payload)
+            :fake-report-service-unavailable)))
+
+(defn- err-copy [code]
+  (case (name code)
+    "sign-in-required" (msg "ログインが必要です。#identity からログインしてください。"
+                            "Sign-in is required. Sign in from #identity first.")
+    "ekyc-required" (msg "本人確認 (Stripe Identity) が有効な session が必要です。/identity から本人確認を済ませてください。"
+                         "A session with a current Stripe Identity verification is required. Verify at /identity first.")
+    "invalid-case" (msg "ケースの内容が要件を満たしません。証拠 1 件以上・対象と偽装された側の項目を確認してください。"
+                        "The case does not meet the requirements. Check that at least one evidence row and the subject fields are filled.")
+    "evidence-required" (msg "証拠が 1 件もない報告は提出できません (C2)。"
+                             "A report with zero evidence cannot be submitted.")
+    "already-submitted" (msg "このケースはすでに提出済みとして記録されています。"
+                             "This case is already recorded as submitted.")
+    "case-falsified" (msg "このケースは虚偽として記録されています。争いは運用レビュー route で扱われます。"
+                          "This case is recorded as falsified. Disputes go through the operations review route.")
+    "case-not-found" (msg "ケースが見つかりません (他の Principal のケースは参照できません)。"
+                          "Case not found (another Principal's case is not visible).")
+    "no-case-yet" (msg "先に「ドラフトを生成」で case を作ってください。"
+                       "Generate a draft first to create the case.")
+    (msg "偽アカウント面は一時的に使えません。しばらくしてからもう一度お試しください。"
+         "The fake-report surface is temporarily unavailable. Try again later.")))
+
+(defn- error! [code]
+  (text! "fake-report-result" (err-copy code)))
+
+;; ---- form readback ---------------------------------------------------------
+
+(defn- evidence-values []
+  (vec
+   (for [n (range 1 4)
+         :let [ref (value (str "fake-report-evidence-" n "-ref"))
+               taken (value (str "fake-report-evidence-" n "-taken-at"))]
+         :when (and ref taken (re-find #"\S" ref))]
+     {:kind (or (value (str "fake-report-evidence-" n "-kind")) "other")
+      :ref ref
+      :taken-at taken})))
+
+(defn- on-behalf? []
+  (let [box (el "fake-report-on-behalf")]
+    (boolean (and box (.-checked box)))))
+
+(defn- collect []
+  (site/case-payload
+   {:platform (or (value "fake-report-platform") "facebook")
+    :suspect-handle (value "fake-report-suspect-handle")
+    :suspect-url (value "fake-report-suspect-url")
+    :suspect-taken-at (value "fake-report-suspect-taken-at")
+    :impostered-name (value "fake-report-impostered-name")
+    :impostered-url (value "fake-report-impostered-url")
+    :impostered-kind (or (value "fake-report-impostered-kind") "person")
+    :evidence (evidence-values)
+    :on-behalf (on-behalf?)
+    :consent-statement (value "fake-report-consent-statement")
+    :consent-proof-url (value "fake-report-consent-proof-url")}))
+
+(defn- case-id-from-page []
+  (let [m (re-find #"fr_[0-9a-f]+" (or (.-textContent (el "fake-report-result")) ""))]
+    (first m)))
+
+;; ---- draft readback --------------------------------------------------------
+
+(defn- show-draft! [draft]
+  (set! (.-hidden (el "fake-report-draft")) false)
+  (text! "fake-report-draft-caveat" (or (:caveat draft) ""))
+  (text! "fake-report-draft-form-name" (or (:form-name draft) ""))
+  (when-let [a (el "fake-report-draft-form-url")]
+    (set! (.-href a) (or (:form-url draft) "")))
+  (let [steps (el "fake-report-draft-steps")]
+    (set! (.-innerHTML steps) "")
+    (doseq [step (or (:steps draft) [])]
+      (let [li (.createElement js/document "li")]
+        (set! (.-textContent li) step)
+        (.appendChild steps li))))
+  (let [lines (map (fn [f] (str (:label f) ": " (:value f))) (:fields draft))
+        text (apply str (interpose "\n" lines))]
+    (text! "fake-report-draft-body" text))
+  (text! "fake-report-case-ledger"
+         (msg "提出はまだ記録されていません。公式フォームで自分で提出したあと「提出を記録」を押してください。"
+              "Nothing is submitted yet. Submit through the official form yourself, then press Record my submission.")))
+
+(defn- copy-buttons! [draft]
+  (when-let [copy (el "fake-report-draft-copy")]
+    (set! (.-onclick copy)
+          (fn [_]
+            (let [text (.-textContent (el "fake-report-draft-body"))]
+              (-> (js/navigator.clipboard.writeText text)
+                  (.then (fn [_] (text! "fake-report-result" (msg "コピーしました。" "Copied."))))
+                  (.catch (fn [_] (text! "fake-report-result" (msg "コピーできませんでした。" "Copy failed.")))))))))
+  (when-let [eml (el "fake-report-draft-eml")]
+    (set! (.-onclick eml)
+          (fn [_]
+            (if-let [d (:eml draft)]
+              (-> (js/navigator.clipboard.writeText
+                   (str "Subject: " (:subject d) "\n\n" (:body d)))
+                  (.then (fn [_]
+                           (text! "fake-report-result"
+                                  (msg "EML をコピーしました。自分のメールソフトから送信してください。"
+                                       "EML copied. Send it from your own mail client."))))
+                  (.catch (fn [_] nil)))
+              (text! "fake-report-result"
+                     (msg "EML fallback は LINE ケースのみです。"
+                          "The EML fallback exists for LINE cases only.")))))))
+
+;; ---- actions ---------------------------------------------------------------
+
+(defn- generate! []
+  (text! "fake-report-result" (msg "生成中…" "Generating…"))
+  (-> (post! "/v1/fake-report/case" (collect))
+      (.then (fn [[ok? payload]]
+               (if ok?
+                 (post! "/v1/fake-report/draft" {:caseId (:caseId payload)})
+                 (do (error! (err-code payload)) nil))))
+      (.then (fn [[ok? payload]]
+               (when ok?
+                 (do (text! "fake-report-result"
+                            (str (msg "ドラフトを生成しました (case " "Draft generated (case ")
+                                 (:caseId payload) ")"))
+                     (show-draft! (:draft payload))
+                     (copy-buttons! (:draft payload))))))
+      (.catch (fn [_] (error! :unavailable)))))
+
+(defn- record-submit! []
+  (if-let [case-id (case-id-from-page)]
+    (-> (post! "/v1/fake-report/submit" {:caseId case-id})
+        (.then (fn [[ok? payload]]
+                 (if ok?
+                   (text! "fake-report-result"
+                          (msg "あなた自身の提出を記録しました。状態は open→submitted→platform-acked→resolved で進みます。"
+                               "Your own submission is recorded. Status advances open→submitted→platform-acked→resolved."))
+                   (error! (err-code payload))))))
+    (error! :no-case-yet)))
+
+(defn- check-status! []
+  (if-let [case-id (case-id-from-page)]
+    (-> (post! "/v1/fake-report/status" {:caseId case-id})
+        (.then (fn [[ok? payload]]
+                 (if ok?
+                   (text! "fake-report-case-ledger"
+                          (str (msg "状態: " "Status: ") (:status payload)
+                               (when (:falsified payload)
+                                 (msg " · 虚偽として記録されています" " · recorded as falsified"))))
+                   (error! (err-code payload))))))
+    (error! :no-case-yet)))
+
+(defn init!
+  "Revealed once the session answers signed-in (browser.cljk calls
+   signed-in!). No-ops when the fragment is not on the document."
+  []
+  (when (el "fake-report-form")
+    (set! (.-hidden (el "fake-report-waiting")) true)
+    (set! (.-hidden (el "fake-report-console")) false)
+    (when-let [ob (el "fake-report-on-behalf")]
+      (.addEventListener ob "change"
+                         (fn [_]
+                           (set! (.-hidden (el "fake-report-consent"))
+                                 (not (.-checked ob))))))
+    (let [evidence-ids (range 1 4)]
+      (when-let [add (el "fake-report-evidence-add")]
+        (.addEventListener add "click"
+                           (fn [_]
+                             (when-let [next (first (filter #(.-hidden (el (str "fake-report-evidence-" %)))
+                                                            evidence-ids))]
+                               (set! (.-hidden (el (str "fake-report-evidence-" next))) false)
+                               (when (every? #(not (.-hidden (el (str "fake-report-evidence-" %))))
+                                             evidence-ids)
+                                 (set! (.-disabled add) true))))))
+      (when-let [rm (el "fake-report-evidence-remove")]
+        (.addEventListener rm "click"
+                           (fn [_]
+                             (when-let [last (last (filter #(not (.-hidden (el (str "fake-report-evidence-" %))))
+                                                           evidence-ids))]
+                               (set! (.-hidden (el (str "fake-report-evidence-" last))) true)
+                               (set! (.-disabled (el "fake-report-evidence-add")) false))))))
+
+    (when-let [form (el "fake-report-form")]
+      (.addEventListener form "submit" (fn [e] (.preventDefault e) (generate!))))
+    (when-let [submit (el "fake-report-submit")]
+      (.addEventListener submit "click" (fn [_] (record-submit!))))
+    (when-let [check (el "fake-report-status-check")]
+      (.addEventListener check "click" (fn [_] (check-status!))))))
+
+(defn signed-in!
+  "browser.cljk calls this once the session payload says valid."
+  []
+  (when (el "fake-report-form")
+    (init!)))

@@ -3,6 +3,7 @@
             [app-kotoba-cloud.identity-browser :as identity-browser]
             [app-kotoba-cloud.account-browser :as account-browser]
             [app-kotoba-cloud.admin-browser :as admin-browser]
+            [app-kotoba-cloud.fake-report-browser :as fake-report-browser]
             [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.research-browser :as research-browser]
             [app-kotoba-cloud.session :as session]
@@ -139,6 +140,9 @@
     (text! "kc-session-principal" (session/abbreviate (:principalId payload)))
     (text! "kc-session-controller" (session/abbreviate (:activeDid payload)))
     (text! "kc-session-status" (str next-status " · @" username))
+    ;; #fake-report (ADR-2609141800 Phase 3): reveal + wire after sign-in;
+    ;; the eKYC (C3) boundary stays server-side at the gateway.
+    (fake-report-browser/signed-in!)
     (preserve-attribution-links!)
     (let [bfcid (get (landing-attribution) "bfcid")]
       (post-funnel-event! "signup_completed" (cond-> {} bfcid (assoc :bfcid bfcid)))
