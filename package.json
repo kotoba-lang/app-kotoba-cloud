@@ -17,6 +17,8 @@
     "test:providers": "node test/research-providers.mjs",
     "build:security-data": "node scripts/build-security-data.mjs",
     "test:security-data": "node test/security-data.mjs",
+    "build:compliance-catalog": "node scripts/build-compliance-catalog.mjs",
+    "test:compliance-catalog": "node test/compliance-catalog.mjs",
     "build:crypto-catalog": "node scripts/build-crypto-catalog.mjs",
     "test:crypto-catalog": "node test/crypto-catalog.mjs"
   },

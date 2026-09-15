@@ -52,6 +52,16 @@
     :links [["ハブを開く" "/ja/security/"]
             ["IPLD" "/security-data/index.json"]]
     :meta ["KEV" "ATT&CK" "OTRF"]}
+   {:id "compliance-catalog"
+    :name "コンプライアンス & 製品カタログ"
+    :kind "public-data"
+    :status "live"
+    :desc "全世界のコンプライアンス基準 (ISO / SOC 2 / PCI DSS / GDPR / DORA / CRA ほか) と脆弱性対策製品のカテゴリ・価格・プロバイダーをまとめた出典付きカタログ。"
+    :desc-en "Worldwide compliance frameworks and vulnerability-management product catalog: categories, providers and pricing, fully sourced."
+    :links [["カタログを開く" "/ja/security/compliance/"]
+            ["IPLD" "/compliance-data/compliance/index.json"]
+            ["生成スクリプト" "https://github.com/kotoba-lang/app-kotoba-cloud/blob/main/scripts/build-compliance-catalog.mjs"]]
+    :meta ["16 基準" "29 プロダクト" "価格あり"]}
    {:id "aup"
     :name "Security Research AUP"
     :kind "policy"

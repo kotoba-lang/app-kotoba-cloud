@@ -1,0 +1,1118 @@
+{
+ "generatedAt": "2026-09-15T07:01:48.738Z",
+ "source/kind": "kotoba.cloud compliance standards catalog",
+ "corpus": "compliance-public",
+ "verified": "2026-09",
+ "frameworkCount": 16,
+ "categoryCount": 12,
+ "productCount": 29,
+ "categories": [
+  {
+   "id": "vm-scanner",
+   "name": "Vulnerability Assessment / VM",
+   "name-ja": "脆弱性診断・管理",
+   "desc": "Authenticated/unauthenticated vulnerability scanning and risk-based VM platforms."
+  },
+  {
+   "id": "ptesp",
+   "name": "Penetration Testing / PTaaS",
+   "name-ja": "ペネトレーションテスト",
+   "desc": "Human + tooling pentest services and continuous PTaaS platforms."
+  },
+  {
+   "id": "edr-xdr",
+   "name": "EDR / XDR",
+   "name-ja": "EDR・XDR",
+   "desc": "Endpoint detection & response, extended detection & response platforms."
+  },
+  {
+   "id": "sast-dast",
+   "name": "AppSec (SAST/DAST/SCA)",
+   "name-ja": "アプリケーションセキュリティ",
+   "desc": "Static/dynamic analysis, software composition analysis, code-level vulnerability management."
+  },
+  {
+   "id": "cspm",
+   "name": "CSPM / CNAPP",
+   "name-ja": "クラウドセキュリティ態勢管理",
+   "desc": "Cloud posture management, cloud workload protection, misconfiguration and entitlement risk."
+  },
+  {
+   "id": "siem",
+   "name": "SIEM / Log Analytics",
+   "name-ja": "SIEM・ログ分析",
+   "desc": "Security information & event management, log ingestion and correlation."
+  },
+  {
+   "id": "grc",
+   "name": "GRC / Compliance Automation",
+   "name-ja": "GRC・コンプライアンス自動化",
+   "desc": "Control monitoring, evidence collection, multi-framework audit automation."
+  },
+  {
+   "id": "iam",
+   "name": "IAM / Access Management",
+   "name-ja": "ID・アクセス管理",
+   "desc": "Identity providers, SSO, MFA, privileged access management."
+  },
+  {
+   "id": "ztna",
+   "name": "Zero Trust / SASE",
+   "name-ja": "ゼロトラスト・SASE",
+   "desc": "ZTNA network access, SWG, secure web gateway, SASE bundles."
+  },
+  {
+   "id": "secrets",
+   "name": "Secrets Management / PKI",
+   "name-ja": "シークレット管理",
+   "desc": "Vaulting of credentials, certificates, keys; dynamic secrets."
+  },
+  {
+   "id": "waf",
+   "name": "WAF / API Security",
+   "name-ja": "WAF・APIセキュリティ",
+   "desc": "Web application firewalls, API discovery and protection, bot management."
+  },
+  {
+   "id": "threatintel",
+   "name": "Threat Intelligence / SBOM",
+   "name-ja": "脅威インテリジェンス・SBOM",
+   "desc": "CTI feeds, attack surface management, SBOM generation and VEX."
+  }
+ ],
+ "frameworks": [
+  {
+   "id": "iso-27001",
+   "name": "ISO/IEC 27001:2022",
+   "kind": "certifiable-isms",
+   "scope": "Information security management systems (ISMS). International standard; certification via accredited bodies.",
+   "jurisdiction": [
+    "global"
+   ],
+   "publisher": "ISO/IEC",
+   "license": "Standard sold by ISO; summaries fair use",
+   "sourceUrl": "https://www.iso.org/standard/27001",
+   "nexus": [
+    "commercial",
+    "government-contractors"
+   ],
+   "record": {
+    "/": "baguqeera3e37zgygexesb53skrcbhz4t3crd5mkf57a7paifnein4poe76ra"
+   }
+  },
+  {
+   "id": "soc2",
+   "name": "SOC 2 (Type I / Type II)",
+   "kind": "attestation",
+   "scope": "Service organization controls over security, availability, confidentiality, processing integrity and privacy. Audited by CPA firms (AICPA Trust Services Criteria).",
+   "jurisdiction": [
+    "global"
+   ],
+   "publisher": "AICPA",
+   "license": "Public criteria description; report access restricted",
+   "sourceUrl": "https://www.aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2",
+   "nexus": [
+    "saas-vendors",
+    "north-america-buyers"
+   ],
+   "record": {
+    "/": "baguqeeraeyziunm336fapiob4nu3dbtfuju3okby3ytsonp36wqpruvprp5a"
+   }
+  },
+  {
+   "id": "pci-dss-40",
+   "name": "PCI DSS 4.0",
+   "kind": "contractual-standard",
+   "scope": "Cardholder data environment security, mandated by card brands via acquiring contracts. 4.0.1 published 2024-06; future-dated requirements enforce from 2025-03.",
+   "jurisdiction": [
+    "global"
+   ],
+   "publisher": "PCI Security Standards Council",
+   "license": "Public document, free with agreement",
+   "sourceUrl": "https://www.pcisecuritystandards.org/document_library/",
+   "nexus": [
+    "payment-processing",
+    "global"
+   ],
+   "record": {
+    "/": "baguqeeray4cclkmkcvr4hjsllxfmoeoemruiykgqonjnmxn4yfkpbpqcqoka"
+   }
+  },
+  {
+   "id": "gdpr",
+   "name": "GDPR (EU 2016/679)",
+   "kind": "regulation",
+   "scope": "EU/EEA personal-data processing; fines up to 4% of global turnover. Applies extraterritorially to controllers/processors offering services into the EU.",
+   "jurisdiction": [
+    "eu",
+    "eea",
+    "extraterritorial"
+   ],
+   "publisher": "European Union",
+   "license": "Public regulation (EUR-Lex)",
+   "sourceUrl": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+   "nexus": [
+    "eu-market",
+    "any-personal-data"
+   ],
+   "record": {
+    "/": "baguqeera23tvegmocxfmrks74fi4uciropkjs2mk623kjt6sorkq5vq3t7da"
+   }
+  },
+  {
+   "id": "ccpa-cp",
+   "name": "CCPA / CPRA (Cal. Civ. Code 1798)",
+   "kind": "regulation",
+   "scope": "California consumer privacy rights; thresholds by revenue or data volume. Model for 20+ US state privacy laws.",
+   "jurisdiction": [
+    "us-ca",
+    "us-states-patchwork"
+   ],
+   "publisher": "State of California",
+   "license": "Public law",
+   "sourceUrl": "https://oag.ca.gov/privacy/ccpa",
+   "nexus": [
+    "us-market"
+   ],
+   "record": {
+    "/": "baguqeeragog6ko6xzd5kvyv3kebl7xcgpdoh7fu4o7h6u3iqloodpsytm4oa"
+   }
+  },
+  {
+   "id": "nist-csf-20",
+   "name": "NIST Cybersecurity Framework 2.0",
+   "kind": "voluntary-framework",
+   "scope": "Govern-Identify-Protect-Detect-Respond-Recover profile for any organization size/sector. Not certifiable directly; used as an organizing layer.",
+   "jurisdiction": [
+    "global"
+   ],
+   "publisher": "NIST",
+   "license": "Public (US government work)",
+   "sourceUrl": "https://www.nist.gov/cyberframework",
+   "nexus": [
+    "us-critical-infrastructure",
+    "global-adoption"
+   ],
+   "record": {
+    "/": "baguqeerax5wffzdgfv2geter7ybsy6mph5gchg533pv24jexq3jdiu6m3g4a"
+   }
+  },
+  {
+   "id": "cis-controls",
+   "name": "CIS Controls v8.1",
+   "kind": "prioritized-benchmark",
+   "scope": "18 controls, Implementation Group 1-3 prioritization. Basis for many product scorecards and Mappings.",
+   "jurisdiction": [
+    "global"
+   ],
+   "publisher": "Center for Internet Security",
+   "license": "Free download with registration",
+   "sourceUrl": "https://www.cisecurity.org/controls",
+   "nexus": [
+    "smb-enterprise"
+   ],
+   "record": {
+    "/": "baguqeerarnuxlgidvjptjcf3hjibfwc3z5dlnq4rvzbjifcakciayaxrczba"
+   }
+  },
+  {
+   "id": "fedramp",
+   "name": "FedRAMP (NIST SP 800-53 Rev.5 baseline)",
+   "kind": "government-authorization",
+   "scope": "US federal cloud service authorization (Low/Moderate/High, FIPS 199). Rev.5 baselines; FIPS 200/199. Authorization via JAB or agency ATO.",
+   "jurisdiction": [
+    "us-federal"
+   ],
+   "publisher": "US GSA / FedRAMP PMO",
+   "license": "Public documents",
+   "sourceUrl": "https://www.fedramp.gov/",
+   "nexus": [
+    "us-government-sales"
+   ],
+   "record": {
+    "/": "baguqeerafagyr2edtzq4n2ovdlr4usynuzgqzwt72s3ifpqrodgklplhrdza"
+   }
+  },
+  {
+   "id": "hipaa-security-rule",
+   "name": "HIPAA Security Rule (45 CFR 164 Subpart C)",
+   "kind": "regulation",
+   "scope": "Safeguards for electronic protected health information (ePHI) by covered entities and business associates.",
+   "jurisdiction": [
+    "us"
+   ],
+   "publisher": "US HHS",
+   "license": "Public regulation",
+   "sourceUrl": "https://www.hhs.gov/hipaa/for-professionals/security/index.html",
+   "nexus": [
+    "healthcare",
+    "us"
+   ],
+   "record": {
+    "/": "baguqeeragn3eqp7weoegl4zourbehznycxp53hx5nudidcib32s2w3rzv4ya"
+   }
+  },
+  {
+   "id": "dora",
+   "name": "DORA (EU 2022/2554)",
+   "kind": "regulation",
+   "scope": "EU digital operational resilience for financial entities; ICT third-party risk, resilience testing, applies from 2025-01-17.",
+   "jurisdiction": [
+    "eu",
+    "financial-sector"
+   ],
+   "publisher": "European Union",
+   "license": "Public regulation (EUR-Lex)",
+   "sourceUrl": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+   "nexus": [
+    "finance",
+    "eu"
+   ],
+   "record": {
+    "/": "baguqeerac4ynbdxr6gatjij45rwts2ibsd7dnavacibyaikv4mdv6smztpqa"
+   }
+  },
+  {
+   "id": "cra",
+   "name": "EU Cyber Resilience Act (EU 2024/2847)",
+   "kind": "regulation",
+   "scope": "Products with digital elements sold in the EU: secure-by-design, vulnerability handling, CE marking; entered into force 2024-12, main obligations phase in 2027.",
+   "jurisdiction": [
+    "eu",
+    "global-importers"
+   ],
+   "publisher": "European Union",
+   "license": "Public regulation (EUR-Lex)",
+   "sourceUrl": "https://eur-lex.europa.eu/eli/reg/2024/2847/oj",
+   "nexus": [
+    "software-vendors",
+    "iot"
+   ],
+   "record": {
+    "/": "baguqeeraehbukz2jf7sdyeduhmsmdq7ia4l2uyx7cummpcit7bwqounleb7a"
+   }
+  },
+  {
+   "id": "iso-27701",
+   "name": "ISO/IEC 27701:2019 (privacy extension)",
+   "kind": "certifiable-extension",
+   "scope": "PIMS extension to ISO 27001 for PII controllers/processors; used to evidence GDPR accountability.",
+   "jurisdiction": [
+    "global"
+   ],
+   "publisher": "ISO/IEC",
+   "license": "Standard sold by ISO; summaries fair use",
+   "sourceUrl": "https://www.iso.org/standard/71670.html",
+   "nexus": [
+    "privacy-programs"
+   ],
+   "record": {
+    "/": "baguqeeraybr6phgizm2igv3adnruqv2kfulksru5tjtxvhjlq3itduh37gza"
+   }
+  },
+  {
+   "id": "cloud-ccm",
+   "name": "CSA Cloud Controls Matrix v4",
+   "kind": "control-mapping",
+   "scope": "197 controls mapped to ISO 27001/17, NIST, PCI; the CAIQ questionnaire underpins the STAR registry.",
+   "jurisdiction": [
+    "global"
+   ],
+   "publisher": "Cloud Security Alliance",
+   "license": "Free with account",
+   "sourceUrl": "https://cloudsecurityalliance.org/research/cloud-controls-matrix",
+   "nexus": [
+    "cloud-vendors"
+   ],
+   "record": {
+    "/": "baguqeeraivqq6ahfzbvmimzi4o576cholnljqju6ioc2dcqsztqnhyirtcoa"
+   }
+  },
+  {
+   "id": "apra-cps-234",
+   "name": "APRA CPS 234",
+   "kind": "regulation",
+   "scope": "Australian information-security obligations for APRA-regulated entities and their service providers.",
+   "jurisdiction": [
+    "au",
+    "financial-sector"
+   ],
+   "publisher": "APRA",
+   "license": "Public standard",
+   "sourceUrl": "https://www.apra.gov.au/information-security",
+   "nexus": [
+    "australia",
+    "finance"
+   ],
+   "record": {
+    "/": "baguqeeramsmpjrgmgbimdumrcj3dh276kp7cddvy665gqer52bp35gmmw77a"
+   }
+  },
+  {
+   "id": "jp-appi",
+   "name": "個人情報保護法 (APPI)",
+   "kind": "regulation",
+   "scope": "Japan personal-information protection; PPC rules and cross-border transfer conditions. 2022 amendment expanded breach reporting.",
+   "jurisdiction": [
+    "jp"
+   ],
+   "publisher": "個人情報保護委員会 (PPC)",
+   "license": "Public law",
+   "sourceUrl": "https://www.ppc.go.jp/personalinfo/legal/",
+   "nexus": [
+    "japan-market"
+   ],
+   "record": {
+    "/": "baguqeeravbrrl5afvgvva5rhgcun5wvsxxgh3hgkralguxlurp6nmygvvuqa"
+   }
+  },
+  {
+   "id": "uk-gdpr-dpa",
+   "name": "UK GDPR + Data Protection Act 2018",
+   "kind": "regulation",
+   "scope": "UK retained GDPR with ICO enforcement; separate from EU GDPR post-Brexit, UK extension ratio in 2025.",
+   "jurisdiction": [
+    "uk"
+   ],
+   "publisher": "ICO / UK Parliament",
+   "license": "Public law",
+   "sourceUrl": "https://ico.org.uk/for-organisations/guide-to-data-protection/",
+   "nexus": [
+    "uk-market"
+   ],
+   "record": {
+    "/": "baguqeeralbcwub3wm3l43bhbia6mnzchf4xgmgwhef4u32j4e7pnrf4nsaga"
+   }
+  }
+ ],
+ "products": [
+  {
+   "id": "tenable-nessus",
+   "provider": "Tenable",
+   "providerHq": "US",
+   "name": "Tenable Nessus Expert",
+   "categoryId": "vm-scanner",
+   "pricingMode": "public-list",
+   "pricingNote": "Nessus Expert from about $4,490/yr (per scanner, list); Pro edition for enterprises sold via quote.",
+   "pricingUrl": "https://www.tenable.com/products/nessus/nessus-essentials-expert",
+   "complianceFits": [
+    "cis-controls",
+    "nist-csf-20",
+    "pci-dss-40"
+   ],
+   "record": {
+    "/": "baguqeerahwugneitgc2f6kehnky3l2xewpewpenkzxqutlcvd6hysfq55wla"
+   }
+  },
+  {
+   "id": "tenable-io",
+   "provider": "Tenable",
+   "providerHq": "US",
+   "name": "Tenable Vulnerability Management (Tenable.io)",
+   "categoryId": "vm-scanner",
+   "pricingMode": "quote-based",
+   "pricingNote": "Asset-based subscription, quote only; public guidance cites roughly $2k+/yr starting bands reported by buyers.",
+   "pricingUrl": "https://www.tenable.com/products/tenable-io",
+   "complianceFits": [
+    "pci-dss-40",
+    "cis-controls"
+   ],
+   "record": {
+    "/": "baguqeera6ufx4oj6qpbjqb5tu6wcjrllizmesqb7eiy4m2nigcswc3ywuvfa"
+   }
+  },
+  {
+   "id": "qualys-vmdr",
+   "provider": "Qualys",
+   "providerHq": "US",
+   "name": "Qualys VMDR",
+   "categoryId": "vm-scanner",
+   "pricingMode": "quote-based",
+   "pricingNote": "Per-asset cloud subscription via quote; 14-day free trial exists.",
+   "pricingUrl": "https://www.qualys.com/apps/vulnerability-management-detection-response/",
+   "complianceFits": [
+    "pci-dss-40",
+    "iso-27001"
+   ],
+   "record": {
+    "/": "baguqeerai46cabayjmionipw42syvdta6mvxtmckxzc3k7uaydk3erfm6uca"
+   }
+  },
+  {
+   "id": "rapid7-insightvm",
+   "provider": "Rapid7",
+   "providerHq": "US",
+   "name": "Rapid7 InsightVM",
+   "categoryId": "vm-scanner",
+   "pricingMode": "quote-based",
+   "pricingNote": "Per-asset subscription via quote; 30-day trial exists.",
+   "pricingUrl": "https://www.rapid7.com/products/insightvm/",
+   "complianceFits": [
+    "pci-dss-40",
+    "cis-controls"
+   ],
+   "record": {
+    "/": "baguqeeraeuorkwiipkg2sn3c62agkbifv4gpscj4sek7vceqghlflqgtrqra"
+   }
+  },
+  {
+   "id": "openvas-gvm",
+   "provider": "Greenbone (open source)",
+   "providerHq": "DE",
+   "name": "OpenVAS / Greenbone Vulnerability Management",
+   "categoryId": "vm-scanner",
+   "pricingMode": "public-list",
+   "pricingNote": "Community edition free/open source; Greenbone enterprise appliances via quote.",
+   "pricingUrl": "https://www.greenbone.net/",
+   "complianceFits": [
+    "cis-controls"
+   ],
+   "record": {
+    "/": "baguqeeraxernkqbjjsw2oxtjqpbt7wtjst6y6gixkmcnmqbah752ykofjcsa"
+   }
+  },
+  {
+   "id": "crowdstrike-falcon-edr",
+   "provider": "CrowdStrike",
+   "providerHq": "US",
+   "name": "CrowdStrike Falcon Insight (EDR)",
+   "categoryId": "edr-xdr",
+   "pricingMode": "public-list",
+   "pricingNote": "Falcon Go / Insight bundles historically listed around $59.99–$92.49 per endpoint/yr list band; enterprise deals via quote.",
+   "pricingUrl": "https://www.crowdstrike.com/pricing/",
+   "complianceFits": [
+    "nist-csf-20",
+    "hipaa-security-rule"
+   ],
+   "record": {
+    "/": "baguqeeranhg3ykfvrjdzbtrzenhryaqhq2ndy7zh22cnq3rgbkmpxkgsxeka"
+   }
+  },
+  {
+   "id": "sentinelone-singularity",
+   "provider": "SentinelOne",
+   "providerHq": "US",
+   "name": "SentinelOne Singularity Complete",
+   "categoryId": "edr-xdr",
+   "pricingMode": "public-list",
+   "pricingNote": "Published SKU bands roughly $69.99 (Core)–$169.99 (Complete+Fitness) per endpoint/yr list.",
+   "pricingUrl": "https://www.sentinelone.com/pricing/",
+   "complianceFits": [
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeerae6vwb3u5w3yo3b3yytbmd7gtm22cwvg4clzg3hmnkvuq4c265zoa"
+   }
+  },
+  {
+   "id": "ms-defender-for-endpoint",
+   "provider": "Microsoft",
+   "providerHq": "US",
+   "name": "Microsoft Defender for Endpoint P2",
+   "categoryId": "edr-xdr",
+   "pricingMode": "public-list",
+   "pricingNote": "Standalone P2: $5.75 user/month list (US). Bundled in E5 / Microsoft 365 E5.",
+   "pricingUrl": "https://www.microsoft.com/en-us/security/business/endpoint-security/microsoft-defender-endpoint",
+   "complianceFits": [
+    "fedramp",
+    "iso-27001",
+    "hipaa-security-rule"
+   ],
+   "record": {
+    "/": "baguqeera6uagljcrbkdaxosaiqarvfupim42xub5ppepolvatkecycxxpu6a"
+   }
+  },
+  {
+   "id": "snyk",
+   "provider": "Snyk",
+   "providerHq": "US",
+   "name": "Snyk (SCA / Container / Code)",
+   "categoryId": "sast-dast",
+   "pricingMode": "public-list",
+   "pricingNote": "Free tier; Team $25/developer/month list; Enterprise via quote.",
+   "pricingUrl": "https://snyk.io/plans/",
+   "complianceFits": [
+    "cra",
+    "iso-27001"
+   ],
+   "record": {
+    "/": "baguqeerabomqcehthteogzo26bprqwkemo3cmwqij5x3n2v2o3dkteh7xn7a"
+   }
+  },
+  {
+   "id": "burp-suite",
+   "provider": "PortSwigger",
+   "providerHq": "UK",
+   "name": "Burp Suite Professional",
+   "categoryId": "ptesp",
+   "pricingMode": "public-list",
+   "pricingNote": "$449/user/yr list. Burp Suite Enterprise Edition via quote.",
+   "pricingUrl": "https://portswigger.net/burp/pro",
+   "complianceFits": [
+    "pci-dss-40"
+   ],
+   "record": {
+    "/": "baguqeeraswxpw66rep2vgnn5bvvrszef6e4fgozbj3huqthg6riqmp7fvd7a"
+   }
+  },
+  {
+   "id": "semgrep",
+   "provider": "Semgrep",
+   "providerHq": "US",
+   "name": "Semgrep AppSec Platform",
+   "categoryId": "sast-dast",
+   "pricingMode": "public-list",
+   "pricingNote": "OSS engine free; Team/Paid tiers by seats via signup; Enterprise via quote.",
+   "pricingUrl": "https://semgrep.dev/pricing/",
+   "complianceFits": [
+    "cra"
+   ],
+   "record": {
+    "/": "baguqeeras6gmxfitbtzp7nsx4qyk6gbi6osuupwpf5p3iwmcmpkx34uinona"
+   }
+  },
+  {
+   "id": "wiz",
+   "provider": "Wiz",
+   "providerHq": "US",
+   "name": "Wiz CNAPP",
+   "categoryId": "cspm",
+   "pricingMode": "quote-based",
+   "pricingNote": "Per-workload annual subscription, quote only.",
+   "pricingUrl": "https://www.wiz.io/pricing",
+   "complianceFits": [
+    "iso-27001",
+    "fedramp",
+    "dora"
+   ],
+   "record": {
+    "/": "baguqeerabufgsfp5bil4y7v26yv7lpvm3jxgawgycwwlebyqixnlnt3bq2ha"
+   }
+  },
+  {
+   "id": "prisma-cloud",
+   "provider": "Palo Alto Networks",
+   "providerHq": "US",
+   "name": "Prisma Cloud (CNAPP)",
+   "categoryId": "cspm",
+   "pricingMode": "quote-based",
+   "pricingNote": "Credit-based licensing via quote.",
+   "pricingUrl": "https://www.paloaltonetworks.com/prisma/cloud",
+   "complianceFits": [
+    "iso-27001",
+    "pci-dss-40"
+   ],
+   "record": {
+    "/": "baguqeerauqn4f4jmkspitdkxljt7ute4mapzkca62hhaqncksdo45zr6zroa"
+   }
+  },
+  {
+   "id": "splunk-es",
+   "provider": "Cisco (Splunk)",
+   "providerHq": "US",
+   "name": "Splunk Enterprise Security",
+   "categoryId": "siem",
+   "pricingMode": "quote-based",
+   "pricingNote": "Ingest (GB/day) or workload pricing; Enterprise Security add-on via quote.",
+   "pricingUrl": "https://www.splunk.com/en_us/products/enterprise-security.html",
+   "complianceFits": [
+    "pci-dss-40",
+    "dora",
+    "fedramp"
+   ],
+   "record": {
+    "/": "baguqeera3csin3xyrmbmiaqv72ws6xw6e4mb3bxefw7n7ukctjknyupsecba"
+   }
+  },
+  {
+   "id": "elastic-siem",
+   "provider": "Elastic",
+   "providerHq": "US",
+   "name": "Elastic Security (SIEM)",
+   "categoryId": "siem",
+   "pricingMode": "public-list",
+   "pricingNote": "Cloud-hosted from about $95/month (16GB RAM + 4TB storage band) with usage-based scaling; self-managed free.",
+   "pricingUrl": "https://www.elastic.co/pricing/",
+   "complianceFits": [
+    "pci-dss-40"
+   ],
+   "record": {
+    "/": "baguqeeradrghwiqhnfyuvpjlicir4a24v2iuo6f4v4fsnkfgsutw67bjbhla"
+   }
+  },
+  {
+   "id": "vanta",
+   "provider": "Vanta",
+   "providerHq": "US",
+   "name": "Vanta",
+   "categoryId": "grc",
+   "pricingMode": "public-list",
+   "pricingNote": "Starter from about $9,600/yr list (up to 25 employees); higher tiers via quote.",
+   "pricingUrl": "https://www.vanta.com/pricing",
+   "complianceFits": [
+    "soc2",
+    "iso-27001",
+    "hipaa-security-rule"
+   ],
+   "record": {
+    "/": "baguqeeraawku4qcmv5yxxtbrbhz7tmqxivmtgftoqcstnju3ctyrk7ibyz3a"
+   }
+  },
+  {
+   "id": "drata",
+   "provider": "Drata",
+   "providerHq": "US",
+   "name": "Drata",
+   "categoryId": "grc",
+   "pricingMode": "quote-based",
+   "pricingNote": "Essentials/Advanced tiers, quote-based; published target bands roughly $10k+/yr for small teams.",
+   "pricingUrl": "https://drata.com/pricing",
+   "complianceFits": [
+    "soc2",
+    "iso-27001",
+    "gdpr"
+   ],
+   "record": {
+    "/": "baguqeerayguz34telrwrqphi5vutrv24tjihehjp6sbdnm4gtyyu33drg7na"
+   }
+  },
+  {
+   "id": "secureframe",
+   "provider": "Secureframe",
+   "providerHq": "US",
+   "name": "Secureframe Comply",
+   "categoryId": "grc",
+   "pricingMode": "quote-based",
+   "pricingNote": "Quote-based; supports 40+ frameworks.",
+   "pricingUrl": "https://secureframe.com/pricing",
+   "complianceFits": [
+    "soc2",
+    "iso-27001",
+    "apra-cps-234"
+   ],
+   "record": {
+    "/": "baguqeeradxrh6pnscf3m4pxbvscnmbhxa4h5qt74yyvaqf5ortrlbaashpva"
+   }
+  },
+  {
+   "id": "auditboard",
+   "provider": "AuditBoard",
+   "providerHq": "US",
+   "name": "AuditBoard",
+   "categoryId": "grc",
+   "pricingMode": "quote-based",
+   "pricingNote": "Enterprise internal-audit + SOXIT platform via quote.",
+   "pricingUrl": "https://www.auditboard.com/",
+   "complianceFits": [
+    "soc2",
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeeraurkbiv7sxwssxjxieguwrvqrfti5mqt43ppw45n7tslqmr67ebta"
+   }
+  },
+  {
+   "id": "okta-identity",
+   "provider": "Okta",
+   "providerHq": "US",
+   "name": "Okta Identity Cloud",
+   "categoryId": "iam",
+   "pricingMode": "public-list",
+   "pricingNote": "Single Sign-On from $3/user/month list; Advanced Server Access $6/user/month; MFA bundled bands.",
+   "pricingUrl": "https://www.okta.com/pricing/",
+   "complianceFits": [
+    "soc2",
+    "iso-27001",
+    "fedramp"
+   ],
+   "record": {
+    "/": "baguqeera5lk2edvr354slpvtaosupq3wilxpboyeynts52qw4fkzcn24uxsa"
+   }
+  },
+  {
+   "id": "cyberark-pam",
+   "provider": "CyberArk",
+   "providerHq": "IL",
+   "name": "CyberArk Privilege Cloud",
+   "categoryId": "iam",
+   "pricingMode": "quote-based",
+   "pricingNote": "SaaS PAM via quote.",
+   "pricingUrl": "https://www.cyberark.com/products/privilege-cloud/",
+   "complianceFits": [
+    "pci-dss-40",
+    "iso-27001"
+   ],
+   "record": {
+    "/": "baguqeerabw6ah4wmh7bowbsaqbzbdvl7zz5fxcjljdnpwoh6rfz4m5fmbu2a"
+   }
+  },
+  {
+   "id": "cloudflare-zt",
+   "provider": "Cloudflare",
+   "providerHq": "US",
+   "name": "Cloudflare Zero Trust",
+   "categoryId": "ztna",
+   "pricingMode": "public-list",
+   "pricingNote": "Free up to 50 users; Pay-as-you-go $7/user/month list; Contract via quote.",
+   "pricingUrl": "https://www.cloudflare.com/plans/zero-trust-services/",
+   "complianceFits": [
+    "nist-csf-20",
+    "iso-27001"
+   ],
+   "record": {
+    "/": "baguqeerasudwndvx2zimga7yuyww3zozhnfbuddt2pw5vsvfltdt47zladza"
+   }
+  },
+  {
+   "id": "zscaler-internet-access",
+   "provider": "Zscaler",
+   "providerHq": "US",
+   "name": "Zscaler Internet Access (ZIA)",
+   "categoryId": "ztna",
+   "pricingMode": "quote-based",
+   "pricingNote": "Per-user subscription via quote.",
+   "pricingUrl": "https://www.zscaler.com/products-and-solutions/products/zia-zscaler-internet-access",
+   "complianceFits": [
+    "iso-27001"
+   ],
+   "record": {
+    "/": "baguqeerao4r7l5mhrzlpegjy4cwojs6fydxah2q2bnqbridiq5guxxqbt63a"
+   }
+  },
+  {
+   "id": "hashicorp-vault",
+   "provider": "IBM (HashiCorp)",
+   "providerHq": "US",
+   "name": "HashiCorp Vault",
+   "categoryId": "secrets",
+   "pricingMode": "public-list",
+   "pricingNote": "OSS free; HCP Vault Standard from $0.03/hour instance + $0.10/client/month list bands; Enterprise via quote.",
+   "pricingUrl": "https://developer.hashicorp.com/vault/docs/hcp",
+   "complianceFits": [
+    "pci-dss-40",
+    "cis-controls"
+   ],
+   "record": {
+    "/": "baguqeera6djjwgsqza2fr7axoubjhmkmox5negh3qophbbg335qrx7vbt5ha"
+   }
+  },
+  {
+   "id": "cloudflare-waf",
+   "provider": "Cloudflare",
+   "providerHq": "US",
+   "name": "Cloudflare WAF / API Shield",
+   "categoryId": "waf",
+   "pricingMode": "public-list",
+   "pricingNote": "Included in Pro plan ($25/domain/month list) and above; API Shield add-ons via quote.",
+   "pricingUrl": "https://www.cloudflare.com/plans/",
+   "complianceFits": [
+    "pci-dss-40"
+   ],
+   "record": {
+    "/": "baguqeeraefap36ooryhobfl4y6fbivbi43zigm4yxcpsn5l4qjpzvmox4jma"
+   }
+  },
+  {
+   "id": "akamai-waf",
+   "provider": "Akamai",
+   "providerHq": "US",
+   "name": "Akamai App & API Protector",
+   "categoryId": "waf",
+   "pricingMode": "quote-based",
+   "pricingNote": "Traffic-based contract via quote.",
+   "pricingUrl": "https://www.akamai.com/products/app-and-api-protector",
+   "complianceFits": [
+    "pci-dss-40"
+   ],
+   "record": {
+    "/": "baguqeeraexicpy2kpvasydh22aoajuxbttz6v7hupuawfdokcf432ioti7ma"
+   }
+  },
+  {
+   "id": "recorded-future",
+   "provider": "Recorded Future (Mastercard)",
+   "providerHq": "US",
+   "name": "Recorded Future Intelligence Cloud",
+   "categoryId": "threatintel",
+   "pricingMode": "quote-based",
+   "pricingNote": "Seat-based annual via quote.",
+   "pricingUrl": "https://www.recordedfuture.com/",
+   "complianceFits": [
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeerafg64hw3ugudltmwz43fy24jgdf3bj3ogjzsog57rghcbrix5pxca"
+   }
+  },
+  {
+   "id": "anchore-enterprise",
+   "provider": "Anchore",
+   "providerHq": "US",
+   "name": "Anchore Enterprise (SBOM)",
+   "categoryId": "threatintel",
+   "pricingMode": "quote-based",
+   "pricingNote": "Syft OSS free; Enterprise container-compliance via quote.",
+   "pricingUrl": "https://anchore.com/",
+   "complianceFits": [
+    "cra",
+    "fedramp"
+   ],
+   "record": {
+    "/": "baguqeera3nhou367o3j23dm6iac2dpf6zshfaen6evdu35ld5wfldhqab27a"
+   }
+  },
+  {
+   "id": "sentinel-siem-jp",
+   "provider": "Microsoft",
+   "providerHq": "US",
+   "name": "Microsoft Sentinel",
+   "categoryId": "siem",
+   "pricingMode": "public-list",
+   "pricingNote": "Analytical rules: $4.30/GB day-scope or $2.01/GB 12-month retention scope (US list); pay-as-you-go or capacity reservations.",
+   "pricingUrl": "https://azure.microsoft.com/en-us/pricing/details/microsoft-sentinel/",
+   "complianceFits": [
+    "jp-appi",
+    "iso-27001",
+    "fedramp"
+   ],
+   "record": {
+    "/": "baguqeeraifmaxbbov3lyoisra652agicnsjz3cdslqrmdflvsnc247gpufha"
+   }
+  }
+ ],
+ "blocks": {
+  "baguqeera3e37zgygexesb53skrcbhz4t3crd5mkf57a7paifnein4poe76ra": {
+   "path": "/compliance-data/compliance/blocks/baguqeera3e37zgygexesb53skrcbhz4t3crd5mkf57a7paifnein4poe76ra.json",
+   "bytes": 389,
+   "codec": "dag-json"
+  },
+  "baguqeeraeyziunm336fapiob4nu3dbtfuju3okby3ytsonp36wqpruvprp5a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraeyziunm336fapiob4nu3dbtfuju3okby3ytsonp36wqpruvprp5a.json",
+   "bytes": 504,
+   "codec": "dag-json"
+  },
+  "baguqeeray4cclkmkcvr4hjsllxfmoeoemruiykgqonjnmxn4yfkpbpqcqoka": {
+   "path": "/compliance-data/compliance/blocks/baguqeeray4cclkmkcvr4hjsllxfmoeoemruiykgqonjnmxn4yfkpbpqcqoka.json",
+   "bytes": 469,
+   "codec": "dag-json"
+  },
+  "baguqeera23tvegmocxfmrks74fi4uciropkjs2mk623kjt6sorkq5vq3t7da": {
+   "path": "/compliance-data/compliance/blocks/baguqeera23tvegmocxfmrks74fi4uciropkjs2mk623kjt6sorkq5vq3t7da.json",
+   "bytes": 441,
+   "codec": "dag-json"
+  },
+  "baguqeeragog6ko6xzd5kvyv3kebl7xcgpdoh7fu4o7h6u3iqloodpsytm4oa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeragog6ko6xzd5kvyv3kebl7xcgpdoh7fu4o7h6u3iqloodpsytm4oa.json",
+   "bytes": 372,
+   "codec": "dag-json"
+  },
+  "baguqeerax5wffzdgfv2geter7ybsy6mph5gchg533pv24jexq3jdiu6m3g4a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerax5wffzdgfv2geter7ybsy6mph5gchg533pv24jexq3jdiu6m3g4a.json",
+   "bytes": 437,
+   "codec": "dag-json"
+  },
+  "baguqeerarnuxlgidvjptjcf3hjibfwc3z5dlnq4rvzbjifcakciayaxrczba": {
+   "path": "/compliance-data/compliance/blocks/baguqeerarnuxlgidvjptjcf3hjibfwc3z5dlnq4rvzbjifcakciayaxrczba.json",
+   "bytes": 381,
+   "codec": "dag-json"
+  },
+  "baguqeerafagyr2edtzq4n2ovdlr4usynuzgqzwt72s3ifpqrodgklplhrdza": {
+   "path": "/compliance-data/compliance/blocks/baguqeerafagyr2edtzq4n2ovdlr4usynuzgqzwt72s3ifpqrodgklplhrdza.json",
+   "bytes": 412,
+   "codec": "dag-json"
+  },
+  "baguqeeragn3eqp7weoegl4zourbehznycxp53hx5nudidcib32s2w3rzv4ya": {
+   "path": "/compliance-data/compliance/blocks/baguqeeragn3eqp7weoegl4zourbehznycxp53hx5nudidcib32s2w3rzv4ya.json",
+   "bytes": 396,
+   "codec": "dag-json"
+  },
+  "baguqeerac4ynbdxr6gatjij45rwts2ibsd7dnavacibyaikv4mdv6smztpqa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerac4ynbdxr6gatjij45rwts2ibsd7dnavacibyaikv4mdv6smztpqa.json",
+   "bytes": 393,
+   "codec": "dag-json"
+  },
+  "baguqeeraehbukz2jf7sdyeduhmsmdq7ia4l2uyx7cummpcit7bwqounleb7a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraehbukz2jf7sdyeduhmsmdq7ia4l2uyx7cummpcit7bwqounleb7a.json",
+   "bytes": 457,
+   "codec": "dag-json"
+  },
+  "baguqeeraybr6phgizm2igv3adnruqv2kfulksru5tjtxvhjlq3itduh37gza": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraybr6phgizm2igv3adnruqv2kfulksru5tjtxvhjlq3itduh37gza.json",
+   "bytes": 389,
+   "codec": "dag-json"
+  },
+  "baguqeeraivqq6ahfzbvmimzi4o576cholnljqju6ioc2dcqsztqnhyirtcoa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraivqq6ahfzbvmimzi4o576cholnljqju6ioc2dcqsztqnhyirtcoa.json",
+   "bytes": 390,
+   "codec": "dag-json"
+  },
+  "baguqeeramsmpjrgmgbimdumrcj3dh276kp7cddvy665gqer52bp35gmmw77a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeramsmpjrgmgbimdumrcj3dh276kp7cddvy665gqer52bp35gmmw77a.json",
+   "bytes": 353,
+   "codec": "dag-json"
+  },
+  "baguqeeravbrrl5afvgvva5rhgcun5wvsxxgh3hgkralguxlurp6nmygvvuqa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeravbrrl5afvgvva5rhgcun5wvsxxgh3hgkralguxlurp6nmygvvuqa.json",
+   "bytes": 387,
+   "codec": "dag-json"
+  },
+  "baguqeeralbcwub3wm3l43bhbia6mnzchf4xgmgwhef4u32j4e7pnrf4nsaga": {
+   "path": "/compliance-data/compliance/blocks/baguqeeralbcwub3wm3l43bhbia6mnzchf4xgmgwhef4u32j4e7pnrf4nsaga.json",
+   "bytes": 374,
+   "codec": "dag-json"
+  },
+  "baguqeerahwugneitgc2f6kehnky3l2xewpewpenkzxqutlcvd6hysfq55wla": {
+   "path": "/compliance-data/compliance/blocks/baguqeerahwugneitgc2f6kehnky3l2xewpewpenkzxqutlcvd6hysfq55wla.json",
+   "bytes": 404,
+   "codec": "dag-json"
+  },
+  "baguqeera6ufx4oj6qpbjqb5tu6wcjrllizmesqb7eiy4m2nigcswc3ywuvfa": {
+   "path": "/compliance-data/compliance/blocks/baguqeera6ufx4oj6qpbjqb5tu6wcjrllizmesqb7eiy4m2nigcswc3ywuvfa.json",
+   "bytes": 400,
+   "codec": "dag-json"
+  },
+  "baguqeerai46cabayjmionipw42syvdta6mvxtmckxzc3k7uaydk3erfm6uca": {
+   "path": "/compliance-data/compliance/blocks/baguqeerai46cabayjmionipw42syvdta6mvxtmckxzc3k7uaydk3erfm6uca.json",
+   "bytes": 347,
+   "codec": "dag-json"
+  },
+  "baguqeeraeuorkwiipkg2sn3c62agkbifv4gpscj4sek7vceqghlflqgtrqra": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraeuorkwiipkg2sn3c62agkbifv4gpscj4sek7vceqghlflqgtrqra.json",
+   "bytes": 319,
+   "codec": "dag-json"
+  },
+  "baguqeeraxernkqbjjsw2oxtjqpbt7wtjst6y6gixkmcnmqbah752ykofjcsa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraxernkqbjjsw2oxtjqpbt7wtjst6y6gixkmcnmqbah752ykofjcsa.json",
+   "bytes": 354,
+   "codec": "dag-json"
+  },
+  "baguqeeranhg3ykfvrjdzbtrzenhryaqhq2ndy7zh22cnq3rgbkmpxkgsxeka": {
+   "path": "/compliance-data/compliance/blocks/baguqeeranhg3ykfvrjdzbtrzenhryaqhq2ndy7zh22cnq3rgbkmpxkgsxeka.json",
+   "bytes": 416,
+   "codec": "dag-json"
+  },
+  "baguqeerae6vwb3u5w3yo3b3yytbmd7gtm22cwvg4clzg3hmnkvuq4c265zoa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerae6vwb3u5w3yo3b3yytbmd7gtm22cwvg4clzg3hmnkvuq4c265zoa.json",
+   "bytes": 362,
+   "codec": "dag-json"
+  },
+  "baguqeera6uagljcrbkdaxosaiqarvfupim42xub5ppepolvatkecycxxpu6a": {
+   "path": "/compliance-data/compliance/blocks/baguqeera6uagljcrbkdaxosaiqarvfupim42xub5ppepolvatkecycxxpu6a.json",
+   "bytes": 436,
+   "codec": "dag-json"
+  },
+  "baguqeerabomqcehthteogzo26bprqwkemo3cmwqij5x3n2v2o3dkteh7xn7a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerabomqcehthteogzo26bprqwkemo3cmwqij5x3n2v2o3dkteh7xn7a.json",
+   "bytes": 296,
+   "codec": "dag-json"
+  },
+  "baguqeeraswxpw66rep2vgnn5bvvrszef6e4fgozbj3huqthg6riqmp7fvd7a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraswxpw66rep2vgnn5bvvrszef6e4fgozbj3huqthg6riqmp7fvd7a.json",
+   "bytes": 300,
+   "codec": "dag-json"
+  },
+  "baguqeeras6gmxfitbtzp7nsx4qyk6gbi6osuupwpf5p3iwmcmpkx34uinona": {
+   "path": "/compliance-data/compliance/blocks/baguqeeras6gmxfitbtzp7nsx4qyk6gbi6osuupwpf5p3iwmcmpkx34uinona.json",
+   "bytes": 302,
+   "codec": "dag-json"
+  },
+  "baguqeerabufgsfp5bil4y7v26yv7lpvm3jxgawgycwwlebyqixnlnt3bq2ha": {
+   "path": "/compliance-data/compliance/blocks/baguqeerabufgsfp5bil4y7v26yv7lpvm3jxgawgycwwlebyqixnlnt3bq2ha.json",
+   "bytes": 266,
+   "codec": "dag-json"
+  },
+  "baguqeerauqn4f4jmkspitdkxljt7ute4mapzkca62hhaqncksdo45zr6zroa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerauqn4f4jmkspitdkxljt7ute4mapzkca62hhaqncksdo45zr6zroa.json",
+   "bytes": 304,
+   "codec": "dag-json"
+  },
+  "baguqeera3csin3xyrmbmiaqv72ws6xw6e4mb3bxefw7n7ukctjknyupsecba": {
+   "path": "/compliance-data/compliance/blocks/baguqeera3csin3xyrmbmiaqv72ws6xw6e4mb3bxefw7n7ukctjknyupsecba.json",
+   "bytes": 366,
+   "codec": "dag-json"
+  },
+  "baguqeeradrghwiqhnfyuvpjlicir4a24v2iuo6f4v4fsnkfgsutw67bjbhla": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradrghwiqhnfyuvpjlicir4a24v2iuo6f4v4fsnkfgsutw67bjbhla.json",
+   "bytes": 345,
+   "codec": "dag-json"
+  },
+  "baguqeeraawku4qcmv5yxxtbrbhz7tmqxivmtgftoqcstnju3ctyrk7ibyz3a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraawku4qcmv5yxxtbrbhz7tmqxivmtgftoqcstnju3ctyrk7ibyz3a.json",
+   "bytes": 314,
+   "codec": "dag-json"
+  },
+  "baguqeerayguz34telrwrqphi5vutrv24tjihehjp6sbdnm4gtyyu33drg7na": {
+   "path": "/compliance-data/compliance/blocks/baguqeerayguz34telrwrqphi5vutrv24tjihehjp6sbdnm4gtyyu33drg7na.json",
+   "bytes": 312,
+   "codec": "dag-json"
+  },
+  "baguqeeradxrh6pnscf3m4pxbvscnmbhxa4h5qt74yyvaqf5ortrlbaashpva": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradxrh6pnscf3m4pxbvscnmbhxa4h5qt74yyvaqf5ortrlbaashpva.json",
+   "bytes": 292,
+   "codec": "dag-json"
+  },
+  "baguqeeraurkbiv7sxwssxjxieguwrvqrfti5mqt43ppw45n7tslqmr67ebta": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraurkbiv7sxwssxjxieguwrvqrfti5mqt43ppw45n7tslqmr67ebta.json",
+   "bytes": 281,
+   "codec": "dag-json"
+  },
+  "baguqeera5lk2edvr354slpvtaosupq3wilxpboyeynts52qw4fkzcn24uxsa": {
+   "path": "/compliance-data/compliance/blocks/baguqeera5lk2edvr354slpvtaosupq3wilxpboyeynts52qw4fkzcn24uxsa.json",
+   "bytes": 340,
+   "codec": "dag-json"
+  },
+  "baguqeerabw6ah4wmh7bowbsaqbzbdvl7zz5fxcjljdnpwoh6rfz4m5fmbu2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerabw6ah4wmh7bowbsaqbzbdvl7zz5fxcjljdnpwoh6rfz4m5fmbu2a.json",
+   "bytes": 288,
+   "codec": "dag-json"
+  },
+  "baguqeerasudwndvx2zimga7yuyww3zozhnfbuddt2pw5vsvfltdt47zladza": {
+   "path": "/compliance-data/compliance/blocks/baguqeerasudwndvx2zimga7yuyww3zozhnfbuddt2pw5vsvfltdt47zladza.json",
+   "bytes": 348,
+   "codec": "dag-json"
+  },
+  "baguqeerao4r7l5mhrzlpegjy4cwojs6fydxah2q2bnqbridiq5guxxqbt63a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerao4r7l5mhrzlpegjy4cwojs6fydxah2q2bnqbridiq5guxxqbt63a.json",
+   "bytes": 337,
+   "codec": "dag-json"
+  },
+  "baguqeera6djjwgsqza2fr7axoubjhmkmox5negh3qophbbg335qrx7vbt5ha": {
+   "path": "/compliance-data/compliance/blocks/baguqeera6djjwgsqza2fr7axoubjhmkmox5negh3qophbbg335qrx7vbt5ha.json",
+   "bytes": 381,
+   "codec": "dag-json"
+  },
+  "baguqeeraefap36ooryhobfl4y6fbivbi43zigm4yxcpsn5l4qjpzvmox4jma": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraefap36ooryhobfl4y6fbivbi43zigm4yxcpsn5l4qjpzvmox4jma.json",
+   "bytes": 332,
+   "codec": "dag-json"
+  },
+  "baguqeeraexicpy2kpvasydh22aoajuxbttz6v7hupuawfdokcf432ioti7ma": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraexicpy2kpvasydh22aoajuxbttz6v7hupuawfdokcf432ioti7ma.json",
+   "bytes": 291,
+   "codec": "dag-json"
+  },
+  "baguqeerafg64hw3ugudltmwz43fy24jgdf3bj3ogjzsog57rghcbrix5pxca": {
+   "path": "/compliance-data/compliance/blocks/baguqeerafg64hw3ugudltmwz43fy24jgdf3bj3ogjzsog57rghcbrix5pxca.json",
+   "bytes": 308,
+   "codec": "dag-json"
+  },
+  "baguqeera3nhou367o3j23dm6iac2dpf6zshfaen6evdu35ld5wfldhqab27a": {
+   "path": "/compliance-data/compliance/blocks/baguqeera3nhou367o3j23dm6iac2dpf6zshfaen6evdu35ld5wfldhqab27a.json",
+   "bytes": 301,
+   "codec": "dag-json"
+  },
+  "baguqeeraifmaxbbov3lyoisra652agicnsjz3cdslqrmdflvsnc247gpufha": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraifmaxbbov3lyoisra652agicnsjz3cdslqrmdflvsnc247gpufha.json",
+   "bytes": 419,
+   "codec": "dag-json"
+  },
+  "baguqeeramx6vb7baycebym3ssxwrhyyblp6n2fpdt2m5pybvfljcf72kq4ja": {
+   "path": "/compliance-data/compliance/blocks/baguqeeramx6vb7baycebym3ssxwrhyyblp6n2fpdt2m5pybvfljcf72kq4ja.json",
+   "bytes": 31579,
+   "codec": "dag-json"
+  }
+ },
+ "head": {
+  "/": "baguqeeramx6vb7baycebym3ssxwrhyyblp6n2fpdt2m5pybvfljcf72kq4ja"
+ }
+}

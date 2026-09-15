@@ -1,0 +1,16 @@
+{
+  "categories": [
+    { "id": "vm-scanner", "name": "Vulnerability Assessment / VM", "name-ja": "脆弱性診断・管理", "desc": "Authenticated/unauthenticated vulnerability scanning and risk-based VM platforms." },
+    { "id": "ptesp", "name": "Penetration Testing / PTaaS", "name-ja": "ペネトレーションテスト", "desc": "Human + tooling pentest services and continuous PTaaS platforms." },
+    { "id": "edr-xdr", "name": "EDR / XDR", "name-ja": "EDR・XDR", "desc": "Endpoint detection & response, extended detection & response platforms." },
+    { "id": "sast-dast", "name": "AppSec (SAST/DAST/SCA)", "name-ja": "アプリケーションセキュリティ", "desc": "Static/dynamic analysis, software composition analysis, code-level vulnerability management." },
+    { "id": "cspm", "name": "CSPM / CNAPP", "name-ja": "クラウドセキュリティ態勢管理", "desc": "Cloud posture management, cloud workload protection, misconfiguration and entitlement risk." },
+    { "id": "siem", "name": "SIEM / Log Analytics", "name-ja": "SIEM・ログ分析", "desc": "Security information & event management, log ingestion and correlation." },
+    { "id": "grc", "name": "GRC / Compliance Automation", "name-ja": "GRC・コンプライアンス自動化", "desc": "Control monitoring, evidence collection, multi-framework audit automation." },
+    { "id": "iam", "name": "IAM / Access Management", "name-ja": "ID・アクセス管理", "desc": "Identity providers, SSO, MFA, privileged access management." },
+    { "id": "ztna", "name": "Zero Trust / SASE", "name-ja": "ゼロトラスト・SASE", "desc": "ZTNA network access, SWG, secure web gateway, SASE bundles." },
+    { "id": "secrets", "name": "Secrets Management / PKI", "name-ja": "シークレット管理", "desc": "Vaulting of credentials, certificates, keys; dynamic secrets." },
+    { "id": "waf", "name": "WAF / API Security", "name-ja": "WAF・APIセキュリティ", "desc": "Web application firewalls, API discovery and protection, bot management." },
+    { "id": "threatintel", "name": "Threat Intelligence / SBOM", "name-ja": "脅威インテリジェンス・SBOM", "desc": "CTI feeds, attack surface management, SBOM generation and VEX." }
+  ]
+}

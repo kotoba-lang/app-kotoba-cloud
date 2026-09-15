@@ -1,0 +1,1 @@
+{"categoryId":"waf","complianceFits":["pci-dss-40"],"id":"cloudflare-waf","name":"Cloudflare WAF / API Shield","pricingMode":"public-list","pricingNote":"Included in Pro plan ($25/domain/month list) and above; API Shield add-ons via quote.","pricingUrl":"https://www.cloudflare.com/plans/","provider":"Cloudflare","providerHq":"US"}

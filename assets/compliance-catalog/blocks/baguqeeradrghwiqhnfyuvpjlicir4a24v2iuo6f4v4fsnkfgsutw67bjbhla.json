@@ -1,0 +1,1 @@
+{"categoryId":"siem","complianceFits":["pci-dss-40"],"id":"elastic-siem","name":"Elastic Security (SIEM)","pricingMode":"public-list","pricingNote":"Cloud-hosted from about $95/month (16GB RAM + 4TB storage band) with usage-based scaling; self-managed free.","pricingUrl":"https://www.elastic.co/pricing/","provider":"Elastic","providerHq":"US"}
