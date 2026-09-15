@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T10:07:16.376Z",
+ "generatedAt": "2026-09-15T10:12:39.353Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 45,
- "productCount": 370,
+ "productCount": 371,
  "ontology": {
   "nodes": 45,
-  "claims": 4010,
+  "claims": 4017,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerav4krf3m33qd3ulrl57kous37sbgp4g5xyoyd63zxd46qjaextika"
+   "/": "baguqeerakrvrrezf47l7ybhb2nxdzus4i5cbdf3r4pnufgttc7k7to6xbcda"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -7415,6 +7415,19 @@
    "record": {
     "/": "baguqeeraskewn2gzzph6y5bzjsywijcrh74ro6w27wo7fruytv5y6miwgzoa"
    }
+  },
+  {
+   "id": "trend-id-protection",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "トレンドマイクロ ID プロテクション (Trend Micro ID Protection)",
+   "categoryId": "password-mgr",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/idp.html",
+   "pricingNote": "consumer subscription via in-app purchase (mobile app only — not sold in the Trend Micro online shop); free personal-info leak check available on the product page (verified 2026-09-15, ja_jp product page)",
+   "record": {
+    "/": "baguqeerazm5na3scl6v7tejijvo7oxdcgy3ahufuez6srbkmmsb2wtzz2rma"
+   }
   }
  ],
  "blocks": {
@@ -9348,18 +9361,23 @@
    "bytes": 543,
    "codec": "dag-json"
   },
-  "baguqeerav4krf3m33qd3ulrl57kous37sbgp4g5xyoyd63zxd46qjaextika": {
-   "path": "/compliance-data/compliance/blocks/baguqeerav4krf3m33qd3ulrl57kous37sbgp4g5xyoyd63zxd46qjaextika.json",
+  "baguqeerazm5na3scl6v7tejijvo7oxdcgy3ahufuez6srbkmmsb2wtzz2rma": {
+   "path": "/compliance-data/compliance/blocks/baguqeerazm5na3scl6v7tejijvo7oxdcgy3ahufuez6srbkmmsb2wtzz2rma.json",
+   "bytes": 511,
+   "codec": "dag-json"
+  },
+  "baguqeerakrvrrezf47l7ybhb2nxdzus4i5cbdf3r4pnufgttc7k7to6xbcda": {
+   "path": "/compliance-data/compliance/blocks/baguqeerakrvrrezf47l7ybhb2nxdzus4i5cbdf3r4pnufgttc7k7to6xbcda.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeeraey7vbsg4bpcjjktdlaxma3onuj4qor6llculgcilnjya3l6zew5a": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraey7vbsg4bpcjjktdlaxma3onuj4qor6llculgcilnjya3l6zew5a.json",
-   "bytes": 264957,
+  "baguqeerattofx23jtkzmhixyqgbprqxsgeyvuf7urlustfnvidtk3j26kcta": {
+   "path": "/compliance-data/compliance/blocks/baguqeerattofx23jtkzmhixyqgbprqxsgeyvuf7urlustfnvidtk3j26kcta.json",
+   "bytes": 265756,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeeraey7vbsg4bpcjjktdlaxma3onuj4qor6llculgcilnjya3l6zew5a"
+  "/": "baguqeerattofx23jtkzmhixyqgbprqxsgeyvuf7urlustfnvidtk3j26kcta"
  }
 }
