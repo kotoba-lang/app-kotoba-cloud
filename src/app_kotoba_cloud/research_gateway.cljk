@@ -130,6 +130,7 @@
     (= path "/v1/research/ekyc/status")
     (-> (service binding "/ekyc/status" {:principalId principal :sessionRef reference})
         (.then #(respond % 200)))
+    :else
     (if (= path submit-path)
       (kotoba-proof-submit-route request binding principal reference respond)
       (ekyc-start-route request binding principal reference respond))))
