@@ -4,7 +4,8 @@
   orcarouter-pattern: an integrations overview with the two rules that apply
   to every tool, then one copy-paste page per client. Every config block is
   generated from the same data the API serves (base URLs, model id) so the
-  docs cannot drift from the endpoints. All pages carry the shared chrome.")
+  docs cannot drift from the endpoints. All pages carry the shared chrome."
+  (:require [app-kotoba-cloud.security-services :as security-services]))
 
 (def css
   ".kc-docs{padding-block:var(--hig-spacing-6)}
@@ -185,7 +186,10 @@
     :desc-en "ZDR design: only minimal state is retained."}
    {:id "byok" :name "BYOK"
     :desc-ja "上流プロバイダキーの持ち込みは現在提供していません (first-party 推論)。"
-    :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}])
+    :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}
+   {:id "security-services" :name "Security services catalog"
+    :desc-ja "第一次セキュリティサービス群 (CTEM / DAST / SAST / VM) の公開カタログ API。読み取り専用。"
+    :desc-en "The public catalog API of the first-party security services suite (CTEM, DAST, SAST, VM). Read-only."}])
 
 (defn quickstart-view [locale]
   (let [txt (fn [ja en] (if (= :ja locale) ja en))]
@@ -322,6 +326,33 @@
                         "# the model catalog (/v1/models) lists what the gateway routes;\n"
                         "# there is no per-workspace upstream key attachment surface"))]))
 
+(defn security-services-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Security services catalog" "Security services catalog")]
+     [:p {:class "kc-docs__lead"}
+      (txt "第一次セキュリティサービス群 (CTEM / DAST / SAST / VM) の公開カタログ API。読み取り専用・認証不要で、実施 (enforcement) は非公開 authority が担い、この面は記述のみを行います。"
+           "The public catalog API of the first-party security services suite (CTEM, DAST, SAST, VM). Read-only and unauthenticated: enforcement stays on the private authority; this surface only describes.")]
+     (config-block (str "# the edge serves the ONE canonical suite def as JSON\n"
+                        "curl -s https://kotoba.cloud/v1/security/services\n"
+                        "# → [ {\"id\": \"ctem\", ...}, {\"id\": \"dast\", ...},\n"
+                        "#      {\"id\": \"sast\", ...}, {\"id\": \"vm\", ...} ]"))
+     (into [:ul]
+           (map (fn [{:keys [id name status]}]
+                  [:li [:strong name]
+                   (str " · domain: " (clojure.core/name (:domain (security-services/service-by-id id)))
+                        " · status: " status
+                        " · " (txt "capabilities " "capabilities ") (count (:capabilities (security-services/service-by-id id))))])
+                security-services/security-services))
+     [:h2 (txt "共通所見スキーマ (VM 台帳への入力)" "Shared finding schema (input to the VM ledger)")]
+     [:p (txt "上流 3 サービス (CTEM / DAST / SAST) はこの共通スキーマの所見を出し、VM が重複排除・スコアリング (到達可能性 × 悪用可能性) して CPE/CVE キーつきの修正ライフサイクル台帳に集約します。"
+              "The three upstream services (CTEM, DAST, SAST) emit findings in this shared schema; VM dedups, scores them (reachability × exploitability) and aggregates them into a remediation lifecycle ledger keyed by CPE/CVE.")]
+     (config-block (str "finding-schema: "
+                        (apply str (interpose ", " (map clojure.core/name security-services/finding-schema)))))
+     (note-block
+      (txt "正本定義は GET /v1/security/services と /security/services/ ページで同じものが描画されます。"
+           "The same canonical def renders the edge catalog and the /security/services/ page."))
+     [:p [:a {:href "/security/services/"} (txt "/security/services/ を開く" "Open /security/services/")]]]))
+
 (defn ref-view [id locale]
   (case id
     "quickstart" (quickstart-view locale)
@@ -333,4 +364,5 @@
     "billing-and-usage" (billing-doc-view locale)
     "zero-data-retention" (zdr-view locale)
     "byok" (byok-view locale)
+    "security-services" (security-services-view locale)
     [[:h1 "Not found"]]))
