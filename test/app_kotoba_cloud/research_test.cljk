@@ -67,6 +67,30 @@
                 (assoc request :messages [{:role "user" :content (apply str (repeat 24001 "a"))}])]]
     (is (not (r/completion? body)))))
 
+(deftest openai-compatible-shape-is-strict-but-server-derived
+  (let [base {:model r/model-id :messages [{:role "user" :content "Review my code."}]}]
+    (is (r/completion-openai-compatible? base))
+    (is (r/completion-openai-compatible? (assoc base :max_tokens 2048)))
+    (is (r/completion-openai-compatible? (assoc base :temperature 0.2)))
+    (is (r/completion-openai-compatible? (assoc base :stream false :n 1 :tools [])))
+    (is (r/completion-openai-compatible?
+         (assoc base :messages [{:role "system" :content "You review code."}
+                                {:role "user" :content "Review my code."}])))
+    (doseq [bad [(assoc base :model "other")
+                 (assoc base :stream true)
+                 (assoc base :tools [{:type "function"}])
+                 (assoc base :n 2)
+                 (assoc base :unknown-key "x")
+                 (assoc base :max_tokens 2049)
+                 (assoc base :task "bogus-task")
+                 (assoc base :scopeId "")
+                 (assoc base :messages [])
+                 (assoc base :messages [{:role "assistant" :content "hi"}])
+                 (assoc base :messages [{:role "user" :content (apply str (repeat 24001 "a"))}])
+                 (assoc base :messages [{:role "system" :content "sys"}
+                                        {:role "system" :content "again"}])]]
+      (is (not (r/completion-openai-compatible? bad))))))
+
 (deftest applications-never-accept-self-attested-approval
   (let [application {:verificationMode "new" :policyVersion r/policy-version
                      :purpose "Review owned code" :scope "My private repository"

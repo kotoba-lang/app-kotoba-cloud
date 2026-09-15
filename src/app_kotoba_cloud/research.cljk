@@ -93,6 +93,50 @@
        (integer? (:max_tokens body)) (<= 1 (:max_tokens body) 2048)
        (every? #{:model :task :scopeId :messages :max_tokens} (keys body))))
 
+(def openai-ignorable-keys
+  "Standard OpenAI parameters a text-completion gateway may accept and then
+  drop: they never reach the authority or the upstream (the forwarded body is
+  rebuilt from the strict admission shape). Accepting-and-ignoring is what an
+  OpenAI SDK client needs; unknown keys remain rejected."
+  #{"temperature" "top_p" "presence_penalty" "frequency_penalty" "stop"
+    "response_format" "tool_choice" "parallel_tool_calls"})
+
+(defn completion-openai-compatible?
+  "OpenAI-compatible shape for local CLI/IDE agents on the bearer (PAT) path.
+  The admission fields the transport cannot send are server-derived by the
+  gateway (task defaults to code-review, scopeId resolves to the caller's own
+  approved scope). Core message rules are identical to completion? (system
+  turns allowed only as the first message, 24k total input, non-empty,
+  user-terminated); openai-ignorable-keys are accepted and dropped; stream is
+  rejected (SSE is not served here), n must be 1, tools are accepted only
+  empty-or-absent because the model never emits tool calls."
+  [body]
+  (let [ms (:messages body)
+        sys-only (and (vector? ms) (pos? (count ms))
+                       (= "system" (get (first ms) :role)))
+        chat (if sys-only (vec (drop 1 ms)) (vec ms))
+        ks (set (map name (keys body)))]
+    (and (= model-id (:model body))
+         (or (nil? (:task body)) (contains? tasks (:task body)))
+         (or (nil? (:scopeId body)) (text? (:scopeId body) 256))
+         (vector? ms) (<= 1 (count ms) 64)
+         (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))
+         (every? #(and (map? %) (#{"user" "assistant"} (:role %))
+                        (text? (:content %) 24000)
+                        (every? #{:role :content} (keys %))) chat)
+         (or (not sys-only)
+             (and (every? #{:role :content} (keys (first ms)))
+                  (text? (:content (first ms)) 24000)))
+         (= "user" (:role (last ms)))
+         (<= (reduce + (map #(count (:content %)) ms)) 24000)
+         (or (nil? (:max_tokens body))
+             (and (integer? (:max_tokens body)) (<= 1 (:max_tokens body) 2048)))
+         (not (true? (:stream body)))
+         (or (nil? (:n body)) (= 1 (:n body)))
+         (or (nil? (:tools body)) (empty? (:tools body)))
+         (every? #(or (#{"model" "messages" "max_tokens" "task" "scopeId" "stream" "n" "tools"} %)
+                      (contains? openai-ignorable-keys %)) ks))))
+
 (defn scope-approved? [record body now]
   (some #(and (= (:scopeId body) (:id %)) (= "approved" (:status %))
               (number? (:expiresAt %)) (< now (:expiresAt %))
