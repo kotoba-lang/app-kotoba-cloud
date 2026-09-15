@@ -1,48 +1,97 @@
 {
-  "meta": {
-    "kind": "VC fund catalog: funds, funding rounds, exit outcomes, cross-fund co-investment relations, system dynamics",
-    "corpus": "vc-fund-public",
-    "verified": "2026-09",
-    "note": "All records are from live fetches (HTTP 200) on 2026-09-15/16: dnxcapital.vc, dnx.vc (archive snapshot), iqt.org, synventures.com (SYN source corrected 2026-09-16 from the misattributed syncapital.vc, now NXDOMAIN), iceye.com PR, en.wikipedia.org. layer: primary-fetched = body text read in this session; secondary-reported = derived from archive snapshot or partial (lazy-loaded) pages."
+ "meta": {
+  "kind": "VC fund catalog: funds, funding rounds, exit outcomes, cross-fund co-investment relations, system dynamics",
+  "corpus": "vc-fund-public",
+  "verified": "2026-09",
+  "note": "All records are from live fetches (HTTP 200) on 2026-09-15/16: dnxcapital.vc, dnx.vc (archive snapshot), iqt.org, synventures.com (SYN source corrected 2026-09-16 from the misattributed syncapital.vc, now NXDOMAIN), iceye.com PR, en.wikipedia.org. layer: primary-fetched = body text read in this session; secondary-reported = derived from archive snapshot or partial (lazy-loaded) pages."
+ },
+ "funds": [
+  {
+   "id": "dnx-capital",
+   "name": "DNX Capital (Draper Nexus)",
+   "founded": 2011,
+   "hq": [
+    "Tokyo (Shinagawa InterCity A, SPROUND)",
+    "San Mateo CA (DNX Technology Ventures)"
+   ],
+   "aumUsdM": 500,
+   "portfolioCount": "100+",
+   "corporatePartners": "200+",
+   "focus": [
+    "B2B",
+    "AI software",
+    "cybersecurity",
+    "deep tech",
+    "retail tech",
+    "fintech"
+   ],
+   "stages": "seed through growth (cross-border JP/ASEAN + US)",
+   "fundEntities": [
+    "Draper Nexus Venture Partners II",
+    "DNX III",
+    "DNX Partners S3",
+    "DNX Annex II",
+    "DNX Global Seed",
+    "DNX Seed",
+    "DNX Venture Partners IV",
+    "DNX Japan IV",
+    "DNX Annex Japan III"
+   ],
+   "affiliates": [
+    "SPROUND (incubation, with Nippon Steel & Sumikin Kinzai Real Estate)",
+    "venture studio (with Alloy Partners)"
+   ],
+   "network": "Draper Network (Draper Associates, Draper Esprit, Draper Nexus)",
+   "sourceUrl": "https://www.dnxcapital.vc/",
+   "layer": "primary-fetched"
   },
-  "funds": [
-    {
-      "id": "dnx-capital",
-      "name": "DNX Capital (Draper Nexus)",
-      "founded": 2011,
-      "hq": ["Tokyo (Shinagawa InterCity A, SPROUND)", "San Mateo CA (DNX Technology Ventures)"],
-      "aumUsdM": 500,
-      "portfolioCount": "100+",
-      "corporatePartners": "200+",
-      "focus": ["B2B", "AI software", "cybersecurity", "deep tech", "retail tech", "fintech"],
-      "stages": "seed through growth (cross-border JP/ASEAN + US)",
-      "fundEntities": ["Draper Nexus Venture Partners II", "DNX III", "DNX Partners S3", "DNX Annex II", "DNX Global Seed", "DNX Seed", "DNX Venture Partners IV", "DNX Japan IV", "DNX Annex Japan III"],
-      "affiliates": ["SPROUND (incubation, with Nippon Steel & Sumikin Kinzai Real Estate)", "venture studio (with Alloy Partners)"],
-      "network": "Draper Network (Draper Associates, Draper Esprit, Draper Nexus)",
-      "sourceUrl": "https://www.dnxcapital.vc/",
-      "layer": "primary-fetched"
-    },
-    {
-      "id": "in-q-tel",
-      "name": "In-Q-Tel (IQT)",
-      "founded": 1999,
-      "type": "government-backed (US IC) VC",
-      "portfolioCount": "800+",
-      "focus": ["cybersecurity", "industrial security", "national defense", "privacy", "regulatory compliance", "data governance"],
-      "sourceUrl": "https://www.iqt.org/",
-      "layer": "primary-fetched",
-      "note": "2019 archived portfolio page exposes 238 static tiles (Cylance among them); JASK/Mitiga/Fyde/ICEYE were not in the fetched static portion (lazy-loaded pages)."
-    },
-    {
-      "id": "syn-ventures",
-      "name": "SYN Ventures, Inc.",
-      "founded": 2021,
-      "aumUsdM": 900,
-      "focus": ["cybersecurity", "industrial security", "national defense", "privacy", "regulatory compliance", "data governance"],
-      "model": "operator-led (former CISOs, CEOs, CTOs, founders); non-capital value: CISO network, design partners, acquirer network",
-      "sourceUrl": "https://synventures.com/",
-      "layer": "primary-fetched",
-      "note": "Corrected 2026-09-16: live fetch of synventures.com confirms 'Started in 2021 by a team of former CISOs, CEOs, CTOs, and Founders ... SYN Ventures manages $900m AUM across its funds' + the focus-area list. Prior sourceUrl syncapital.vc was a misattribution (Wayback 2021-2023 shows an unrelated boutique firm 'Syncapital', Afrooz Brothers; domain now NXDOMAIN). Same focus-area list as In-Q-Tel; IQT lineage remains hypothesis (secondary-reported)."
-    }
-  ]
+  {
+   "id": "in-q-tel",
+   "name": "In-Q-Tel (IQT)",
+   "founded": 1999,
+   "type": "government-backed (US IC) VC",
+   "portfolioCount": "800+",
+   "focus": [
+    "cybersecurity",
+    "industrial security",
+    "national defense",
+    "privacy",
+    "regulatory compliance",
+    "data governance"
+   ],
+   "sourceUrl": "https://www.iqt.org/",
+   "layer": "primary-fetched",
+   "note": "2019 archived portfolio page exposes 238 static tiles (Cylance among them); JASK/Mitiga/Fyde/ICEYE were not in the fetched static portion (lazy-loaded pages)."
+  },
+  {
+   "id": "syn-ventures",
+   "name": "SYN Ventures, Inc.",
+   "founded": 2021,
+   "aumUsdM": 900,
+   "focus": [
+    "cybersecurity",
+    "industrial security",
+    "national defense",
+    "privacy",
+    "regulatory compliance",
+    "data governance"
+   ],
+   "model": "operator-led (former CISOs, CEOs, CTOs, founders); non-capital value: CISO network, design partners, acquirer network",
+   "sourceUrl": "https://synventures.com/",
+   "layer": "primary-fetched",
+   "note": "Corrected 2026-09-16: live fetch of synventures.com confirms 'Started in 2021 by a team of former CISOs, CEOs, CTOs, and Founders ... SYN Ventures manages $900m AUM across its funds' + the focus-area list. Prior sourceUrl syncapital.vc was a misattribution (Wayback 2021-2023 shows an unrelated boutique firm 'Syncapital', Afrooz Brothers; domain now NXDOMAIN). Same focus-area list as In-Q-Tel; IQT lineage remains hypothesis (secondary-reported)."
+  },
+  {
+   "id": "andreiessen-horowitz",
+   "name": "Andreessen Horowitz (a16z)",
+   "focus": [
+    "cybersecurity",
+    "software",
+    "infrastructure"
+   ],
+   "sourceUrl": "https://en.wikipedia.org/wiki/Barrett_Lyon",
+   "layer": "secondary-reported",
+   "note": "Stub record added 2026-09-16 as SYN Ventures co-investor in Netography's $45M round, per Wikipedia 'Barrett_Lyon' (live fetch). Not yet verified against a16z primary pages; expand in a later run."
+  }
+ ]
 }
