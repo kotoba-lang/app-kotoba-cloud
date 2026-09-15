@@ -824,7 +824,11 @@
     :lang (or lang "ja")
     :css (document-css)
     :app-css (str tokens/skin-css app-css extra-css)
-    :head (if robots [[:meta {:name "robots" :content robots}]] [])}
+    :head (into (if robots [[:meta {:name "robots" :content robots}]] [])
+                [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                 [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
+                 [:script {:src "/js/language-selector.js" :defer true}]
+                 [:script {:src "/js/session.js" :defer true}]])}
    (let [t (translation :ja)]
      (site-header :ja t))
    [:main {:id "main"} body]
