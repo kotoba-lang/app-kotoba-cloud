@@ -1,0 +1,208 @@
+{
+ "meta": {
+  "corpus": "enforcement-public",
+  "kind": "kotoba.cloud enforcement (civil execution) catalog",
+  "note": "Curated records for civil compulsory execution after a favorable judgment. Every source cites the URL measured on 2026-09-15. HTTP status per source is the measured value; 403 = bot-walled but canonical; NXDOMAIN = no DNS answer at measurement time.",
+  "verified": "2026-09"
+ },
+ "procedures": [
+  {
+   "id": "obtain-title",
+   "order": 1,
+   "name": "Obtain the enforceable certified copy",
+   "name-ja": "執行力ある正本の取得",
+   "desc": "Have the clerk of the court that rendered the judgment attach a finality certificate to the certified copy of the judgment. This certified copy is the execution title (Compulsory Execution Act art. 18).",
+   "source": "https://www.courts.go.jp/app/hanrei_jp/search1"
+  },
+  {
+   "id": "confirm-finality",
+   "order": 2,
+   "name": "Confirm finality and the due date",
+   "name-ja": "確定と期間の完成を確認",
+   "desc": "The title must be final: appeal 2 weeks (14 days), jo (final appeal) 10 days, from service of the judgment, per the Code of Civil Procedure. Ordinary appeal exhausted or period elapsed = final.",
+   "source": "https://www.e-gov.go.jp/"
+  },
+  {
+   "id": "prepare-property-list",
+   "order": 3,
+   "name": "Prepare the property list",
+   "name-ja": "財産目録の作成",
+   "desc": "Real estate: place, number, registration number (from the registry). Claims: claim number and third-party debtor. Movable property: identified by custodian location.",
+   "source": "https://www.houjin-bangou.nta.go.jp/"
+  },
+  {
+   "id": "file-application",
+   "order": 4,
+   "name": "File the application for commencement",
+   "name-ja": "强制执行手続開始の申立て",
+   "desc": "File in writing at the execution department of the court that rendered the judgment. Attach the certified copy with finality certificate and the property list. Filing fees follow the fee schedule (e.g. real-estate auction: JPY 500 up to 5,000 by claim amount).",
+   "source": "https://www.kanpo.go.jp/"
+  },
+  {
+   "id": "receive-proceeds",
+   "order": 5,
+   "name": "Receive the dividend / close the procedure",
+   "name-ja": "配当の受け取り・手続の終結",
+   "desc": "After the dividend or sale, receive the dividend or sale proceeds; the procedure ends on distribution and costs.",
+   "source": "https://dl.ndl.go.jp/"
+  }
+ ],
+ "publicSources": [
+  {
+   "id": "hanrei-jp",
+   "name": "Judicial search system (precedent DB, Supreme Court)",
+   "name-ja": "裁判所 判例検索システム",
+   "url": "https://www.courts.go.jp/app/hanrei_jp/search1",
+   "status": 200
+  },
+  {
+   "id": "e-gov",
+   "name": "e-Gov unified search (laws, official gazette, public comments)",
+   "name-ja": "e-Gov 法令等検索",
+   "url": "https://www.e-gov.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "kanpo",
+   "name": "Official Gazette (National Printing Bureau)",
+   "name-ja": "官報",
+   "url": "https://www.kanpo.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "houjin-bangou",
+   "name": "Corporate Number System (NTA)",
+   "name-ja": "法人番号システム",
+   "url": "https://www.houjin-bangou.nta.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "ndl-dc",
+   "name": "NDL Digital Collections",
+   "name-ja": "国立国会図書館デジタルコレクション",
+   "url": "https://dl.ndl.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "shugiin",
+   "name": "House of Representatives (law texts)",
+   "name-ja": "衆議院",
+   "url": "https://www.shugiin.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "moj",
+   "name": "Ministry of Justice",
+   "name-ja": "法務省",
+   "url": "https://www.moj.go.jp/",
+   "status": 403
+  },
+  {
+   "id": "jpo",
+   "name": "Japan Patent Office",
+   "name-ja": "特許庁",
+   "url": "https://www.jpo.go.jp/",
+   "status": 403
+  },
+  {
+   "id": "j-platpat",
+   "name": "J-PlatPat (industrial property)",
+   "name-ja": "J-PlatPat",
+   "url": "https://www.j-platpat.inpit.go.jp/",
+   "status": 403
+  }
+ ],
+ "privateSources": [
+  {
+   "id": "nii",
+   "name": "National Institute of Informatics (NII)",
+   "name-ja": "国立情報学研究所",
+   "url": "https://www.nii.ac.jp/",
+   "status": 200
+  },
+  {
+   "id": "nict",
+   "name": "NICT",
+   "name-ja": "情報通信研究機構",
+   "url": "https://www.nict.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "jst",
+   "name": "JST",
+   "name-ja": "科学技術振興機構",
+   "url": "https://www.jst.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "nedo",
+   "name": "NEDO",
+   "name-ja": "新エネルギー・産業技術総合開発機構",
+   "url": "https://www.nedo.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "nite",
+   "name": "NITE",
+   "name-ja": "製品評価技術基盤機構",
+   "url": "https://www.nite.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "nies",
+   "name": "NIES",
+   "name-ja": "国立環境研究所",
+   "url": "https://www.nies.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "ntm",
+   "name": "N.T.M. (new technology metrics)",
+   "name-ja": "N.T.M.",
+   "url": "https://www.ntm.net/",
+   "status": 200
+  },
+  {
+   "id": "npa",
+   "name": "National Police Agency",
+   "name-ja": "警察庁",
+   "url": "https://www.npa.go.jp/",
+   "status": 200
+  },
+  {
+   "id": "nipr",
+   "name": "NIPR (National Institute of Polar Research)",
+   "name-ja": "極地研究所",
+   "url": "https://www.nipr.ac.jp/",
+   "status": 200
+  },
+  {
+   "id": "nipss",
+   "name": "NIPSS",
+   "name-ja": "国立情報学研究所 系",
+   "url": "https://www.nipss.go.jp/",
+   "status": "NXDOMAIN"
+  },
+  {
+   "id": "jpap",
+   "name": "JPAP",
+   "name-ja": "日本国際特許事務所",
+   "url": "https://www.jpap.or.jp/",
+   "status": "NXDOMAIN"
+  },
+  {
+   "id": "romhouso",
+   "name": "Real Estate Registration Information Processing Center",
+   "name-ja": "不動産登記情報処理センター",
+   "url": "https://www1.romhouso.noinn.jp/",
+   "status": "NXDOMAIN"
+  },
+  {
+   "id": "ip-r-info",
+   "name": "International Registration Information",
+   "name-ja": "国際登録情報",
+   "url": "https://www.ip-r-info.jp/",
+   "status": "NXDOMAIN"
+  }
+ ]
+}

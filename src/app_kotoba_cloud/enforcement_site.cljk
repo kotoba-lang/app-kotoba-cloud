@@ -1,0 +1,38 @@
+(ns app-kotoba-cloud.enforcement-site
+  "Civil compulsory-execution (差押え) catalog: the procedure after a
+   favorable judgment, plus the public/private data sources measured on
+   2026-09. Shell from the cloud-kotoba-dds catalog pattern."
+  (:require [cloud-kotoba-dds.catalog :as catalog]))
+
+(def css
+  ".ken-note{color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}")
+
+(defn view
+  ([] (view false))
+  ([embedded?]
+   (catalog/page
+    {:title "强制执行（差押え）カタログ — 勝訴後の手続とデータ源"
+     :lead "判決勝訴後に強制執行（差押え）を行うための手順と、手続きが参照する公開データ・非公開データを 1 つの出典付きカタログにまとめた公開データです。各レコードは 2026-09 に実測した HTTP StatusCode を持ちます。"
+     :nav (catalog/breadcrumb
+          "カタログ"
+          [["ホーム" "/"]
+           ["セキュリティ公開データ" "/security/"]
+           ["このカタログ" nil]])
+     :embedded? embedded?
+     :id "ken-main"}
+    (catalog/callout
+     [:strong "使い方："]
+     " 「手続」タブで勝訴後の強制執行ステップを、「公開データ」「非公開データ」タブで検索できるデータ源を確認できます。HTTP 403 はボット拒否（ブラウザでは開ける）の正準URL、NXDOMAIN は 2026-09 の DNS 応答なしを示します。")
+    (catalog/status "ken-summary" "データを読み込んでいます…")
+    (catalog/tabs {:id "ken-tabs" :label "カタログ種別"})
+    (catalog/tools
+     {:search-id "ken-search" :search-label "検索"
+      :search-placeholder "手続・データ源名で検索"})
+    (catalog/grid
+     {:list-id "ken-results" :list-label "一覧"}
+     (catalog/detail {:id "ken-detail" :label "詳細"}))
+    (catalog/about
+     {:summary "このカタログについて"
+      :links [[:a {:href "/enforcement-data/enforcement/index.json"} "IPLD インデックス"]]
+      :footnote "データはコード生成による content-addressed block（IPLD形式）として公開されています。各レコードに出典URLと実測HTTP StatusCodeを付けました。網羅を主張するものではなく、勝訴後の強制執行に必要な代表的なデータ源のスナップショットです。"})
+    [:script {:src "/js/enforcement-catalog.js" :defer true}])))

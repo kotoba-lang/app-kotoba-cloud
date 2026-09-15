@@ -1,0 +1,436 @@
+{
+ "generatedAt": "2026-09-15T15:07:53.633Z",
+ "source/kind": "kotoba.cloud enforcement (civil execution) catalog",
+ "corpus": "enforcement-public",
+ "verified": "2026-09",
+ "note": "Curated records for civil compulsory execution after a favorable judgment. Every source cites the URL measured on 2026-09-15. HTTP status per source is the measured value; 403 = bot-walled but canonical; NXDOMAIN = no DNS answer at measurement time.",
+ "procedureCount": 5,
+ "publicCount": 9,
+ "privateCount": 13,
+ "procedures": [
+  {
+   "id": "obtain-title",
+   "order": 1,
+   "name": "Obtain the enforceable certified copy",
+   "name-ja": "執行力ある正本の取得",
+   "desc": "Have the clerk of the court that rendered the judgment attach a finality certificate to the certified copy of the judgment. This certified copy is the execution title (Compulsory Execution Act art. 18).",
+   "source": "https://www.courts.go.jp/app/hanrei_jp/search1",
+   "record": {
+    "/": "baguqeerateh4yfekdnktnmtm663rh422cyu2j5gsve3pkoj4prsyjejjvnca"
+   }
+  },
+  {
+   "id": "confirm-finality",
+   "order": 2,
+   "name": "Confirm finality and the due date",
+   "name-ja": "確定と期間の完成を確認",
+   "desc": "The title must be final: appeal 2 weeks (14 days), jo (final appeal) 10 days, from service of the judgment, per the Code of Civil Procedure. Ordinary appeal exhausted or period elapsed = final.",
+   "source": "https://www.e-gov.go.jp/",
+   "record": {
+    "/": "baguqeerawptfzz2hqea3lnxxjrq5ffhansvu4j5iekigoimasspuajadmeba"
+   }
+  },
+  {
+   "id": "prepare-property-list",
+   "order": 3,
+   "name": "Prepare the property list",
+   "name-ja": "財産目録の作成",
+   "desc": "Real estate: place, number, registration number (from the registry). Claims: claim number and third-party debtor. Movable property: identified by custodian location.",
+   "source": "https://www.houjin-bangou.nta.go.jp/",
+   "record": {
+    "/": "baguqeera2ghye5yy6aspimbqnyqo6ehypaddwrxilo37hy3qljya6moewmna"
+   }
+  },
+  {
+   "id": "file-application",
+   "order": 4,
+   "name": "File the application for commencement",
+   "name-ja": "强制执行手続開始の申立て",
+   "desc": "File in writing at the execution department of the court that rendered the judgment. Attach the certified copy with finality certificate and the property list. Filing fees follow the fee schedule (e.g. real-estate auction: JPY 500 up to 5,000 by claim amount).",
+   "source": "https://www.kanpo.go.jp/",
+   "record": {
+    "/": "baguqeerat25e3jx6hijwpd6bkuvuskzfnyrh5jha6kflo4qtaa4iffe56f2a"
+   }
+  },
+  {
+   "id": "receive-proceeds",
+   "order": 5,
+   "name": "Receive the dividend / close the procedure",
+   "name-ja": "配当の受け取り・手続の終結",
+   "desc": "After the dividend or sale, receive the dividend or sale proceeds; the procedure ends on distribution and costs.",
+   "source": "https://dl.ndl.go.jp/",
+   "record": {
+    "/": "baguqeerahxhs3qqctk73p6pcfsbgii3su7pzuf5vd2q652fhkynim2lbjeva"
+   }
+  }
+ ],
+ "publicSources": [
+  {
+   "id": "hanrei-jp",
+   "name": "Judicial search system (precedent DB, Supreme Court)",
+   "name-ja": "裁判所 判例検索システム",
+   "url": "https://www.courts.go.jp/app/hanrei_jp/search1",
+   "status": 200,
+   "record": {
+    "/": "baguqeerah5pojf7gbrq43rc2biivpn3m62jen3gkwdjskufkt4jimvjfkdza"
+   }
+  },
+  {
+   "id": "e-gov",
+   "name": "e-Gov unified search (laws, official gazette, public comments)",
+   "name-ja": "e-Gov 法令等検索",
+   "url": "https://www.e-gov.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeerafdftfkkwzta27iys5svh3t3qaioe4r47zrhccexq2dewytjkgvva"
+   }
+  },
+  {
+   "id": "kanpo",
+   "name": "Official Gazette (National Printing Bureau)",
+   "name-ja": "官報",
+   "url": "https://www.kanpo.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeeraa43cfqdxn5exxmrhnzc56qaw2ff62zk25lca4kwbvcg73y43xhya"
+   }
+  },
+  {
+   "id": "houjin-bangou",
+   "name": "Corporate Number System (NTA)",
+   "name-ja": "法人番号システム",
+   "url": "https://www.houjin-bangou.nta.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeerabc54dwxj3g6humidfoidcui2hwafjkfdinq5deaqw6kuec5ob62a"
+   }
+  },
+  {
+   "id": "ndl-dc",
+   "name": "NDL Digital Collections",
+   "name-ja": "国立国会図書館デジタルコレクション",
+   "url": "https://dl.ndl.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeeraoyqnpji7rs3t4q7rrp5smp5lcntncosedry55sn4zsbabfhad2da"
+   }
+  },
+  {
+   "id": "shugiin",
+   "name": "House of Representatives (law texts)",
+   "name-ja": "衆議院",
+   "url": "https://www.shugiin.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeeraodwkkmg54asj6vbun67iwqvqls2bd3k7r3nt3n77p3zh6nzobipa"
+   }
+  },
+  {
+   "id": "moj",
+   "name": "Ministry of Justice",
+   "name-ja": "法務省",
+   "url": "https://www.moj.go.jp/",
+   "status": 403,
+   "record": {
+    "/": "baguqeerat7viddijjgd3n44mqym3nm647ceqcfaxrbkp5fvdblo4qxla23sa"
+   }
+  },
+  {
+   "id": "jpo",
+   "name": "Japan Patent Office",
+   "name-ja": "特許庁",
+   "url": "https://www.jpo.go.jp/",
+   "status": 403,
+   "record": {
+    "/": "baguqeera6c75gqoelgelsb5liqhv7lh3oyyskl6qbof6rqv4ja3mwjgqbfsa"
+   }
+  },
+  {
+   "id": "j-platpat",
+   "name": "J-PlatPat (industrial property)",
+   "name-ja": "J-PlatPat",
+   "url": "https://www.j-platpat.inpit.go.jp/",
+   "status": 403,
+   "record": {
+    "/": "baguqeeraco7xojwiricv3qjidgdspi6p4ybckouuuslocj66am43xxcl5oaa"
+   }
+  }
+ ],
+ "privateSources": [
+  {
+   "id": "nii",
+   "name": "National Institute of Informatics (NII)",
+   "name-ja": "国立情報学研究所",
+   "url": "https://www.nii.ac.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeerafwyhmiso7sido2bayowniuwaiwunnv6jrjom3tcjtx76hxo6gzja"
+   }
+  },
+  {
+   "id": "nict",
+   "name": "NICT",
+   "name-ja": "情報通信研究機構",
+   "url": "https://www.nict.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeeraid3skp3krxvxg3qyhmtrjxzm4j6xn633mrabyc3ssa7wsbofo5fa"
+   }
+  },
+  {
+   "id": "jst",
+   "name": "JST",
+   "name-ja": "科学技術振興機構",
+   "url": "https://www.jst.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeeraabxjkdzjfwfjpix2f3kktu2t5bp6dfbibpjwrj3jwwcbepuqu5ha"
+   }
+  },
+  {
+   "id": "nedo",
+   "name": "NEDO",
+   "name-ja": "新エネルギー・産業技術総合開発機構",
+   "url": "https://www.nedo.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeera5hvn3iffrilo7hisjhdpd2uop53ztf6etffl776mjvu3e7lqffta"
+   }
+  },
+  {
+   "id": "nite",
+   "name": "NITE",
+   "name-ja": "製品評価技術基盤機構",
+   "url": "https://www.nite.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeeraumvdvmcu4stsniwsi42wccjg3ut4udu7mzokbzti7ujdzv55unda"
+   }
+  },
+  {
+   "id": "nies",
+   "name": "NIES",
+   "name-ja": "国立環境研究所",
+   "url": "https://www.nies.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeeras6gje56f6altx7de35ybufojdlst65o6wbbibubcsbwtkdpq2h5a"
+   }
+  },
+  {
+   "id": "ntm",
+   "name": "N.T.M. (new technology metrics)",
+   "name-ja": "N.T.M.",
+   "url": "https://www.ntm.net/",
+   "status": 200,
+   "record": {
+    "/": "baguqeerayngswf45vvtzmrjkqomq7p3laysu6ittui7yky5dt3kcnxv33dua"
+   }
+  },
+  {
+   "id": "npa",
+   "name": "National Police Agency",
+   "name-ja": "警察庁",
+   "url": "https://www.npa.go.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeera2yec4q775mrdpxzcwwki4gv4uilf7xehh3cfksddxztvjf25p2ba"
+   }
+  },
+  {
+   "id": "nipr",
+   "name": "NIPR (National Institute of Polar Research)",
+   "name-ja": "極地研究所",
+   "url": "https://www.nipr.ac.jp/",
+   "status": 200,
+   "record": {
+    "/": "baguqeerakvktdvufoouzfplwt5tlxlsuea253jh4mwjnije5632liykvkroa"
+   }
+  },
+  {
+   "id": "nipss",
+   "name": "NIPSS",
+   "name-ja": "国立情報学研究所 系",
+   "url": "https://www.nipss.go.jp/",
+   "status": "NXDOMAIN",
+   "record": {
+    "/": "baguqeeraqopm7gszowdmwency4e6pyacbqouilzqozjqzcwy2bihx56bzuxa"
+   }
+  },
+  {
+   "id": "jpap",
+   "name": "JPAP",
+   "name-ja": "日本国際特許事務所",
+   "url": "https://www.jpap.or.jp/",
+   "status": "NXDOMAIN",
+   "record": {
+    "/": "baguqeerab5qcabvay3vfbw2jgfqx3t45cqnvl4mzc5o3zw6ael7fuxuoghma"
+   }
+  },
+  {
+   "id": "romhouso",
+   "name": "Real Estate Registration Information Processing Center",
+   "name-ja": "不動産登記情報処理センター",
+   "url": "https://www1.romhouso.noinn.jp/",
+   "status": "NXDOMAIN",
+   "record": {
+    "/": "baguqeerawzzlum4voj3vtotaxev6ynq2fbbmhd5n5jrmpgxdcwntghgnlmua"
+   }
+  },
+  {
+   "id": "ip-r-info",
+   "name": "International Registration Information",
+   "name-ja": "国際登録情報",
+   "url": "https://www.ip-r-info.jp/",
+   "status": "NXDOMAIN",
+   "record": {
+    "/": "baguqeeralrpk57g4uat4cwrfhe5vmozjok2hpzex66tyuq36idpztqwiaoma"
+   }
+  }
+ ],
+ "blocks": {
+  "baguqeerateh4yfekdnktnmtm663rh422cyu2j5gsve3pkoj4prsyjejjvnca": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerateh4yfekdnktnmtm663rh422cyu2j5gsve3pkoj4prsyjejjvnca.json",
+   "bytes": 391,
+   "codec": "dag-json"
+  },
+  "baguqeerawptfzz2hqea3lnxxjrq5ffhansvu4j5iekigoimasspuajadmeba": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerawptfzz2hqea3lnxxjrq5ffhansvu4j5iekigoimasspuajadmeba.json",
+   "bytes": 363,
+   "codec": "dag-json"
+  },
+  "baguqeera2ghye5yy6aspimbqnyqo6ehypaddwrxilo37hy3qljya6moewmna": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeera2ghye5yy6aspimbqnyqo6ehypaddwrxilo37hy3qljya6moewmna.json",
+   "bytes": 332,
+   "codec": "dag-json"
+  },
+  "baguqeerat25e3jx6hijwpd6bkuvuskzfnyrh5jha6kflo4qtaa4iffe56f2a": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerat25e3jx6hijwpd6bkuvuskzfnyrh5jha6kflo4qtaa4iffe56f2a.json",
+   "bytes": 437,
+   "codec": "dag-json"
+  },
+  "baguqeerahxhs3qqctk73p6pcfsbgii3su7pzuf5vd2q652fhkynim2lbjeva": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerahxhs3qqctk73p6pcfsbgii3su7pzuf5vd2q652fhkynim2lbjeva.json",
+   "bytes": 294,
+   "codec": "dag-json"
+  },
+  "baguqeerah5pojf7gbrq43rc2biivpn3m62jen3gkwdjskufkt4jimvjfkdza": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerah5pojf7gbrq43rc2biivpn3m62jen3gkwdjskufkt4jimvjfkdza.json",
+   "bytes": 195,
+   "codec": "dag-json"
+  },
+  "baguqeerafdftfkkwzta27iys5svh3t3qaioe4r47zrhccexq2dewytjkgvva": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerafdftfkkwzta27iys5svh3t3qaioe4r47zrhccexq2dewytjkgvva.json",
+   "bytes": 166,
+   "codec": "dag-json"
+  },
+  "baguqeeraa43cfqdxn5exxmrhnzc56qaw2ff62zk25lca4kwbvcg73y43xhya": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraa43cfqdxn5exxmrhnzc56qaw2ff62zk25lca4kwbvcg73y43xhya.json",
+   "bytes": 132,
+   "codec": "dag-json"
+  },
+  "baguqeerabc54dwxj3g6humidfoidcui2hwafjkfdinq5deaqw6kuec5ob62a": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerabc54dwxj3g6humidfoidcui2hwafjkfdinq5deaqw6kuec5ob62a.json",
+   "bytes": 156,
+   "codec": "dag-json"
+  },
+  "baguqeeraoyqnpji7rs3t4q7rrp5smp5lcntncosedry55sn4zsbabfhad2da": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraoyqnpji7rs3t4q7rrp5smp5lcntncosedry55sn4zsbabfhad2da.json",
+   "bytes": 155,
+   "codec": "dag-json"
+  },
+  "baguqeeraodwkkmg54asj6vbun67iwqvqls2bd3k7r3nt3n77p3zh6nzobipa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraodwkkmg54asj6vbun67iwqvqls2bd3k7r3nt3n77p3zh6nzobipa.json",
+   "bytes": 132,
+   "codec": "dag-json"
+  },
+  "baguqeerat7viddijjgd3n44mqym3nm647ceqcfaxrbkp5fvdblo4qxla23sa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerat7viddijjgd3n44mqym3nm647ceqcfaxrbkp5fvdblo4qxla23sa.json",
+   "bytes": 107,
+   "codec": "dag-json"
+  },
+  "baguqeera6c75gqoelgelsb5liqhv7lh3oyyskl6qbof6rqv4ja3mwjgqbfsa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeera6c75gqoelgelsb5liqhv7lh3oyyskl6qbof6rqv4ja3mwjgqbfsa.json",
+   "bytes": 107,
+   "codec": "dag-json"
+  },
+  "baguqeeraco7xojwiricv3qjidgdspi6p4ybckouuuslocj66am43xxcl5oaa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraco7xojwiricv3qjidgdspi6p4ybckouuuslocj66am43xxcl5oaa.json",
+   "bytes": 137,
+   "codec": "dag-json"
+  },
+  "baguqeerafwyhmiso7sido2bayowniuwaiwunnv6jrjom3tcjtx76hxo6gzja": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerafwyhmiso7sido2bayowniuwaiwunnv6jrjom3tcjtx76hxo6gzja.json",
+   "bytes": 142,
+   "codec": "dag-json"
+  },
+  "baguqeeraid3skp3krxvxg3qyhmtrjxzm4j6xn633mrabyc3ssa7wsbofo5fa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraid3skp3krxvxg3qyhmtrjxzm4j6xn633mrabyc3ssa7wsbofo5fa.json",
+   "bytes": 109,
+   "codec": "dag-json"
+  },
+  "baguqeeraabxjkdzjfwfjpix2f3kktu2t5bp6dfbibpjwrj3jwwcbepuqu5ha": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraabxjkdzjfwfjpix2f3kktu2t5bp6dfbibpjwrj3jwwcbepuqu5ha.json",
+   "bytes": 106,
+   "codec": "dag-json"
+  },
+  "baguqeera5hvn3iffrilo7hisjhdpd2uop53ztf6etffl776mjvu3e7lqffta": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeera5hvn3iffrilo7hisjhdpd2uop53ztf6etffl776mjvu3e7lqffta.json",
+   "bytes": 136,
+   "codec": "dag-json"
+  },
+  "baguqeeraumvdvmcu4stsniwsi42wccjg3ut4udu7mzokbzti7ujdzv55unda": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraumvdvmcu4stsniwsi42wccjg3ut4udu7mzokbzti7ujdzv55unda.json",
+   "bytes": 115,
+   "codec": "dag-json"
+  },
+  "baguqeeras6gje56f6altx7de35ybufojdlst65o6wbbibubcsbwtkdpq2h5a": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeras6gje56f6altx7de35ybufojdlst65o6wbbibubcsbwtkdpq2h5a.json",
+   "bytes": 106,
+   "codec": "dag-json"
+  },
+  "baguqeerayngswf45vvtzmrjkqomq7p3laysu6ittui7yky5dt3kcnxv33dua": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerayngswf45vvtzmrjkqomq7p3laysu6ittui7yky5dt3kcnxv33dua.json",
+   "bytes": 114,
+   "codec": "dag-json"
+  },
+  "baguqeera2yec4q775mrdpxzcwwki4gv4uilf7xehh3cfksddxztvjf25p2ba": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeera2yec4q775mrdpxzcwwki4gv4uilf7xehh3cfksddxztvjf25p2ba.json",
+   "bytes": 110,
+   "codec": "dag-json"
+  },
+  "baguqeerakvktdvufoouzfplwt5tlxlsuea253jh4mwjnije5632liykvkroa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerakvktdvufoouzfplwt5tlxlsuea253jh4mwjnije5632liykvkroa.json",
+   "bytes": 139,
+   "codec": "dag-json"
+  },
+  "baguqeeraqopm7gszowdmwency4e6pyacbqouilzqozjqzcwy2bihx56bzuxa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeraqopm7gszowdmwency4e6pyacbqouilzqozjqzcwy2bihx56bzuxa.json",
+   "bytes": 123,
+   "codec": "dag-json"
+  },
+  "baguqeerab5qcabvay3vfbw2jgfqx3t45cqnvl4mzc5o3zw6ael7fuxuoghma": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerab5qcabvay3vfbw2jgfqx3t45cqnvl4mzc5o3zw6ael7fuxuoghma.json",
+   "bytes": 119,
+   "codec": "dag-json"
+  },
+  "baguqeerawzzlum4voj3vtotaxev6ynq2fbbmhd5n5jrmpgxdcwntghgnlmua": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeerawzzlum4voj3vtotaxev6ynq2fbbmhd5n5jrmpgxdcwntghgnlmua.json",
+   "bytes": 193,
+   "codec": "dag-json"
+  },
+  "baguqeeralrpk57g4uat4cwrfhe5vmozjok2hpzex66tyuq36idpztqwiaoma": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeralrpk57g4uat4cwrfhe5vmozjok2hpzex66tyuq36idpztqwiaoma.json",
+   "bytes": 151,
+   "codec": "dag-json"
+  },
+  "baguqeeramf3uiyep3olobgrxz4drzfq625scs2o4atfwwy7xtawfhedlshxa": {
+   "path": "/enforcement-data/enforcement/blocks/baguqeeramf3uiyep3olobgrxz4drzfq625scs2o4atfwwy7xtawfhedlshxa.json",
+   "bytes": 13144,
+   "codec": "dag-json"
+  }
+ },
+ "head": {
+  "/": "baguqeeramf3uiyep3olobgrxz4drzfq625scs2o4atfwwy7xtawfhedlshxa"
+ }
+}
