@@ -916,8 +916,11 @@
       (identity-gateway/operation path)
       (identity-gateway/route request env fetch-viewer private-json-response)
 
+      ;; /identity is a locale variant root like /account (2026-09-15): the
+      ;; negotiated emit is served in place by route-static, the document's
+      ;; own headers go on top
       (and (contains? #{"/identity" "/identity/"} path) (= method "GET"))
-      (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/identity/") request))
+      (-> (route-static (js/Request. (str (.-origin url) "/identity/" (.-search url)) request) env "/identity/")
           (.then #(with-security-headers % {"cache-control" "no-store, private"
                                            "content-security-policy" csp/identity-document
                                            "permissions-policy" "camera=(self), microphone=(), geolocation=(), payment=()"})))

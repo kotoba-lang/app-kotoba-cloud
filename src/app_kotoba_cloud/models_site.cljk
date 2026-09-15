@@ -6,7 +6,11 @@
   availability and the running policy version (/v1/models).
 
   Reference IA (Models / Routing): title + one-line meaning, a
-  table with explicit columns, the request shape the caller sends."
+  table with explicit columns, the request shape the caller sends.
+
+  Locales: the copy is authored in Japanese and English (`txt`); the
+  document is emitted per public locale by site.cljk (body ja for :ja, en
+  otherwise)."
   (:require [jp-go-dds.core :as dds]
             [kotoba.lang.text :as str]
             [app-kotoba-cloud.research :as research]
@@ -34,72 +38,92 @@
    ""))
 
 (def requirement-labels
-  "The gateway's admission conditions, in the person's words, with the
-   place to satisfy each."
-  {"authenticated-principal" ["サインイン済み" "/account"]
-   "verified-ekyc-card" ["カード登録による本人確認" "/account#account-panel-identity"]
-   "aup-consent" ["利用ポリシー（AUP）への同意" "/security/aup/"]
-   "current-aml-ctf-clearance" ["AML/CTF 照合が有効" "/account#account-panel-eligibility"]
-   "current-trust-route" ["信頼経路が有効" "/account#account-panel-eligibility"]
-   "approved-research-scope" ["承認済みスコープ" "/account#account-panel-scopes"]
-   "available-free-quota" ["無料枠の残り" "/account#account-panel-eligibility"]
-   "guardrails" ["全リクエストにガードレールが適用" "/secure/#guardrails"]})
+  "The gateway's admission conditions, in the person's words (ja / en),
+   with the place to satisfy each."
+  {"authenticated-principal" ["サインイン済み" "Signed in" "/account"]
+   "verified-ekyc-card" ["カード登録による本人確認" "Identity verified with a card" "/account#account-panel-identity"]
+   "aup-consent" ["利用ポリシー（AUP）への同意" "Acceptable-use policy (AUP) accepted" "/security/aup/"]
+   "current-aml-ctf-clearance" ["AML/CTF 照合が有効" "AML/CTF screening current" "/account#account-panel-eligibility"]
+   "current-trust-route" ["信頼経路が有効" "Trust route current" "/account#account-panel-eligibility"]
+   "approved-research-scope" ["承認済みスコープ" "Approved research scope" "/account#account-panel-scopes"]
+   "available-free-quota" ["無料枠の残り" "Free allowance remaining" "/account#account-panel-eligibility"]
+   "guardrails" ["全リクエストにガードレールが適用" "Guardrails on every request" "/secure/#guardrails"]})
 
 (def team-copy
-  {:blue {:title "ブルーチーム"
-          :lead "一般用途のモデル。サインインすれば無料枠の範囲で使えます。"}
-   :red {:title "レッドチーム"
-         :lead "セキュリティ研究向けの無制限モデル。カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"}})
+  {:blue {:title ["ブルーチーム" "Blue team"]
+          :lead ["一般用途のモデル。サインインすれば無料枠の範囲で使えます。"
+                 "General-purpose models. Signing in is enough; the free allowance applies."]}
+   :red {:title ["レッドチーム" "Red team"]
+         :lead ["セキュリティ研究向けの無制限モデル。カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"
+                "Unrestricted models for security research. Only researchers who verified their identity with a card and accepted the acceptable-use policy can use them."]}})
 
-(defn- model-rows [team]
+(defn- model-rows [txt team]
   (for [[id {:keys [source strictAttribution] :as spec}] research/models
         :when (= team (:team spec))]
     [:tr {:data-model id}
-     [:td [:code id] (when (= id research/model-id) [:span " " (console/badge "既定" {:state :ok})])]
+     [:td [:code id] (when (= id research/model-id) [:span " " (console/badge (txt "既定" "Default") {:state :ok})])]
      ;; availability is live state: filled from /v1/models
      [:td [:span {:class "ck-console__value" :data-model-availability id :data-state "empty"} "—"]]
      [:td [:a {:href source} (last (str/split source #"/"))]]
-     [:td (if strictAttribution "上流が自身のモデル ID を返すことを要求" "応答の形と内容で検証")]]))
+     [:td (if strictAttribution
+            (txt "上流が自身のモデル ID を返すことを要求" "The upstream must return its own model id")
+            (txt "応答の形と内容で検証" "Verified by the shape and content of the response"))]]))
 
-(defn- team-section [team]
+(defn- team-section [txt team]
   (let [{:keys [title lead]} (get team-copy team)
         reqs (get-in research/teams [team :requirements])]
     [:section {:class "ck-console__panel" :id (str "team-" (name team))}
      [:div {:class "kc-models__head"}
-      [:h2 title]
-      (console/badge (if (= team :red) "本人確認が必要" "サインインで利用") {:state (if (= team :red) :action :ok)})]
-     [:p {:class "ck-console__note"} lead]
+      [:h2 (apply txt title)]
+      (console/badge (if (= team :red) (txt "本人確認が必要" "Verification required") (txt "サインインで利用" "Sign in to use"))
+                     {:state (if (= team :red) :action :ok)})]
+     [:p {:class "ck-console__note"} (apply txt lead)]
      [:div {:class "kc-models__table"}
       [:table
-       [:thead [:tr [:th "モデル"] [:th "提供状態"] [:th "出所"] [:th "帰属検証"]]]
-       (into [:tbody] (model-rows team))]]
-     [:h3 "利用の条件"]
+       [:thead [:tr [:th (txt "モデル" "Model")] [:th (txt "提供状態" "Availability")] [:th (txt "出所" "Source")] [:th (txt "帰属検証" "Attribution check")]]]
+       (into [:tbody] (model-rows txt team))]]
+     [:h3 (txt "利用の条件" "Conditions of use")]
      (into [:ul {:class "kc-models__reqs"}]
            (for [r reqs
-                 :let [[label href] (get requirement-labels r [r nil])]]
+                 :let [[ja en href] (get requirement-labels r [r r nil])
+                       label (txt ja en)]]
              [:li (if href [:a {:href href} label] label) " " [:code r]]))]))
 
-(defn section []
-  (let [{:keys [requestsPerDay maxOutputTokens maxInputCharacters]} research/free-limits]
-    [:div {:class "kc-models"}
-     (dds/heading 1 "モデル" {:size "36"})
-     [:p {:class "kc-models__lead"}
-      "研究 API で選べるモデルは 2 つのチームに分かれます。ブルーチームはサインインだけで、レッドチームは本人確認と利用ポリシーへの同意のうえで使えます。既定は " [:code research/model-id] "。"]
-     [:p {:id "models-status" :role "status" :class "ck-console__note"} ""]
-     (team-section :blue)
-     (team-section :red)
-     [:section {:class "ck-console__panel"}
-      [:h2 "無料枠"]
-      [:dl {:class "kc-models__limits"}
-       [:div {:class "kc-models__tile"} [:dt "1 日のリクエスト"] [:dd requestsPerDay]]
-       [:div {:class "kc-models__tile"} [:dt "出力トークン上限"] [:dd maxOutputTokens]]
-       [:div {:class "kc-models__tile"} [:dt "入力文字数上限"] [:dd maxInputCharacters]]]
-      [:p {:class "ck-console__note"} "両チーム共通。有料枠は" [:a {:href "/billing/"} "料金・決済"] "で追加できます。"]]
-     [:section {:class "ck-console__panel"}
-      [:h2 "呼び出し方"]
-      (code-block/block :ja
-                  (str "curl -s -X POST https://api.kotoba.cloud/v1/chat/completions \\\n"
-                       "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
-                       "  -H \"content-type: application/json\" \\\n"
-                       "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'"))
-      [:p {:class "ck-console__note"} "モデルは表の ID をそのまま `model` に指定します。" [:a {:href "/docs/reference/quickstart/"} "クイックスタート"] "に発行から最初のリクエストまでの手順があります。"]]]))
+(defn section
+  "The MANAGE › Models console body for one locale (:ja / :en). Same ids
+   and structure in both; only the copy differs."
+  ([] (section :ja))
+  ([locale]
+   (let [ja? (= :ja locale)
+         txt (fn [ja en] (if ja? ja en))
+         {:keys [requestsPerDay maxOutputTokens maxInputCharacters]} research/free-limits]
+     [:div {:class "kc-models"}
+      (dds/heading 1 (txt "モデル" "Models") {:size "36"})
+      [:p {:class "kc-models__lead"}
+       (txt "研究 API で選べるモデルは 2 つのチームに分かれます。ブルーチームはサインインだけで、レッドチームは本人確認と利用ポリシーへの同意のうえで使えます。既定は "
+            "The research API's models come in two teams. The blue team needs only a sign-in; the red team needs identity verification and acceptance of the acceptable-use policy. The default is ")
+       [:code research/model-id] (txt "。" ".")]
+      [:p {:id "models-status" :role "status" :class "ck-console__note"} ""]
+      (team-section txt :blue)
+      (team-section txt :red)
+      [:section {:class "ck-console__panel"}
+       [:h2 (txt "無料枠" "Free allowance")]
+       [:dl {:class "kc-models__limits"}
+        [:div {:class "kc-models__tile"} [:dt (txt "1 日のリクエスト" "Requests per day")] [:dd requestsPerDay]]
+        [:div {:class "kc-models__tile"} [:dt (txt "出力トークン上限" "Max output tokens")] [:dd maxOutputTokens]]
+        [:div {:class "kc-models__tile"} [:dt (txt "入力文字数上限" "Max input characters")] [:dd maxInputCharacters]]]
+       [:p {:class "ck-console__note"}
+        (txt "両チーム共通。有料枠は" "Shared by both teams. Paid credits are added under ")
+        [:a {:href "/billing/"} (txt "料金・決済" "Billing")]
+        (txt "で追加できます。" ".")]]
+      [:section {:class "ck-console__panel"}
+       [:h2 (txt "呼び出し方" "How to call it")]
+       (code-block/block (if ja? :ja :en)
+                   (str "curl -s -X POST https://api.kotoba.cloud/v1/chat/completions \\\n"
+                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
+                        "  -H \"content-type: application/json\" \\\n"
+                        "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'"))
+       [:p {:class "ck-console__note"}
+        (txt "モデルは表の ID をそのまま `model` に指定します。" "Pass the id from the table as `model`, unchanged. ")
+        [:a {:href "/docs/reference/quickstart/"} (txt "クイックスタート" "The quickstart")]
+        (txt "に発行から最初のリクエストまでの手順があります。" " walks from issuing a token to the first request.")]]])))

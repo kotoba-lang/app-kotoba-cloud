@@ -76,9 +76,14 @@
   (is (= {:locale :ja :set-cookie? true :canonical "/billing/"}
          (select-keys (locale/static-decision {:path "/ja/billing/"}) [:locale :set-cookie? :canonical])))
   ;; shared infrastructure namespaces are never rewritten or canonicalized
-  (is (nil? (locale/serve-path "/account" :ja)))
-  (is (nil? (locale/canonical-path "/ja/account")))
+  (is (nil? (locale/serve-path "/admin/" :ja)))
+  (is (nil? (locale/canonical-path "/ja/admin/")))
   (is (nil? (locale/canonical-path "/v1/models")))
+  ;; the console documents are variant roots (2026-09-15): account, and
+  ;; the five that still answered in Japanese to an English reader
+  (doseq [root ["account" "secure" "models" "identity" "security" "security-data"]]
+    (is (= (str "/ja/" root "/") (locale/serve-path (str "/" root "/") :ja)) root)
+    (is (= (str "/" root "/") (locale/canonical-path (str "/ja/" root "/"))) root))
   ;; billing/legal/security/csf2/docs fork; unknown locales don't
   (is (= "/ja/billing/" (locale/serve-path "/billing/" :ja)))
   (is (= "/ja/legal/tokushoho/" (locale/serve-path "/legal/tokushoho/" :ja)))

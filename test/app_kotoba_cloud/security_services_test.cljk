@@ -20,11 +20,15 @@
       (is (seq (:inputs s)))
       (is (seq (:outputs s)))
       (is (seq (:integration s)))))
-  (testing "every capability row is a keyword with a non-empty label"
+  (testing "every capability row is a keyword with a non-blank label in both languages"
     (doseq [s sec/security-services
             [k label] (:capabilities s)]
       (is (keyword? k))
-      (is (seq label)))))
+      (is (and (string? (:ja label)) (seq (:ja label))) (str k " :ja"))
+      (is (and (string? (:en label)) (seq (:en label))) (str k " :en"))))
+  (testing "the integration note is authored in both languages too"
+    (doseq [s sec/security-services]
+      (is (and (seq (get-in s [:integration :note :ja])) (seq (get-in s [:integration :note :en]))) (str (:id s))))))
 
 (deftest vm-is-the-aggregation-ledger
   (let [vm (sec/service-by-id :vm)]
