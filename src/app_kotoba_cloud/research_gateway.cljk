@@ -494,6 +494,16 @@
                               "inference-rejected" {:code "invalid-research-request"
                                                     :message (:message (ex-data e))
                                                     :type "invalid_request_error"}
+                              ;; the authority's 429 kept its status but lost its
+                              ;; name here — an agent read "unavailable" and fell
+                              ;; back to another provider without anyone learning
+                              ;; the day's quota was gone (live probe, 2026-09-16)
+                              "free-quota-exhausted" {:code "free-quota-exhausted"
+                                                      :message (str "daily free quota exhausted ("
+                                                                    policy/requests-per-day
+                                                                    " requests per UTC day; resets at 00:00 UTC). "
+                                                                    "Paid inference is not counted against it.")
+                                                      :type "insufficient_quota"}
                               {:code (case code
                                        "inference-run-failed" "inference-failed"
                                        "inference-job-timeout" "inference-timeout"
