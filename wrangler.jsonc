@@ -101,6 +101,11 @@
     "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UFI88ITDawH5x8adO7LxkD1",
     "STRIPE_PRICE_IDS": "{\"pro\":\"price_1UFHkyITDawH5x8a0nH7NXzS\",\"max\":\"price_1UFHkzITDawH5x8aHd8HPjNH\",\"ultra\":\"price_1UFHl0ITDawH5x8ajNZWUO5O\",\"ai-credits-25\":\"price_1UFHGEITDawH5x8arkcNfHgW\",\"storage-credits-25\":\"price_1UFHGFITDawH5x8aAbVBVXhu\"}",
     "BILLING_SANDBOX_ENABLED": "true",
+    // Organization SSO (ADR-2609151900): Enterprise is quote-based, so an
+    // operator grants it here as {"com-<handle>.kotoba.cloud": "enterprise"}.
+    // Team comes from the org owner's paid Stripe plan (billing/active-plan).
+    // ORG_SSO_ENTITLEMENT_SECRET is a Worker secret shared with kotobase-authn.
+    "ORG_PLAN_OVERRIDES": "{}",
     "BILLING_ENVIRONMENT_ID": "acct_1U7sRyITDawH5x8a-test"
   }
 }

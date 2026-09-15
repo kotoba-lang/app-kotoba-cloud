@@ -117,6 +117,61 @@
             "メンバーを招待すると API トークン・スコープ・請求を共有します。ロールは owner / admin / member / billing です。")
    {:id "account-panel-org"}))
 
+(defn panel-linked []
+  (panel "連携アカウント"
+   [:div {:id "account-linked"}
+    (row "状態" "account-linked-state")]
+   (dds/row
+    (dds/button "Google を連携" {:id "account-link-google" :href "/account/link/google" :type :outline})
+    (dds/button "GitHub を連携" {:id "account-link-github" :href "/account/link/github" :type :outline}))
+   (console/note "" {:id "account-linked-note" :role "status"})
+   (details "連携アカウントとは"
+            "Google / GitHub のアカウントを紐づけると、次回から「Google で続行」でこのアカウントのパスキーが提案されます。連携アカウントはログイン手段ではなく、アカウントの目印です。"
+            "解除しても、パスキー・ウォレットでのログインには影響しません。")
+   {:id "account-panel-linked"}))
+
+(defn panel-org-sso []
+  (panel "組織 SSO（Team / Enterprise）"
+   [:div {:id "account-org-sso"}
+    (row "状態" "account-org-sso-state")]
+   [:div {:id "account-org-sso-admin" :hidden true}
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-org"} "組織"]
+     [:span {:class "ck-console__value"} [:select {:id "account-sso-org"}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-issuer"} "Issuer"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-issuer" :placeholder "https://login.example.com" :maxlength 512}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-client-id"} "Client ID"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-client-id" :maxlength 512}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-client-secret"} "Client secret"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-client-secret" :type "password" :autocomplete "off" :maxlength 1024}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-domains"} "メールドメイン"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-domains" :placeholder "example.com, example.co.jp" :maxlength 512}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-role-map"} "ロール対応 (group=role)"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-role-map" :placeholder "kotoba-admins=admin, finance=billing" :maxlength 1024}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-max-age"} "再認証間隔（時間）"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-max-age" :inputmode "numeric" :placeholder "12" :maxlength 3}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-enforce"} "IdP の認証を必須にする"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-enforce" :type "checkbox"}]]]
+    (dds/row
+     (dds/button "SSO を保存" {:id "account-sso-save" :type :solid-fill})
+     (dds/button "SSO を削除" {:id "account-sso-remove" :type :outline}))]
+   [:div {:id "account-org-sso-member" :hidden true}
+    (dds/row
+     (dds/button "組織の IdP で認証する" {:id "account-sso-assert" :type :outline}))]
+   (console/note "" {:id "account-org-sso-note" :role "status"})
+   (details "組織 SSO とは"
+            "組織の ID プロバイダー（Google Workspace / Microsoft Entra ID / Okta などの OpenID Connect）でメンバーを管理します。IdP から外れたメンバーは、次の再認証間隔で組織へのアクセスを失います。"
+            "IdP はログイン手段ではありません。メンバーは先にパスキーまたはウォレットでログインし、その上で組織の IdP に認証してメンバーシップを得ます。ロールは admin / member / billing のいずれかで、owner は IdP から付与されません。"
+            "Team / Enterprise プランの組織で利用できます。SAML は現時点では未対応です。")
+   {:id "account-panel-org-sso"}))
+
 (defn panel-team []
   (panel "チーム"
    [:div {:id "account-team"}
@@ -189,7 +244,13 @@
     [:div {:id "account-signed-out" :class "kc-account__signed-out" :hidden true}
      [:p "サインインすると、本人確認・研究環境の利用・組織・請求・接続トークンをここで管理できます。"]
      (dds/row
-      (dds/button "サインイン" {:id "account-sign-in" :href sign-in-href :type :solid-fill}))]
+      (dds/button "サインイン" {:id "account-sign-in" :href sign-in-href :type :solid-fill})
+      ;; Google / GitHub name the account; the passkey or wallet proves it
+      ;; (ADR-2609151900). The apex hands off to auth.kotoba.cloud's link start.
+      (dds/button "Google で続行" {:id "account-continue-google" :href "/sign-in/google" :type :outline})
+      (dds/button "GitHub で続行" {:id "account-continue-github" :href "/sign-in/github" :type :outline}))
+     [:p {:class "ck-console__note"}
+      "Google / GitHub はアカウントの特定に使います。ログイン自体はパスキーまたはウォレットで行い、パスワードは使いません。"]]
     (into [:div {:id "account-console-body" :class "kc-account" :hidden true}]
-          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes)
-           (panel-org) (panel-team) (panel-secure) (panel-billing) (panel-cli)]))])
+          [(panel-session) (panel-linked) (panel-identity) (panel-eligibility) (panel-scopes)
+           (panel-org) (panel-org-sso) (panel-team) (panel-secure) (panel-billing) (panel-cli)]))])

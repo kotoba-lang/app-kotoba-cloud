@@ -27,7 +27,9 @@
                 ;; blog surface: index documents per emitted locale (posts
                 ;; link through these; article pages are emitted per post)
                 "/ja/blog/"}
-   :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"]
+   :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"
+            ;; worker.cljk: Continue with Google/GitHub hand-offs (ADR-2609151900)
+            "/sign-in/" "/account/link/"]
    :locale-prefixes (set (map name site/supported-locales))
    :csp csp/for-path})
 

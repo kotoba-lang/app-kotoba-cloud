@@ -3,6 +3,7 @@
   org-scoped tenants additionally require a live org-membership authorization
   from the private org authority (ADR-2609141633)."
   (:require [app-kotoba-cloud.research-gateway :as bounds]
+            [app-kotoba-cloud.org-sso-gateway :as org-sso]
             [app-kotoba-cloud.session :as session]
             [goog.object :as gobj]))
 (def paths #{"/v1/database/session/tenants" "/v1/database/session/token"})
@@ -50,7 +51,12 @@
       (.then (fn [auth]
                (let [auth (js->clj auth :keywordize-keys true)]
                  (when-not (true? (:ok auth))
-                   (throw (ex-info "org-authorization-failed" {:status 502}))))))))
+                   (throw (ex-info "org-authorization-failed" {:status 502})))
+                 ;; Organization SSO gate (ADR-2609151900): an org that enforces
+                 ;; IdP assertions opens its data plane only to a member whose
+                 ;; assertion is fresh. Rejects with the gate's own reason and
+                 ;; the URL that re-asserts; opens without a call otherwise.
+                 (org-sso/gate! cookie (:orgHandle body) (:ssoPolicy auth)))))))
 
 (defn route [request env respond]
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
@@ -94,4 +100,7 @@
                      (throw (ex-info "unexpected-authn-redirect" {:status 502})))
                    (-> (bounds/bounded-json r 32768)
                        (.then (fn [body] (respond body (.-status r)))))))
-          (.catch (fn [e] (respond {:error "database-session-unavailable" :stage @stage :kind (if (= "TypeError" (.-name e)) "transport-type-error" "upstream-unavailable")} (or (:status (ex-data e)) 503))))))))
+          (.catch (fn [e]
+                    (if-let [gate (:error (ex-data e))]
+                      (respond {:error gate :start (:start (ex-data e)) :stage @stage} (or (:status (ex-data e)) 403))
+                      (respond {:error "database-session-unavailable" :stage @stage :kind (if (= "TypeError" (.-name e)) "transport-type-error" "upstream-unavailable")} (or (:status (ex-data e)) 503)))))))))
