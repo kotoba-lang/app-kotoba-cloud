@@ -102,6 +102,17 @@
     (is (r/completion-openai-compatible?
          (assoc base :messages [{:role "system" :content "You review code."}
                                 {:role "user" :content "Review my code."}])))
+    ;; agent-shaped regression (2026-09-16 incident): a long-running session's
+    ;; transcript — hundreds of short tool turns, far under the character
+    ;; ceiling — must pass admission; the old 256 cap rejected it and clients
+    ;; misread the terse 400 as a context overflow.
+    (is (r/completion-openai-compatible?
+         (assoc base :messages (vec (repeat 512 {:role "tool" :content "ok" :tool_call_id "c1"})))))
+    ;; past the ceiling the rejection names the measured count, so it is never
+    ;; mistaken for a token error by a client-side classifier
+    (is (boolean (re-find (re-quote-replacement (str "turns (got " (inc r/max-turns) ")"))
+                          (r/completion-openai-compatible-problem
+                            (assoc base :messages (vec (repeat (inc r/max-turns) {:role "user" :content "x"})))))))
     (doseq [bad [(assoc base :model "other")
                  (assoc base :stream "yes")
                  (assoc base :tools {:type "function"})

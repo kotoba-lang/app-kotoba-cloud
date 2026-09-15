@@ -806,8 +806,8 @@
                                     "admission: サインイン済み principal・無料枠・ガードレール（標準 3 タスクのみ）")
                            (if red? "Admission: card verification, AUP consent, approved scope (code-review comes with verification), free quota, guardrails"
                                     "Admission: a signed-in principal, free quota, guardrails (the three standard tasks only)"))]
-                 [:li (txt "上限: 入力 524,288 文字 · 出力 32,768 tokens（reasoning 込み）· tools 128 · turn 256"
-                           "Ceilings: 524,288 input characters · 32,768 output tokens (reasoning included) · 128 tools · 256 turns")]
+                 [:li (txt "上限: 入力 524,288 文字 · 出力 32,768 tokens（reasoning 込み）· tools 128 · turn 2,048"
+                           "Ceilings: 524,288 input characters · 32,768 output tokens (reasoning included) · 128 tools · 2,048 turns")]
                  [:li (txt (str "応答の model は " (:upstream spec) (if (:strictAttribution spec) "（厳密に照合）" "（形と本文で検証）"))
                            (str "The answer's model echoes " (:upstream spec) (if (:strictAttribution spec) " (strictly matched)" " (validated on shape and content)")))]]
                 (config-block {:ja? ja?} (str "curl -s -X POST " openai-base "/chat/completions -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
@@ -906,7 +906,7 @@
                         "console.log(r.choices[0].message.content);"))
      [:h2 (txt "何が通るか" "What passes")]
      [:ul
-      [:li (txt "messages（system は先頭 1 つ、user / assistant / tool の turn、最大 256 turn、入力合計 524,288 文字）" "messages (one leading system turn; user / assistant / tool turns; up to 256 turns; 524,288 input characters in total)")]
+      [:li (txt "messages（system は先頭 1 つ、user / assistant / tool の turn、最大 2,048 turn、入力合計 524,288 文字）" "messages (one leading system turn; user / assistant / tool turns; up to 2,048 turns; 524,288 input characters in total)")]
       [:li (txt "max_tokens または max_completion_tokens（1..32,768）、stream（1 チャンク SSE）、n（1 のみ）" "max_tokens or max_completion_tokens (1..32,768), stream (one-chunk SSE), n (must be 1)")]
       [:li (txt "tools（最大 128 個の function 定義）と tool_choice — ネイティブな tool_calls が返ります" "tools (up to 128 function definitions) and tool_choice — native tool_calls come back")]
       [:li (txt "受理して落とす: temperature, top_p, presence/frequency_penalty, stop, response_format, parallel_tool_calls, stream_options, user, seed, logit_bias, logprobs, top_logprobs, metadata, store, service_tier, reasoning_effort, reasoning, prompt_cache_key, safety_identifier, modalities" "Accepted and dropped: temperature, top_p, presence/frequency_penalty, stop, response_format, parallel_tool_calls, stream_options, user, seed, logit_bias, logprobs, top_logprobs, metadata, store, service_tier, reasoning_effort, reasoning, prompt_cache_key, safety_identifier, modalities")]
