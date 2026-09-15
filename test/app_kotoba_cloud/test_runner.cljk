@@ -15,6 +15,7 @@
             [app-kotoba-cloud.attribution-test]
             [app-kotoba-cloud.site-test]
             [app-kotoba-cloud.locale-test]
+            [app-kotoba-cloud.fake-report-kit-test]
             [clojure.test :as test]))
 
 (defn -main [& _]
@@ -32,6 +33,7 @@
                                'app-kotoba-cloud.funnel-test
                                'app-kotoba-cloud.attribution-test
                                'app-kotoba-cloud.site-test
-                               'app-kotoba-cloud.locale-test)]
+                               'app-kotoba-cloud.locale-test
+                               'app-kotoba-cloud.fake-report-kit-test)]
     (when (pos? (+ (:fail result) (:error result)))
       (js/process.exit 1))))
