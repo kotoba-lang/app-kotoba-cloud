@@ -76,7 +76,7 @@
 
 (def copy
   {:ja
-   {:html-lang "ja" :og-locale "ja_JP" :path "/ja/"
+   {:html-lang "ja" :og-locale "ja_JP" :path "/"
     :title "Kotoba Cloud — AIが書くソフトウェアを、制御された実行へ。"
     :description "Kotobaの安全なコードとKotobaseのグラフ状態を、identityとdeploy controlで実行環境へつなぎます。Discoveryは公開中。Hosted applyは未提供です。"
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
@@ -154,8 +154,8 @@
     :contact-label "連絡先"
     :legal-link "運営"
     :tokushoho-link "特定商取引法に基づく表記"
-    :legal-path "/ja/legal/"
-    :tokushoho-path "/ja/legal/tokushoho/"
+    :legal-path "/legal/"
+    :tokushoho-path "/legal/tokushoho/"
     :legal-title "運営元 — Kotoba Cloud"
     :legal-heading "運営元"
     :legal-about "Kotoba Cloud は identity と deploy control の公開入口です。storage、compute、agent work は別 origin のまま接続します。"
@@ -367,7 +367,7 @@
   (if-let [t (get locales/copy locale)]
     (merge (:en copy)
            {:html-lang (name locale) :og-locale (name locale)
-            :path (str "/" (name locale) "/")
+            :path "/"
             :title (str "Kotoba Cloud — " (:cloud-headline t))
             :description (:cloud-lead t)
             :skip (:skip t) :home-label "Kotoba Cloud"
@@ -398,19 +398,26 @@
 (defn passkey-href [locale]
   (session/passkey-href (if (= locale :ja) :ja :en)))
 
+(defn language-href
+  "The language switch's href: `?lang=<locale>` RELATIVE to the current
+  document, so the route is preserved by construction (a query-only
+  reference resolves against the document's own path). The Worker serves
+  that variant directly and persists the choice as kb_locale
+  (locale/static-decision); no /<locale>/ path is ever linked."
+  [loc]
+  (str "?" locale/query-param "=" (name loc)))
+
 (defn language-links
-  ([locale label]
-   (language-links locale label {}))
-  ([locale label {:keys [en ja] :or {en "/" ja "/ja/"}}]
-   (dds/language-selector
-    {:id-prefix "kotoba-cloud-language"
-     :size "md"
-     :current locale
-     :languages (mapv (fn [loc]
-                        {:code loc :label (get locales/native-names loc)
-                         :href (case loc :en en :ja ja (str "/" (name loc) "/"))})
-                      supported-locales)
-     :attrs {:aria-label label}})))
+  [locale label]
+  (dds/language-selector
+   {:id-prefix "kotoba-cloud-language"
+    :size "md"
+    :current locale
+    :languages (mapv (fn [loc]
+                       {:code loc :label (get locales/native-names loc)
+                        :href (language-href loc)})
+                     supported-locales)
+    :attrs {:aria-label label}}))
 
 (defn operator-lead [locale]
   (if (= locale :en)
@@ -533,20 +540,18 @@ body:has(.kc-sb){padding-inline-start:15rem}
    :jp-go-dds/language-selector, preserves the route, selection order
    explicit URL → saved choice → default. The two implemented console
    locales (contracts.edn :locales) are offered; each href is the SAME
-   document under a locale prefix, which the Worker canonicalises back to
-   the locale-free route with the choice persisted as kb_locale
-   (locale.cljk) — the click also writes the cookie client-side
-   (language-cookie-script), so the route never forks."
-  [locale current]
-  (let [path (first (str/split (str (or current "/")) #"#" 2))
-        path (if (str/starts-with? path "/") path (str "/" path))]
-    (dds/language-selector
-     {:id-prefix "kc-console-language"
-      :size "sm"
-      :current locale
-      :languages [{:code :ja :label "日本語" :href (str "/ja" path)}
-                  {:code :en :label "English" :href (str "/en" path)}]
-      :attrs {:aria-label (if (= locale :ja) "表示言語" "Language")}})))
+   document with `?lang=` (language-href), which the Worker serves as that
+   variant with the choice persisted as kb_locale (locale.cljk) — the
+   click also writes the cookie client-side (language-cookie-script), so
+   the route never forks."
+  [locale _current]
+  (dds/language-selector
+   {:id-prefix "kc-console-language"
+    :size "sm"
+    :current locale
+    :languages [{:code :ja :label "日本語" :href (language-href :ja)}
+                {:code :en :label "English" :href (language-href :en)}]
+    :attrs {:aria-label (if (= locale :ja) "表示言語" "Language")}}))
 
 (defn console-topbar
   "The console's top bar: the section this page belongs to (from the IA
@@ -604,7 +609,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn site-header
   ([locale t]
    (site-header locale t {}))
-  ([locale t {:keys [language-ja language-en nav] :or {nav true}}]
+  ([locale t {:keys [nav] :or {nav true}}]
    [:header {:class (if nav "kc-header" "kc-header kc-header--compact")}
     (dds/container
      [:div {:class "kc-header__inner"}
@@ -628,8 +633,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
       ;; the right edge: language, theme, app menu (and, on the full
       ;; header, the sign-in entry) — one cluster pushed to the end
       [:div {:class "kc-header__tools"}
-       (language-links locale (:language-label t)
-                       {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
+       (language-links locale (:language-label t))
        theme-toggle/control
       ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
@@ -654,7 +658,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
      [:span (:operator-label t) ": " operator-name]
      [:span (:contact-label t) ": " (contact-mailto)]
      ;; locale-free hrefs (the Worker serves the negotiated variant at
-     ;; /legal/; :legal-path stays the canonical URL of the ja document)
+     ;; /legal/; the ja document's canonical is /legal/?lang=ja)
      [:a {:href "/legal/"} (:legal-link t)]
      [:a {:href "/legal/tokushoho/"} (:tokushoho-link t)]])])
 
@@ -689,7 +693,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/legal/" :language-en "/legal/"})
+     (site-header locale t)
      [:main {:id "main" :class "kc-legal"}
       (dds/container
        (dds/section {:title (:legal-heading t)}
@@ -707,8 +711,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/legal/tokushoho/"
-                            :language-en "/legal/tokushoho/"})
+     (site-header locale t)
      [:main {:id "main" :class "kc-legal"}
       (dds/container
        (dds/section {:title (:tokushoho-heading t)}
@@ -882,17 +885,27 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (str (resource-read "jp_go_dds/dds.css")
        "\n" (css-for-extras [:language-selector :menu-list-box :menu-list :breadcrumb :step-navigation])))
 
+(defn variant-url
+  "The absolute URL of one locale variant of a locale-free route: English
+  is the route itself (what a cookie-less crawler receives there); every
+  other locale is `<route>?lang=<locale>`, which the Worker serves directly
+  as that variant. Each variant is self-canonical so hreflang alternates
+  stay valid without a /<locale>/ path fork."
+  [path loc]
+  (str "https://kotoba.cloud" path (when-not (= loc :en) (language-href loc))))
+
 (defn document-head
      [locale path-key title description]
      (let [t (translation locale)
            path (path-key t)
-           ja-href (str "https://kotoba.cloud" (get-in copy [:ja path-key]))
-           en-href (str "https://kotoba.cloud" (get-in copy [:en path-key]))]
+           self (variant-url path locale)
+           ja-href (variant-url path :ja)
+           en-href (variant-url path :en)]
        (into (vec (for [loc supported-locales
                          :when (and (= path-key :path) (not (#{:en :ja} loc)))]
                      [:link {:rel "alternate" :hreflang (name loc)
-                             :href (str "https://kotoba.cloud/" (name loc) "/")}]))
-       [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+                             :href (variant-url path loc)}]))
+       [[:link {:rel "canonical" :href self}]
         [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
         [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
         [:script {:src "/js/language-selector.js" :defer true}]
@@ -913,7 +926,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
         [:meta {:property "og:title" :content title}]
         [:meta {:property "og:description" :content description}]
         [:meta {:property "og:locale" :content (:og-locale t)}]
-        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]])))
+        [:meta {:property "og:url" :content self}]])))
 
 (defn mark-english-fallback
   "Keep assistive technology honest for technical copy awaiting translation."
@@ -1342,11 +1355,10 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn graph-docs-view [locale]
   (let [ja? (= locale :ja)
         t (translation locale)
-        txt (fn [ja en] (if ja? ja en))
-        docs-path (if ja? "/ja/docs/graph/" "/docs/graph/")]
+        txt (fn [ja en] (if ja? ja en))]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/ja/docs/graph/" :language-en "/docs/graph/"})
+     (site-header locale t)
      [:main {:id "main" :class "kc-docs"}
       (dds/container
        (dds/section {:title (txt "Graph・Ontologyデータベース — ドキュメント"
@@ -1360,7 +1372,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
               "The Database & Ontology workbench on the kotoba.cloud home page visualizes and analyzes observed attributes and types over immutable IPLD snapshots.")]
         (dds/row
          (dds/button (txt "ワークベンチを開く (トップページ)" "Open the workbench (home page)")
-                     {:type :solid-fill :size "md" :href (if ja? "/ja/#knowledge/overview" "/#knowledge/overview")})
+                     {:type :solid-fill :size "md" :href "/#knowledge/overview"})
          (dds/button (txt "料金・プラン" "Billing & plans")
                      {:type :outline :size "md" :href "/billing/"}))
         (dds/heading 2 (txt "周辺プロジェクト" "Surrounding projects") {:size "28"})
@@ -1391,7 +1403,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn graph-docs-html
      ([] (graph-docs-html :en))
      ([locale]
-      (let [ja? (= locale :ja) path (if ja? "/ja/docs/graph/" "/docs/graph/")]
+      (let [ja? (= locale :ja) path "/docs/graph/"]
         (apply page/->page
                {:title (if ja? "Graph・Ontologyデータベース — Kotoba Cloud"
                          "Graph & Ontology database — Kotoba Cloud")
@@ -1400,10 +1412,10 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :lang (if ja? "ja" "en") :css (document-css)
                 :app-css (str tokens/skin-css tokens/bridge-css
                               ".kc-docs{padding-block:var(--hig-spacing-4)}.kc-docs__list li{padding:var(--hig-spacing-3)}@media(max-width:30rem){.kc-docs h2{font-size:1.25rem}.kc-docs__list li{padding:var(--hig-spacing-2)}}")
-                :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
-                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/docs/graph/"}]
-                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/docs/graph/"}]
-                       [:link {:rel "alternate" :hreflang "x-default" :href "https://kotoba.cloud/docs/graph/"}]
+                :head [[:link {:rel "canonical" :href (variant-url path locale)}]
+                       [:link {:rel "alternate" :hreflang "ja" :href (variant-url path :ja)}]
+                       [:link {:rel "alternate" :hreflang "en" :href (variant-url path :en)}]
+                       [:link {:rel "alternate" :hreflang "x-default" :href (variant-url path :en)}]
                        [:script {:src "/js/language-selector.js" :defer true}]
                        [:script {:src "/js/session.js" :defer true}]]}
                (graph-docs-view locale)))))
@@ -1612,7 +1624,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                                        [:p (if ja? (:desc-ja r) (:desc-en r))]
                                        [:a {:href (str "/docs/reference/" (:id r) "/")} "Open"]])))))
       (spit-file (node-path/join root "ja" "docs" "reference" "index.html")
-                 (docs-page :ja (fn [_] "API リファレンス — Kotoba Cloud") "/ja/docs/reference/"
+                 (docs-page :ja (fn [_] "API リファレンス — Kotoba Cloud") "/docs/reference/"
                             (fn [ja?]
                               (into [:ul {:class "kc-docs__list"}]
                                     (for [r docs-site/ref-pages]

@@ -192,7 +192,11 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   const lang=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,
     items:[...document.querySelectorAll('#kc-console-language-popup a')].map(a=>[a.getAttribute('href'),a.getAttribute('hreflang'),a.getAttribute('aria-current')])}));
   if(lang.hidden||lang.items.length!==2)throw Error('language popup '+JSON.stringify(lang));
-  if(lang.items[0][0]!=='/ja/models/'||lang.items[1][0]!=='/en/models/'||lang.items[0][2]!=='true')throw Error('language switch must preserve the route '+JSON.stringify(lang));
+  // ?lang= relative to the document: the route is preserved by construction
+  // and no /<locale>/ path is linked (owner direction 2026-09-15)
+  if(lang.items[0][0]!=='?lang=ja'||lang.items[1][0]!=='?lang=en'||lang.items[0][2]!=='true')throw Error('language switch must be ?lang= on the same route '+JSON.stringify(lang));
+  const resolved=await page.evaluate(()=>[...document.querySelectorAll('#kc-console-language-popup a')].map(a=>a.href));
+  if(!resolved.every(h=>/\\/models\\/\\?lang=(ja|en)$/.test(h)))throw Error('switch hrefs must resolve on /models/ '+JSON.stringify(resolved));
   await page.keyboard.press('Escape'); await page.waitForTimeout(100);
   const closed=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,focus:document.activeElement&&document.activeElement.id}));
   if(!closed.hidden||closed.focus!=='kc-console-language-opener')throw Error('Escape must close and return focus to the opener '+JSON.stringify(closed));
