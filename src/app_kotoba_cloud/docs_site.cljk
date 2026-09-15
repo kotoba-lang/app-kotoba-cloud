@@ -319,7 +319,7 @@
                         "403 guardrail-blocked         // CSAM/CBRN/fraud content policy (durable)\n"
                         "403 firewall-denied           // task tool closed at your assurance rung\n"
                         "403 prepaid-card-not-accepted // prepaid/virtual card in verification\n"
-                        "429 free-quota-exhausted      // 50 requests/day used up (resets UTC midnight)\n"
+                        "429 free-quota-exhausted      // 1,000 requests/day used up (resets UTC midnight)\n"
                         "503 card-verification-not-configured // temporary; retry later"))
      (note-block
       (txt "429 の無料枠は UTC 深夜にリセットされ、Retry-After は付きません。リトライは翌日 (UTC) に。"
@@ -329,10 +329,10 @@
   (let [txt (fn [ja en] (if (= :ja locale) ja en))]
     [[:h1 (txt "Rate limits" "Rate limits")]
      [:p {:class "kc-docs__lead"}
-      (txt "無料研究枠は principal ごとに 1 日 50 リクエスト、出力最大 32,768 tokens/リクエスト、入力合計 524,288 文字（約 128k tokens）。有料枠 (Credits) を使う場合も 1 リクエストの上限は同じです。"
-           "The free research allowance is 50 requests/day per principal, up to 32,768 output tokens per request, 524,288 input characters (about 128k tokens) total. Paid (Credits) usage shares the same per-request ceilings.")]
+      (txt "無料研究枠は principal ごとに 1 日 1,000 リクエスト、出力最大 32,768 tokens/リクエスト、入力合計 524,288 文字（約 128k tokens）。有料枠 (Credits) を使う場合も 1 リクエストの上限は同じです。"
+           "The free research allowance is 1,000 requests/day per principal, up to 32,768 output tokens per request, 524,288 input characters (about 128k tokens) total. Paid (Credits) usage shares the same per-request ceilings.")]
      (config-block (str "free-limits: {\n"
-                        "  \"requestsPerDay\": 50,\n"
+                        "  \"requestsPerDay\": 1000,\n"
                         "  \"maxOutputTokens\": 32768,\n"
                         "  \"maxInputCharacters\": 524288\n"
                         "}\n\n"

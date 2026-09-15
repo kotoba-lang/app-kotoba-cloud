@@ -4,7 +4,7 @@ Security-focused LLM inference for authorized code review, vulnerability triage 
 Status: LIVE. Identity verification runs on Stripe Identity only: no manual review queue, no other provider.
 After one Stripe Identity verification the account is approved automatically (ekyc + screening + trust + scope + activation).
 
-Free allowance after verified identity: 50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
+Free allowance after verified identity: 1,000 requests per day, up to 32,768 output tokens per request (524,288 input characters, about 128k tokens). No automatic paid fallback.
 
 ## Registration (agent-followable, Stripe Identity only)
 
@@ -62,7 +62,7 @@ scope/tasks mismatch between step 2 and step 6.
 Not a drop-in API-key service. No tools, arbitrary models or system-message overrides.
 
 Access order (OrcaRouter-style assurance ladder): the saved card unlocks the free
-research allowance (50 requests/day) immediately; identity verification and the
+research allowance (1,000 requests/day) immediately; identity verification and the
 governance checks (business verified, contracted researcher) come after and raise
 the token ceiling. Tool calls, command execution and automation are NEVER performed
 server-side — the model returns text only; execute tools locally on your machine.
