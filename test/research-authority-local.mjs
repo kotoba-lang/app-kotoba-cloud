@@ -29,6 +29,7 @@ const env = {
   RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef",
   MODAL_INFERENCE_URL: "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions",
   MODAL_INFERENCE_TOKEN: "modal-test-token",
+  INFERENCE_NOT_READY_DELAY_MS: "1",
 };
 const auth = new ResearchAuthority(state, env);
 const call = (path, body) => auth.fetch(new Request(`https://research.internal${path}`, {
@@ -95,9 +96,11 @@ r = await call("/jobs/create", {
 assert.equal(r.status, 200, JSON.stringify(r));
 assert.equal(r.json.policyDecision, "allowed");
 assert.equal(r.json.model, "qwen3.8-flash-next-whitehacker");
+await new Promise(r => setTimeout(r, 20));
 
 const storedJob = JSON.parse(await state.storage.get("job:" + jobId));
 assert.equal(storedJob.status, "succeeded");
+assert.equal(storedJob.attempts, 1);
 assert.deepEqual(storedJob.usageReceipt && {
   source: storedJob.usageReceipt.source,
   inputTokens: storedJob.usageReceipt.inputTokens,
@@ -131,6 +134,7 @@ assert.deepEqual(storedJob.usageReceipt && {
   assert.equal(failed.status, "failed", "terminal state must be failed: " + JSON.stringify(failed));
   assert.equal(failed.error, "red-route-unavailable");
   assert.equal(failed.upstreamStatus, 401);
+  assert.equal(failed.retryable, true, "401 is operator configuration: a re-run after the fix may succeed");
   assert.equal(failed.content, undefined);
   const logged = errLines.filter(l => l.startsWith("inference-run-failed " + failJobId));
   assert.equal(logged.length, 1, JSON.stringify(errLines));
@@ -299,6 +303,7 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
     const callNoKey = (path, body) => noKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
     let b = await callNoKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
     assert.equal(b.status, 200, "blue: no record needed " + JSON.stringify(b.json));
+    await new Promise(r => setTimeout(r, 20));
     let stored = JSON.parse(await blueState.storage.get("job:" + blueJob));
     assert.equal(stored.status, "failed");
     assert.match(stored.error, /blue-route-not-configured/);
@@ -309,6 +314,7 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
     const callKey = (path, body) => withKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
     b = await callKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
     assert.equal(b.status, 200, JSON.stringify(b.json));
+    await new Promise(r => setTimeout(r, 20));
     stored = JSON.parse(await blueState2.storage.get("job:" + blueJob));
     assert.equal(stored.status, "succeeded", JSON.stringify(stored));
     assert.equal(routed.length, 1);
@@ -325,6 +331,134 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
     assert.equal(b.json.error, "review-required");
   } finally { globalThis.fetch = oldFetch; }
   console.log("blue team route: admitted on sign-in, the shared route with the model id, refuses by name without the key, offensive band closed, red still gated");
+}
+
+
+// 6f. cold start absorbed: the route answers 503 "model loading" twice, then
+// 200 -> ONE job, status running in between, succeeded with attempts=3.
+// (Measured 2026-09-15 12:38Z: one shot against a snapshot-creating start
+// stored `failed` after 129 s.)
+{
+  const realUpstream = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls <= 2) return new Response(JSON.stringify({ error: "model loading" }), { status: 503, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ id: "c", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      choices: [{ index: 0, message: { role: "assistant", content: "Warm now." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const coldJobId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const req = { principalId: principal, sessionRef, jobId: coldJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code while the route warms." }] } };
+  const rc = await call("/jobs/create", req);
+  assert.equal(rc.status, 200, JSON.stringify(rc));
+  // in flight: a second identical create re-attaches to the RUNNING job and does not dispatch again
+  const rc2 = await call("/jobs/create", req);
+  assert.equal(rc2.status, 200);
+  assert.ok(["queued", "running"].includes(rc2.json.status), "re-attach while running: " + rc2.json.status);
+  await new Promise(r => setTimeout(r, 120));
+  globalThis.fetch = realUpstream;
+  const cold = JSON.parse(await state.storage.get("job:" + coldJobId));
+  assert.equal(cold.status, "succeeded", JSON.stringify(cold));
+  assert.equal(cold.attempts, 3, "two not-ready answers then the answer");
+  assert.equal(cold.lastUpstreamStatus, undefined, "the terminal record carries no stale not-ready status");
+  assert.equal(calls, 3, "exactly three fetches for two creates: no double dispatch");
+  console.log("cold start absorbed: 503,503,200 -> one succeeded job, attempts=3, no double dispatch");
+}
+
+// 6g. the origin refuses the REQUEST (400: context window): terminal failed,
+// retryable=false, the origin's message kept; a retry of the same request
+// does NOT re-dispatch (the edge serves the caller its 400).
+{
+  const realUpstream = globalThis.fetch;
+  let calls = 0;
+  const realError = console.error; console.error = () => {};
+  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify({ error: { type: "BadRequestError", code: 400,
+    message: "This model's maximum context length is 131072 tokens. However, you requested 16 output tokens and your prompt contains at least 131057 input tokens" } }),
+    { status: 400, headers: { "content-type": "application/json" } }); };
+  const bigJobId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const req = { principalId: principal, sessionRef, jobId: bigJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 16, messages: [{ role: "user", content: "Count the letters (pretend this is 480k characters)." }] } };
+  let rb = await call("/jobs/create", req);
+  assert.equal(rb.status, 200);
+  await new Promise(r => setTimeout(r, 30));
+  const big = JSON.parse(await state.storage.get("job:" + bigJobId));
+  assert.equal(big.status, "failed", JSON.stringify(big));
+  assert.equal(big.upstreamStatus, 400);
+  assert.equal(big.retryable, false);
+  assert.match(big.upstreamError.message, /maximum context length/);
+  rb = await call("/jobs/create", req);
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(rb.json.status, "failed", "a request refusal is final: " + JSON.stringify(rb.json));
+  assert.equal(rb.json.upstreamStatus, 400, "the poll carries the status the edge maps to the caller's 400");
+  assert.match(rb.json.upstreamError.message, /maximum context length/);
+  assert.equal(calls, 1, "no re-dispatch of a request the origin refused");
+  globalThis.fetch = realUpstream; console.error = realError;
+  console.log("request refusal: 400 -> failed, retryable=false, message kept, retry does not re-dispatch");
+}
+
+// 6h. a retryable failure (500 from the route) is re-queued by the next
+// identical request and then succeeds; requeues is counted and capped.
+{
+  const realUpstream = globalThis.fetch;
+  const realError = console.error; console.error = () => {};
+  const realWarn = console.warn; const warns = []; console.warn = (...a) => warns.push(a.map(String).join(" "));
+  let mode = "500";
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (mode === "500") return new Response("upstream exploded", { status: 500 });
+    return new Response(JSON.stringify({ id: "c", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      choices: [{ index: 0, message: { role: "assistant", content: "Recovered." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const rqJobId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const req = { principalId: principal, sessionRef, jobId: rqJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "hello (the agent's fixed opening prompt)" }] } };
+  let rr = await call("/jobs/create", req);
+  await new Promise(r => setTimeout(r, 30));
+  let job = JSON.parse(await state.storage.get("job:" + rqJobId));
+  assert.equal(job.status, "failed"); assert.equal(job.retryable, true); assert.equal(job.upstreamStatus, 500);
+  const used = JSON.parse(await state.storage.get("record")).usage.count;
+  mode = "200";
+  rr = await call("/jobs/create", req);
+  assert.equal(rr.status, 200);
+  assert.equal(rr.json.status, "queued", "the retry re-queues the failed job: " + JSON.stringify(rr.json));
+  await new Promise(r => setTimeout(r, 30));
+  job = JSON.parse(await state.storage.get("job:" + rqJobId));
+  assert.equal(job.status, "succeeded", JSON.stringify(job));
+  assert.equal(job.requeues, 1);
+  assert.equal(job.content, "Recovered.");
+  assert.equal(JSON.parse(await state.storage.get("record")).usage.count, used, "a re-queue draws no new quota");
+  assert.equal(calls, 2);
+  assert.ok(warns.some(w => w.startsWith("inference-job-requeued " + rqJobId)), JSON.stringify(warns));
+  // the cap: a job that already re-queued 3 times stays failed
+  await state.storage.put("job:" + rqJobId, JSON.stringify({ ...job, status: "failed", retryable: true, requeues: 3 }));
+  rr = await call("/jobs/create", req);
+  assert.equal(rr.json.status, "failed", "past max-requeues the failure is final: " + JSON.stringify(rr.json));
+  assert.equal(calls, 2, "no dispatch past the cap");
+  // a prior stored before `retryable` existed (today's stuck jobs) counts as retryable
+  await state.storage.put("job:" + rqJobId, JSON.stringify({ ...job, status: "failed", error: "red-route-unavailable", upstreamStatus: 502, retryable: undefined, requeues: 0 }));
+  rr = await call("/jobs/create", req);
+  assert.equal(rr.json.status, "queued", "legacy failed job re-queued: " + JSON.stringify(rr.json));
+  await new Promise(r => setTimeout(r, 30));
+  // a run presumed dead (running for 26 minutes) is re-queued too
+  await state.storage.put("job:" + rqJobId, JSON.stringify({ ...job, status: "running", startedAt: Date.now() - 26 * 60000, requeues: 0 }));
+  rr = await call("/jobs/create", req);
+  assert.equal(rr.json.status, "queued", "stale running job re-queued: " + JSON.stringify(rr.json));
+  await new Promise(r => setTimeout(r, 30));
+  // ... but a run that is 1 minute old is left alone (re-attach, no second dispatch)
+  const before = calls;
+  await state.storage.put("job:" + rqJobId, JSON.stringify({ ...job, status: "running", startedAt: Date.now() - 60000, requeues: 0 }));
+  rr = await call("/jobs/create", req);
+  assert.equal(rr.json.status, "running");
+  assert.equal(calls, before, "a live run is not dispatched again");
+  globalThis.fetch = realUpstream; console.error = realError; console.warn = realWarn;
+  console.log("retryable failure: 500 -> failed(retryable) -> retry re-queues -> succeeded; cap, legacy record, stale run covered");
 }
 
 console.log("research authority local checks: all passed");

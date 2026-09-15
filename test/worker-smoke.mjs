@@ -663,6 +663,10 @@ let corruptReceipt = false;
 let oldTrustReceipt = false;
 let exhausted = false;
 let upstreamOutcome = "ok";
+// when upstreamOutcome==="failed": the origin status/body the authority
+// stored on the job (research_authority run-inference! fail). The edge maps
+// 400/413/422 -> the caller's 400 with the message, 401/403/404 -> 503.
+let upstreamFail = null;
 // When set, /ekyc/start answers with the authority's own error shape
 // ({ error: <code> }, status) so the edge's code surfacing can be measured.
 let ekycAuthorityRefusal = null;
@@ -706,7 +710,9 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
       setTimeout(() => { if (job.status === "queued") {
         // upstreamOutcome: "ok" (default) | "failed" | "empty" — the last two
         // are what a refused dedicated origin used to look like on the edge
-        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "red-route-unavailable"; }
+        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "red-route-unavailable";
+          if (upstreamFail) { job.upstreamStatus = upstreamFail.status; job.upstreamError = upstreamFail.error;
+            job.retryable = !(upstreamFail.status >= 400 && upstreamFail.status <= 499 && ![408,429].includes(upstreamFail.status)); } }
         else if (upstreamOutcome === "tool_calls") { job.status = "succeeded"; job.content = null; job.finishReason = "tool_calls";
           job.toolCalls = [{ id: "call_9", type: "function", function: { name: "write_file", arguments: "{\"path\":\"a.txt\"}" } }]; }
         else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; }
@@ -873,6 +879,34 @@ for (const [outcome, expectStatus, expectCode] of [["failed", 502, "inference-fa
   assert.equal(j.error.code, expectCode, outcome + " " + JSON.stringify(j));
 }
 upstreamOutcome = "ok";
+// The origin refused the REQUEST (context window, shape): 400 with the
+// origin's own message, in the OpenAI error shape (an agent's log is the
+// only place a person reads this). Measured live 2026-09-15: a 131,057-token
+// prompt passed the edge's character ceiling and came back 502 inference-
+// failed, so hermes fell back silently instead of showing the reason.
+upstreamOutcome = "failed";
+upstreamFail = { status: 400, error: { type: "BadRequestError", code: 400, message: "This model's maximum context length is 131072 tokens." } };
+{
+  const r = await route(researchRequest("/v1/chat/completions", { ...researchBody, messages: [{ role: "user", content: "a very long prompt" }] }), researchEnv);
+  const j = await r.json();
+  assert.equal(r.status, 400, JSON.stringify(j));
+  assert.equal(j.error.code, "invalid-research-request");
+  assert.equal(j.error.type, "invalid_request_error");
+  assert.match(j.error.message, /maximum context length/);
+}
+// The route refused the AUTHORITY (token/URL): operator configuration, 503,
+// no origin detail leaked.
+upstreamFail = { status: 401, error: { type: "AuthError", code: 401, message: "Incorrect API key" } };
+{
+  const r = await route(researchRequest("/v1/chat/completions", { ...researchBody, messages: [{ role: "user", content: "route misconfigured" }] }), researchEnv);
+  const j = await r.json();
+  assert.equal(r.status, 503, JSON.stringify(j));
+  assert.equal(j.error.code, "research-service-unavailable");
+  assert.equal(j.error.message, undefined, "no origin detail leaks on a misconfig");
+}
+upstreamFail = null;
+upstreamOutcome = "ok";
+console.log("edge error mapping: origin request-refusal -> 400 with reason; route misconfig -> 503 by family");
 corruptReceipt = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
 corruptReceipt = false; oldTrustReceipt = true;
@@ -1278,6 +1312,20 @@ console.log("PAT issue + bearer research path passed");
   researchRecord.continuous.sessionRef = agentSessionRef;
   researchRecord.continuous.action = "code-review";
   researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+  // Re-stamp the projection windows to NOW: they were minted at module load
+  // (researchNow + 15000 for the session), and this block runs many awaits
+  // later — on a slow run, or with more tests ahead of it, the red model's
+  // 15 s session freshness lapsed and every paid completion 403'd
+  // session-reverification-required instead of exercising the paid path.
+  const paidNow = Date.now();
+  researchRecord.continuous.evaluatedAt = paidNow;
+  researchRecord.continuous.expiresAt = paidNow + 15000;
+  researchRecord.trust.evaluatedAt = paidNow;
+  researchRecord.trust.expiresAt = paidNow + 60000;
+  researchRecord.ekyc.verifiedAt = paidNow - 1000;
+  researchRecord.ekyc.expiresAt = paidNow + 60000;
+  researchRecord.screening.checkedAt = paidNow - 1000;
+  researchRecord.screening.expiresAt = paidNow + 60000;
   const bearer = (body) => new Request("https://kotoba.cloud/v1/chat/completions", {
     method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
     body: JSON.stringify(body) });

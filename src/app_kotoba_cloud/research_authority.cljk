@@ -702,6 +702,13 @@
    :usageReceipt (:usageReceipt job)
    :toolCalls (:toolCalls job)
    :finishReason (:finishReason job)
+   ;; a failed run says what the route answered (status + the origin's own
+   ;; error object, never the prompt) so the edge can serve the origin's
+   ;; refusal of the request as the caller's 400 and a not-ready route as 502
+   :upstreamStatus (:upstreamStatus job)
+   :upstreamError (:upstreamError job)
+   :retryable (:retryable job)
+   :attempts (:attempts job)
    :record (public-record record session-ref (get-in job [:request :task]) now)})
 (defn- load-state [storage]
   (-> (js-invoke storage "get" "record") (.then decode)))
@@ -843,9 +850,48 @@
      :totalTokens total
      :observedAt (js/Date.now)}))
 
+;; --- origin dispatch: absorb the deployment's cold start ---------------------
+;; The dedicated deployment scales to zero and rebuilds its GPU snapshot on
+;; every `modal deploy`. While no container is ready the platform holds a
+;; request ~2 min and then answers 303/502/504 (nothing listens yet), and the
+;; origin's own proxy answers 503 "model loading" once it does. One shot
+;; against that made a 14-minute deploy window a terminal `failed` job:
+;; measured 2026-09-15 12:38:03Z, an agent's first call landed the second
+;; the container went to sleep for its snapshot and failed after 129 s. The
+;; deployment's own `smoke` polls those four statuses; the authority now does
+;; the same, under the edge's 14-minute wait (research-gateway
+;; job-wait-budget-ms).
+(def not-ready-statuses #{303 502 503 504})
+(def dispatch-budget-ms 780000)
+(defn- not-ready-delay-ms
+  "5 s, 10 s, then 15 s between not-ready answers (INFERENCE_NOT_READY_DELAY_MS
+  scales the base; the local test sets it to 1)."
+  [env attempt]
+  (let [base (let [n (js/Number (or (aget env "INFERENCE_NOT_READY_DELAY_MS") 5000))]
+               (if (and (js/Number.isFinite n) (pos? n)) n 5000))]
+    (min (* 3 base) (* base attempt))))
+(defn- delay-ms [ms] (js/Promise. (fn [resolve] (js/setTimeout resolve ms))))
+(def request-refusal-statuses
+  "The origin refused the REQUEST itself (context window, body shape): the
+  same request can never succeed, the edge serves it as the caller's 400."
+  #{400 413 422})
+(defn- retryable-failure?
+  "Whether the NEXT identical request may re-dispatch this failure
+  (handle-jobs-create). The route not being ready, a transport error, a
+  malformed answer (no status), or the route refusing the authority (401 /
+  403 / 404: operator configuration, fixed by the operator) can succeed on
+  a re-run; a request refusal cannot."
+  [status]
+  (not (contains? request-refusal-statuses status)))
+;; A run older than this is presumed dead (the Durable Object went away
+;; mid-run): a client retry re-queues it instead of polling "running" forever.
+(def stale-run-ms 1500000)
+
 (defn- run-inference! [env storage job-id]
-  ;; Detached from the request: the Durable Object writes the terminal state; a
-  ;; crashed run is reconciled on the next poll as "unknown", never re-dispatched.
+  ;; Detached from the request: the Durable Object writes the terminal state.
+  ;; Re-dispatch happens only through /jobs/create (handle-jobs-create): a
+  ;; client retry re-queues a `failed` job whose failure was retryable, or a
+  ;; run older than stale-run-ms.
   (let [p (load-job storage job-id)]
     (.then p (fn [job]
       (when (and job (= "queued" (:status job)))
@@ -857,16 +903,47 @@
               ;; terminal catch below stores it — never a fallback to the
               ;; other team's deployment.
               unavailable (if blue? "blue-route-unavailable" "red-route-unavailable")
-              q (try
-                  (js/fetch (if blue? blue-route-url (red-route-url env))
-                            #js {:method "POST" :redirect "manual"
-                                 :signal (js/AbortSignal.timeout 2100000)
-                                 :headers (if blue?
-                                            (blue-route-headers env)
-                                            #js {"content-type" "application/json"
-                                                 "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
-                                 :body (js/JSON.stringify (upstream-body (:request job)))})
-                  (catch :default e (js/Promise.reject e)))
+              started (js/Date.now)
+              attempts (atom 0)
+              running (fn [status]
+                        (cond-> (assoc job :status "running" :startedAt started :attempts @attempts)
+                          status (assoc :lastUpstreamStatus status)))
+              one-fetch (fn []
+                          (swap! attempts inc)
+                          (try
+                            (js/fetch (if blue? blue-route-url (red-route-url env))
+                                      #js {:method "POST" :redirect "manual"
+                                           :signal (js/AbortSignal.timeout 2100000)
+                                           :headers (if blue?
+                                                      (blue-route-headers env)
+                                                      #js {"content-type" "application/json"
+                                                           "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
+                                           :body (js/JSON.stringify (upstream-body (:request job)))})
+                            (catch :default e (js/Promise.reject e))))
+              within-budget? (fn [] (< (- (js/Date.now) started) dispatch-budget-ms))
+              ;; not ready (303/502/503/504) or a transport error inside the
+              ;; budget: record what the route said, wait, ask again. The job
+              ;; stays "running", so the edge keeps polling and a second
+              ;; /jobs/create re-attaches instead of dispatching twice.
+              attempt (fn attempt []
+                        (-> (one-fetch)
+                            (.then (fn [r]
+                                     (if (and (contains? not-ready-statuses (.-status r)) (within-budget?))
+                                       (-> (store-job! storage (running (.-status r)))
+                                           (.then (fn [_] (delay-ms (not-ready-delay-ms env @attempts))))
+                                           (.then attempt))
+                                       r)))
+                            (.catch (fn [e]
+                                      (if (and (nil? (ex-data e)) (within-budget?))
+                                        (-> (store-job! storage (running nil))
+                                            (.then (fn [_] (delay-ms (not-ready-delay-ms env @attempts))))
+                                            (.then attempt))
+                                        (throw e))))))
+              ;; mark running BEFORE the first fetch: /jobs/create for the same
+              ;; id while this run is in flight must find "running", not
+              ;; "queued", or it would dispatch the origin twice
+              q (-> (store-job! storage (running nil))
+                    (.then (fn [_] (attempt))))
               ;; ONE terminal catch at the end of the chain. The previous shape
               ;; attached `fail` as the rejection handler of every `then`: a
               ;; non-ok upstream threw in the ok-handler, the NEXT step's `fail`
@@ -878,10 +955,18 @@
                      (let [data (ex-data e)]
                        (js/console.error "inference-run-failed" job-id
                                          (str (or (.-message e) e))
-                                         (js/JSON.stringify (clj->js (select-keys data [:status :upstream]))))
+                                         (js/JSON.stringify (clj->js (select-keys data [:status :upstream])))
+                                         (str "attempts=" @attempts " elapsedMs=" (- (js/Date.now) started)))
                        (store-job! storage (assoc job :status "failed"
                                                   :error (str (or (.-message e) e))
                                                   :upstreamStatus (:status data)
+                                                  ;; the origin's own error object (type/code/message,
+                                                  ;; never the prompt) so a 4xx can be served as the
+                                                  ;; caller's 400 with the reason
+                                                  :upstreamError (let [u (:upstream data)] (when (map? u) u))
+                                                  :retryable (retryable-failure? (:status data))
+                                                  :attempts @attempts
+                                                  :startedAt started
                                                   :finishedAt (js/Date.now)))))
               succeed (fn [{:keys [content tool-calls finish-reason usage-receipt]}]
                         (when-not (or (text? content max-content-characters) (seq tool-calls))
@@ -890,6 +975,8 @@
                                                            :content (when (text? content max-content-characters) content)
                                                            :finishReason finish-reason
                                                            :usageReceipt usage-receipt
+                                                           :attempts @attempts
+                                                           :startedAt started
                                                            :finishedAt (js/Date.now))
                                               (seq tool-calls) (assoc :toolCalls (vec tool-calls)))))
               fetched (js-invoke q "then"
@@ -989,6 +1076,19 @@
                        (.then (fn [_] (response {:principalId (:principalId body)
                                                  :applicationId (:applicationId app)} 200))))))))))
 
+(def max-requeues 3)
+(defn- requeue?
+  "True when a retry of the same completion should run the origin again:
+  a `failed` prior whose failure was retryable (a prior stored before this
+  field existed counts as retryable), or a queued/running prior older than
+  stale-run-ms. Never a succeeded, cancelled, or final-4xx prior, never
+  past max-requeues."
+  [prior now]
+  (and (< (or (:requeues prior) 0) max-requeues)
+       (or (and (= "failed" (:status prior)) (not (false? (:retryable prior))))
+           (and (contains? #{"queued" "running"} (:status prior))
+                (> (- now (or (:startedAt prior) (:requeuedAt prior) (:createdAt prior) now)) stale-run-ms)))))
+
 (defn- handle-jobs-create [storage body]
   (let [now (.now js/Date)]
     (when-not (completion-shape? body) (throw (ex-info "invalid-job-request" {:status 400})))
@@ -1044,6 +1144,29 @@
                                           (and prior (not= (get-in body [:request :messages])
                                                            (get-in prior [:request :messages])))
                                           (response {:error "job-input-conflict"} 409)
+                                          ;; A retry of the same completion re-queues a prior
+                                          ;; run that failed for a reason a re-run can fix, or
+                                          ;; one that is presumed dead. The job id is a hash of
+                                          ;; the request, so without this every client retry
+                                          ;; re-attached to the same terminal `failed` and got
+                                          ;; the same 502 in 0.3 s — measured 2026-09-15: an
+                                          ;; agent's fixed opening prompt failed once during a
+                                          ;; deploy window and stayed failed for every later
+                                          ;; session. No new quota is drawn; the reservation is
+                                          ;; the same. Capped so a route that is really down
+                                          ;; cannot be re-dispatched without bound.
+                                          (and prior (requeue? prior now))
+                                          (let [next (-> prior
+                                                         (dissoc :error :upstreamStatus :upstreamError :lastUpstreamStatus
+                                                                 :retryable :finishedAt :startedAt :attempts)
+                                                         (assoc :status "queued"
+                                                                :requeues (inc (or (:requeues prior) 0))
+                                                                :requeuedAt now))]
+                                            (js/console.warn "inference-job-requeued" (:jobId body)
+                                                             (str "prior=" (:status prior) " upstreamStatus=" (:upstreamStatus prior)
+                                                                  " requeues=" (:requeues next)))
+                                            (-> (store-job! storage next)
+                                                (.then (fn [_] (response (job-response next record (:sessionRef body) now) 200)))))
                                           prior (response (job-response prior record (:sessionRef body) now) 200)
                                           :else
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
