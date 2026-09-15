@@ -285,6 +285,12 @@
    ".kc-mark{inline-size:2rem;block-size:2rem;display:grid;place-items:center;border:2px solid var(--hig-color-tint);border-radius:var(--hig-radius-xs);color:var(--hig-color-tint);font-weight:700;}"
    ".kc-nav{display:flex;align-items:center;gap:var(--hig-spacing-4);}"
    ".kc-nav>a{color:var(--hig-color-label);font-weight:700;text-underline-offset:.25em;}"
+   ".kc-nav>a,.kc-nav .dads-menu-list-box__opener,.kc-nav .dads-button{white-space:nowrap;}"
+   ;; 48-64rem: the header cannot fit every item unwrapped. The two anchor
+   ;; links duplicate content reachable from the home hero (design rule: one
+   ;; home per fact); the real documents — 料金・決済 / アカウント / セキュリティ —
+   ;; stay. Hide only the anchors in this band.
+   "@media(max-width:64rem){.kc-nav>a[href$='#research-models'],.kc-nav>a[href$='#research-register']{display:none}.kc-nav{gap:var(--hig-spacing-3)}}"
    ".kc-hero{padding-block:var(--hig-spacing-10);border-bottom:1px solid var(--hig-color-separator);}"
    ".kc-eyebrow{margin:0 0 var(--hig-spacing-4);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;letter-spacing:.12em;color:var(--hig-color-tint);}"
    ".kc-hero h1{max-width:17ch;text-wrap:balance;}"
