@@ -252,7 +252,7 @@
     (when-let [main (.querySelector js/document "main")] (.replaceChildren main section))
     (set! (.-hidden section) false)
     (when-let [heading (.querySelector section "h2")] (.setAttribute heading "aria-level" "1"))
-    (when-let [login (el "kc-session-nav")]
+    (when-let [login (.querySelector js/document "#kc-session-entry [data-ck-account=\"sign-in\"]")]
       (let [url (js/URL. (.-href login))]
         (.set (.-searchParams url) "return_to" "https://kotoba.cloud/identity")
         (set! (.-href login) (.toString url))))

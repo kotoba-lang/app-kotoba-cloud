@@ -31,30 +31,32 @@
 
 ;; --- account chip -----------------------------------------------------------
 
+(defn- apex
+  "The apex origin when this document lives on another host (docs.kotoba.cloud
+   carries <meta name=kc-apex>); \"\" on the apex itself. Hrefs set at
+   runtime (setup chip / banner) are prefixed with it."
+  []
+  (or (some-> (.querySelector js/document "meta[name=\"kc-apex\"]") (.getAttribute "content")) ""))
+
 (defn account-chip!
-  "Replace the sidebar's sign-in control with the account chip: avatar
-   initial, @username, workspace, and a disclosure with アカウント / ログアウト."
+  "Reveal the sidebar's account chip (cloud-kotoba-dds.shell account-entry:
+   both states are in the document; cloudKotobaShell.hydrateSession fills
+   the username / workspace / the initial, hides the sign-in control, opens the
+   floating menu on the chip and closes it on Escape / outside). Sign-out is
+   this host's: POST /v1/logout, then home."
   [nav username workspace]
-  (set! (.-innerHTML nav)
-        (str "<details class=\"kc-session-menu\">"
-             "<summary class=\"kc-account-chip\" aria-label=\"" (t "アカウントメニュー" "Account menu") "\">"
-             "<span class=\"kc-account-chip__avatar\" aria-hidden=\"true\">" (str/upper (subs (str username) 0 1)) "</span>"
-             "<span class=\"kc-account-chip__name\"><span>@" username "</span>"
-             "<span class=\"kc-account-chip__ws\">" workspace "</span></span>"
-             "<span class=\"kc-account-chip__caret\" aria-hidden=\"true\">⌃</span></summary>"
-             "<div class=\"kc-session-menu__panel\">"
-             "<a class=\"kc-session-menu__item\" href=\"/account\">" (t "アカウント" "Account") "</a>"
-             "<a class=\"kc-session-menu__item\" href=\"/billing/\">" (t "料金・決済" "Billing") "</a>"
-             "<button type=\"button\" class=\"kc-session-menu__item\" id=\"kc-session-signout\">" (t "ログアウト" "Sign out") "</button>"
-             "</div></details>"))
-  (when-let [sign-out (.querySelector nav "#kc-session-signout")]
-    (.addEventListener sign-out "click"
-                       (fn [_]
-                         (set! (.-disabled sign-out) true)
-                         (-> (js/fetch "/v1/logout" #js {:method "POST" :credentials "same-origin"
-                                                        :headers #js {"accept" "application/json"}})
-                             (.catch (fn [_] nil))
-                             (.finally (fn [] (set! (.-href (.-location js/window)) "/"))))))))
+  (if-not (exists? js/cloudKotobaShell)
+    (js/console.error "shell-runtime-missing" "/js/shell.js did not load — the account entry stays signed-out")
+    (do
+      (.hydrateSession js/cloudKotobaShell nav #js {:name username :workspace workspace})
+      (when-let [sign-out (.querySelector nav "#kc-session-signout")]
+        (.addEventListener sign-out "click"
+                           (fn [_]
+                             (set! (.-disabled sign-out) true)
+                             (-> (js/fetch (str (apex) "/v1/logout") #js {:method "POST" :credentials "same-origin"
+                                                                         :headers #js {"accept" "application/json"}})
+                                 (.catch (fn [_] nil))
+                                 (.finally (fn [] (set! (.-href (.-location js/window)) (str (apex) "/")))))))))))
 
 ;; --- setup progress + credits ------------------------------------------------
 
@@ -63,13 +65,13 @@
     (when-let [chip (el "kc-setup-chip")]
       (set! (.-textContent chip) (t (str "はじめる " done "/" total) (str "Get started " done "/" total)))
       (.setAttribute chip "data-state" (if next "pending" "done"))
-      (set! (.-href chip) (or (:href next) "/account"))
+      (set! (.-href chip) (str (apex) (or (:href next) "/account")))
       (show! "kc-setup-chip"))
     (if next
       (do (when-let [txt (el "kc-setup-banner-text")]
             (set! (.-textContent txt) (t (str "セットアップを続ける — 次: " (:label next))
                                          (str "Resume setup — next: " (:label next)))))
-          (when-let [link (el "kc-setup-banner-link")] (set! (.-href link) (:href next)))
+          (when-let [link (el "kc-setup-banner-link")] (set! (.-href link) (str (apex) (:href next))))
           ;; not on the page the step lives on: the banner would repeat the
           ;; panel right under it
           (when-not (str/starts-with? (.-pathname js/location) "/account")

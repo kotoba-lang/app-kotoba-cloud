@@ -96,6 +96,33 @@ locale-free route with the cookie set.
 
 `path (301 compat) > ?lang= > kb_locale cookie > Accept-Language > request.cf.country > en`
 
+**docs.kotoba.cloud** (2026-09-15): the `/docs/…` documents of the same
+emit tree are served from the root of `docs.kotoba.cloud`
+(`worker.cljk route-docs-host`; `docs.kotoba.cloud` is a custom domain of
+the same Worker). Every href in the repo is written once in its apex form
+and resolved for the surface a document is emitted on
+(`console/surfaces`, `console/href-for`, `site/surface-hrefs` — one walk
+over the page): on the apex `/docs/x` becomes
+`https://docs.kotoba.cloud/x`, on the docs host `/account` becomes
+`https://kotoba.cloud/account` and `/docs/x` is `/x`; shared assets
+(`/css/` `/js/` `/assets/`) stay host-relative on both. The apex answers
+`/docs/…` with a 301 to the host (locale prefix first). Locale negotiation
+and `?lang=` on the docs host are the apex's (`route-static` over the
+apex-form path). The session cookie is host-only, so the docs host shows
+the sign-in control; the audit scores docs-host pages against their own
+document set (shinkansen per-document `:ctx`).
+
+**Console chrome** (2026-09-15): the top bar and the account entry are
+`cloud-kotoba-dds.shell` (`shell/topbar`, `shell/account-entry`,
+`shell/css`, the runtime shipped as `/js/shell.js` from `shell/script`).
+The bar is sticky (`data-chrome=top`), the account menu floats over the
+rail (`data-chrome=float`) — both measured by shinkansen.audit
+`:chrome-layers` on every emitted document, and in a real browser by
+`test/account-browser.cljk` (bar top edge at 0 after a 4000px scroll; the
+foot's height and the chip's place unchanged when the menu opens; Escape
+returns focus). Both account states are in the document; the browser
+only fills and reveals (`cloudKotobaShell.hydrateSession`).
+
 `locale/variant-roots` names the content roots that have per-locale emits;
 `test/worker-smoke.mjs` derives the list from `public/ja/` and fails when a
 root is emitted but not served (measured live 2026-09-15: `/blog/` and

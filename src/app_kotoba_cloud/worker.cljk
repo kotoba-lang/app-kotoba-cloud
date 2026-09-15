@@ -15,6 +15,7 @@
             [app-kotoba-cloud.org-sso-gateway :as org-sso-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
+            [app-kotoba-cloud.console :as console]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
             [app-kotoba-cloud.pqc :as pqc]
@@ -650,6 +651,31 @@
                           (:set-cookie? decision)
                           (assoc "set-cookie" (locale/cookie-header (:locale decision)))))))))))))
 
+(def docs-host "docs.kotoba.cloud")
+
+(defn- route-docs-host
+  "docs.kotoba.cloud (owner direction 2026-09-15: /docs/ moves to its own
+  host). The documents are the /docs/… emit of the ONE asset tree — the
+  host root is that directory (/ → /docs/index.html, /reference/quickstart/
+  → /docs/reference/quickstart/); locale variants and ?lang= negotiate
+  exactly as on the apex (route-static over the apex-form path). The
+  documents themselves were emitted for this surface (console/href-for):
+  docs links are host-relative, apex links absolute."
+  [request env path]
+  (if (some #(.startsWith path %) console/shared-asset-prefixes)
+    (route-static request env path)
+    (let [url (js/URL. (.-url request))
+          apex-path (str "/docs" (if (= path "/") "/" path))
+          apex-url (str (get-in console/surfaces [:apex :origin]) apex-path (.-search url))]
+      (route-static (js/Request. apex-url request) env apex-path))))
+
+(defn- docs-host-location
+  "Where an apex /docs/… request goes: the same path on the docs host."
+  [path search]
+  (str (get-in console/surfaces [:docs :origin])
+       (console/href-for :docs path)
+       search))
+
 (defn- boot-error [error status]
   (response (js/JSON.stringify (clj->js {:ok false :error error}))
             status "application/json; charset=utf-8"
@@ -795,6 +821,14 @@
     (cond
       (= hostname "boot.kotoba.cloud")
       (route-boot-host request env path)
+
+      (= hostname docs-host)
+      (route-docs-host request env path)
+
+      ;; the docs moved to docs.kotoba.cloud: the apex keeps the old
+      ;; addresses as a 301 (locale prefix first: /ja/docs/x → /docs/x → host)
+      (and (= method "GET") (or (= path "/docs") (.startsWith path "/docs/")))
+      (locale-redirect (docs-host-location path (.-search url)) 301)
 
       ;; Operator console: admin.kotoba.cloud serves only the console document
       ;; and the shared identity gateway. No marketing surface, no discovery,

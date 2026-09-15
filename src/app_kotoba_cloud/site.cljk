@@ -8,6 +8,7 @@
             [app-kotoba-cloud.identity-site :as identity-site]
             [app-kotoba-cloud.account-site :as account-site]
             [cloud-kotoba-dds.console :as dds-console]
+            [cloud-kotoba-dds.shell :as shell]
             [cloud-kotoba-dds.catalog :as dds-catalog]
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
@@ -37,6 +38,7 @@
             [jp-go-dds.core :as dds]
             [jp-go-dds.css :as dcss]
             [jp-go-dds.page :as page]
+            [html.core :as html]
             [jp-go-dds.tokens :as tokens]
             #?(:clj [clojure.java.io :as io])
             ;; render runs on the kbb engine (JVM-free): node's fs/path stand in
@@ -451,19 +453,12 @@
 .kc-sb a[data-current=true]{background:var(--hig-color-system-background);color:var(--hig-color-tint);font-weight:700;box-shadow:inset 3px 0 0 var(--hig-color-tint)}
 .kc-sb__badge{margin-inline-start:auto;padding:0 var(--hig-spacing-2);border-radius:var(--hig-radius-capsule,999px);border:1px solid var(--hig-color-tint);color:var(--hig-color-tint);font-size:var(--hig-text-caption2-font-size);font-weight:700;letter-spacing:.04em;line-height:1.5}
 .kc-sb__foot{flex:none;margin-top:auto;border-top:1px solid var(--hig-color-separator);padding-top:var(--hig-spacing-2);color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}
-.kc-account-chip{display:flex;align-items:center;justify-content:flex-start;gap:var(--hig-spacing-2);inline-size:100%;min-height:2.25rem;padding:var(--hig-spacing-1) var(--hig-spacing-2);border-radius:var(--hig-radius-xs,6px);color:var(--hig-color-label);font:inherit;font-size:var(--hig-text-subheadline-font-size);font-weight:600;line-height:1.25;background:none;border:none;cursor:pointer;text-align:start;list-style:none}
-.kc-account-chip:hover{background:var(--hig-color-system-background)}
-.kc-account-chip::-webkit-details-marker{display:none}
-.kc-account-chip__avatar{flex:none;inline-size:1.5rem;block-size:1.5rem;display:grid;place-items:center;border-radius:var(--hig-radius-capsule,999px);background:var(--hig-color-tint);color:var(--hig-color-system-background);font-size:var(--hig-text-caption1-font-size);font-weight:700}
-.kc-account-chip__name{display:grid;min-inline-size:0}
-.kc-account-chip__name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kc-account-chip__ws{font-size:var(--hig-text-caption2-font-size);font-weight:400;line-height:1.2;color:var(--hig-color-secondary-label)}
-.kc-account-chip__caret{margin-inline-start:auto;color:var(--hig-color-secondary-label)}
-.kc-topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--hig-spacing-3);min-height:3rem;margin:calc(-1 * var(--hig-spacing-6)) calc(-1 * var(--hig-spacing-5)) var(--hig-spacing-5);padding:var(--hig-spacing-2) var(--hig-spacing-5);border-block-end:1px solid var(--hig-color-separator);background:var(--hig-color-system-background)}
-.kc-topbar__section{display:flex;align-items:center;gap:var(--hig-spacing-2);font-weight:700}
-.kc-topbar__group{color:var(--hig-color-secondary-label)}
-.kc-topbar__sep{margin:0 var(--hig-spacing-2);color:var(--hig-color-secondary-label)}
-.kc-topbar__actions{display:flex;align-items:center;gap:var(--hig-spacing-2)}
+.kc-sb__foot .ck-account{color:var(--hig-color-label)}
+.kc-header__tools .ck-account{inline-size:auto}
+.kc-header__tools .ck-account__session{inline-size:auto}
+.kc-header__tools .ck-account__chip{inline-size:auto;max-inline-size:14rem}
+.kc-header__tools .ck-account__menu[data-chrome=float]{inset-inline:auto 0}
+.kc-sb-main>.ck-topbar{margin:calc(-1 * var(--hig-spacing-6)) calc(-1 * var(--hig-spacing-5)) var(--hig-spacing-5)}
 .kc-topbar__link{color:var(--hig-color-label);font-weight:700;text-decoration:none;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px)}
 .kc-topbar__link:hover{background:var(--hig-color-secondary-system-background)}
 .kc-topbar__chip{display:inline-flex;align-items:center;gap:var(--hig-spacing-2);min-height:2.25rem;padding:0 var(--hig-spacing-3);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-capsule,999px);color:var(--hig-color-label);font-family:var(--hig-font-mono);font-weight:700;text-decoration:none;background:var(--hig-color-secondary-system-background)}
@@ -471,16 +466,6 @@
 .kc-topbar__chip--setup[data-state=done]{border-color:var(--hig-palette-green);color:var(--hig-palette-green)}
 .kc-setup-banner{display:flex;flex-wrap:wrap;align-items:center;gap:var(--hig-spacing-3);margin:0 0 var(--hig-spacing-5);padding:var(--hig-spacing-3) var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-inline-start:4px solid var(--hig-color-tint);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-secondary-system-background)}
 .kc-setup-banner a{font-weight:700}
-#kc-session-nav-side{min-height:2.5rem;display:flex;align-items:center;color:var(--hig-color-secondary-label);font-weight:700}
-#kc-session-nav-side .kc-session-menu{inline-size:100%}
-#kc-session-nav-side .kc-session-menu summary{inline-size:100%}
-#kc-session-nav-side .kc-session-menu__panel{position:static;box-shadow:none;border:none;padding:var(--hig-spacing-2) 0;display:grid}
-#kc-session-nav-side .kc-session-menu__item{min-height:2rem;padding:var(--hig-spacing-1) var(--hig-spacing-2);border-radius:var(--hig-radius-xs,6px);color:var(--hig-color-label);font:inherit;font-size:var(--hig-text-subheadline-font-size);font-weight:500;text-decoration:none;background:none;border:none;cursor:pointer;inline-size:100%;text-align:start}
-#kc-session-nav-side .kc-session-menu__item:hover{background:var(--hig-color-system-background)}
-.kc-session-menu__panel{position:absolute;inset-inline-end:0;top:calc(100% + var(--hig-spacing-2));z-index:40;min-inline-size:13rem;display:grid;padding:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-system-background);box-shadow:0 8px 24px rgb(0 0 0 / 12%)}
-.kc-session-menu__panel a,.kc-session-menu__panel button{display:flex;align-items:center;min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;white-space:nowrap;background:none;border:none;font:inherit;cursor:pointer}
-.kc-session-menu__panel a:hover,.kc-session-menu__panel button:hover{background:var(--hig-color-secondary-system-background)}
-.kc-session-menu:not([open]) .kc-session-menu__panel{display:none}
 body:has(.kc-sb){padding-inline-start:15rem}
 .kc-sb-main{min-height:calc(100dvh - 65px);padding:var(--hig-spacing-6) var(--hig-spacing-5)}
 @media(max-width:64rem){body:has(.kc-sb){padding-inline-start:0;padding-block-start:3.25rem}
@@ -492,13 +477,13 @@ body:has(.kc-sb){padding-inline-start:15rem}
 .kc-sb__new{flex:none;min-height:2.25rem;padding-inline:var(--hig-spacing-3)}
 .kc-sb a{flex:none;min-height:2.25rem;font-size:var(--hig-text-footnote-font-size)}
 .kc-sb__foot{position:sticky;inset-inline-end:0;margin-top:0;margin-inline-start:auto;margin-inline-end:calc(-1 * var(--hig-spacing-2));border-top:none;padding:0 var(--hig-spacing-2);flex:none;background:var(--hig-color-secondary-system-background)}
-#kc-session-nav-side{min-height:2.25rem}
-#kc-session-nav-side .kc-session-menu__panel{position:absolute;inset-inline-end:var(--hig-spacing-2);top:3.25rem;border:1px solid var(--hig-color-separator);box-shadow:0 8px 24px rgb(0 0 0 / 12%);background:var(--hig-color-system-background)}
+.kc-sb__foot .ck-account{inline-size:auto}
+.kc-sb__foot .ck-account__chip{min-height:2.25rem;max-inline-size:12rem}
 .kc-sb-main{min-height:0;padding:var(--hig-spacing-5) var(--hig-spacing-4)}
-.kc-topbar{margin:calc(-1 * var(--hig-spacing-5)) calc(-1 * var(--hig-spacing-4)) var(--hig-spacing-4);padding:var(--hig-spacing-2) var(--hig-spacing-4)}
-.kc-topbar__group,.kc-topbar__sep{display:none}}
+.kc-sb-main>.ck-topbar{top:3.25rem;margin:calc(-1 * var(--hig-spacing-5)) calc(-1 * var(--hig-spacing-4)) var(--hig-spacing-4);padding:var(--hig-spacing-2) var(--hig-spacing-4)}
+.ck-topbar__group,.ck-topbar__sep{display:none}}
 @media(max-width:30rem){.kc-sb-main{padding:var(--hig-spacing-4) var(--hig-spacing-3)}
-.kc-topbar{min-height:2.5rem;margin:calc(-1 * var(--hig-spacing-4)) calc(-1 * var(--hig-spacing-3)) var(--hig-spacing-3);padding:var(--hig-spacing-1) var(--hig-spacing-3)}
+.kc-sb-main>.ck-topbar{min-height:2.5rem;margin:calc(-1 * var(--hig-spacing-4)) calc(-1 * var(--hig-spacing-3)) var(--hig-spacing-3);padding:var(--hig-spacing-1) var(--hig-spacing-3)}
 .kc-topbar__link{display:none}
 .kc-topbar__chip{min-height:2rem;font-size:var(--hig-text-caption1-font-size)}}")
 
@@ -528,11 +513,17 @@ body:has(.kc-sb){padding-inline-start:15rem}
                          label
                          (when badge [:span {:class "kc-sb__badge"} badge])])))
               (console/sidebar-items current locale))
-      [[:div {:id "kc-session-nav-side" :class "kc-sb__foot"
-              :aria-label (txt "アカウント" "Account")}
-        [:a {:class "dads-button" :data-type "outline" :data-size "sm"
-             :href (passkey-href locale)}
-         (txt "サインイン" "Sign in")]]]))))
+      ;; the account entry is cloud-kotoba-dds.shell's: both states in the
+      ;; document (sign-in visible, the chip + FLOATING menu hidden), the
+      ;; browser fills and reveals (shell-browser → cloudKotobaShell)
+      [[:div {:class "kc-sb__foot" :aria-label (txt "アカウント" "Account")}
+        (shell/account-entry
+         {:id "kc-session-nav-side" :variant :rail
+          :sign-in {:href (passkey-href locale) :label (txt "サインイン" "Sign in")}
+          :menu-label (txt "アカウントメニュー" "Account menu")
+          :items [{:href "/account" :label (txt "アカウント" "Account")}
+                  {:href "/billing/" :label (txt "料金・決済" "Billing")}
+                  {:id "kc-session-signout" :action "sign-out" :label (txt "ログアウト" "Sign out")}]})]]))))
 
 (defn console-language-switch
   "The language switch of the console chrome — jp-go-dds's language-selector
@@ -562,22 +553,20 @@ body:has(.kc-sb){padding-inline-start:15rem}
   [locale current]
   (let [txt (fn [ja en] (if (= locale :ja) ja en))
         section (console/section-label current locale)]
-    [:header {:class "kc-topbar"}
-     [:div {:class "kc-topbar__section"}
-      (when section
-        (if (= (:group section) (:item section))
-          [:span (:item section)]
-          [:span [:span {:class "kc-topbar__group"} (:group section)]
-           [:span {:class "kc-topbar__sep" :aria-hidden "true"} "›"]
-           [:span (:item section)]]))]
-     [:div {:class "kc-topbar__actions"}
-      [:a {:class "kc-topbar__chip" :id "kc-credit-chip" :href "/billing/" :hidden true} "—"]
-      [:a {:class "kc-topbar__link" :href "/docs/"} (txt "ドキュメント" "Docs")]
-      [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]
-      ;; right edge (reference: … | EN): language, then the λ yin-yang
-      ;; theme switch (jp-go-dds.theme-toggle; hidden until its script runs)
-      (console-language-switch locale current)
-      theme-toggle/control]]))
+    ;; cloud-kotoba-dds.shell's top bar: sticky (data-chrome=top, measured
+    ;; by shinkansen.audit :chrome-layers) — it no longer scrolls away
+    (shell/topbar
+     {:section (when section
+                 (if (= (:group section) (:item section))
+                   [:span (:item section)]
+                   (shell/section-label (:group section) (:item section))))
+      :actions [[:a {:class "kc-topbar__chip" :id "kc-credit-chip" :href "/billing/" :hidden true} "—"]
+                [:a {:class "kc-topbar__link" :href "/docs/"} (txt "ドキュメント" "Docs")]
+                [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]
+                ;; right edge (reference: … | EN): language, then the λ yin-yang
+                ;; theme switch (jp-go-dds.theme-toggle; hidden until its script runs)
+                (console-language-switch locale current)
+                theme-toggle/control]})))
 
 (defn setup-banner
   "'Resume setup — <next step> · Continue': hidden until the session is
@@ -642,8 +631,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
        ;; beside the sidebar the account entry is the sidebar's chip (one
        ;; home); the full header keeps its own
        (when nav
-         (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
-                                        :href (passkey-href locale)}))]])]))
+         (shell/account-entry
+          {:id "kc-session-entry" :variant :header
+           :sign-in {:href (passkey-href locale) :label (:nav-sign-in t)}
+           :menu-label (if (= locale :ja) "アカウントメニュー" "Account menu")
+           :items [{:href "/account" :label (if (= locale :ja) "アカウント管理" "Account")}
+                   {:id "kc-session-signout" :action "sign-out" :label (if (= locale :ja) "ログアウト" "Sign out")}]}))]])]))
 
 (defn site-footer [t]
   [:footer {:class "kc-footer"}
@@ -892,7 +885,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
   as that variant. Each variant is self-canonical so hreflang alternates
   stay valid without a /<locale>/ path fork."
   [path loc]
-  (str "https://kotoba.cloud" path (when-not (= loc :en) (language-href loc))))
+  (let [home (console/surface-of path)]
+    (str (get-in console/surfaces [home :origin]) (console/href-for home path)
+         (when-not (= loc :en) (language-href loc)))))
 
 (defn document-head
      [locale path-key title description]
@@ -909,6 +904,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
         [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
         [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
         [:script {:src "/js/language-selector.js" :defer true}]
+        [:script {:src "/js/shell.js" :defer true}]
         [:script {:src "/js/session.js" :defer true}]
         [:link {:rel "alternate" :hreflang "ja" :href ja-href}]
         [:link {:rel "alternate" :hreflang "en" :href en-href}]
@@ -970,19 +966,54 @@ body:has(.kc-sb){padding-inline-start:15rem}
              :data-signed-in-status (:signed-in-status t)
              :data-signed-in-href kotobase-connect-href}]]))
 
+(defn- walk-hiccup
+  "postwalk for hiccup: vectors, seqs and attribute maps. clojure.walk is
+   not on every engine this file renders under; the shape here is closed
+   (html.core's input), so a 12-line walk is enough."
+  [f node]
+  (cond
+    (map? node) (f (into {} (map (fn [[k v]] [k (walk-hiccup f v)]) node)))
+    (vector? node) (f (into [] (map #(walk-hiccup f %) node)))
+    (seq? node) (f (doall (map #(walk-hiccup f %) node)))
+    :else (f node)))
+
+(defn surface-hrefs
+  "Resolve every href / src-less link attribute of a document for the
+   surface it is emitted on (console/href-for): on the apex, /docs/… becomes
+   https://docs.kotoba.cloud/…; on the docs host, /docs/… loses its prefix
+   and every other apex path becomes absolute. One walk over the whole page
+   (sidebar, top bar, footer, body) so no link generator needs to know the
+   host. Shared assets (/css/ /js/ /assets/) stay host-relative on both."
+  [surface page]
+  (walk-hiccup (fn [node]
+                 (if (and (map? node) (string? (:href node)))
+                   (update node :href #(console/href-for surface %))
+                   node))
+               page))
+
+(defn ->page
+  "page/->page with the surface walk: every document this file renders
+   directly (apex landing, legal, 404) links the docs host absolutely."
+  [opts & body]
+  (str "<!DOCTYPE html>\n"
+       (html/->html (surface-hrefs :apex (apply page/page opts body)))))
+
 (defn page-html
      ([] (page-html :en))
      ([locale] (page-html locale view))
      ([locale view-fn]
       (let [t (translation locale)]
         (str/replace
-         (apply page/->page
+         (apply ->page
                {:title (:title t)
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
                 :dark? true
-                :app-css (str theme-toggle/css tokens/skin-css app-css app-sidebar-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
+                ;; the landing inlines its CSS (no /css/site.css link): the
+                ;; sidebar's account entry needs shell/css here too — the
+                ;; audit's :chrome-layers named it (24 apex variants at 0)
+                :app-css (str theme-toggle/css tokens/skin-css app-css app-sidebar-css shell/css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
                 :head (into [[:script {:src "/js/theme.js"}]] (document-head locale :path (:title t) (:description t)))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
@@ -1019,7 +1050,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        security-site/css "\n" csf2-site/css "\n"
        crypto-site/css "\n" compliance-site/css "\n"
        blog-site/css "\n"
-       dds-console/css "\n" account-site/css "\n"
+       dds-console/css "\n" shell/css "\n" account-site/css "\n"
        secure-site/css "\n" models-site/css "\n" billing-site/css "\n"
        apps-site/css "\n" docs-site/css "\n"
        security-services-site/css))
@@ -1035,8 +1066,13 @@ body:has(.kc-sb){padding-inline-start:15rem}
   implementation); shinkansen (CID-published documents) is the planned
   delivery successor — keep emitted documents self-contained (no NEW
   external assets)."
-  [{:keys [title description lang robots extra-css sidebar? current locale]} body]
-  (page/->page
+  [{:keys [title description lang robots extra-css sidebar? current locale surface]
+    :or {surface :apex}} body]
+  ;; page/page is the hiccup; the surface walk runs BEFORE rendering
+  (str "<!DOCTYPE html>\n"
+   (html/->html
+    (surface-hrefs surface
+     (page/page
    {:title title
     :description description
     :lang (or lang (if (= locale :en) "en" "ja"))
@@ -1048,12 +1084,19 @@ body:has(.kc-sb){padding-inline-start:15rem}
     ;; (jp-go-dds.theme-toggle/script) — external, because script-src is
     ;; 'self' with no 'unsafe-inline' (csp.cljk).
     :dark? true :dark-source (document-css) :dark-inline? false
-    :head (into (if robots [[:meta {:name "robots" :content robots}]] [])
-                (into (into [[:script {:src "/js/theme.js"}]] site-css-link)
-                      [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-                       [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
-                       [:script {:src "/js/language-selector.js" :defer true}]
-                       [:script {:src "/js/session.js" :defer true}]]))}
+    :head (-> (if robots [[:meta {:name "robots" :content robots}]] [])
+              (into [[:script {:src "/js/theme.js"}]])
+              (into site-css-link)
+              (into [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                     [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
+                     [:script {:src "/js/language-selector.js" :defer true}]
+                     [:script {:src "/js/shell.js" :defer true}]
+                     [:script {:src "/js/session.js" :defer true}]])
+              ;; the surface the document is emitted on: shell-browser
+              ;; prefixes the hrefs it sets at runtime (setup chip /
+              ;; banner) with the apex origin on another host
+              (into (when (= surface :docs)
+                      [[:meta {:name "kc-apex" :content (get-in console/surfaces [:apex :origin])}]])))}
    (let [locale (or locale :ja)
          t (translation locale)]
      (if sidebar?
@@ -1073,7 +1116,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        (list [:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
              (site-header locale t)
              [:main {:id "main"} body])))
-   (site-footer (translation (or locale :ja)))))
+   (site-footer (translation (or locale :ja))))))))
 
 (defn security-html []
      (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
@@ -1191,6 +1234,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
   sidebar (docs are part of the app navigation, orca-style)."
   [locale title-fn path content-fn]
   (site-layout {:title (title-fn (= locale :ja))
+                ;; docs live on docs.kotoba.cloud (owner direction
+                ;; 2026-09-15): every href is resolved for that surface
+                :surface :docs
                 :description "Docs — kotoba.cloud"
                 :lang (if (= locale :ja) "ja" "en")
                 :sidebar? true :current path
@@ -1327,12 +1373,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ([] (legal-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
+        (apply ->page
                {:title (:legal-title t)
                 :description (operator-lead locale)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css)
+                :app-css (str tokens/skin-css app-css shell/css research-site/css)
                 :head (document-head locale :legal-path (:legal-title t)
                                      (operator-lead locale))}
                (legal-view locale)))))
@@ -1341,12 +1387,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ([] (tokushoho-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
+        (apply ->page
                {:title (:tokushoho-title t)
                 :description (operator-lead locale)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css)
+                :app-css (str tokens/skin-css app-css shell/css research-site/css)
                 :head (document-head locale :tokushoho-path
                                      (:tokushoho-title t)
                                      (operator-lead locale))}
@@ -1404,13 +1450,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ([] (graph-docs-html :en))
      ([locale]
       (let [ja? (= locale :ja) path "/docs/graph/"]
-        (apply page/->page
+        (str "<!DOCTYPE html>\n"
+         (html/->html
+          (surface-hrefs :docs
+           (page/page
                {:title (if ja? "Graph・Ontologyデータベース — Kotoba Cloud"
                          "Graph & Ontology database — Kotoba Cloud")
                 :description (if ja? "Kotoba Cloud Database の Graph・Ontology ワークベンチの使い方と ayatori・capability-bench などの周辺資料。"
                                "Usage guide for the Kotoba Cloud Database graph & ontology workbench plus ayatori and capability-bench reference material.")
                 :lang (if ja? "ja" "en") :css (document-css)
-                :app-css (str tokens/skin-css tokens/bridge-css
+                :app-css (str tokens/skin-css tokens/bridge-css shell/css
                               ".kc-docs{padding-block:var(--hig-spacing-4)}.kc-docs__list li{padding:var(--hig-spacing-3)}@media(max-width:30rem){.kc-docs h2{font-size:1.25rem}.kc-docs__list li{padding:var(--hig-spacing-2)}}")
                 :head [[:link {:rel "canonical" :href (variant-url path locale)}]
                        [:link {:rel "alternate" :hreflang "ja" :href (variant-url path :ja)}]
@@ -1418,16 +1467,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
                        [:link {:rel "alternate" :hreflang "x-default" :href (variant-url path :en)}]
                        [:script {:src "/js/language-selector.js" :defer true}]
                        [:script {:src "/js/session.js" :defer true}]]}
-               (graph-docs-view locale)))))
+               (graph-docs-view locale))))))))
 
 (defn not-found-html
      ([] (not-found-html :en))
      ([locale]
       (let [t (translation locale)
             dds-css (resource-read "jp_go_dds/dds.css")]
-        (page/->page
+        (->page
          {:title (:not-found-title t) :description (:not-found-lead t)
-          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css research-site/css)
+          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css shell/css research-site/css)
           :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
                  [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
          (dds/container
@@ -1517,6 +1566,10 @@ body:has(.kc-sb){padding-inline-start:15rem}
                  (str behavior/language-selector-script "\n" locale/language-cookie-script))
       ;; the theme choice, applied in <head> before paint on every document
       (spit-file (node-path/join js-dir "theme.js") theme-toggle/script)
+      ;; the shell chrome's runtime (cloud-kotoba-dds.shell: the account
+      ;; entry's fill + reveal, Escape / outside close) — external because
+      ;; script-src is 'self'
+      (spit-file (node-path/join js-dir "shell.js") shell/script)
       (doseq [source (fs-walk-files ipfs-source)]
         (copy-file source (node-path/join ipfs-target (node-path/basename source))))
       (copy-file registry-source registry-target)
