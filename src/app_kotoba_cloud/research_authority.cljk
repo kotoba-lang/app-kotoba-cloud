@@ -130,7 +130,7 @@
                                            :status (:status next)
                                            :provider "kotoba-proof"
                                            :trust 80
-                                           :approvedBy "icao-passive-auth"} 200)))))))))
+                                           :approvedBy "icao-passive-auth"} 200))))))))))
 
 
 (def run-proof-submit
@@ -148,8 +148,6 @@
         bundle {:sod-der sodDer :dg1 dg1 :dg11 dg11 :dg12 dg12 :dg5 dg5}]
     (-> (icao/verify-chip-evidence bundle)
         (.then (fn [verify-result]
-                 (js/console.error "DBG rs-0: called")
-                 (js/console.error "DBG rs-1: verify ok" (:valid verify-result))
                  (when-not (and (map? verify-result) (:valid verify-result))
                    (throw (ex-info "chip-evidence-not-admissible"
                                    {:status 403
@@ -162,10 +160,10 @@
                   (assoc verify-result
                          :principalId (:principalId body)
                          :scopeId (:scopeId body)
-                         :tasks (:tasks body))))))))) )
+                         :tasks (:tasks body)))))))))
 
 
-(def version "kotoba-research-authority-2026-09-v1")
+(def version "kotoba-research-authority-2026-09-v2-DEBUG")
 
 (defn text? [x n] (and (string? x) (<= 1 (count x) n) (boolean (re-find #"\S" x))))
 (defn- response [body status]
