@@ -1581,7 +1581,10 @@
       "pricingMode": "public-list",
       "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/ivb.html",
       "pricingNote": "ダウンロード1年版 4,070円（税込）／1台・1年（ja_jp product page, verified 2026-09-15）",
-      "complianceFits": []
+      "complianceFits": [
+        "cis-controls",
+        "nist-csf-20"
+      ]
     },
     {
       "id": "fortra-agari",
