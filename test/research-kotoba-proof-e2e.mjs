@@ -21,17 +21,33 @@ const CTX0 = b => der(0xA0, b);
 const OID = hex => Buffer.from(hex.replace(/ /g, ""), "hex");
 const sha256 = b => crypto.createHash("sha256").update(b).digest();
 
-const line1 = "P<JPNKAWASAKI<<JUN<<<<<<<<<<<<<<<<<<<<<<<<<<<";
-const cd = (s) => { const w=[7,3,1]; let acc=0; for (let i2=0;i2<s.length;i2++){ const c=s[i2]; const v = (c>="0"&&c<="9")? +c : (c>="A"&&c<="Z"? c.charCodeAt(0)-55 : 0); acc += v*w[i2%3]; } return String(acc%10); };
-const docNum="TK1234567", birth="900101", expiry="310101", personal="M1808114JPN12KAWASAKI<<JUN<<<<";
-const line2 = docNum+cd(docNum)+birth+cd(birth)+expiry+cd(expiry)+personal+cd(personal+docNum+cd(docNum)+birth+cd(birth)+expiry+cd(expiry));
-const dg1 = Buffer.from("5" + "P" + line1 + line2);  // 5-byte LDS header + MRZ
+function cd(s) {
+  const w = [7, 3, 1]; let acc = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    const v = (c >= "0" && c <= "9") ? +c : (c >= "A" && c <= "Z" ? c.charCodeAt(0) - 55 : 0);
+    acc += v * w[i % 3];
+  }
+  return String(acc % 10);
+}
+// TD3 per icao.cljk's layout: line2[0:5] filler, [5:14] doc, [14] cd,
+// [15:22] birth(7), [22] cd, [23:30] expiry(7), [30] cd, [31:42] personal(11),
+// [42] personal cd, [43] composite cd.
+const line1 = "P<JPNKAWASAKI<<JUN" + "<".repeat(26);
+const docNum = "TK1234567", b7 = "1900101", e7 = "1310101", personal = "M1808114JPN";
+const line2 = "<<<<<" + docNum + cd(docNum) + b7 + cd(b7) + e7 + cd(e7) + personal + cd(personal)
+  + cd(docNum + cd(docNum) + b7 + cd(b7) + e7 + cd(e7) + personal + cd(personal));
+if (line1.length !== 44 || line2.length !== 44) throw new Error("MRZ length " + line1.length + "/" + line2.length);
+const dg1 = Buffer.from("5PGD1" + line1 + line2);  // 5-char LDS header + 2x44 MRZ  // 5-byte LDS header + MRZ
 const dg11 = Buffer.from("DG11-ATTRS-FIXTURE");
 const dg12 = Buffer.from("DG12-ATTRS-FIXTURE");
 const dg5 = Buffer.from("DG5-PORTRAIT-FIXTURE");
 
+// SOD digestedList entries carry the REAL DG number (ICAO LDS numbering:
+// DG1 MRZ, DG5 portrait, DG11/12 attributes) — not a positional index.
+const dgNumbers = [1, 11, 12, 5];
 const entries = [dg1, dg11, dg12, dg5].map((dg, i) =>
-  SEQ(Buffer.concat([INT(Buffer.from([i + 1])), OCT(sha256(dg))])));
+  SEQ(Buffer.concat([INT(Buffer.from([dgNumbers[i]])), OCT(sha256(dg))])));
 const digestedList = SEQ(Buffer.concat(entries));
 const ldsTable = SEQ(Buffer.concat([
   INT(Buffer.from([0])),
@@ -42,7 +58,7 @@ const ldsTable = SEQ(Buffer.concat([
 const signedData = SEQ(Buffer.concat([
   INT(Buffer.from([1])),
   SEQ(OID("06 09 60 86 48 01 65 03 04 02 01")),
-  SEQ(Buffer.concat([OID("06 0a 2a 86 48 86 f7 0d 01 09 01"), CTX0(OCT(ldsTable))])),
+  SEQ(Buffer.concat([OID("06 09 2a 86 48 86 f7 0d 01 09 01"), CTX0(OCT(ldsTable))])),
 ]));
 const contentInfo = SEQ(Buffer.concat([OID("06 09 2a 86 48 86 f7 0d 01 07 02"), CTX0(signedData)]));
 
@@ -75,6 +91,8 @@ await state.storage.put("ekyc:" + p, JSON.stringify({
 }));
 
 // K1. valid chip evidence -> full approval chain
+console.error("E2E: calling submit");
+import("node:fs").then(({default: fs}) => fs.writeFileSync("/tmp/sod-der.b64", contentInfo.toString("base64")));
 let r = await call("/ekyc/kotoba-proof/submit", {
   principalId: p,
   sodDer: contentInfo.toString("base64"),
@@ -84,6 +102,7 @@ let r = await call("/ekyc/kotoba-proof/submit", {
   dg5: dg5.toString("base64"),
   scopeId: "owned", tasks: ["code-review"],
 });
+console.error("K1 RESULT:", JSON.stringify(r).slice(0, 300));
 assert.equal(r.status, 200, JSON.stringify(r));
 assert.equal(r.json.provider, "kotoba-proof");
 assert.equal(r.json.trust, 80);
