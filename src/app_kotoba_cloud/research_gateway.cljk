@@ -12,9 +12,10 @@
              "/v1/research/ekyc/kotoba-proof/submit"})
 (def submit-path "/v1/research/ekyc/kotoba-proof/submit")
 ;; DG1/DG5/DG11/DG12 base64 + SOD DER: a passport face image (DG5) alone can
-;; be ~100 KB, so the chip-evidence hop gets its own bound above the 32 KiB
-;; start/status bodies but far below the 2 MiB completion bound.
-(def proof-submit-body-limit 262144)
+;; be ~100 KB, and layer-2 adds the portraitJpeg plus up to three selfie
+;; frames on top, so the chip-evidence hop gets a 1.5 MiB bound — above the
+;; 32 KiB start/status bodies, below the 2 MiB completion bound.
+(def proof-submit-body-limit 1572864)
 (def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"
                "https://admin.kotoba.cloud"})
 
@@ -72,9 +73,12 @@
     "duplicate-person-rejected"})
 
 (defn- kotoba-proof-submit-route [request binding principal reference respond]
-  ;; kotoba-proof chip evidence (layer 1). The principal is the session's,
-  ;; never the body's, as on start; the authority validates the seeded
-  ;; challenge, the ICAO digests and the nullifier dedupe itself.
+  ;; kotoba-proof chip evidence (layer 1 + layer-2 biometric). The principal is
+  ;; the session's, never the body's, as on start; the authority validates the
+  ;; seeded challenge, the ICAO digests, the selfie↔DG5 binding and the
+  ;; nullifier dedupe itself. The 2xx status is passed through: 202
+  ;; operator-review-pending (mismatch / liveness fail) is part of the
+  ;; layer-2 contract and `service` would flatten it to 200.
   (-> (bounded-json request proof-submit-body-limit)
       (.then
        (fn [body]
@@ -84,12 +88,25 @@
                               [(:sodDer body) (:dg1 body) (:dg11 body)
                                (:dg12 body) (:dg5 body)]))
            (respond {:error {:code "invalid-kotoba-proof-submit"}} 400)
-           (-> (service binding "/ekyc/kotoba-proof/submit"
-                        {:principalId principal :sessionRef reference
-                         :sodDer (:sodDer body) :dg1 (:dg1 body)
-                         :dg11 (:dg11 body) :dg12 (:dg12 body) :dg5 (:dg5 body)
-                         :scopeId (:scopeId body) :tasks (vec (:tasks body))})
-               (.then #(respond % 200))))))))
+           (let [payload (cond-> {:principalId principal :sessionRef reference
+                                  :sodDer (:sodDer body) :dg1 (:dg1 body)
+                                  :dg11 (:dg11 body) :dg12 (:dg12 body) :dg5 (:dg5 body)
+                                  :scopeId (:scopeId body) :tasks (vec (:tasks body))}
+                            (and (policy/text? (:portraitJpeg body) 400000)
+                                 (vector? (:selfieFrames body)) (pos? (count (:selfieFrames body))))
+                            (assoc :portraitDigest (:portraitDigest body)
+                                   :portraitJpeg (:portraitJpeg body)
+                                   :selfieFrames (vec (:selfieFrames body))))]
+             (-> (.fetch binding "https://research.internal/ekyc/kotoba-proof/submit"
+                         #js {:method "POST" :redirect "manual"
+                              :signal (js/AbortSignal.timeout 60000)
+                              :headers #js {"content-type" "application/json"}
+                              :body (js/JSON.stringify (clj->js payload))})
+                 (.then (fn [r]
+                          (-> (.json r)
+                              (.then (fn [j]
+                                       (respond (js->clj j :keywordize-keys true)
+                                                (.-status r))))))))))))))
 
 (defn- ekyc-start-route [request binding principal reference respond]
   (-> (bounded-json request 32768)
@@ -109,9 +126,11 @@
                (.then #(respond % 200))))))))
 
 (defn- ekyc-route [request path binding principal reference respond]
-  (if (= path "/v1/research/ekyc/status")
+  (cond
+    (= path "/v1/research/ekyc/status")
     (-> (service binding "/ekyc/status" {:principalId principal :sessionRef reference})
         (.then #(respond % 200)))
+    :else
     (if (= path submit-path)
       (kotoba-proof-submit-route request binding principal reference respond)
       (ekyc-start-route request binding principal reference respond))))

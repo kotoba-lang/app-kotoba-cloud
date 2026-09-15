@@ -69,9 +69,37 @@ class MockStorage {
 }
 
 const now = Date.now();
+// Face-service stub: intercepts fetches to FACE_SERVICE_URL and answers
+// verify (match:true, score 0.9) and liveness (pass, score 0.9). Flips to
+// mismatch/fail modes via faceStubMode.
+const FACE_URL = "https://face.test/verify";
+let faceStubMode = "pass"; // pass | mismatch | notlive
+const realFetch = globalThis.fetch;
+globalThis.fetch = (url, init) => {
+  if (String(url).startsWith(FACE_URL)) {
+    const body = JSON.parse(init.body);
+    let out;
+    if (body.op === "verify") {
+      out = faceStubMode === "mismatch"
+        ? { match: false, score: 0.1, modelId: "stub" }
+        : { match: true, score: 0.9, modelId: "stub" };
+    } else {
+      out = faceStubMode === "notlive"
+        ? { liveness: "fail", score: 0.2, modelId: "stub" }
+        : { liveness: "pass", score: 0.9, modelId: "stub" };
+    }
+    console.error("FACE-STUB called:", body.op, "mode:", faceStubMode);
+    return Promise.resolve(new Response(JSON.stringify(out),
+      { status: 200, headers: { "content-type": "application/json" } }));
+  }
+  return realFetch(url, init);
+};
+
 const env = {
   NULLIFIER_KEY: "test-nullifier-key-0123456789abcdef",
   RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef",
+  FACE_SERVICE_URL: FACE_URL,
+  FACE_SERVICE_TOKEN: "test-face-token",
 };
 const p = "urn:kotoba:principal:kotoba-proof-0001";
 
@@ -90,6 +118,17 @@ await state.storage.put("ekyc:" + p, JSON.stringify({
   createdAt: now - 1000, expiresAt: now + 900000,
 }));
 
+// Biometric evidence derived from the fixture's DG5 bytes: portraitDigest =
+// sha256(decoded dg5 base64) — the same binding the authority recomputes.
+async function bioEvidence() {
+  const dg5b64 = dg5.toString("base64");
+  const raw = Buffer.from(dg5b64, "base64");
+  const dig = Buffer.from(await crypto.subtle.digest("SHA-256", raw))
+    .toString("hex");
+  return { portraitDigest: dig, portraitJpeg: dg5b64,
+           selfieFrames: [dg5b64, dg5b64, dg5b64] };
+}
+
 // K1. valid chip evidence -> full approval chain
 console.error("E2E: calling submit");
 import("node:fs").then(({default: fs}) => fs.writeFileSync("/tmp/sod-der.b64", contentInfo.toString("base64")));
@@ -101,6 +140,7 @@ let r = await call("/ekyc/kotoba-proof/submit", {
   dg12: dg12.toString("base64"),
   dg5: dg5.toString("base64"),
   scopeId: "owned", tasks: ["code-review"],
+  ...(await bioEvidence()),
 });
 console.error("K1 RESULT:", JSON.stringify(r).slice(0, 300));
 assert.equal(r.status, 200, JSON.stringify(r));
@@ -146,4 +186,81 @@ r = await call("/ekyc/kotoba-proof/submit", {
 assert.equal(r.status, 403, JSON.stringify(r));
 assert.equal(r.json.error, "chip-evidence-not-admissible");
 
-console.log("kotoba-proof e2e: icao digests, approval chain, nullifier dedupe, tamper reject passed");
+// K5. biometric mismatch (face stub returns match:false) -> operator review
+// (202), never auto-approved, and the challenge is consumed.
+{
+  const p3 = "urn:kotoba:principal:kotoba-proof-0003";
+  for (const k of [...state.storage.map.keys()]) {
+    if (String(k).startsWith("self-nullifier:")) state.storage.map.delete(k);
+  }
+  await state.storage.put("ekyc:" + p3, JSON.stringify({
+    sessionId: "kp-3", externalId: "opaque-kp-3", principal: p3,
+    scopeId: "owned", tasks: ["code-review"], consumed: false,
+    createdAt: now - 1000, expiresAt: now + 900000,
+  }));
+  faceStubMode = "mismatch";
+  r = await call("/ekyc/kotoba-proof/submit", {
+    principalId: p3,
+    sodDer: contentInfo.toString("base64"),
+    dg1: dg1.toString("base64"), dg11: dg11.toString("base64"),
+    dg12: dg12.toString("base64"), dg5: dg5.toString("base64"),
+    scopeId: "owned", tasks: ["code-review"],
+    ...(await bioEvidence()),
+  });
+  faceStubMode = "pass";
+  assert.equal(r.status, 202, JSON.stringify(r));
+  assert.equal(r.json.status, "operator-review-pending");
+  assert.equal(r.json.biometric.match, false);
+  const consumed3 = JSON.parse(await state.storage.get("ekyc:" + p3));
+  assert.equal(consumed3.consumed, true);
+}
+
+// K6. liveness fail (match true but spoofed) -> operator review (202)
+{
+  const p4 = "urn:kotoba:principal:kotoba-proof-0004";
+  for (const k of [...state.storage.map.keys()]) {
+    if (String(k).startsWith("self-nullifier:")) state.storage.map.delete(k);
+  }
+  await state.storage.put("ekyc:" + p4, JSON.stringify({
+    sessionId: "kp-4", externalId: "opaque-kp-4", principal: p4,
+    scopeId: "owned", tasks: ["code-review"], consumed: false,
+    createdAt: now - 1000, expiresAt: now + 900000,
+  }));
+  faceStubMode = "notlive";
+  r = await call("/ekyc/kotoba-proof/submit", {
+    principalId: p4,
+    sodDer: contentInfo.toString("base64"),
+    dg1: dg1.toString("base64"), dg11: dg11.toString("base64"),
+    dg12: dg12.toString("base64"), dg5: dg5.toString("base64"),
+    scopeId: "owned", tasks: ["code-review"],
+    ...(await bioEvidence()),
+  });
+  faceStubMode = "pass";
+  assert.equal(r.status, 202, JSON.stringify(r));
+  assert.equal(r.json.biometric.match, true);
+  assert.equal(r.json.biometric.liveness, false);
+}
+
+// K7. biometric evidence missing -> 400
+{
+  const p5 = "urn:kotoba:principal:kotoba-proof-0005";
+  for (const k of [...state.storage.map.keys()]) {
+    if (String(k).startsWith("self-nullifier:")) state.storage.map.delete(k);
+  }
+  await state.storage.put("ekyc:" + p5, JSON.stringify({
+    sessionId: "kp-5", externalId: "opaque-kp-5", principal: p5,
+    scopeId: "owned", tasks: ["code-review"], consumed: false,
+    createdAt: now - 1000, expiresAt: now + 900000,
+  }));
+  r = await call("/ekyc/kotoba-proof/submit", {
+    principalId: p5,
+    sodDer: contentInfo.toString("base64"),
+    dg1: dg1.toString("base64"), dg11: dg11.toString("base64"),
+    dg12: dg12.toString("base64"), dg5: dg5.toString("base64"),
+    scopeId: "owned", tasks: ["code-review"],
+  });
+  assert.equal(r.status, 400, JSON.stringify(r));
+  assert.equal(r.json.error, "biometric-evidence-missing");
+}
+
+console.log("kotoba-proof e2e: icao digests, biometric binding + liveness (review routing), approval chain, nullifier dedupe, tamper reject passed");
