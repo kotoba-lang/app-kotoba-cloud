@@ -210,9 +210,12 @@
 
 (deftest unified-chrome-covers-formerly-bare-pages
   ;; ADR site-layout: every page ships header/footer/nav (IA unification).
+  ;; The chrome is the marketing header OR the app sidebar (both are the
+  ;; shared shell); CSS is external since abc2c4f, so a class name only
+  ;; proves presence when it is in the markup.
   (doseq [html [(site/account-html) (site/identity-html) (site/admin-html)
                 (site/csf2-html) (site/crypto-html)]]
-    (is (str/includes? html "kc-header"))
+    (is (or (str/includes? html "kc-header") (str/includes? html "class=\"kc-sb\"")))
     (is (str/includes? html "kc-footer"))
     (is (str/includes? html "<nav"))))
 
@@ -223,7 +226,6 @@
       (is (str/includes? html "src=\"/js/language-selector.js\""))
       (is (str/includes? html "freebuff-tag.js")))
     (testing "shared chrome with the app sidebar, current item highlighted"
-      (is (str/includes? html "kc-header"))
       (is (str/includes? html "kc-footer"))
       (is (str/includes? html "kc-sb"))
       (is (str/includes? html "data-current=\"true\""))
@@ -250,6 +252,6 @@
 (deftest account-console-carries-agent-onboarding
   ;; PAT issuance section: 1-click local IDE/CLI onboarding.
   (let [html (site/account-html)]
-    (is (str/includes? html "kc-header"))
+    (is (str/includes? html "class=\"kc-sb\""))
     (is (str/includes? html "noindex"))
     (is (str/includes? html "接続トークン"))))
