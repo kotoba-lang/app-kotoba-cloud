@@ -15,10 +15,13 @@ globalThis.fetch = async (url, init) => {
 import { ResearchAuthority } from "../build/research/worker.js";
 
 class MockStorage {
-  constructor() { this.map = new Map(); }
+  constructor() { this.map = new Map(); this.alarmAt = null; }
   async get(k) { return this.map.has(k) ? this.map.get(k) : null; }
   async put(k, v) { this.map.set(k, String(v)); }
   async delete(k) { this.map.delete(k); }
+  async list({ prefix } = {}) { return new Map([...this.map].filter(([k]) => !prefix || k.startsWith(prefix))); }
+  async getAlarm() { return this.alarmAt; }
+  async setAlarm(t) { this.alarmAt = t; }
 }
 const state = {
   storage: new MockStorage(),
@@ -107,6 +110,31 @@ assert.deepEqual(storedJob.usageReceipt && {
   outputTokens: storedJob.usageReceipt.outputTokens,
   totalTokens: storedJob.usageReceipt.totalTokens,
 }, { source: "upstream-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
+
+// 6a. job retention: the terminal write arms the object's alarm 24 h out;
+// the alarm deletes every record past its expiry (the prompt and the answer
+// go with it), keeps the rest and re-arms for the earliest one left. Until
+// 2026-09-15 nothing deleted these records while the public page said
+// prompts and outputs were never kept.
+{
+  const day = 86400000;
+  // creation arms 24 h from createdAt (a run that never finishes still
+  // expires); the terminal write never pushes an earlier alarm later
+  assert.ok(state.storage.alarmAt >= storedJob.createdAt + day && state.storage.alarmAt <= storedJob.finishedAt + day,
+    "retention armed within [createdAt+24h, finishedAt+24h]: " + state.storage.alarmAt);
+  // an older job, already past its expiry, and a queued one that never finished
+  const old = { ...storedJob, jobId: "44444444-4444-4444-8444-444444444444", finishedAt: Date.now() - day - 1000 };
+  const stuck = { jobId: "55555555-5555-4555-8555-555555555555", principalId: principal, status: "queued",
+    request: { messages: [{ role: "user", content: "never ran" }] }, createdAt: Date.now() - 2 * day };
+  await state.storage.put("job:" + old.jobId, JSON.stringify(old));
+  await state.storage.put("job:" + stuck.jobId, JSON.stringify(stuck));
+  state.storage.alarmAt = null;   // the runtime clears a fired alarm before the handler runs
+  await auth.alarm();
+  assert.equal(await state.storage.get("job:" + old.jobId), null, "a job past its expiry is deleted");
+  assert.equal(await state.storage.get("job:" + stuck.jobId), null, "a job that never finished expires from its creation");
+  assert.ok(await state.storage.get("job:" + jobId), "a job inside the window is kept");
+  assert.equal(state.storage.alarmAt, storedJob.finishedAt + day, "re-armed for the earliest remaining expiry");
+}
 
 // 6b. upstream refuses (401) -> terminal state is FAILED with the upstream
 // status; never "succeeded" with nil content. Live, the chain's per-step

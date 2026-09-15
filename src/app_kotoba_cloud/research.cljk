@@ -377,7 +377,7 @@
                       "Request content is screened in memory"
                       "When zero-data-retention is enabled, your content is not used for training"]}
    :localExecution {:title "Local execution boundary"
-                    :points ["The model never emits tool calls and the service never executes tools, code, commands or network actions server-side"
+                    :points ["The service never executes tools, code, commands or network actions server-side; a tool call the model emits is returned to the caller as data (tool_calls) and runs, if at all, on the caller's own machine"
                              "Tool use, command execution and automation stay entirely on the user's local machine, driven by the user's own agent"
                              "Generated exploit or payload text is data returned to the caller — it is never run by kotoba.cloud"]}})
 
