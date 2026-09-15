@@ -1136,8 +1136,8 @@
    "pricingMode": "quote-based",
    "pricingNote": "quote-based; no public list pricing on the ja_jp product page (HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/iot/industrial-network-security.html"
-   },
-   {
+  },
+  {
    "id": "trend-data-security",
    "provider": "Trend Micro",
    "providerHq": "JP",
@@ -1146,8 +1146,8 @@
    "pricingMode": "quote-based",
    "pricingNote": "quote-based; ja_jp 製品ページに公開価格はなく、CTA は無料体験/お問い合わせのみ (ページ HTTP 200, verified 2026-09-15) — 購入/見積は Trend Micro またはパートナー経由。",
    "pricingUrl": "https://www.trendaisecurity.com/ja/platform/data-security"
-   },
-   {
+  },
+  {
    "id": "armis",
    "provider": "Armis",
    "providerHq": "US",
@@ -4690,21 +4690,26 @@
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-file-storage-security.html",
    "pricingNote": "quote-based; S3/NAS/file-server malware-scan service sold via AWS Marketplace/reseller quote (no dedicated pricing page; product page links /ja_jp/buy/license/trsl-package/price-list.html, HTTP 200)"
-   },
-   {
-   "id": "trend-vbts",
+  },
+  {
+   "id": "trend-security-operations",
    "provider": "Trend Micro",
    "providerHq": "JP",
-   "name": "ウイルスバスター トータルセキュリティ スタンダード / プレミアム",
-   "categoryId": "edr-xdr",
-   "pricingMode": "public-list",
-   "pricingNote": "公式オンラインショップで税込の公開価格 (public list)。スタンダード 3年版(自動更新) 16,940円(税込)、3年契約終了後は年額7,480円(税込)で自動更新。プレミアムはお困りごと相談サービス (+217円/月相当) を追加。価格は変更の可能性あり (取得日 2026-09-15)。",
-   "pricingUrl": "https://virusbuster.jp/vb/trial/sem/split_vb_ms.htm",
-   "complianceFits": [
-     "cis-controls",
-     "nist-csf-20",
-     "pci-dss-40"
-   ]
-   }
-   ]
-   }
+   "name": "Trend Micro Security Operations (SecOps)",
+   "categoryId": "siem",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/security-operations",
+   "pricingNote": "quote-based; no public pricing on the JP product page (trendmicro.com/ja_jp/business/products/security-operations.html 301-redirects to trendaisecurity.com/ja/platform/security-operations, verified HTTP 200 on 2026-09-15); XDR + Agentic SIEM + SOAR integrated SOC platform (TrendAI Vision One Security Operations)"
+  },
+  {
+   "id": "trend-security-expert-services",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Security Expert Services",
+   "categoryId": "ddil-forensics",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/support-services.html",
+   "pricingNote": "quote-based; JP product page (verified HTTP 200 on 2026-09-15) lists expert support services incl. incident-time support (インシデント時の支援) with no public pricing"
+  }
+ ]
+}
