@@ -148,13 +148,29 @@
               :scopes (if same-principal? (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record)) [])}
              200)))
 
-(defn- completion-envelope [request-id content receipt-id model]
-  {:id request-id :object "chat.completion"
-   :created (js/Math.floor (/ (js/Date.now) 1000))
-   :model (or model policy/model-id)
-   :choices [{:index 0 :finish_reason "stop"
-              :message {:role "assistant" :content content}}]
-   :receiptId receipt-id :billing "free"})
+(defn- completion-envelope
+  "The OpenAI answer. Native tool_calls from the origin ride in the message
+  with finish_reason tool_calls; content is null then, as OpenAI does."
+  [request-id result model]
+  (let [tool-calls (seq (:toolCalls result))
+        content (:content result)]
+    {:id request-id :object "chat.completion"
+     :created (js/Math.floor (/ (js/Date.now) 1000))
+     :model (or model policy/model-id)
+     :choices [{:index 0
+                :finish_reason (cond tool-calls "tool_calls"
+                                     (= "length" (:finishReason result)) "length"
+                                     :else "stop")
+                :message (cond-> {:role "assistant" :content (if (policy/text? content 1048576) content nil)}
+                           tool-calls (assoc :tool_calls (vec tool-calls)))}]
+     :receiptId (:receiptId result) :billing "free"}))
+
+(defn- terminal-answer?
+  "A succeeded job must carry text or native tool calls; anything else is a
+  broken receipt, never a 200 with content null."
+  [result]
+  (or (policy/text? (:content result) 1048576)
+      (and (vector? (:toolCalls result)) (seq (:toolCalls result)) (every? policy/tool-call? (:toolCalls result)))))
 
 (defn- sse-line [value] (str "data: " (js/JSON.stringify (clj->js value)) "\n\n"))
 
@@ -167,10 +183,14 @@
   [envelope]
   (let [base {:id (:id envelope) :object "chat.completion.chunk"
               :created (:created envelope) :model (:model envelope)}
-        content (get-in envelope [:choices 0 :message :content])
-        body (str (sse-line (assoc base :choices [{:index 0 :delta {:role "assistant" :content content}
-                                                   :finish_reason nil}]))
-                  (sse-line (assoc base :choices [{:index 0 :delta {} :finish_reason "stop"}]
+        message (get-in envelope [:choices 0 :message])
+        finish (get-in envelope [:choices 0 :finish_reason])
+        ;; streaming tool calls carry an index per call, arguments whole
+        delta (cond-> {:role "assistant" :content (:content message)}
+                (seq (:tool_calls message))
+                (assoc :tool_calls (vec (map-indexed (fn [i c] (assoc c :index i)) (:tool_calls message)))))
+        body (str (sse-line (assoc base :choices [{:index 0 :delta delta :finish_reason nil}]))
+                  (sse-line (assoc base :choices [{:index 0 :delta {} :finish_reason finish}]
                                    :receiptId (:receiptId envelope) :billing (:billing envelope)))
                   "data: [DONE]\n\n")]
     (js/Response. body #js {:status 200
@@ -213,12 +233,13 @@
       (.then (fn [result]
                (let [status (:status result)]
                  (cond
-                   ;; a succeeded job with no text is a broken receipt, not an
-                   ;; answer — never a 200 with content null (8 問 #1)
-                   (and (= "succeeded" status) (not (policy/text? (:content result) 1048576)))
+                   ;; a succeeded job with neither text nor tool calls is a
+                   ;; broken receipt, not an answer — never a 200 with content
+                   ;; null (8 問 #1)
+                   (and (= "succeeded" status) (not (terminal-answer? result)))
                    (throw (ex-info "invalid-job-receipt" {:status 502}))
                    (= "succeeded" status)
-                   (completion-envelope job-id (:content result) (:receiptId result) model)
+                   (completion-envelope job-id result model)
                    (contains? #{"failed" "cancelled" "unknown"} status)
                    (throw (ex-info (if (= "unknown" status) "inference-job-timeout" "inference-run-failed")
                                    {:status (if (= "unknown" status) 504 502)}))
@@ -309,12 +330,14 @@
                (not (policy/session-current? reference task (:continuous record) now))
                (not (policy/scope-approved? record {:task task :scopeId scope} now))))
       (respond {:error {:code "job-reverification-required"}} 403)
-      (and (= "succeeded" status) (not (policy/text? (:content result) 1048576)))
+      (and (= "succeeded" status) (not (terminal-answer? result)))
       (respond {:error {:code "invalid-job-receipt"}} 502)
       :else
       (respond (cond-> {:jobId id :status status :billing "free" :model policy/model-id
                         :receiptId (:receiptId result) :pollAfterMs 5000}
-                 (= "succeeded" status) (assoc :content (:content result)))
+                 (= "succeeded" status) (assoc :content (:content result)
+                                               :toolCalls (:toolCalls result)
+                                               :finishReason (:finishReason result)))
                (if (contains? #{"queued" "running"} status) 202 200)))))
 
 (defn- job-route [request path binding principal reference respond]
@@ -351,13 +374,16 @@
   forwarded body is rebuilt from the strict admission shape only — ignorable
   OpenAI parameters never reach the authority or the upstream."
   [body]
-  {:model (or (:model body) policy/model-id)
-   :task (or (:task body) "code-review")
-   :scopeId (or (:scopeId body) "owned")
-   ;; OpenAI clients may send max_completion_tokens instead; absent both, a
-   ;; modest default rather than the ceiling
-   :max_tokens (or (:max_tokens body) (:max_completion_tokens body) 2048)
-   :messages (vec (:messages body))})
+  (cond-> {:model (or (:model body) policy/model-id)
+           :task (or (:task body) "code-review")
+           :scopeId (or (:scopeId body) "owned")
+           ;; OpenAI clients may send max_completion_tokens instead; absent both, a
+           ;; modest default rather than the ceiling
+           :max_tokens (or (:max_tokens body) (:max_completion_tokens body) 2048)
+           :messages (mapv policy/sanitize-message (:messages body))}
+    ;; tool definitions and the choice travel to the origin (see research.cljk)
+    (seq (:tools body)) (assoc :tools (vec (:tools body)))
+    (some? (:tool_choice body)) (assoc :tool_choice (:tool_choice body))))
 
 (defn- authorized-route [request path binding principal reference respond]
   (if (= path "/v1/research/review")
@@ -401,7 +427,12 @@
                             (policy/completion-openai-compatible? body)
                             (policy/completion? body))]
                (if-not valid?
-                 (respond {:error {:code "invalid-research-request"}} 400)
+                 ;; say WHICH rule on the bearer path: an agent's log is the only
+                 ;; place a person sees this (hermes fell back silently on a 400)
+                 (respond {:error (cond-> {:code "invalid-research-request"}
+                                    (bearer? request)
+                                    (assoc :message (policy/completion-openai-compatible-problem body)
+                                           :type "invalid_request_error"))} 400)
                  (complete binding principal reference normalized respond
                            {:stream? (and (bearer? request) (true? (:stream body)))})))))))))))
 

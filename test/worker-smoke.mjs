@@ -704,6 +704,8 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
         // upstreamOutcome: "ok" (default) | "failed" | "empty" — the last two
         // are what a refused Modal origin used to look like on the edge
         if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "modal-inference-unavailable"; }
+        else if (upstreamOutcome === "tool_calls") { job.status = "succeeded"; job.content = null; job.finishReason = "tool_calls";
+          job.toolCalls = [{ id: "call_9", type: "function", function: { name: "write_file", arguments: "{\"path\":\"a.txt\"}" } }]; }
         else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; } } }, 5);
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
@@ -1126,9 +1128,73 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
     assert.equal(frames[2], "data: [DONE]");
     const agentCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
     assert.equal(agentCreate.body.request.max_tokens, 32768);
-    assert.equal(agentCreate.body.request.tools, undefined);
+    // tool definitions travel to the authority (native tool calls); the
+    // transport flags do not
+    assert.equal(agentCreate.body.request.tools.length, 1);
+    assert.equal(agentCreate.body.request.tool_choice, "auto");
     assert.equal(agentCreate.body.request.stream, undefined);
+    assert.equal(agentCreate.body.request.stream_options, undefined);
     assert.equal(agentCreate.body.request.messages[0].content.length, 100000);
+    // Native tool calls: an agent's conversation (assistant tool_calls turn,
+    // tool result turn last) is admitted; tools + tool_choice and the
+    // sanitized turns reach the authority; a tool_calls answer comes back
+    // as finish_reason tool_calls with content null — as JSON and as SSE.
+    {
+      const agentTurns = { model: researchModel, max_tokens: 256, tool_choice: "auto",
+        tools: [{ type: "function", function: { name: "write_file", description: "write", parameters: { type: "object", properties: { path: { type: "string" } } } } }],
+        messages: [{ role: "system", content: "You are an agent." }, { role: "user", content: "Create a.txt" },
+          { role: "assistant", content: null, tool_calls: [{ id: "call_0", type: "function", function: { name: "read_file", arguments: "{\"path\":\"a.txt\"}" } }], reasoning_content: "thinking" },
+          { role: "tool", tool_call_id: "call_0", content: "(no such file)" }] };
+      // reasoning_content is not an admitted assistant field
+      assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify(agentTurns) }), bearerPatEnv)).status, 400);
+      delete agentTurns.messages[2].reasoning_content;
+      for (const bad of [{ tool_choice: "auto", tools: undefined }, { tools: [{ type: "function", function: { name: "bad name" } }] },
+        { messages: [...agentTurns.messages.slice(0, 2), { role: "assistant", content: "", tool_calls: [{ type: "function", function: { name: "x", arguments: "{}" } }] }, agentTurns.messages[3]] },
+        { messages: [...agentTurns.messages.slice(0, 3)] }]) {
+        const r = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+          method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+          body: JSON.stringify({ ...agentTurns, ...bad }) }), bearerPatEnv);
+        assert.equal(r.status, 400, JSON.stringify(Object.keys(bad)));
+      }
+      upstreamOutcome = "tool_calls";
+      const savedForTools = structuredClone(researchRecord);
+      researchRecord.continuous.sessionRef = agentSessionRef;
+      researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+      const toolJson = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify(agentTurns) }), bearerPatEnv);
+      const toolText = await toolJson.text();
+      assert.equal(toolJson.status, 200, toolText);
+      const toolBody = JSON.parse(toolText);
+      assert.equal(toolBody.choices[0].finish_reason, "tool_calls");
+      assert.equal(toolBody.choices[0].message.content, null);
+      assert.equal(toolBody.choices[0].message.tool_calls[0].function.name, "write_file");
+      const toolCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+      assert.equal(toolCreate.body.request.tools.length, 1);
+      assert.equal(toolCreate.body.request.tool_choice, "auto");
+      assert.deepEqual(toolCreate.body.request.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
+      assert.equal(toolCreate.body.request.messages[2].content, "");
+      assert.equal(toolCreate.body.request.messages[2].reasoning_content, undefined);
+      assert.equal(toolCreate.body.request.messages[3].tool_call_id, "call_0");
+      // the same answer over SSE carries the tool call in the delta with an index
+      researchRecord.continuous.sessionRef = agentSessionRef;
+      researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+      const toolSse = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify({ ...agentTurns, stream: true, messages: [...agentTurns.messages, { role: "user", content: "again" }] }) }), bearerPatEnv);
+      researchRecord = savedForTools;
+      upstreamOutcome = "ok";
+      const sseFrames = (await toolSse.text()).split("\n\n").filter(Boolean);
+      assert.equal(toolSse.status, 200, sseFrames.join("|"));
+      const d1 = JSON.parse(sseFrames[0].replace(/^data: /, ""));
+      const d2 = JSON.parse(sseFrames[1].replace(/^data: /, ""));
+      assert.equal(d1.choices[0].delta.tool_calls[0].index, 0);
+      assert.equal(d1.choices[0].delta.tool_calls[0].function.name, "write_file");
+      assert.equal(d2.choices[0].finish_reason, "tool_calls");
+      assert.equal(sseFrames[2], "data: [DONE]");
+    }
     // stream: false stays a JSON body
     const savedForJson = structuredClone(researchRecord);
     researchRecord.continuous.sessionRef = agentSessionRef;
