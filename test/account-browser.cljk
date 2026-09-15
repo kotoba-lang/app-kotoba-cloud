@@ -166,6 +166,38 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(!nav.open||nav.menuItems!==3)throw Error('account menu '+JSON.stringify(nav));
   await page.close();
  }
+ console.log('block theme+language');
+ // --- theme toggle (jp-go-dds.theme-toggle) + console language switch ----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(false)(page);
+  await page.goto(base+'/secure/');
+  await page.waitForFunction(()=>!document.getElementById('kot-theme').hidden,null,{timeout:5000});
+  const light=await page.evaluate(()=>({bg:getComputedStyle(document.body).backgroundColor,theme:document.documentElement.getAttribute('data-theme'),
+    toggleRight:innerWidth-document.getElementById('kot-theme').getBoundingClientRect().right,
+    langRight:innerWidth-document.getElementById('kc-console-language-opener').getBoundingClientRect().right,
+    meta:document.querySelectorAll('meta[name=theme-color]').length,scheme:document.querySelector('meta[name=color-scheme]').content}));
+  if(light.bg!=='rgb(255, 255, 255)'||light.theme)throw Error('light start '+JSON.stringify(light));
+  if(light.toggleRight>80||light.langRight>200)throw Error('switches not at the top right '+JSON.stringify(light));
+  if(light.meta!==2||light.scheme!=='light dark')throw Error('dark meta pair '+JSON.stringify(light));
+  await page.click('#kot-theme'); await page.waitForTimeout(600);
+  const dark=await page.evaluate(()=>({bg:getComputedStyle(document.body).backgroundColor,theme:document.documentElement.getAttribute('data-theme'),stored:localStorage.getItem('kotoba-theme'),
+    checked:document.getElementById('kot-theme').getAttribute('aria-checked'),sb:getComputedStyle(document.querySelector('.kc-sb')).backgroundColor,fg:getComputedStyle(document.body).color}));
+  if(dark.theme!=='dark'||dark.stored!=='dark'||dark.checked!=='true')throw Error('toggle did not switch '+JSON.stringify(dark));
+  if(dark.bg===light.bg||dark.sb===light.bg)throw Error('dark surfaces did not change '+JSON.stringify(dark));
+  await page.goto(base+'/models/'); await page.waitForTimeout(300);
+  const kept=await page.evaluate(()=>({theme:document.documentElement.getAttribute('data-theme'),bg:getComputedStyle(document.body).backgroundColor}));
+  if(kept.theme!=='dark'||kept.bg!==dark.bg)throw Error('theme choice did not survive navigation '+JSON.stringify(kept));
+  await page.click('#kc-console-language-opener'); await page.waitForTimeout(200);
+  const lang=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,
+    items:[...document.querySelectorAll('#kc-console-language-popup a')].map(a=>[a.getAttribute('href'),a.getAttribute('hreflang'),a.getAttribute('aria-current')])}));
+  if(lang.hidden||lang.items.length!==2)throw Error('language popup '+JSON.stringify(lang));
+  if(lang.items[0][0]!=='/ja/models/'||lang.items[1][0]!=='/en/models/'||lang.items[0][2]!=='true')throw Error('language switch must preserve the route '+JSON.stringify(lang));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  const closed=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,focus:document.activeElement&&document.activeElement.id}));
+  if(!closed.hidden||closed.focus!=='kc-console-language-opener')throw Error('Escape must close and return focus to the opener '+JSON.stringify(closed));
+  await page.close();
+ }
  console.log('block secure');
  // --- /secure/: rendered from policy, versions confirmed, observe mode -----
  {
