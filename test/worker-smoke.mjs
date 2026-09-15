@@ -846,7 +846,8 @@ assert.deepEqual(orgRegistryBody.organizations, []);
     const b=JSON.parse(init && init.body ? init.body : await url.text());
     if (new URL(url instanceof Request?url.url:url).pathname==='/registry') return Response.json({organizations:[
       {orgDid:'did:webvh:zS:com-live.kotoba.cloud',handle:'com-live.kotoba.cloud',scid:'zS',
-       didLog:'/.well-known/kotoba-org-dids/com-live.kotoba.cloud/did.jsonl',members:1,createdAt:1}]});
+       didLog:'/.well-known/kotoba-org-dids/com-live.kotoba.cloud/did.jsonl',members:1,createdAt:1}],
+      statusLists:[{id:'https://kotoba.cloud/.well-known/kotoba-org-status/com-live.kotoba.cloud/v1'}]});
     return Response.json({ok:true});
   }}};
   const lr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),liveEnv);
