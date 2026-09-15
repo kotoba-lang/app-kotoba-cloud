@@ -564,6 +564,7 @@ let researchRecord = { principalId: researchPrincipal, policyVersion: researchPo
 let corruptReceipt = false;
 let oldTrustReceipt = false;
 let exhausted = false;
+let upstreamOutcome = "ok";
 // When set, /ekyc/start answers with the authority's own error shape
 // ({ error: <code> }, status) so the edge's code surfacing can be measured.
 let ekycAuthorityRefusal = null;
@@ -601,8 +602,11 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
       job = { jobId: body.jobId, principalId: body.principalId, sessionRef: body.sessionRef,
         status: "queued", receiptId: "receipt-" + body.jobId, request: body.request, createdAt: Date.now() };
       jobs.set(body.jobId, job);
-      setTimeout(() => { if (job.status === "queued") { job.status = "succeeded";
-        job.content = "Check ownership before returning the record."; } }, 5);
+      setTimeout(() => { if (job.status === "queued") {
+        // upstreamOutcome: "ok" (default) | "failed" | "empty" — the last two
+        // are what a refused Modal origin used to look like on the edge
+        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "modal-inference-unavailable"; }
+        else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; } } }, 5);
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
@@ -689,6 +693,19 @@ assert.equal(researchCalls.filter(c => c.path === "/complete").length, beforeDen
 const researchOk = await route(researchRequest("/v1/chat/completions", researchBody), researchEnv);
 assert.equal(researchOk.status, 200);
 assert.equal((await researchOk.json()).billing, "free");
+// A job the authority ends as failed is 502 inference-failed by name — the
+// catch used to look for the code in ex-data and answered
+// research-service-unavailable for everything. A job that "succeeded" with
+// no text is a broken receipt, never a 200 with content null (live
+// 2026-09-15: the first PAT completions after eligibility).
+for (const [outcome, expectStatus, expectCode] of [["failed", 502, "inference-failed"], ["empty", 502, "invalid-inference-receipt"]]) {
+  upstreamOutcome = outcome;
+  const r = await route(researchRequest("/v1/chat/completions", { ...researchBody, messages: [{ role: "user", content: "outcome " + outcome }] }), researchEnv);
+  const j = await r.json();
+  assert.equal(r.status, expectStatus, outcome + " " + JSON.stringify(j));
+  assert.equal(j.error.code, expectCode, outcome + " " + JSON.stringify(j));
+}
+upstreamOutcome = "ok";
 corruptReceipt = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
 corruptReceipt = false; oldTrustReceipt = true;

@@ -105,6 +105,41 @@ assert.deepEqual(storedJob.usageReceipt && {
   totalTokens: storedJob.usageReceipt.totalTokens,
 }, { source: "modal-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
 
+// 6b. upstream refuses (401) -> terminal state is FAILED with the upstream
+// status; never "succeeded" with nil content. Live, the chain's per-step
+// rejection handlers let `succeed` run on undefined after `fail` had
+// already stored "failed", and the edge served 200 + content null.
+{
+  const realUpstream = globalThis.fetch;
+  const errLines = [];
+  const realError = console.error;
+  console.error = (...args) => { errLines.push(args.map(String).join(" ")); };
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { type: "invalid_request_error",
+    code: "invalid_api_key", message: "Incorrect API key provided" } }),
+    { status: 401, headers: { "content-type": "application/json" } });
+  const failJobId = "33333333-3333-4333-8333-333333333333";
+  const rf = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rf.status, 200, JSON.stringify(rf));
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  console.error = realError;
+  const failed = JSON.parse(await state.storage.get("job:" + failJobId));
+  assert.equal(failed.status, "failed", "terminal state must be failed: " + JSON.stringify(failed));
+  assert.equal(failed.error, "modal-inference-unavailable");
+  assert.equal(failed.upstreamStatus, 401);
+  assert.equal(failed.content, undefined);
+  const logged = errLines.filter(l => l.startsWith("inference-run-failed " + failJobId));
+  assert.equal(logged.length, 1, JSON.stringify(errLines));
+  assert.match(logged[0], /"code":"invalid_api_key"/);
+  // and the poll reports the failure, not a receipt
+  const rs = await call("/jobs/status", { principalId: principal, sessionRef, jobId: failJobId });
+  assert.equal(rs.json.status, "failed");
+}
+
 // 7. replay same input -> same receipt, not double-counted
 r = await call("/jobs/create", {
   principalId: principal, sessionRef, jobId, policyVersion: "whitehat-2026-09-12-v1",
