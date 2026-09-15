@@ -10,7 +10,8 @@
   (:require [jp-go-dds.core :as dds]
             [kotoba.lang.text :as str]
             [app-kotoba-cloud.research :as research]
-            [cloud-kotoba-dds.console :as console]))
+            [cloud-kotoba-dds.console :as console]
+            [app-kotoba-cloud.code-block :as code-block]))
 
 (def css
   (str
@@ -29,7 +30,8 @@
    ".kc-models__head h2{margin:0}"
    ".kc-models__reqs{margin:var(--hig-spacing-2) 0 0;padding-inline-start:1.2em;display:grid;gap:var(--hig-spacing-1)}"
    ".kc-models__reqs code{color:var(--hig-color-secondary-label)}"
-   ".kc-models pre{overflow-x:auto;padding:var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7}"))
+   ;; the call example is cloud-kotoba-dds.code/block (its own css)
+   ""))
 
 (def requirement-labels
   "The gateway's admission conditions, in the person's words, with the
@@ -95,8 +97,9 @@
       [:p {:class "ck-console__note"} "両チーム共通。有料枠は" [:a {:href "/billing/"} "料金・決済"] "で追加できます。"]]
      [:section {:class "ck-console__panel"}
       [:h2 "呼び出し方"]
-      [:pre [:code (str "curl -s -X POST https://api.kotoba.cloud/v1/chat/completions \\\n"
-                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
-                        "  -H \"content-type: application/json\" \\\n"
-                        "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'")]]
+      (code-block/block :ja
+                  (str "curl -s -X POST https://api.kotoba.cloud/v1/chat/completions \\\n"
+                       "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
+                       "  -H \"content-type: application/json\" \\\n"
+                       "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'"))
       [:p {:class "ck-console__note"} "モデルは表の ID をそのまま `model` に指定します。" [:a {:href "/docs/reference/quickstart/"} "クイックスタート"] "に発行から最初のリクエストまでの手順があります。"]]]))

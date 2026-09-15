@@ -9,6 +9,8 @@
             [app-kotoba-cloud.account-site :as account-site]
             [cloud-kotoba-dds.console :as dds-console]
             [cloud-kotoba-dds.shell :as shell]
+            [cloud-kotoba-dds.code :as code]
+            [app-kotoba-cloud.code-block :as code-block]
             [cloud-kotoba-dds.catalog :as dds-catalog]
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
@@ -353,7 +355,6 @@
    ".kc-plane__kind{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;letter-spacing:.08em;color:var(--hig-color-secondary-label);}"
    ".kc-plane h3{margin-block:var(--hig-spacing-2);}.kc-plane p{color:var(--hig-color-secondary-label);}.kc-plane a{font-family:var(--hig-font-mono);font-weight:700;}.kc-plane__connect{display:inline-block;margin-top:var(--hig-spacing-3);}.kc-plane__connect[hidden]{display:none;}"
    ".kc-steps{counter-reset:step}.kc-step{counter-increment:step}.kc-step::before{content:'0' counter(step);display:block;margin-bottom:var(--hig-spacing-3);font-family:var(--hig-font-mono);font-weight:700;color:var(--hig-color-tint);}"
-   ".kc-command{margin:var(--hig-spacing-6) 0 0;padding:var(--hig-spacing-5);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;}"
    ".kc-publish-approval{margin-top:var(--hig-spacing-7);border-inline-start:.4rem solid var(--hig-color-tint);}.kc-publish-approval[hidden]{display:none}.kc-publish-fields{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--hig-spacing-2) var(--hig-spacing-4);}.kc-publish-fields dt{font-weight:700}.kc-publish-fields dd{margin:0;font-family:var(--hig-font-mono);overflow-wrap:anywhere}"
    ".kc-boundary{border-inline-start:.4rem solid var(--hig-color-separator);}"
    ".kc-footer{padding-block:var(--hig-spacing-8);border-top:1px solid var(--hig-color-separator);color:var(--hig-color-secondary-label);}.kc-footer__inner{display:flex;justify-content:space-between;gap:var(--hig-spacing-5);flex-wrap:wrap;}"
@@ -797,8 +798,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                            (dds/heading 3 title {:size "20"})
                            [:p body]]))
               (:library-steps t)))
-        [:pre {:class "kc-command"}
-         [:code reference-package-command]]
+        (code-block/block locale reference-package-command)
         [:p {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span (:library-status t)]]
@@ -840,7 +840,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                            (dds/heading 3 title {:size "20"})
                            [:p body]]))
               (:steps t)))
-        [:pre {:class "kc-command"} [:code "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before inference"]])
+        (code-block/block locale "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before inference"))
        (dds/section {:title (:boundary-title t) :id "trust"}
         (dds/card
          [:article {:class "kc-boundary"}
@@ -905,6 +905,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
         [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
         [:script {:src "/js/language-selector.js" :defer true}]
         [:script {:src "/js/shell.js" :defer true}]
+        [:script {:src "/js/code.js" :defer true}]
         [:script {:src "/js/session.js" :defer true}]
         [:link {:rel "alternate" :hreflang "ja" :href ja-href}]
         [:link {:rel "alternate" :hreflang "en" :href en-href}]
@@ -1050,7 +1051,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        security-site/css "\n" csf2-site/css "\n"
        crypto-site/css "\n" compliance-site/css "\n"
        blog-site/css "\n"
-       dds-console/css "\n" shell/css "\n" account-site/css "\n"
+       dds-console/css "\n" shell/css "\n" code/css "\n" account-site/css "\n"
        secure-site/css "\n" models-site/css "\n" billing-site/css "\n"
        apps-site/css "\n" docs-site/css "\n"
        security-services-site/css))
@@ -1091,6 +1092,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                      [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
                      [:script {:src "/js/language-selector.js" :defer true}]
                      [:script {:src "/js/shell.js" :defer true}]
+                     [:script {:src "/js/code.js" :defer true}]
                      [:script {:src "/js/session.js" :defer true}]])
               ;; the surface the document is emitted on: shell-browser
               ;; prefixes the hrefs it sets at runtime (setup chip /
@@ -1226,9 +1228,6 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :extra-css (str dds-console/css models-site/css)}
    (models-site/section)))
 
-(def docs-css
-  ".kc-docs{padding-block:var(--hig-spacing-6)}.kc-docs h2{margin-block:var(--hig-spacing-6) var(--hig-spacing-3)}.kc-docs__lead{max-width:48rem;color:var(--hig-color-secondary-label)}.kc-docs__list{display:grid;gap:var(--hig-spacing-3);padding:0;list-style:none}.kc-docs__list li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-4)}.kc-docs__list a{font-weight:700}.kc-docs__config{padding:var(--hig-spacing-4);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;white-space:pre;overflow-wrap:normal}.kc-docs__note{padding:var(--hig-spacing-3) var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-tint);background:var(--hig-color-secondary-system-background);border-radius:0 var(--hig-radius-sm) var(--hig-radius-sm) 0}.kc-docs__chip{font-size:var(--hig-text-caption2-font-size);padding:2px var(--hig-spacing-2);border-radius:var(--hig-radius-capsule);border:1px solid var(--hig-color-separator)}.kc-docs__chip--verified{color:var(--hig-palette-green);border-color:var(--hig-palette-green)}.kc-docs__chip--pending{color:var(--hig-color-secondary-label)}.kc-docs__chip--caveat{color:var(--hig-palette-orange,var(--hig-color-label));border-color:var(--hig-palette-orange,var(--hig-color-label))}")
-
 (defn docs-page
   "Shared chrome for a docs page — the shared site-layout WITH the app
   sidebar (docs are part of the app navigation, orca-style)."
@@ -1240,7 +1239,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :description "Docs — kotoba.cloud"
                 :lang (if (= locale :ja) "ja" "en")
                 :sidebar? true :current path
-                :extra-css (str tokens/bridge-css docs-css)}
+                :extra-css docs-site/css}
    (dds/container (content-fn (= locale :ja)))))
 
 (defn docs-index-html
@@ -1570,6 +1569,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
       ;; entry's fill + reveal, Escape / outside close) — external because
       ;; script-src is 'self'
       (spit-file (node-path/join js-dir "shell.js") shell/script)
+      ;; the code block's copy control (cloud-kotoba-dds.code): reveals the
+      ;; control where the clipboard is writable, copies the block verbatim
+      (spit-file (node-path/join js-dir "code.js") code/script)
       (doseq [source (fs-walk-files ipfs-source)]
         (copy-file source (node-path/join ipfs-target (node-path/basename source))))
       (copy-file registry-source registry-target)
