@@ -78,6 +78,14 @@
         (show! "account-refresh-slot")
         false)))
 
+(defn card-return
+  "Where Stripe Checkout sent the person back to: the authority's setup
+  session carries success_url ?card=done and cancel_url ?card=cancelled on
+  this document. nil when the page was opened directly."
+  []
+  (let [v (.get (js/URLSearchParams. (.-search js/location)) "card")]
+    (when (contains? #{"done" "cancelled"} v) v)))
+
 (defn render-ekyc [r]
   (let [status (cond
                  (not (:httpOk r)) "unavailable"
@@ -92,7 +100,15 @@
                      (when-let [b (el "account-ekyc-start")] (set! (.-hidden b) true)))
       "pending" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "確認中" "Pending"))
-                    (say! "account-ekyc-note" (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。カード登録を中断した場合は下のボタンから再開できます。" "Approval happens automatically when Stripe completes. Refresh this page to see the change. If you left the card entry midway, resume below."))
+                    (say! "account-ekyc-note"
+                          (case (card-return)
+                            ;; back from checkout.stripe.com: the webhook approves
+                            ;; within seconds; the refresh button re-reads status
+                            "done" (t "カード登録を受け付けました。Stripe からの通知が届くと自動承認されます（通常は数秒）。「状態を更新」で確認できます。"
+                                      "Card received. Approval follows Stripe's notification, usually within seconds. Use 状態を更新 to re-check.")
+                            "cancelled" (t "カード登録を中断しました。下のボタンから再開できます。"
+                                           "Card entry was cancelled. Resume below.")
+                            (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。カード登録を中断した場合は下のボタンから再開できます。" "Approval happens automatically when Stripe completes. Refresh this page to see the change. If you left the card entry midway, resume below.")))
                     ;; A pending challenge means a setup session may still be
                     ;; open — re-running start mints a fresh one (or verifies
                     ;; inline once the card is on file), so keep the button
@@ -143,13 +159,24 @@
                   (str (:id s) " · " (:status s) " · " (str/join ", " (:tasks s))))
             (.append host row)))))))
 
-(defn render-billing [r]
+(defn render-billing
+  "The billing cell from /v1/billing/status: {status plan balances} once
+  billing is configured, {status pending-configuration} before. The old
+  branch read a `checkoutEnabled` key that only the catalog carries, so a
+  configured account still said \"in validation\" (live 2026-09-15, after
+  checkout opened)."
+  [r]
   (state! "account-billing-state" (if (:httpOk r) :value :error))
   (say! "account-billing-state"
         (cond
           (not (:httpOk r)) (t "請求サービスに接続できません。" "Billing service unavailable.")
-          (:checkoutEnabled r) (t "有料枠の購入・管理は料金ページから行えます。" "Purchases and management are on the plans page.")
-          :else (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet."))))
+          (= "pending-configuration" (:status r)) (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet.")
+          (= "frozen" (:status r)) (t "請求の照合が必要です。サポートに連絡してください。" "Billing needs reconciliation. Contact support.")
+          :else (let [ai (some #(when (= "ai" (:scope %)) %) (:balances r))
+                      avail (.toFixed (/ (or (:availableMicroUSD ai) 0) 1000000) 2)
+                      plan (:plan r)]
+                  (t (str (if plan (str plan " プラン") "無料枠") " · AI 残高 $" avail " · 購入・管理は料金ページから")
+                     (str (if plan (str plan " plan") "Free allowance") " · AI balance $" avail " · buy and manage on the billing page"))))))
 
 (defn render-team [r]
   (let [host (el "account-team")]
@@ -189,6 +216,218 @@
 
 (declare refresh!)
 
+;; ── linked identities (Google / GitHub) ─────────────────────────────────────
+
+(defn- provider-label [p] (case p "google" "Google" "github" "GitHub" p))
+
+(defn render-linked
+  "Rows of Google / GitHub links from the identity ledger, each with an
+  unlink action. Passkeys / wallets are ways in and are not listed here."
+  [r]
+  (let [host (el "account-linked")
+        rows (filter #(and (contains? #{"google" "github"} (:provider %)) (nil? (:revokedAt %)))
+                     (:identities r))]
+    (when host
+      (.replaceChildren host)
+      (cond
+        (not (:httpOk r))
+        (let [p (.createElement js/document "p")]
+          (set! (.-className p) "ck-console__note")
+          (set! (.-textContent p) (t "連携状態を読み込めませんでした。" "Could not read linked accounts."))
+          (.append host p))
+        (empty? rows)
+        (let [p (.createElement js/document "p")]
+          (set! (.-className p) "ck-console__note")
+          (set! (.-textContent p) (t "連携アカウントはありません。" "No linked accounts."))
+          (.append host p))
+        :else
+        (doseq [row rows]
+          (let [div (.createElement js/document "div")
+                text (.createElement js/document "span")
+                btn (.createElement js/document "button")]
+            (set! (.-className div) "ck-console__row")
+            (set! (.-textContent text)
+                  (str (provider-label (:provider row)) " · " (or (:email row) (:name row) (abbreviate (:subject row)))))
+            (set! (.-className btn) "dads-button")
+            (.setAttribute btn "data-type" "text")
+            (.setAttribute btn "data-size" "sm")
+            (set! (.-type btn) "button")
+            (set! (.-textContent btn) (t "解除" "Unlink"))
+            (.addEventListener btn "click"
+                               (fn [_]
+                                 (set! (.-disabled btn) true)
+                                 (-> (api "/v1/account/identities/revoke" {:provider (:provider row) :subject (:subject row)})
+                                     (.then (fn [x]
+                                              (say! "account-linked-note"
+                                                    (if (:httpOk x)
+                                                      (t "解除しました。" "Unlinked.")
+                                                      (case (get-in x [:error :code])
+                                                        "reauthentication-required" (t "解除するには、サインインし直してから操作してください。" "Sign in again before unlinking.")
+                                                        (t "解除できませんでした。" "Could not unlink."))))
+                                              (refresh!))))))
+            (.append div text btn)
+            (.append host div)))))))
+
+(defn render-link-providers!
+  "Show a Continue-with / link button only for a provider auth.kotoba.cloud
+  can finish with; a button that leads to 'not configured' is worse than
+  none. The buttons start hidden in the document."
+  [r]
+  (let [enabled (set (:providers r))]
+    (doseq [[provider ids] {"google" ["account-continue-google" "account-link-google"]
+                            "github" ["account-continue-github" "account-link-github"]}
+            id ids]
+      (if (contains? enabled provider) (show! id) (hide! id)))
+    (when (empty? enabled)
+      (say! "account-linked-note"
+            (t "Google / GitHub 連携はこの環境ではまだ有効化されていません。" "Google / GitHub linking is not enabled in this environment yet.")))))
+
+(defn render-link-outcome!
+  "The apex is returned to with ?linked=<provider> or ?link_error=<code>
+  after auth.kotoba.cloud's link callback."
+  []
+  (let [params (.-searchParams (js/URL. (.-href js/location)))
+        linked (.get params "linked")
+        err (.get params "link_error")]
+    (cond
+      linked (say! "account-linked-note" (t (str (provider-label linked) " を連携しました。")
+                                            (str (provider-label linked) " linked.")))
+      err (say! "account-linked-note"
+                (case err
+                  "identity-linked-to-another-account"
+                  (t "この Google / GitHub アカウントは別の Kotoba アカウントに連携済みです。" "That Google/GitHub account is already linked to another Kotoba account.")
+                  (t (str "連携できませんでした: " err) (str "Could not link: " err)))))))
+
+;; ── organization SSO ────────────────────────────────────────────────────────
+
+(def ^:private sso-orgs (atom []))
+
+(defn- parse-role-map [s]
+  (into {} (for [pair (str/split (or s "") #",") :let [pair (str/trim pair)] :when (seq pair)
+                 :let [[g r] (map str/trim (str/split pair #"=" 2))] :when (and (seq g) (seq r))]
+             [g r])))
+
+(defn- parse-domains [s]
+  (vec (for [d (str/split (or s "") #",") :let [d (str/trim d)] :when (seq d)] d)))
+
+(defn- selected-org []
+  (some-> (el "account-sso-org") .-value))
+
+(defn- fill-sso-form! [status]
+  (let [sso (:sso status) policy (:policy status)]
+    (when-let [x (el "account-sso-issuer")] (set! (.-value x) (or (:issuer sso) "")))
+    (when-let [x (el "account-sso-max-age")] (set! (.-value x) (str (or (:maxAgeHours sso) ""))))
+    (when-let [x (el "account-sso-enforce")] (set! (.-checked x) (boolean (or (:enforce sso) (:enforce policy)))))))
+
+(defn render-sso-status [status]
+  (let [gate (get-in status [:sso :gate])
+        assertion (get-in status [:sso :assertion])]
+    (state! "account-org-sso-state" :value)
+    (say! "account-org-sso-state"
+          (cond
+            (not (:httpOk status)) (t "読み込めませんでした。" "Could not load.")
+            (not (get-in status [:sso :configured]))
+            (if (:eligible status)
+              (t (str (:plan status) " プラン · 未設定") (str (:plan status) " plan · not configured"))
+              (t (str "プラン: " (or (:plan status) "free") " · Team / Enterprise で利用できます")
+                 (str "Plan: " (or (:plan status) "free") " · available on Team / Enterprise")))
+            :else
+            (str (t "設定済み" "Configured") " · " (get-in status [:sso :issuer])
+                 " · " (if (get-in status [:sso :enforce]) (t "必須" "enforced") (t "任意" "optional"))
+                 " · " (case gate
+                         "open" (if assertion (t "認証済み" "asserted") (t "認証は任意" "not required"))
+                         "sso-assertion-required" (t "IdP での認証が必要" "IdP assertion required")
+                         "sso-assertion-expired" (t "IdP の再認証が必要" "IdP re-assertion required")
+                         (or gate "")))))
+    (if (:canConfigure status) (show! "account-org-sso-admin") (hide! "account-org-sso-admin"))
+    (if (and (get-in status [:sso :configured]) (not= "open" gate))
+      (show! "account-org-sso-member")
+      (if (get-in status [:sso :configured]) (show! "account-org-sso-member") (hide! "account-org-sso-member")))
+    (fill-sso-form! status)))
+
+(defn load-sso-status! []
+  (when-let [handle (selected-org)]
+    (state! "account-org-sso-state" :loading)
+    (-> (api (str "/v1/org/sso/status?org=" (js/encodeURIComponent handle)))
+        (.then render-sso-status))))
+
+(defn render-sso-orgs
+  "Populate the org selector from /v1/org/status, then load the selected
+  org's SSO standing. Without an org the panel says so and offers nothing."
+  [r]
+  (let [orgs (filter #(= "active" (:status %)) (:organizations r))
+        sel (el "account-sso-org")]
+    (reset! sso-orgs (vec orgs))
+    (when sel
+      (.replaceChildren sel)
+      (doseq [o orgs]
+        (let [opt (.createElement js/document "option")]
+          (set! (.-value opt) (:handle o))
+          (set! (.-textContent opt) (str (:handle o) " · " (:role o)))
+          (.append sel opt)))
+      (let [wanted (.get (.-searchParams (js/URL. (.-href js/location))) "sso")]
+        (when (and wanted (some #(= wanted (:handle %)) orgs)) (set! (.-value sel) wanted))))
+    (if (empty? orgs)
+      ;; a known fact ("no organization yet") is a :value, not :empty —
+      ;; :empty is "nothing said yet" and the browser arm refuses a cell
+      ;; left there after hydration (test/account-browser.cljk)
+      (do (state! "account-org-sso-state" :value)
+          (say! "account-org-sso-state" (t "組織を作成すると設定できます。" "Create an organization first."))
+          (hide! "account-org-sso-admin") (hide! "account-org-sso-member"))
+      (load-sso-status!))))
+
+(defn save-sso! []
+  (when-let [b (el "account-sso-save")]
+    (let [handle (selected-org)]
+      (set! (.-disabled b) true)
+      (say! "account-org-sso-note" (t "IdP を確認しています…" "Checking the identity provider…"))
+      (-> (api "/v1/org/sso/configure"
+               {:handle handle
+                :issuer (.-value (el "account-sso-issuer"))
+                :clientId (.-value (el "account-sso-client-id"))
+                :clientSecret (.-value (el "account-sso-client-secret"))
+                :domains (parse-domains (.-value (el "account-sso-domains")))
+                :roleMap (parse-role-map (.-value (el "account-sso-role-map")))
+                :maxAgeHours (let [v (js/parseInt (.-value (el "account-sso-max-age")) 10)] (if (js/isNaN v) 12 v))
+                :enforce (.-checked (el "account-sso-enforce"))})
+          (.then (fn [r]
+                   (set! (.-disabled b) false)
+                   (when-let [x (el "account-sso-client-secret")] (set! (.-value x) ""))
+                   (say! "account-org-sso-note"
+                         (if (:httpOk r)
+                           (t "保存しました。メンバーは「組織の IdP で認証する」から認証できます。" "Saved. Members can now assert with the organization's IdP.")
+                           (case (get-in r [:error :code])
+                             "org-plan-not-eligible" (t "Team / Enterprise プランが必要です。" "A Team or Enterprise plan is required.")
+                             "org-role-insufficient" (t "owner または admin だけが設定できます。" "Only an owner or admin can configure this.")
+                             "org-sso-entitlement-not-configured" (t "この環境では組織 SSO がまだ有効化されていません。" "Organization SSO is not enabled in this environment yet.")
+                             "connection is not usable" (t (str "設定を確認してください: " (get-in r [:error :detail])) (str "Check the settings: " (get-in r [:error :detail])))
+                             (t (str "保存できませんでした: " (get-in r [:error :code])) (str "Could not save: " (get-in r [:error :code]))))))
+                   (load-sso-status!)))))))
+
+(defn remove-sso! []
+  (when-let [b (el "account-sso-remove")]
+    (set! (.-disabled b) true)
+    (-> (api "/v1/org/sso/remove" {:handle (selected-org)})
+        (.then (fn [r]
+                 (set! (.-disabled b) false)
+                 (say! "account-org-sso-note" (if (:httpOk r) (t "削除しました。" "Removed.") (t "削除できませんでした。" "Could not remove.")))
+                 (load-sso-status!))))))
+
+(defn sync-sso!
+  "Back from the IdP (?sso=<org>): provision the membership the fresh
+  assertion implies, then show the standing."
+  []
+  (let [handle (.get (.-searchParams (js/URL. (.-href js/location))) "sso")]
+    (when (and handle (some #(= handle (:handle %)) @sso-orgs))
+      (-> (api "/v1/org/sso/sync" {:handle handle})
+          (.then (fn [r]
+                   (say! "account-org-sso-note"
+                         (if (:httpOk r)
+                           (t (str "IdP の認証を確認しました" (when (get-in r [:member :role]) (str " · ロール " (get-in r [:member :role]))))
+                              (str "IdP assertion confirmed" (when (get-in r [:member :role]) (str " · role " (get-in r [:member :role])))))
+                           (t (str "同期できませんでした: " (get-in r [:error :code])) (str "Could not sync: " (get-in r [:error :code])))))
+                   (refresh!)))))))
+
 (defn create-org! []
   (when-let [b (el "account-org-create")]
     (let [handle (.-value (el "account-org-handle"))]
@@ -216,16 +455,23 @@
     (say! "account-ekyc-note" (t "Stripe の確認セッションを作成しています…" "Creating the Stripe verification session…"))
     (-> (api "/v1/research/ekyc/start" {:scopeId "owned" :tasks ["code-review"]})
         (.then (fn [r]
-                 (if (and (:httpOk r) (:verificationUrl r))
+                 (cond
+                   (and (:httpOk r) (:verificationUrl r))
                    (set! (.-location js/window) (:verificationUrl r))
+                   ;; an admissible card was already on file: the authority
+                   ;; applied the approval chain inline and answered 200 with
+                   ;; no URL — re-read the console instead of calling it a failure
+                   (:httpOk r)
+                   (refresh!)
+                   :else
                    (do (say! "account-ekyc-note"
                              (case (get-in r [:error :code])
                                "card-verification-not-configured" (t "本人確認サービスは一時的に利用できません。時間をおいて再試行してください。" "Verification is temporarily unavailable. Try again later.")
                                "prepaid-card-not-accepted" (t "プリペイドカード・バーチャルカードは本人確認に使えません。クレジットカードまたはデビットカードを登録してください。" "Prepaid and virtual cards cannot be used for verification. Add a regular credit or debit card.")
+                               ("stripe-unavailable" "invalid-stripe-session") (t "Stripe に接続できませんでした。時間をおいて再試行してください。続く場合は support@kotoba.cloud へ。" "Could not reach Stripe. Try again later; if it persists, contact support@kotoba.cloud.")
                                "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
                                (t "開始できませんでした。状態を更新してください。" "Could not start. Refresh and retry.")))
-                       (set! (.-disabled b) false))))))
-        ))
+                       (set! (.-disabled b) false))))))))
 
 (defn render-pat [r]
   (let [result (el "account-pat-result")
@@ -261,12 +507,91 @@
                                "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
                                (t "発行できませんでした。状態を更新してください。" "Could not issue. Refresh and retry.")))))))))
 
+(declare load-pat-list!)
+
+(defn- token-row
+  "One issued token: label · issued date · id, and its own 取り消し (or the
+  revocation date once revoked)."
+  [{:keys [id label issuedAt revokedAt]}]
+  (let [row (.createElement js/document "div")
+        lab (.createElement js/document "span")
+        val (.createElement js/document "span")
+        issued (.toLocaleString (js/Date. issuedAt))]
+    (set! (.-className row) "ck-console__row")
+    (set! (.-className lab) "ck-console__label")
+    (set! (.-textContent lab) (or label (t "（ラベルなし）" "(no label)")))
+    (set! (.-className val) "ck-console__value")
+    (.setAttribute val "data-state" (if revokedAt "empty" "value"))
+    (set! (.-textContent val)
+          (str issued " · " id (when revokedAt (str " · " (t "取り消し済み " "revoked ") (.toLocaleString (js/Date. revokedAt))))))
+    (.appendChild row lab)
+    (.appendChild row val)
+    (when-not revokedAt
+      (let [btn (.createElement js/document "button")]
+        (set! (.-type btn) "button")
+        (set! (.-className btn) "dads-button")
+        (.setAttribute btn "data-type" "outline")
+        (.setAttribute btn "data-size" "sm")
+        (set! (.-textContent btn) (t "取り消し" "Revoke"))
+        (.addEventListener btn "click"
+                           (fn [_]
+                             (set! (.-disabled btn) true)
+                             (-> (api "/v1/account/api-token/revoke" {:tokenId id})
+                                 (.then (fn [r]
+                                          (say! "account-pat-list-note"
+                                                (if (:httpOk r)
+                                                  (t (str "トークン " id " を取り消しました。このトークンでの呼び出しは 401 になります。")
+                                                     (str "Token " id " revoked; calls with it now answer 401."))
+                                                  (t "取り消せませんでした。状態を更新してください。" "Could not revoke. Refresh and retry.")))
+                                          (load-pat-list!))))))
+        (.appendChild row btn)))
+    row))
+
+(defn render-pat-list [r]
+  (when-let [box (el "account-pat-list")]
+    (let [tokens (:tokens r [])]
+      (doseq [n (vec (array-seq (.querySelectorAll box "[data-token-row]")))] (.remove n))
+      (cond
+        (not (:httpOk r))
+        (do (state! "account-pat-list-state" :error))
+        ;; "none issued" is a known state, not an empty cell (console pattern)
+        (empty? tokens)
+        (do (state! "account-pat-list-state" :value)
+            (say! "account-pat-list-state" (t "発行済みのトークンはありません" "No tokens issued")))
+        :else
+        (do (state! "account-pat-list-state" :value)
+            (say! "account-pat-list-state" (t (str (count (remove :revokedAt tokens)) " 本が有効 / " (count tokens) " 本")
+                                              (str (count (remove :revokedAt tokens)) " active / " (count tokens))))
+            (doseq [tk tokens]
+              (let [row (token-row tk)]
+                (.setAttribute row "data-token-row" (:id tk))
+                (.appendChild box row)))))
+      (when-let [b (el "account-pat-revoke-legacy")]
+        (set! (.-hidden b) (some? (:legacyRevokedAt r)))))))
+
+(defn load-pat-list! []
+  (state! "account-pat-list-state" :loading)
+  (-> (api "/v1/account/api-tokens") (.then render-pat-list)))
+
+(defn revoke-legacy! []
+  (when-let [b (el "account-pat-revoke-legacy")]
+    (set! (.-disabled b) true)
+    (-> (api "/v1/account/api-token/revoke-legacy" {})
+        (.then (fn [r]
+                 (say! "account-pat-list-note"
+                       (if (:httpOk r)
+                         (t "登録前に発行したトークンをすべて失効しました。" "All legacy tokens revoked.")
+                         (t "失効できませんでした。状態を更新してください。" "Could not revoke. Refresh and retry.")))
+                 (set! (.-disabled b) false)
+                 (load-pat-list!))))))
+
 (defn create-pat! []
   (when-let [b (el "account-pat-create")]
     (set! (.-disabled b) true)
     (-> (api "/v1/account/api-token" {:label "cli"})
         (.then (fn [r]
                  (render-pat r)
+                 (when (and (:httpOk r) (:token r)) (load-pat-list!))
                  (when-not (and (:httpOk r) (:token r))
                    (set! (.-disabled b) false)))))))
 
@@ -287,7 +612,9 @@
                  (-> (api "/v1/research/status")
                      (.then (fn [r] (render-eligibility r) (render-scopes (:scopes r [])))))
                  (-> (api "/v1/org/status" {})
-                     (.then (fn [r] (render-orgs r) (render-team r))))
+                     (.then (fn [r] (render-orgs r) (render-team r) (render-sso-orgs r))))
+                 (-> (api "/v1/account/identities") (.then render-linked))
+                 (load-pat-list!)
                  (-> (api "/v1/billing/status") (.then render-billing)))))))
 
 (defn init! []
@@ -296,4 +623,19 @@
     (when-let [b (el "account-ekyc-start")] (.addEventListener b "click" start-ekyc!))
     (when-let [b (el "account-org-create")] (.addEventListener b "click" create-org!))
     (when-let [b (el "account-pat-create")] (.addEventListener b "click" create-pat!))
-    (refresh!)))
+    (when-let [b (el "account-pat-revoke-legacy")] (.addEventListener b "click" revoke-legacy!))
+    (when-let [b (el "account-sso-save")] (.addEventListener b "click" save-sso!))
+    (when-let [b (el "account-sso-remove")] (.addEventListener b "click" remove-sso!))
+    (when-let [b (el "account-sso-org")] (.addEventListener b "change" load-sso-status!))
+    (when-let [b (el "account-sso-assert")]
+      (.addEventListener b "click" (fn [_] (when-let [h (selected-org)]
+                                             (set! (.-href js/location) (str "/v1/org/sso/start?org=" (js/encodeURIComponent h)))))))
+    (render-link-outcome!)
+    (-> (api "/v1/account/link/providers") (.then render-link-providers!))
+    (-> (refresh!)
+        (.then (fn [_]
+                 ;; The org list is known once refresh! resolved; a ?sso=
+                 ;; return provisions the membership now.
+                 (when (.get (.-searchParams (js/URL. (.-href js/location))) "sso")
+                   (-> (api "/v1/org/status" {})
+                       (.then (fn [r] (render-sso-orgs r) (sync-sso!))))))))))

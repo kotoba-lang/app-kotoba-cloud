@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T10:00:11.016Z",
+ "generatedAt": "2026-09-15T10:19:06.070Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 45,
- "productCount": 368,
+ "productCount": 372,
  "ontology": {
   "nodes": 45,
-  "claims": 3992,
+  "claims": 4024,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerau6iustxzwdt6qqbis3d4b3opexxlqcfdejsrba4j7zgqgwoshq7a"
+   "/": "baguqeeraybcst3arns3njtponbqaaohjoc4ca5llynxre322nm6xu36j5vba"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -7381,6 +7381,66 @@
    "record": {
     "/": "baguqeeraekrqafrhsxqan4sq2sstzyeckyngt6njevxj7avnrw57ucagtica"
    }
+  },
+  {
+   "id": "trend-vbhn",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター for Home Network",
+   "categoryId": "iot-sec",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbhn.html",
+   "pricingNote": "public-list; router device incl. 1yr service 9,900 JPY (tax incl.), renewal 6,600 JPY/yr (ja_jp product page, fetched 2026-09-15, HTTP 200)",
+   "complianceFits": [
+    "cra",
+    "jp-appi"
+   ],
+   "record": {
+    "/": "baguqeera5j27rj5n56yqnvfeukb24vqaetf5cpiushbgcxgcamsqknwcylfa"
+   }
+  },
+  {
+   "id": "trend-hns",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "トレンドマイクロ ホームネットワークセキュリティ",
+   "categoryId": "iot-sec",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/hns/requirement.html",
+   "pricingNote": "bundled with ウイルスバスター for Home Network device (1yr 9,900 JPY / renewal 6,600 JPY incl. tax); no standalone price listed on the requirement page (fetched 2026-09-15, HTTP 200, no price markup found)",
+   "complianceFits": [
+    "cra",
+    "jp-appi"
+   ],
+   "record": {
+    "/": "baguqeeraskewn2gzzph6y5bzjsywijcrh74ro6w27wo7fruytv5y6miwgzoa"
+   }
+  },
+  {
+   "id": "trend-id-protection",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "トレンドマイクロ ID プロテクション (Trend Micro ID Protection)",
+   "categoryId": "password-mgr",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/idp.html",
+   "pricingNote": "consumer subscription via in-app purchase (mobile app only — not sold in the Trend Micro online shop); free personal-info leak check available on the product page (verified 2026-09-15, ja_jp product page)",
+   "record": {
+    "/": "baguqeerazm5na3scl6v7tejijvo7oxdcgy3ahufuez6srbkmmsb2wtzz2rma"
+   }
+  },
+  {
+   "id": "trend-password-manager",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "トレンドマイクロ パスワードマネージャー (Trend Micro Password Manager)",
+   "categoryId": "password-mgr",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/idp.html",
+   "pricingNote": "standalone product page https://www.trendmicro.com/ja_jp/forHome/products/pwmgr.html now 301-redirects to the トレンドマイクロ ID プロテクション page (HTTP 200, verified 2026-09-15) — the password manager is sold as a bundled feature of ID プロテクション (subscription via in-app purchase, no separate price list on the ja_jp page)",
+   "record": {
+    "/": "baguqeera5b3fayo44comzfwfd3cltku6tppp3uwp34rlw7wiwi5dpj5vxkva"
+   }
   }
  ],
  "blocks": {
@@ -9304,18 +9364,38 @@
    "bytes": 478,
    "codec": "dag-json"
   },
-  "baguqeerau6iustxzwdt6qqbis3d4b3opexxlqcfdejsrba4j7zgqgwoshq7a": {
-   "path": "/compliance-data/compliance/blocks/baguqeerau6iustxzwdt6qqbis3d4b3opexxlqcfdejsrba4j7zgqgwoshq7a.json",
+  "baguqeera5j27rj5n56yqnvfeukb24vqaetf5cpiushbgcxgcamsqknwcylfa": {
+   "path": "/compliance-data/compliance/blocks/baguqeera5j27rj5n56yqnvfeukb24vqaetf5cpiushbgcxgcamsqknwcylfa.json",
+   "bytes": 430,
+   "codec": "dag-json"
+  },
+  "baguqeeraskewn2gzzph6y5bzjsywijcrh74ro6w27wo7fruytv5y6miwgzoa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraskewn2gzzph6y5bzjsywijcrh74ro6w27wo7fruytv5y6miwgzoa.json",
+   "bytes": 543,
+   "codec": "dag-json"
+  },
+  "baguqeerazm5na3scl6v7tejijvo7oxdcgy3ahufuez6srbkmmsb2wtzz2rma": {
+   "path": "/compliance-data/compliance/blocks/baguqeerazm5na3scl6v7tejijvo7oxdcgy3ahufuez6srbkmmsb2wtzz2rma.json",
+   "bytes": 511,
+   "codec": "dag-json"
+  },
+  "baguqeera5b3fayo44comzfwfd3cltku6tppp3uwp34rlw7wiwi5dpj5vxkva": {
+   "path": "/compliance-data/compliance/blocks/baguqeera5b3fayo44comzfwfd3cltku6tppp3uwp34rlw7wiwi5dpj5vxkva.json",
+   "bytes": 675,
+   "codec": "dag-json"
+  },
+  "baguqeeraybcst3arns3njtponbqaaohjoc4ca5llynxre322nm6xu36j5vba": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraybcst3arns3njtponbqaaohjoc4ca5llynxre322nm6xu36j5vba.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera45tmazbcagalkcor3y6kw4loej5odyhup4ozpt7lvwwingqpyn2a": {
-   "path": "/compliance-data/compliance/blocks/baguqeera45tmazbcagalkcor3y6kw4loej5odyhup4ozpt7lvwwingqpyn2a.json",
-   "bytes": 263408,
+  "baguqeerah2nwfgjdj4jk27mr5gctwxq3qzkycpj52bvwoh34jtfpidkmuura": {
+   "path": "/compliance-data/compliance/blocks/baguqeerah2nwfgjdj4jk27mr5gctwxq3qzkycpj52bvwoh34jtfpidkmuura.json",
+   "bytes": 266719,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera45tmazbcagalkcor3y6kw4loej5odyhup4ozpt7lvwwingqpyn2a"
+  "/": "baguqeerah2nwfgjdj4jk27mr5gctwxq3qzkycpj52bvwoh34jtfpidkmuura"
  }
 }

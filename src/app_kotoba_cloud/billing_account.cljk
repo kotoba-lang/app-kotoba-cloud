@@ -52,9 +52,28 @@
                        params (cond-> {:customer (:stripe customer) :mode (if (:topup p) "payment" "subscription")
                                        :line_items [{:price price :quantity 1}] :metadata metadata
                                        :integration_identifier "kotoba_cloud_billing_qmxnptvz"
+                                       ;; promotion codes are entered by the buyer
+                                       ;; on Stripe's page; the grant still comes
+                                       ;; only from the paid invoice the webhook
+                                       ;; retrieves (billing/paid-line), so a code
+                                       ;; changes the price, never the allowance
+                                       :allow_promotion_codes true
+                                       ;; USD only: the AWAI account has Adaptive
+                                       ;; Pricing on, and the first live session
+                                       ;; (2026-09-15 21:41 JST, a buyer in Japan)
+                                       ;; presented $20 as ¥3,221 — a subscription
+                                       ;; created that way invoices in JPY and
+                                       ;; billing/paid-line (currency usd, cents
+                                       ;; amounts) would never grant it
+                                       :adaptive_pricing {:enabled false}
                                        :success_url "https://kotoba.cloud/billing/?checkout=complete"
                                        :cancel_url "https://kotoba.cloud/billing/?checkout=cancelled"}
-                                (not (:topup p)) (assoc :subscription_data {:metadata metadata} :expires_at expires))]
+                                (not (:topup p)) (assoc :subscription_data {:metadata metadata} :expires_at expires
+                                                        ;; a subscription whose first invoice is
+                                                        ;; fully discounted needs no card on file
+                                                        ;; (Stripe collects one when a later
+                                                        ;; invoice is due)
+                                                        :payment_method_collection "if_required"))]
                    (-> (.create (.. (gateway/client env) -checkout -sessions) (clj->js params)
                                 #js {:idempotencyKey (str "kotoba-checkout:" (:stripe customer) ":" requestId)})
                        (.then (fn [session]
@@ -72,6 +91,13 @@
                                                         (* (:gib grant) (:storage-gib-month billing/rates))
                                                         (* 1000000 (:credits grant)))
                                               :topup (boolean (:topup grant))
+                                              ;; The plan the grant came from, so
+                                              ;; /status can say which plan is
+                                              ;; active (organization SSO is a
+                                              ;; Team/Enterprise feature,
+                                              ;; ADR-2609151900). Grants written
+                                              ;; before this carry no sku.
+                                              :sku (:sku grant)
                                               :start (:start grant) :end (:end grant)}))
                              (or (decode saved) limits/empty-ledger) grants))))))
 (defn- admission [storage operation body]
@@ -157,6 +183,44 @@
                                 (when-not prior
                                   (save storage key {:event event :status "recorded" :recordedAt (js/Date.now)}))))
                        (.then (fn [_] (response {:accepted true :id (:transaction_id event)} 202))))))))))
+(def ^:private portal-features
+  ;; mirrors the qualified test configuration bpc_1UFI88ITDawH5x8adO7LxkD1
+  ;; (docs/billing/configuration.md 2026-09-14): payment-method update,
+  ;; customer information, invoice history; cancellation at period end
+  ;; without proration; no plan changes, no pauses.
+  {:business_profile {:headline "Kotoba Cloud"}
+   :default_return_url "https://kotoba.cloud/billing/"
+   :features {:customer_update {:enabled true :allowed_updates ["email" "address" "phone"]}
+              :invoice_history {:enabled true}
+              :payment_method_update {:enabled true}
+              :subscription_cancel {:enabled true :mode "at_period_end" :proration_behavior "none"}
+              :subscription_update {:enabled false}
+              :subscription_pause {:enabled false}}})
+
+(defn- portal-configuration
+  "The Customer Portal configuration id for this environment. Test mode
+   uses the configured id. Live mode never sends a test id to the live
+   account: it uses the id stored for this account, else the live
+   account's default configuration, else creates one with the qualified
+   features and stores its id."
+  [storage env]
+  (if-not (gateway/live? env)
+    (js/Promise.resolve (aget env "STRIPE_PORTAL_CONFIGURATION_ID"))
+    (-> (.get storage "portal-configuration")
+        (.then (fn [saved]
+                 (if saved (js/Promise.resolve (:id (decode saved)))
+                   (let [configs (.. (gateway/client env) -billingPortal -configurations)]
+                     (-> (.list configs #js {:is_default true :limit 1})
+                         (.then (fn [^js page]
+                                  (if-let [existing (first (array-seq (.-data page)))]
+                                    (.-id existing)
+                                    (-> (.create configs (clj->js portal-features)
+                                                 #js {:idempotencyKey (str "kotoba-portal:" (aget env "BILLING_ENVIRONMENT_ID"))})
+                                        (.then (fn [created] (.-id created)))))))
+                         (.then (fn [id]
+                                  (-> (save storage "portal-configuration" {:id id})
+                                      (.then (fn [_] id)))))))))))))
+
 (defn- handle [state env path body]
   (let [storage (aget state "storage") principal (:principal body)]
     (case path
@@ -168,14 +232,19 @@
       "/portal" (-> (.get storage "customer")
                       (.then (fn [saved]
                                (if-not saved (response {:error "no-billing-account"} 404)
-                                 (-> (.create (.. (gateway/client env) -billingPortal -sessions)
-                                              #js {:customer (:stripe (decode saved)) :return_url "https://kotoba.cloud/billing/" :configuration (aget env "STRIPE_PORTAL_CONFIGURATION_ID")})
+                                 (-> (portal-configuration storage env)
+                                     (.then (fn [configuration]
+                                              (.create (.. (gateway/client env) -billingPortal -sessions)
+                                                       #js {:customer (:stripe (decode saved)) :return_url "https://kotoba.cloud/billing/"
+                                                            :configuration configuration})))
                                      (.then #(response {:url (.-url %)} 200)))))))
       "/status" (-> (.get storage "limits")
                       (.then (fn [saved]
-                               (let [ledger (or (decode saved) limits/empty-ledger)]
+                               (let [ledger (or (decode saved) limits/empty-ledger)
+                                     now (js/Math.floor (/ (js/Date.now) 1000))]
                                  (response {:status (if (:frozen ledger) "frozen" (if saved "connected" "free"))
-                                            :balances (limits/balances ledger (js/Math.floor (/ (js/Date.now) 1000)))} 200)))))
+                                            :plan (billing/active-plan ledger now)
+                                            :balances (limits/balances ledger now)} 200)))))
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 (deftype BillingAccount [^js state env]
   Object

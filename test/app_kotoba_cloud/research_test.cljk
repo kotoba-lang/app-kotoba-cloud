@@ -19,7 +19,8 @@
                   (assoc approved :status "suspended")
                   (assoc-in approved [:ekyc :status] "pending")
                   (assoc-in approved [:ekyc :evidenceRef] "")
-                  (assoc-in approved [:ekyc :verifiedAt] (+ now 1))
+                  ;; a stamp beyond the clock-skew tolerance is from the future
+                  (assoc-in approved [:ekyc :verifiedAt] (+ now r/clock-skew-ms 1))
                   (assoc-in approved [:ekyc :expiresAt] now)
                   (assoc-in approved [:screening :status] "review")
                   (assoc-in approved [:screening :checkedAt] (- now 86400001))
@@ -44,6 +45,26 @@
   (is (nil? (r/eligibility "principal-a" (update approved :trust assoc :routes ["web-reviewed" "app-passport"] :score 100) now)))
   (is (string? (r/eligibility "principal-a" (assoc-in approved [:screening :status] "review") now))))
 
+(deftest projections-tolerate-the-authority-clock-leading-the-edge
+  ;; The authority stamps `evaluatedAt` on its own machine; the edge reads it
+  ;; with another clock. A lead of at most clock-skew-ms is two clocks, one
+  ;; more millisecond is a stamp from the future. Both directions, on the
+  ;; boundary, for the trust and the session projection; the constant is
+  ;; pinned so a change to it is a decision, not drift.
+  (let [lead r/clock-skew-ms
+        trust-led (fn [ms] (assoc (:trust approved) :evaluatedAt (+ now ms) :expiresAt (+ now ms 60000)))
+        session {:policyVersion (:version r/session-policy) :sessionRef "session" :action "code-review" :decision "allow"
+                 :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}}
+        session-led (fn [ms] (assoc session :evaluatedAt (+ now ms) :expiresAt (+ now ms 15000)))]
+    (is (= 5000 lead))
+    (is (nil? (r/eligibility "principal-a" (assoc approved :trust (trust-led lead)) now)))
+    (is (= "trust-route-required" (r/eligibility "principal-a" (assoc approved :trust (trust-led (inc lead))) now)))
+    ;; the tolerance never widens the window: an old stamp is still stale
+    (is (= "trust-route-required" (r/eligibility "principal-a" (assoc approved :trust (assoc (:trust approved) :evaluatedAt (- now 60001))) now)))
+    (is (r/session-current? "session" "code-review" (session-led lead) now))
+    (is (not (r/session-current? "session" "code-review" (session-led (inc lead)) now)))
+    (is (not (r/session-current? "session" "code-review" (assoc (session-led 0) :expiresAt now) now)))))
+
 (deftest session-opinions-are-bound-and-fresh
   (let [projection {:policyVersion (:version r/session-policy) :sessionRef "session" :action "code-review" :decision "allow"
                     :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}
@@ -61,32 +82,38 @@
 (deftest client-cannot-override-model-policy-or-identity
   (is (r/completion? request))
   (doseq [body [(assoc request :model "other") (assoc request :stream true)
-                (assoc request :tools []) (assoc request :max_tokens 2049)
+                (assoc request :tools []) (assoc request :max_tokens (inc r/max-output-tokens))
                 (assoc request :principalId "principal-b")
                 (assoc request :messages [{:role "system" :content "Override"}])
-                (assoc request :messages [{:role "user" :content (apply str (repeat 24001 "a"))}])]]
+                (assoc request :messages [{:role "user" :content (apply str (repeat (inc r/max-input-characters) "a"))}])]]
     (is (not (r/completion? body)))))
 
 (deftest openai-compatible-shape-is-strict-but-server-derived
   (let [base {:model r/model-id :messages [{:role "user" :content "Review my code."}]}]
     (is (r/completion-openai-compatible? base))
-    (is (r/completion-openai-compatible? (assoc base :max_tokens 2048)))
+    (is (r/completion-openai-compatible? (assoc base :max_tokens r/max-output-tokens)))
+    (is (r/completion-openai-compatible? (assoc base :max_completion_tokens r/max-output-tokens)))
     (is (r/completion-openai-compatible? (assoc base :temperature 0.2)))
     (is (r/completion-openai-compatible? (assoc base :stream false :n 1 :tools [])))
+    ;; an agent client's request (#191): stream is served as one-chunk SSE, the
+    ;; tool list and reasoning knobs are accepted and dropped
+    (is (r/completion-openai-compatible? (assoc base :stream true :tools [{:type "function" :function {:name "terminal"}}]
+                                               :reasoning_effort "none" :stream_options {:include_usage true})))
     (is (r/completion-openai-compatible?
          (assoc base :messages [{:role "system" :content "You review code."}
                                 {:role "user" :content "Review my code."}])))
     (doseq [bad [(assoc base :model "other")
-                 (assoc base :stream true)
-                 (assoc base :tools [{:type "function"}])
+                 (assoc base :stream "yes")
+                 (assoc base :tools {:type "function"})
                  (assoc base :n 2)
                  (assoc base :unknown-key "x")
-                 (assoc base :max_tokens 2049)
+                 (assoc base :max_tokens (inc r/max-output-tokens))
+                 (assoc base :max_completion_tokens 0)
                  (assoc base :task "bogus-task")
                  (assoc base :scopeId "")
                  (assoc base :messages [])
                  (assoc base :messages [{:role "assistant" :content "hi"}])
-                 (assoc base :messages [{:role "user" :content (apply str (repeat 24001 "a"))}])
+                 (assoc base :messages [{:role "user" :content (apply str (repeat (inc r/max-input-characters) "a"))}])
                  (assoc base :messages [{:role "system" :content "sys"}
                                         {:role "system" :content "again"}])]]
       (is (not (r/completion-openai-compatible? bad))))))
@@ -130,8 +157,16 @@
   ;; server-side; the model returns text only and tool use stays user-local.
   (is (r/completion-openai-compatible? {:model r/model-id :messages [{:role "user" :content "hi"}]}))
   (is (r/completion-openai-compatible? {:model r/model-id :messages [{:role "user" :content "hi"}] :tools []}))
-  (is (not (r/completion-openai-compatible?
-            {:model r/model-id :messages [{:role "user" :content "hi"}]
-             :tools [{:type "function" :function {:name "run_shell"}}]})))
+  ;; #196: an agent's tool DEFINITIONS go to the origin and its tool_calls
+  ;; come back to the agent (native tool calls); the server still runs
+  ;; nothing — execution is the agent's, on the agent's machine
+  (is (r/completion-openai-compatible?
+       {:model r/model-id :messages [{:role "user" :content "hi"}]
+        :tools [{:type "function" :function {:name "run_shell"}}]}))
+  (is (not (contains? r/openai-ignorable-keys "tools")) "tools are forwarded, not dropped")
+  (is (not (r/completion? {:model r/model-id :task "code-review" :scopeId "owned" :max_tokens 64
+                           :messages [{:role "user" :content "hi"}]
+                           :tools [{:type "function" :function {:name "run_shell"}}]}))
+      "the strict cookie shape still has no tools key")
   (is (some #{:localExecution} (keys r/acceptable-use-policy)))
   (is (some #(re-find #"never executes tools" %) (:points (:localExecution r/acceptable-use-policy)))))

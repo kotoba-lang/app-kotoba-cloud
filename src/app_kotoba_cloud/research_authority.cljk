@@ -178,7 +178,13 @@
     (string? value) (js->clj (js/JSON.parse value) :keywordize-keys true)
     :else (js->clj value :keywordize-keys true)))
 
-(def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
+;; Mirror of app-kotoba-cloud.research/free-limits (owner direction 2026-09-15:
+;; 524,288 input characters ≈ a 128k-token context, 32k output tokens; the
+;; daily count is unchanged).
+(def free-limits {:requestsPerDay 1000 :maxOutputTokens 32768 :maxInputCharacters 524288})
+;; Longest answer the job store accepts: 32k tokens of CJK text can approach
+;; 200k characters; SQLite-backed DO storage takes values up to 2 MB.
+(def max-content-characters 1048576)
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
 (def weights {"web-reviewed" 60 "app-passport" 80})
 (def threshold 60)
@@ -188,12 +194,17 @@
 (def session-window-ms 15000)
 (def upstream-models
   {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-cybersecurity-nvfp4"
-   "glm5.3-flash" "glm5.3-flash"})
+   "glm5.3-flash" "glm5.3-flash"
+   ;; blue team (the shared route): the public id is the publisher's id
+   "qwen/qwen3.8-flash" "qwen/qwen3.8-flash"
+   "z-ai/glm-5.3-flash" "z-ai/glm-5.3-flash"})
+(def blue-models #{"qwen/qwen3.8-flash" "z-ai/glm-5.3-flash"})
+(defn- blue-model? [public-id] (contains? blue-models public-id))
 (def public-model "qwen3.8-flash-next-whitehacker")
 (defn- upstream-model-for [public-id] (get upstream-models public-id public-model))
 
 ;; --- Card-based identity verification (sole verification/approval path) -----
-;; OrcaRouter-style assurance rung 1: a live payment method on file is the
+;; Assurance rung 1: a live payment method on file is the
 ;; verification instrument. Prepaid (and unknown-funding) cards are rejected;
 ;; only credit/debit funding admits. Challenges live under `ekyc:<principalId>`
 ;; (slot kept for wire compatibility). No document PII is persisted: only the
@@ -202,6 +213,32 @@
 (declare load-state save-state hmac! timing-safe=?)
 (def challenge-ttl-ms 900000)
 (def admissible-funding #{"credit" "debit"})
+;; Hosted Checkout (mode=setup) is refused without success_url — Stripe 400
+;; parameter_missing, measured live 2026-09-15 (every /v1/checkout/sessions
+;; POST from this route on the AWAI account was 400). The human is sent back
+;; to the account console, whose client re-reads /v1/research/ekyc/status;
+;; approval itself comes from the checkout.session.completed webhook, never
+;; from the redirect.
+(def account-console-url "https://kotoba.cloud/account")
+(def card-setup-success-url (str account-console-url "?card=done#account-panel-identity"))
+(def card-setup-cancel-url (str account-console-url "?card=cancelled#account-panel-identity"))
+
+(defn- stripe-error!
+  "Turn a non-ok Stripe response into the thrown `code`, keeping Stripe's own
+  error (type / code / param / message — never card or document data) in
+  ex-data and on the log line, so an operator can tell a missing param from a
+  revoked key from an outage. Discarding the body hid a 400 parameter_missing
+  behind `stripe-unavailable`."
+  [code path r]
+  (-> (.text r)
+      (.catch (fn [_] ""))
+      (.then (fn [detail]
+               (let [err (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
+                              (catch :default _ nil))
+                     stripe (when (map? err) (select-keys err [:type :code :param :message]))]
+                 (js/console.error "stripe-request-failed" path (.-status r)
+                                   (js/JSON.stringify (clj->js (or stripe {}))))
+                 (throw (ex-info code {:status 503 :stripeStatus (.-status r) :stripe stripe})))))))
 
 (defn- stripe-credential! [env]
   ;; Preferred dedicated card key; falls back to the Identity key, then the
@@ -221,7 +258,7 @@
                      :headers #js {"authorization" (str "Bearer " key)}})
       (.then (fn [r]
                (if (.-ok r) (.json r)
-                   (throw (ex-info "stripe-unavailable" {:status 503})))))))
+                   (stripe-error! "stripe-unavailable" path r))))))
 
 (defn- card-customer!
   "One Stripe customer per principal, minted server-side with an idempotency
@@ -237,7 +274,7 @@
                        :body (str "metadata[principal]=" (js/encodeURIComponent principal))})
         (.then (fn [r]
                  (if (.-ok r) (.json r)
-                     (throw (ex-info "stripe-unavailable" {:status 503}))))))))
+                     (stripe-error! "stripe-unavailable" "/v1/customers" r)))))))
 
 (defn- create-identity-session!
   "Inline Stripe Identity session create (document type, bound verification
@@ -318,7 +355,7 @@
              (js/JSON.stringify (clj->js challenge))))
 
 (defn- card-method!
-  "Card-based verification start (OrcaRouter-style rung 1). Mints/locates one
+  "Card-based verification start (assurance rung 1). Mints/locates one
   customer per principal, requires a live card on file, and rejects prepaid
   (and unknown-funding) cards. Returns a hosted Setup Session URL when no card
   is on file (the human completes card entry at checkout.stripe.com — never the
@@ -349,12 +386,14 @@
                                                         :body (str "mode=setup"
                                                                    "&customer=" (js/encodeURIComponent id)
                                                                    "&payment_method_types[0]=card"
+                                                                   "&success_url=" (js/encodeURIComponent card-setup-success-url)
+                                                                   "&cancel_url=" (js/encodeURIComponent card-setup-cancel-url)
                                                                    "&setup_intent_data[metadata][principal]=" (js/encodeURIComponent principal)
                                                                    "&metadata[principal]=" (js/encodeURIComponent principal)
                                                                    "&metadata[purpose]=identity-verification")})
                                          (.then (fn [r]
                                                   (if (.-ok r) (.json r)
-                                                      (throw (ex-info "stripe-unavailable" {:status 503})))))
+                                                      (stripe-error! "stripe-unavailable" "/v1/checkout/sessions" r))))
                                          (.then (fn [sess]
                                                   (let [s (js->clj sess :keywordize-keys true)]
                                                     (when-not (and (text? (:url s) 512) (text? (:id s) 128))
@@ -516,15 +555,22 @@
                                                             {:id (:scopeId challenge) :status "approved"
                                                              :tasks (:tasks challenge) :expiresAt (+ now 86400000)}))
                                           next (assoc next :status "active")]
-                                      (-> (save-challenge! storage (:principalId body)
-                                                           (assoc challenge :consumed true
-                                                                  :receiptId receipt-id :verifiedAt now))
-                                          (.then (fn [_] (save-state storage (assoc next :lastReview audit))))
-                                          (.then (fn [_]
-                                                   (response {:principalId (:principalId body)
-                                                              :status (:status next)
-                                                              :receiptId receipt-id
-                                                              :approvedBy (if setup? "stripe-card" "stripe-identity")} 200)))))))))))))))))
+                                      (let [consumed (assoc challenge :consumed true
+                                                            :receiptId receipt-id :verifiedAt now)]
+                                        (-> (save-challenge! storage (:principalId body) consumed)
+                                            ;; The replay lookup above resolves by the
+                                            ;; session index first; an index copy left
+                                            ;; unconsumed re-applied the chain on every
+                                            ;; Stripe retry (the E2E only passed when
+                                            ;; both calls shared a millisecond).
+                                            (.then (fn [_] (when (text? (:stripeSessionId challenge) 128)
+                                                             (save-session-challenge! storage (:stripeSessionId challenge) consumed))))
+                                            (.then (fn [_] (save-state storage (assoc next :lastReview audit))))
+                                            (.then (fn [_]
+                                                     (response {:principalId (:principalId body)
+                                                                :status (:status next)
+                                                                :receiptId receipt-id
+                                                                :approvedBy (if setup? "stripe-card" "stripe-identity")} 200))))))))))))))))))
 
 (defn- handle-ekyc-status [storage body]
   (-> (load-state storage)
@@ -581,15 +627,35 @@
     (not= "clear" (get-in record [:screening :status])) "review-required"
     (not (fresh? (get-in record [:screening :checkedAt]) (get-in record [:screening :expiresAt]) now screening-ttl-ms)) "screening-expired"
     :else nil))
-(defn- trust-valid? [trust now]
-  (and (vector? (:routes trust))
-       (<= 1 (count (:routes trust)) 2)
-       (= (count (:routes trust)) (count (set (:routes trust))))
-       (every? #(contains? weights %) (:routes trust))
-       (fresh? (:evaluatedAt trust) (:expiresAt trust) now trust-window-ms)
-       (number? (:score trust))
-       (= (:score trust) (min 100 (reduce + 0 (map weights (:routes trust)))))
-       (>= (:score trust) threshold)))
+(defn- trust-valid?
+  "The canonical trust grant is still backed by evidence: known, distinct
+  routes; the fixed-policy score; a grant stamped no later than now; and the
+  evidence the routes rest on (ekyc) verified and unexpired. The stored
+  stamp's own 60-second window is the PROJECTION's freshness (contract:
+  'caps freshness at 60 seconds or the earliest contributing evidence
+  expiry'), not the grant's lifetime — reading it as the lifetime made every
+  principal trust-route-required one minute after approval (measured live
+  2026-09-15, first card verification through the console)."
+  [record now]
+  (let [trust (:trust record) ekyc (:ekyc record)]
+    (and (vector? (:routes trust))
+         (<= 1 (count (:routes trust)) 2)
+         (= (count (:routes trust)) (count (set (:routes trust))))
+         (every? #(contains? weights %) (:routes trust))
+         (number? (:evaluatedAt trust)) (<= 0 (:evaluatedAt trust) now)
+         (= "verified" (:status ekyc))
+         (fresh? (:verifiedAt ekyc) (:expiresAt ekyc) now ekyc-ttl-ms)
+         (number? (:score trust))
+         (= (:score trust) (min 100 (reduce + 0 (map weights (:routes trust)))))
+         (>= (:score trust) threshold))))
+(defn- trust-projection
+  "What the edge sees: the grant re-stamped for at most 60 seconds, never past
+  the contributing evidence's expiry."
+  [record now]
+  (assoc (:trust record)
+         :evaluatedAt now
+         :expiresAt (min (+ now trust-window-ms) (get-in record [:ekyc :expiresAt]))
+         :policyVersion "kotoba-trust-routes-2026-09-v1"))
 (defn- session-projection [session-ref action now]
   ;; Uncalibrated projection: the edge has already authenticated the principal and
   ;; derived the session reference server-side over the private binding. Belief is
@@ -602,9 +668,8 @@
                  :assurance (research-policy/rung-allowance record now)
                  :compliance (secure/compliance-snapshot))
     true (assoc :continuous (session-projection session-ref action now))
-    (trust-valid? (:trust record) now)
-    (assoc :trust (assoc (:trust record) :evaluatedAt now :expiresAt (+ now trust-window-ms)
-                         :policyVersion "kotoba-trust-routes-2026-09-v1"))))
+    (trust-valid? record now)
+    (assoc :trust (trust-projection record now))))
 
 (defn- scope-approved? [record task scope-id now]
   (boolean (some #(and (= scope-id (:id %)) (= "approved" (:status %))
@@ -627,10 +692,23 @@
    :policyVersion "whitehat-2026-09-12-v1"
    :trustPolicyVersion "kotoba-trust-routes-2026-09-v1"
    :sessionPolicyVersion "kotoba-session-evidence-2026-09-v1"
-   :model (get-in job [:request :model]) :billing "free" :policyDecision "allowed"
+   :model (get-in job [:request :model]) :billing (or (:billing job) "free") :policyDecision "allowed"
    :receiptId (:receiptId job) :status (:status job)
    :task (get-in job [:request :task]) :scopeId (get-in job [:request :scopeId])
    :content (:content job)
+   ;; the provider's measured usage (token counts, model, timestamps — never
+   ;; the prompt) so the edge can settle a paid reservation from a terminal
+   ;; receipt, never from the request or the response text
+   :usageReceipt (:usageReceipt job)
+   :toolCalls (:toolCalls job)
+   :finishReason (:finishReason job)
+   ;; a failed run says what the route answered (status + the origin's own
+   ;; error object, never the prompt) so the edge can serve the origin's
+   ;; refusal of the request as the caller's 400 and a not-ready route as 502
+   :upstreamStatus (:upstreamStatus job)
+   :upstreamError (:upstreamError job)
+   :retryable (:retryable job)
+   :attempts (:attempts job)
    :record (public-record record session-ref (get-in job [:request :task]) now)})
 (defn- load-state [storage]
   (-> (js-invoke storage "get" "record") (.then decode)))
@@ -639,30 +717,157 @@
 
 (defn- store-job! [storage job]
   (js-invoke storage "put" (str "job:" (:jobId job)) (js/JSON.stringify (clj->js job))))
+
+;; --- job retention -----------------------------------------------------------
+;; A job record carries the prompt, the answer / tool_calls and the usage
+;; receipt. It exists so a retry can re-attach (deterministic id) and a paid
+;; job can settle from a terminal receipt — both happen within minutes. It
+;; is deleted 24 hours after its terminal state (or after its creation, for
+;; a job that never reached one): the ledger keeps the receipt id and the
+;; token counts, the audit log keeps refusals, nothing keeps the text.
+;; Until 2026-09-15 nothing deleted these records while the public page said
+;; prompts and outputs were never kept.
+(def job-retention-ms 86400000)
+
+(defn- job-expiry [job]
+  (let [anchor (or (:finishedAt job) (:createdAt job))]
+    (when (number? anchor) (+ anchor job-retention-ms))))
+
+(defn- arm-retention!
+  "Make sure an alarm fires no later than `due` (the DO keeps one alarm)."
+  [storage due]
+  (-> (js-invoke storage "getAlarm")
+      (.then (fn [current]
+               (when (or (nil? current) (> current due))
+                 (js-invoke storage "setAlarm" due))))
+      (.catch (fn [e] (js/console.error "job-retention-arm-failed" (str (or (.-message e) e)))))))
+
+(defn sweep-jobs!
+  "Delete every job record past its expiry; re-arm for the earliest one left.
+   Returns a promise of {:deleted n :kept n}."
+  [storage now]
+  (-> (js-invoke storage "list" #js {:prefix "job:"})
+      (.then (fn [^js entries]
+               (let [rows (atom [])]
+                 (.forEach entries (fn [v k] (swap! rows conj [k (decode v)])))
+                 (let [expired (filter (fn [[_ job]] (let [e (job-expiry job)] (or (nil? e) (<= e now)))) @rows)
+                       kept (remove (fn [[_ job]] (let [e (job-expiry job)] (or (nil? e) (<= e now)))) @rows)]
+                   (-> (js/Promise.all (clj->js (map (fn [[k _]] (js-invoke storage "delete" k)) expired)))
+                       (.then (fn [_]
+                                (when (seq kept)
+                                  (arm-retention! storage (apply min (map (fn [[_ job]] (job-expiry job)) kept))))
+                                (js/console.log "job-retention-sweep" (count expired) (count kept))
+                                {:deleted (count expired) :kept (count kept)})))))))))
 (defn- load-job [storage job-id]
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
-(defn- upstream-body [request]
-  #js {:model (upstream-model-for (:model request)) :stream false
-       :messages (clj->js (:messages request))
-       :max_tokens (:max_tokens request)})
+;; --- text-form tool calls -------------------------------------------------
+;; The origin's vLLM runs --tool-call-parser hermes, but this model emits
+;; Qwen3-Coder XML (`<tool_call><function=NAME><parameter=KEY>VALUE
+;; </parameter>…</function></tool_call>`), which that parser does not read —
+;; so the calls arrive as TEXT content and the agent, which only reads
+;; native tool_calls (or `<tool_call>{json}</tool_call>`), sees an empty
+;; answer and falls back to another provider (measured 2026-09-15 21:04).
+;; Convert both text forms to native tool_calls here. Parameter values are
+;; strings in the XML; the request's tool schema says which are numbers,
+;; booleans, objects or arrays (what vLLM's qwen3_xml parser does).
+(def ^:private tool-call-block #"<tool_call>([\s\S]*?)</tool_call>")
+(def ^:private xml-function #"<function=([^>\n]+)>([\s\S]*?)</function>")
+(def ^:private xml-parameter #"<parameter=([^>\n]+)>\n?([\s\S]*?)\n?</parameter>")
 
-(defn- modal-upstream-url
-  "The Modal deployment URL is an operator secret/configuration, never a
-  browser field. Restrict it to Modal's deployment host so this private Worker
-  cannot be turned into an arbitrary authenticated HTTP relay."
+(defn- schema-type [tools fname key]
+  (some (fn [t]
+          (when (= fname (get-in t [:function :name]))
+            (get-in t [:function :parameters :properties (keyword key) :type])))
+        tools))
+
+(defn- coerce-parameter [type value]
+  (case type
+    ("integer" "number") (let [n (js/Number value)] (if (js/isNaN n) value n))
+    "boolean" (case (.trim value) "true" true "false" false value)
+    ("object" "array") (try (js->clj (js/JSON.parse value)) (catch :default _ value))
+    value))
+
+(defn- xml-tool-call [tools body]
+  (when-let [[_ fname inner] (re-find xml-function body)]
+    (let [fname (.trim fname)
+          args (into {} (map (fn [[_ k v]] [(.trim k) (coerce-parameter (schema-type tools fname (.trim k)) v)])
+                             (re-seq xml-parameter inner)))]
+      {:id (str "call_" (subs (str (random-uuid)) 0 12)) :type "function"
+       :function {:name fname :arguments (js/JSON.stringify (clj->js args))}})))
+
+(defn- json-tool-call [body]
+  (let [parsed (try (js->clj (js/JSON.parse (.trim body)) :keywordize-keys true) (catch :default _ nil))]
+    (when (and (map? parsed) (string? (:name parsed)))
+      {:id (str "call_" (subs (str (random-uuid)) 0 12)) :type "function"
+       :function {:name (:name parsed)
+                  :arguments (let [a (:arguments parsed)]
+                               (if (string? a) a (js/JSON.stringify (clj->js (or a {})))))}})))
+
+(defn- text-tool-calls
+  "Native tool_calls recovered from text content, and the text that is left
+  once the blocks are removed (nil when only whitespace remains). Blocks that
+  parse as neither form are left in the text untouched."
+  [content tools]
+  (if-not (and (string? content) (.includes content "<tool_call>"))
+    {:content content :tool-calls nil}
+    (let [calls (keep (fn [[_ body]] (or (json-tool-call body) (xml-tool-call tools body)))
+                      (re-seq tool-call-block content))]
+      (if (empty? calls)
+        {:content content :tool-calls nil}
+        (let [rest (.trim (.replace content (js/RegExp. (.-source tool-call-block) "g") ""))]
+          {:content (when (seq rest) rest) :tool-calls (vec calls)})))))
+
+(defn- upstream-body
+  "The origin request. Client tool definitions and tool_choice pass through
+  when the edge admitted them: the origin's vLLM runs a tool-call parser, so
+  the model answers with native `tool_calls` the agent executes on ITS side
+  (nothing runs here). Without them the model cannot call anything — the
+  agent's first two calls came back empty and it fell back to another
+  provider (measured 2026-09-15)."
+  [request]
+  (clj->js (cond-> {:model (upstream-model-for (:model request)) :stream false
+                    :messages (:messages request)
+                    :max_tokens (:max_tokens request)}
+             (seq (:tools request)) (assoc :tools (:tools request))
+             (some? (:tool_choice request)) (assoc :tool_choice (:tool_choice request)))))
+
+(def blue-route-url
+  "The shared inference route's OpenAI-compatible endpoint. Which provider
+  stands behind it is operator configuration; the public catalog never
+  names it."
+  "https://openrouter.ai/api/v1/chat/completions")
+(defn- blue-route-headers
+  "Blue-team route. The key is an operator secret (BLUE_ROUTE_API_KEY);
+  without it the route refuses by name — a blue job never silently falls
+  back to the red team's dedicated deployment. The two attribution headers
+  are what the route expects from an application."
+  [env]
+  (let [key (aget env "BLUE_ROUTE_API_KEY")]
+    (when-not (text? key 512)
+      (throw (ex-info "blue-route-not-configured" {:status 503})))
+    #js {"content-type" "application/json"
+         "authorization" (str "Bearer " key)
+         "HTTP-Referer" "https://kotoba.cloud"
+         "X-Title" "Kotoba Cloud"}))
+(defn- red-route-url
+  "The dedicated research deployment's URL is an operator secret /
+  configuration (MODAL_INFERENCE_URL — the secret's name is fixed by the
+  stored value), never a browser field. Restricted to the deployment's host
+  so this private Worker cannot be turned into an arbitrary authenticated
+  HTTP relay."
   [env]
   (let [raw (aget env "MODAL_INFERENCE_URL")]
     (when-not (text? raw 2048)
-      (throw (ex-info "modal-inference-not-configured" {:status 503})))
+      (throw (ex-info "red-route-not-configured" {:status 503})))
     (let [url (js/URL. raw)
           host (.toLowerCase (.-hostname url))]
       (when-not (and (= "https:" (.-protocol url)) (.endsWith host ".modal.run"))
-        (throw (ex-info "modal-inference-url-invalid" {:status 503})))
+        (throw (ex-info "red-route-url-invalid" {:status 503})))
       raw)))
 
 (defn- upstream-usage-receipt
-  "Accept only Modal's measured OpenAI-compatible usage. Missing, negative, or
+  "Accept only the upstream's measured OpenAI-compatible usage. Missing, negative, or
   inconsistent values are a provider error; no request-derived estimate may
   enter a future billing ledger."
   [decoded job]
@@ -673,9 +878,9 @@
     (when-not (and (integer? input) (<= 0 input)
                    (integer? output) (<= 0 output)
                    (integer? total) (= total (+ input output)))
-      (throw (ex-info "modal-usage-receipt-invalid" {})))
+      (throw (ex-info "usage-receipt-invalid" {})))
     {:receiptVersion "kotoba-inference-usage-2026-09-v1"
-     :source "modal-openai-compatible"
+     :source "upstream-openai-compatible"
      :requestId (:jobId job)
      :receiptId (:receiptId job)
      :model (get-in job [:request :model])
@@ -686,49 +891,208 @@
      :totalTokens total
      :observedAt (js/Date.now)}))
 
+;; --- origin dispatch: absorb the deployment's cold start ---------------------
+;; The dedicated deployment scales to zero and rebuilds its GPU snapshot on
+;; every `modal deploy`. While no container is ready the platform holds a
+;; request ~2 min and then answers 303/502/504 (nothing listens yet), and the
+;; origin's own proxy answers 503 "model loading" once it does. One shot
+;; against that made a 14-minute deploy window a terminal `failed` job:
+;; measured 2026-09-15 12:38:03Z, an agent's first call landed the second
+;; the container went to sleep for its snapshot and failed after 129 s. The
+;; deployment's own `smoke` polls those four statuses; the authority now does
+;; the same, under the edge's 14-minute wait (research-gateway
+;; job-wait-budget-ms).
+(def not-ready-statuses #{303 502 503 504 524})
+(def dispatch-budget-ms 780000)
+(defn- not-ready-delay-ms
+  "5 s, 10 s, then 15 s between not-ready answers (INFERENCE_NOT_READY_DELAY_MS
+  scales the base; the local test sets it to 1)."
+  [env attempt]
+  (let [base (let [n (js/Number (or (aget env "INFERENCE_NOT_READY_DELAY_MS")
+                               (aget env "ORIGIN_LOADING_RETRY_MS") 5000))]
+               (if (and (js/Number.isFinite n) (pos? n)) n 5000))]
+    (min (* 3 base) (* base attempt))))
+(defn- delay-ms [ms] (js/Promise. (fn [resolve] (js/setTimeout resolve ms))))
+(def request-refusal-statuses
+  "The origin refused the REQUEST itself (context window, body shape): the
+  same request can never succeed, the edge serves it as the caller's 400."
+  #{400 413 422})
+(defn- retryable-failure?
+  "Whether the NEXT identical request may re-dispatch this failure
+  (handle-jobs-create). The route not being ready, a transport error, a
+  malformed answer (no status), or the route refusing the authority (401 /
+  403 / 404: operator configuration, fixed by the operator) can succeed on
+  a re-run; a request refusal cannot."
+  [status]
+  (not (contains? request-refusal-statuses status)))
+;; A run older than this is presumed dead (the Durable Object went away
+;; mid-run): a client retry re-queues it instead of polling "running" forever.
+(def stale-run-ms 1500000)
+
 (defn- run-inference! [env storage job-id]
-  ;; Detached from the request: the Durable Object writes the terminal state; a
-  ;; crashed run is reconciled on the next poll as "unknown", never re-dispatched.
+  ;; Detached from the request: the Durable Object writes the terminal state.
+  ;; Re-dispatch happens only through /jobs/create (handle-jobs-create): a
+  ;; client retry re-queues a `failed` job whose failure was retryable, or a
+  ;; run older than stale-run-ms.
   (let [p (load-job storage job-id)]
     (.then p (fn [job]
       (when (and job (= "queued" (:status job)))
-        (let [q (js/fetch (modal-upstream-url env)
-                          #js {:method "POST" :redirect "manual"
-                               :signal (js/AbortSignal.timeout 2100000)
-                               :headers #js {"content-type" "application/json"
-                                             "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))}
-                               :body (js/JSON.stringify (upstream-body (:request job)))})
+        (let [blue? (blue-model? (get-in job [:request :model]))
+              ;; the route is decided by the model's team (research.cljk
+              ;; teams): blue → the shared route, red → the dedicated
+              ;; deployment. A route that is not
+              ;; configured refuses by name INSIDE the promise chain, so the
+              ;; terminal catch below stores it — never a fallback to the
+              ;; other team's deployment.
+              unavailable (if blue? "blue-route-unavailable" "red-route-unavailable")
+              started (js/Date.now)
+              attempts (atom 0)
+              running (fn [status]
+                        (cond-> (assoc job :status "running" :startedAt started :attempts @attempts)
+                          status (assoc :lastUpstreamStatus status)))
+              one-fetch (fn []
+                          (swap! attempts inc)
+                          (try
+                            (js/fetch (if blue? blue-route-url (red-route-url env))
+                                      #js {:method "POST" :redirect "manual"
+                                           :signal (js/AbortSignal.timeout 2100000)
+                                           :headers (if blue?
+                                                      (blue-route-headers env)
+                                                      #js {"content-type" "application/json"
+                                                           "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
+                                           :body (js/JSON.stringify (upstream-body (:request job)))})
+                            (catch :default e (js/Promise.reject e))))
+              within-budget? (fn [] (< (- (js/Date.now) started) dispatch-budget-ms))
+              ;; not ready (303/502/503/504) or a transport error inside the
+              ;; budget: record what the route said, wait, ask again. The job
+              ;; stays "running", so the edge keeps polling and a second
+              ;; /jobs/create re-attaches instead of dispatching twice.
+              attempt (fn attempt []
+                        (-> (one-fetch)
+                            (.then (fn [r]
+                                     (if (and (contains? not-ready-statuses (.-status r)) (within-budget?))
+                                       (do
+                                         (js/console.warn "inference-origin-loading" job-id (.-status r) @attempts)
+                                         (-> (store-job! storage (running (.-status r)))
+                                             (.then (fn [_] (delay-ms (not-ready-delay-ms env @attempts))))
+                                             (.then attempt)))
+                                       r)))
+                            (.catch (fn [e]
+                                      (if (and (nil? (ex-data e)) (within-budget?))
+                                        (-> (store-job! storage (running nil))
+                                            (.then (fn [_] (delay-ms (not-ready-delay-ms env @attempts))))
+                                            (.then attempt))
+                                        (throw e))))))
+              ;; mark running BEFORE the first fetch: /jobs/create for the same
+              ;; id while this run is in flight must find "running", not
+              ;; "queued", or it would dispatch the origin twice
+              q (-> (store-job! storage (running nil))
+                    (.then (fn [_] (attempt))))
+              ;; ONE terminal catch at the end of the chain. The previous shape
+              ;; attached `fail` as the rejection handler of every `then`: a
+              ;; non-ok upstream threw in the ok-handler, the NEXT step's `fail`
+              ;; stored "failed" and resolved, and `succeed` then ran on
+              ;; undefined — overwriting the job as "succeeded" with nil content.
+              ;; The edge served that as 200 + `content: null` (measured live
+              ;; 2026-09-15, first two PAT completions after eligibility).
               fail (fn [e]
-                     (store-job! storage (assoc job :status "failed"
-                                                :error (str (or (.-message e) e))
-                                                :finishedAt (js/Date.now))))
-              succeed (fn [{:keys [content usage-receipt]}]
-                        (store-job! storage (assoc job :status "succeeded"
-                                                   :content content
-                                                   :usageReceipt usage-receipt
-                                                   :finishedAt (js/Date.now))))
+                     (let [data (ex-data e) finished (js/Date.now)]
+                       (js/console.error "inference-run-failed" job-id
+                                         (str (or (.-message e) e))
+                                         (js/JSON.stringify (clj->js (select-keys data [:status :upstream])))
+                                         (str "attempts=" @attempts " elapsedMs=" (- (js/Date.now) started)))
+                       (-> (store-job! storage (assoc job :status "failed"
+                                                      :error (str (or (.-message e) e))
+                                                      :upstreamStatus (:status data)
+                                                      ;; the origin's own error object (type/code/message,
+                                                      ;; never the prompt) so a 4xx can be served as the
+                                                      ;; caller's 400 with the reason
+                                                      :upstreamError (let [u (:upstream data)] (when (map? u) u))
+                                                      :retryable (retryable-failure? (:status data))
+                                                      :attempts @attempts
+                                                      :startedAt started
+                                                      :finishedAt finished))
+                           (.then (fn [_] (arm-retention! storage (+ finished job-retention-ms)))))))
+              succeed (fn [{:keys [content tool-calls finish-reason usage-receipt]}]
+                        (when-not (or (text? content max-content-characters) (seq tool-calls))
+                          (throw (ex-info "inference-result-empty" {})))
+                        (let [finished (js/Date.now)]
+                          (-> (store-job! storage (cond-> (assoc job :status "succeeded"
+                                                                 :content (when (text? content max-content-characters) content)
+                                                                 :finishReason finish-reason
+                                                                 :usageReceipt usage-receipt
+                                                                 :attempts @attempts
+                                                                 :startedAt started
+                                                                 :finishedAt finished)
+                                                    (seq tool-calls) (assoc :toolCalls (vec tool-calls))))
+                              (.then (fn [_] (arm-retention! storage (+ finished job-retention-ms)))))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
-                            (throw (ex-info "modal-inference-unavailable" {:status (.-status r)}))
-                            (.json r)))
-                        fail)
+                            ;; keep the upstream's own error type/code (never
+                            ;; the prompt) so the log names 401 vs 404 vs 5xx
+                            (-> (.text r)
+                                (.catch (fn [_] ""))
+                                (.then (fn [detail]
+                                         (let [err (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
+                                                        (catch :default _ nil))]
+                                           (throw (ex-info unavailable
+                                                           {:status (.-status r)
+                                                            :upstream (if (map? err) (select-keys err [:type :code :message])
+                                                                          (subs (str detail) 0 (min 200 (count (str detail)))))}))))))
+                            (.json r))))
               parsed (js-invoke fetched "then"
                        (fn [raw]
                          (let [decoded (decode raw)
-                               content (get-in decoded [:choices 0 :message :content])
-                               reasoning (get-in decoded [:choices 0 :message :reasoning])
-                               fallback (if (text? content 65536) content reasoning)
+                               choice (get-in decoded [:choices 0])
+                               content (get-in choice [:message :content])
+                               reasoning (get-in choice [:message :reasoning])
+                               native (let [tc (get-in choice [:message :tool_calls])]
+                                        (when (and (vector? tc) (seq tc)) tc))
+                               ;; reasoning stands in for empty content ONLY when the
+                               ;; answer is text: next to native tool calls it would be
+                               ;; served as the assistant's words (measured 2026-09-15
+                               ;; after the origin's qwen3_xml parser landed)
+                               fallback (cond (text? content max-content-characters) content
+                                              native nil
+                                              :else reasoning)
+                               ;; native tool calls: id / type function / name / arguments
+                               ;; (a JSON string). Anything else is a malformed origin answer.
+                               ;; Text-form calls (Qwen XML / json tags) are converted first.
+                               recovered (text-tool-calls fallback (get-in job [:request :tools]))
+                               fallback (:content recovered)
+                               tool-calls (or native (:tool-calls recovered))
+                               tool-calls-ok? (or (nil? tool-calls)
+                                                  (and (<= (count tool-calls) 64)
+                                                       (every? #(and (map? %) (text? (:id %) 128)
+                                                                     (= "function" (:type %))
+                                                                     (text? (get-in % [:function :name]) 64)
+                                                                     (string? (get-in % [:function :arguments]))
+                                                                     (<= (count (get-in % [:function :arguments])) max-content-characters))
+                                                               tool-calls)))
+                               ;; calls recovered from text arrive with the origin's
+                               ;; "stop"; the agent needs tool_calls to act on them
+                               finish-reason (cond (seq tool-calls) "tool_calls"
+                                                   (= "length" (:finish_reason choice)) "length"
+                                                   :else "stop")
                                expected (upstream-model-for (get-in job [:request :model]))]
                            (if-not (and (or (not expected)
                                             (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
-                                        (text? fallback 65536))
-                             (throw (ex-info "unexpected-modal-model-or-response" {}))
+                                        tool-calls-ok?
+                                        (or (text? fallback max-content-characters) tool-calls))
+                             (throw (ex-info "unexpected-upstream-model-or-response"
+                                             {:upstream {:model (:model decoded) :object (:object decoded)
+                                                         :finish (:finish_reason choice)}}))
                              {:content fallback
-                              :usage-receipt (upstream-usage-receipt decoded job)})))
-                       fail)]
-          (js-invoke parsed "then" succeed fail)))))))
+                              :tool-calls (when tool-calls
+                                            (mapv #(hash-map :id (:id %) :type "function"
+                                                             :function {:name (get-in % [:function :name])
+                                                                        :arguments (get-in % [:function :arguments])})
+                                                  tool-calls))
+                              :finish-reason finish-reason
+                              :usage-receipt (upstream-usage-receipt decoded job)}))))]
+          (js-invoke (js-invoke parsed "then" succeed) "catch" fail)))))))
 ;; --- request handling -------------------------------------------------------
 (defn- handle-status [storage body]
   (let [now (.now js/Date)]
@@ -759,6 +1123,19 @@
                        (.then (fn [_] (response {:principalId (:principalId body)
                                                  :applicationId (:applicationId app)} 200))))))))))
 
+(def max-requeues 3)
+(defn- requeue?
+  "True when a retry of the same completion should run the origin again:
+  a `failed` prior whose failure was retryable (a prior stored before this
+  field existed counts as retryable), or a queued/running prior older than
+  stale-run-ms. Never a succeeded, cancelled, or final-4xx prior, never
+  past max-requeues."
+  [prior now]
+  (and (< (or (:requeues prior) 0) max-requeues)
+       (or (and (= "failed" (:status prior)) (not (false? (:retryable prior))))
+           (and (contains? #{"queued" "running"} (:status prior))
+                (> (- now (or (:startedAt prior) (:requeuedAt prior) (:createdAt prior) now)) stale-run-ms)))))
+
 (defn- handle-jobs-create [storage body]
   (let [now (.now js/Date)]
     (when-not (completion-shape? body) (throw (ex-info "invalid-job-request" {:status 400})))
@@ -774,23 +1151,37 @@
         (.then (fn [record]
                  (let [record (or record {:status "none" :principalId (:principalId body)})]
                    ;; Firewall: deterministic tool deny INSIDE the loaded-record
-                   ;; branch, after the guardrail gate, before eligibility.
-                   (let [fw (secure/firewall-decision record (get-in body [:request :task]) now)]
+                   ;; branch, after the guardrail gate, before eligibility. The
+                   ;; blue team has no identity rung: it may call the three
+                   ;; standard tasks and nothing in the offensive band.
+                   (let [blue? (blue-model? (get-in body [:request :model]))
+                         task (get-in body [:request :task])
+                         fw (if blue?
+                              {:tool task :decision (if (contains? tasks task) "allow" "deny")}
+                              (secure/firewall-decision record task now))]
                      (when (= "deny" (:decision fw))
                        (throw (ex-info "firewall-denied"
                                        {:status 403
                                         :firewallVersion secure/firewall-version
                                         :tool (:tool fw)}))))
                    ;; Admission recheck happens here, atomically, before any reservation.
-                   (if-let [reason (or (eligibility-reason record now)
-                                       (when-not (trust-valid? (assoc (:trust record)
-                                                                      :evaluatedAt (- now 1000)
-                                                                      :expiresAt (+ now trust-window-ms -1000)) now)
-                                         "trust-route-required"))]
+                   ;; Blue team: a signed-in principal and free quota (the edge
+                   ;; authenticated the principal); red team: the whole ladder.
+                   (if-let [reason (when-not (blue-model? (get-in body [:request :model]))
+                                     (or (eligibility-reason record now)
+                                         (when-not (trust-valid? record now)
+                                           "trust-route-required")))]
                      (response {:error reason} 403)
-                     (let [day (utc-day now) used (quota-used record day)]
+                     ;; `:billing "paid"` is the edge's word that it holds a
+                     ;; reservation on the principal's prepaid ledger for this
+                     ;; job id (research-gateway paid-admission). A paid job is
+                     ;; not counted against the free daily quota and is not
+                     ;; refused by it; everything else (guardrails, firewall,
+                     ;; the identity ladder above) is the same bar.
+                     (let [day (utc-day now) used (quota-used record day)
+                           paid? (= "paid" (:billing body))]
                        (cond
-                         (>= used (:requestsPerDay free-limits))
+                         (and (not paid?) (>= used (:requestsPerDay free-limits)))
                          (response {:error "free-quota-exhausted"} 429)
                          :else
                          (-> (js-invoke storage "get" (str "job:" (:jobId body)))
@@ -800,16 +1191,53 @@
                                           (and prior (not= (get-in body [:request :messages])
                                                            (get-in prior [:request :messages])))
                                           (response {:error "job-input-conflict"} 409)
+                                          ;; A retry of the same completion re-dispatches a prior
+                                          ;; run that failed for a reason a re-run can fix (a
+                                          ;; transient origin failure, a cold start), or one that
+                                          ;; is presumed dead. The deterministic job id otherwise
+                                          ;; pinned one transient failure to that prompt forever —
+                                          ;; measured 2026-09-15: an agent's fixed opening prompt
+                                          ;; failed once in a deploy window and every later session
+                                          ;; got the same 502 in 0.3 s with no run. Like a fresh
+                                          ;; job it draws the free quota (a paid job re-attaches to
+                                          ;; its own reservation), so the daily cap still bounds it;
+                                          ;; requeues is a tighter per-prompt cap on top. A
+                                          ;; non-retryable failure (the origin refused the request
+                                          ;; itself: context window, shape) is NOT re-dispatched —
+                                          ;; it falls through and the edge serves the caller its 400.
+                                          (and prior (requeue? prior now))
+                                          (let [next (-> prior
+                                                         (dissoc :error :upstreamStatus :upstreamError :lastUpstreamStatus
+                                                                 :retryable :finishedAt :startedAt :attempts
+                                                                 :content :toolCalls :finishReason :usageReceipt)
+                                                         (assoc :status "queued"
+                                                                :billing (if paid? "paid" "free")
+                                                                :requeues (inc (or (:requeues prior) 0))
+                                                                :requeuedAt now))
+                                                counted (if paid? record
+                                                          (-> record (assoc-in [:usage :day] day)
+                                                              (assoc-in [:usage :count] (inc used))))]
+                                            (js/console.warn "inference-job-requeued" (:jobId body)
+                                                             (str "prior=" (:status prior) " upstreamStatus=" (:upstreamStatus prior)
+                                                                  " requeues=" (:requeues next)))
+                                            (-> (save-state storage counted)
+                                                (.then (fn [_] (store-job! storage next)))
+                                                (.then (fn [_] (response (job-response next record (:sessionRef body) now) 200)))))
                                           prior (response (job-response prior record (:sessionRef body) now) 200)
                                           :else
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
                                                      :status "queued" :receiptId (str "receipt-" (:jobId body))
-                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens])
+                                                     :billing (if paid? "paid" "free")
+                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens :tools :tool_choice])
                                                      :createdAt now :sessionRef (:sessionRef body)}
-                                                next (assoc-in record [:usage :day] day)
-                                                next (assoc-in next [:usage :count] (inc used))]
+                                                next (if paid? record
+                                                       (-> record (assoc-in [:usage :day] day)
+                                                           (assoc-in [:usage :count] (inc used))))]
                                             (-> (save-state storage next)
                                                 (.then (fn [_] (store-job! storage job)))
+                                                ;; a run that never reaches a terminal state
+                                                ;; still expires from its creation
+                                                (.then (fn [_] (arm-retention! storage (+ now job-retention-ms))))
                                                 (.then (fn [_]
                                                          (response (job-response job record (:sessionRef body) now) 200))))))))))))))))))))
 
@@ -864,9 +1292,75 @@
                                            :op (:op body) :receiptId (:receiptId audit)
                                            :status (:status next)} 200))))))))))
 
+;; --- personal API token registry -------------------------------------------
+;; The edge verifies a PAT statelessly (HMAC); this registry gives each v2
+;; token (tokenId) a life: label / issuedAt / revokedAt on the principal's
+;; record, consulted by the bearer path on every request. Legacy v1 tokens
+;; carry no id; `legacyRevokedAt` refuses all of them at once. Nothing here
+;; holds a token or its hash — only the 12-hex id the token itself carries.
+(def max-tokens-per-principal 32)
+
+(defn- tokens-of [record] (vec (or (:tokens record) [])))
+
+(defn- handle-tokens [storage op body]
+  (let [now (.now js/Date)
+        token-id (:tokenId body)]
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (let [record (or record {:status "none" :principalId (:principalId body)})
+                       tokens (tokens-of record)]
+                   (case op
+                     :tokens-register
+                     (cond
+                       (not (and (string? token-id) (re-matches #"[0-9a-f]{12}" token-id)))
+                       (response {:error "invalid-token-id"} 400)
+                       (some #(= token-id (:id %)) tokens)
+                       (response {:error "token-id-taken"} 409)
+                       (>= (count (remove :revokedAt tokens)) max-tokens-per-principal)
+                       (response {:error "too-many-tokens"} 409)
+                       :else
+                       (let [entry {:id token-id :issuedAt now
+                                    :label (when (text? (:label body) 64) (:label body))}]
+                         (-> (save-state storage (assoc record :tokens (conj tokens entry)))
+                             (.then (fn [_] (response {:principalId (:principalId body) :token entry} 200))))))
+                     :tokens-list
+                     (response {:principalId (:principalId body)
+                                :tokens (mapv #(select-keys % [:id :label :issuedAt :revokedAt]) tokens)
+                                :legacyRevokedAt (:legacyRevokedAt record)} 200)
+                     :tokens-revoke
+                     (if-not (some #(= token-id (:id %)) tokens)
+                       (response {:error "token-not-found"} 404)
+                       (let [next (mapv #(if (and (= token-id (:id %)) (nil? (:revokedAt %)))
+                                           (assoc % :revokedAt now) %) tokens)]
+                         (-> (save-state storage (assoc record :tokens next))
+                             (.then (fn [_] (response {:principalId (:principalId body)
+                                                       :token (some #(when (= token-id (:id %)) %) next)} 200))))))
+                     :tokens-revoke-legacy
+                     (-> (save-state storage (assoc record :legacyRevokedAt now))
+                         (.then (fn [_] (response {:principalId (:principalId body) :legacyRevokedAt now} 200))))
+                     :tokens-check
+                     ;; the bearer path's question: may this token act? A v2 id
+                     ;; must be registered and unrevoked; a legacy token (no id)
+                     ;; is admitted until legacy tokens are revoked.
+                     (let [entry (when token-id (some #(when (= token-id (:id %)) %) tokens))
+                           allowed? (if token-id
+                                      (and (some? entry) (nil? (:revokedAt entry)))
+                                      (nil? (:legacyRevokedAt record)))]
+                       (if allowed?
+                         (response {:principalId (:principalId body) :ok true
+                                    :tokenId token-id :label (:label entry)} 200)
+                         (response {:error (cond (nil? token-id) "legacy-token-revoked"
+                                                 (nil? entry) "token-unknown"
+                                                 :else "token-revoked")} 403))))))))))
+
 (defn- route-op [path]
   (case path
     "/status" :status
+    "/tokens/register" :tokens-register
+    "/tokens/list" :tokens-list
+    "/tokens/revoke" :tokens-revoke
+    "/tokens/revoke-legacy" :tokens-revoke-legacy
+    "/tokens/check" :tokens-check
     "/applications" :applications
     "/jobs/create" :jobs-create
     "/jobs/status" :jobs-status
@@ -940,6 +1434,8 @@
   (let [storage (aget state "storage") now (.now js/Date)]
     (case (route-op path)
       :status (handle-status storage body)
+      (:tokens-register :tokens-list :tokens-revoke :tokens-revoke-legacy :tokens-check)
+      (handle-tokens storage (route-op path) body)
       :applications (handle-applications storage body)
       :jobs-create (-> (handle-jobs-create storage body)
                        ;; Fire the detached upstream call only after the 202/200 is
@@ -965,6 +1461,10 @@
 
 (deftype ResearchAuthority [^js state env]
   Object
+  (alarm [_]
+    ;; job retention: the only alarm this object arms (arm-retention!)
+    (-> (sweep-jobs! (aget state "storage") (js/Date.now))
+        (.catch (fn [e] (js/console.error "job-retention-sweep-failed" (str (or (.-message e) e)))))))
   (fetch [_ request]
     (if (= "https://research.internal" (.-origin (js/URL. (.-url request))))
       (-> (.json request)

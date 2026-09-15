@@ -53,9 +53,15 @@
                      (status! (if (= "test" (aget catalog "mode"))
                                 (t "テスト決済のみ・実際の請求はありません。" "Test payments only — nothing is charged.")
                                 ""))
-                     (doseq [button (array-seq (.querySelectorAll js/document "[data-billing-sku]"))]
-                       (set! (.-hidden button) false)
-                       (.addEventListener button "click" #(action! "/v1/billing/checkout" (.getAttribute button "data-billing-sku"))))
+                     (let [purchasable (set (js->clj (or (aget catalog "purchasable") #js [])))]
+                       (doseq [button (array-seq (.querySelectorAll js/document "[data-billing-sku]"))]
+                         (let [sku (.getAttribute button "data-billing-sku")]
+                           (if (contains? purchasable sku)
+                             (do (set! (.-hidden button) false)
+                                 (.addEventListener button "click" #(action! "/v1/billing/checkout" sku)))
+                             ;; a plan the live catalog has no price for is shown, not sold
+                             (when-let [note (.querySelector js/document (str "[data-billing-unavailable=\"" sku "\"]"))]
+                               (set! (.-hidden note) false))))))
                      (when-let [button (el "billing-portal")]
                        (show! "billing-manage")
                        (.addEventListener button "click" #(action! "/v1/billing/portal" nil)))))))

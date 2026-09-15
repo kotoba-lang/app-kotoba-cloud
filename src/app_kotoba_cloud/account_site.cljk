@@ -14,8 +14,14 @@
 
   Labels are the person's task, not the protocol: 本人確認 / 組織 / チーム,
   ユーザー名 / プリンシパル — provider hosts, DID methods and roles live
-  under <details>. Page-level actions (状態を更新) render once. Japanese
-  copy; the page is emitted as a ja document."
+  under <details>. Page-level actions (状態を更新) render once.
+
+  Locales: the console body is authored in Japanese and English (`txt`);
+  the document is emitted once per public locale (site.cljk) with the shell
+  in that locale, the body in ja for :ja and in en for every other locale —
+  the same rule the landing page states in its own copy (\"some account
+  processes remain in English\"). account-browser reads <html lang> and
+  answers in the same language."
   (:require [jp-go-dds.core :as dds]
             [cloud-kotoba-dds.console :as console]))
 
@@ -67,106 +73,188 @@
   [summary & ps]
   (into [:details [:summary summary]] (map (fn [p] [:p p]) ps)))
 
-(defn panel-session []
-  (panel "アカウント"
-   (row "ユーザー名" "account-username")
-   (row "プリンシパル" "account-principal")
-   (details "プリンシパルとは"
-            "プリンシパルは、kotoba.cloud があなたを識別する安定した ID です。パスキーやウォレットを替えても変わりません。")
+(defn- txt-for [locale] (fn [ja en] (if (= locale :ja) ja en)))
+
+(defn panel-session [txt]
+  (panel (txt "アカウント" "Account")
+   (row (txt "ユーザー名" "Username") "account-username")
+   (row (txt "プリンシパル" "Principal") "account-principal")
+   (details (txt "プリンシパルとは" "What is a principal?")
+            (txt "プリンシパルは、kotoba.cloud があなたを識別する安定した ID です。パスキーやウォレットを替えても変わりません。"
+                 "The principal is the stable identifier kotoba.cloud knows you by. It does not change when you replace a passkey or a wallet."))
    {:id "account-panel-session"}))
 
-(defn panel-identity []
-  (panel "本人確認"
-   (row "確認状態" "account-ekyc-state")
+(defn panel-identity [txt]
+  (panel (txt "本人確認" "Identity verification")
+   (row (txt "確認状態" "Status") "account-ekyc-state")
    (console/note "" {:id "account-ekyc-note" :role "status"})
    (dds/row
-    (dds/button "本人確認を開始" {:id "account-ekyc-start" :type :solid-fill}))
-   (details "本人確認の方法"
-            "カード認証: クレジットカードまたはデビットカードを登録して完了します（checkout.stripe.com）。プリペイドカード・バーチャルカードは使えません。"
-            "書類確認（Stripe Identity、verify.stripe.com）と併用できます。カード情報と書類は Stripe にのみ送られ、kotoba.cloud は状態・有効期限・証跡参照だけを保持します。確認は 365 日で失効します。")
+    (dds/button (txt "本人確認を開始" "Start verification") {:id "account-ekyc-start" :type :solid-fill}))
+   (details (txt "本人確認の方法" "How verification works")
+            (txt "カード認証: クレジットカードまたはデビットカードを登録して完了します（checkout.stripe.com）。プリペイドカード・バーチャルカードは使えません。"
+                 "Card verification: register a credit or debit card to complete it (checkout.stripe.com). Prepaid and virtual cards are not accepted.")
+            (txt "書類確認（Stripe Identity、verify.stripe.com）と併用できます。カード情報と書類は Stripe にのみ送られ、kotoba.cloud は状態・有効期限・証跡参照だけを保持します。確認は 365 日で失効します。"
+                 "Document verification (Stripe Identity, verify.stripe.com) can be added. Card details and documents go to Stripe only; kotoba.cloud keeps the status, the expiry and an evidence reference. Verification expires after 365 days."))
    {:id "account-panel-identity"}))
 
-(defn panel-eligibility []
-  (panel "研究環境の利用"
-   (row "状態" "account-eligibility-state")
-   (row "無料枠" "account-free-tier")
+(defn panel-eligibility [txt]
+  (panel (txt "研究環境の利用" "Research access")
+   (row (txt "状態" "Status") "account-eligibility-state")
+   (row (txt "無料枠" "Free allowance") "account-free-tier")
    (console/note "" {:id "account-eligibility-note" :role "status"})
    {:id "account-panel-eligibility"}))
 
-(defn panel-scopes []
-  (panel "承認済みスコープ"
+(defn panel-scopes [txt]
+  (panel (txt "承認済みスコープ" "Approved scopes")
    [:div {:id "account-scopes"}
-    (row "状態" "account-scopes-state")]
-   (details "スコープとは"
-            "調査権限の根拠ごとに承認されます。期限切れ・停止中のスコープでは推論できません。")
+    (row (txt "状態" "Status") "account-scopes-state")]
+   (details (txt "スコープとは" "What is a scope?")
+            (txt "調査権限の根拠ごとに承認されます。期限切れ・停止中のスコープでは推論できません。"
+                 "Each scope is approved on its own basis for research. An expired or suspended scope cannot run inference."))
    {:id "account-panel-scopes"}))
 
-(defn panel-org []
-  (panel "組織"
+(defn panel-org [txt]
+  (panel (txt "組織" "Organization")
    [:div {:id "account-orgs"}
-    (row "状態" "account-orgs-state")]
+    (row (txt "状態" "Status") "account-orgs-state")]
    [:div {:class "ck-console__row"}
-    [:label {:class "ck-console__label" :for "account-org-handle"} "組織ハンドル"]
+    [:label {:class "ck-console__label" :for "account-org-handle"} (txt "組織ハンドル" "Organization handle")]
     [:span {:class "ck-console__value"}
      [:input {:id "account-org-handle" :placeholder "com-example.kotoba.cloud" :maxlength 80}]]]
    (dds/row
-    (dds/button "組織を作成" {:id "account-org-create" :type :solid-fill}))
+    (dds/button (txt "組織を作成" "Create organization") {:id "account-org-create" :type :solid-fill}))
    (console/note "" {:id "account-org-note" :role "status"})
-   (details "組織とチーム"
-            "組織は did:webvh の DID として発行され、メンバーシップは検証可能なクレデンシャル（VC）で管理されます。作成者には owner ロールが付与されます。"
-            "メンバーを招待すると API トークン・スコープ・請求を共有します。ロールは owner / admin / member / billing です。")
+   (details (txt "組織とチーム" "Organizations and teams")
+            (txt "組織は did:webvh の DID として発行され、メンバーシップは検証可能なクレデンシャル（VC）で管理されます。作成者には owner ロールが付与されます。"
+                 "An organization is issued as a did:webvh DID; membership is managed with verifiable credentials (VC). The creator receives the owner role.")
+            (txt "メンバーを招待すると API トークン・スコープ・請求を共有します。ロールは owner / admin / member / billing です。"
+                 "Invited members share API tokens, scopes and billing. Roles are owner / admin / member / billing."))
    {:id "account-panel-org"}))
 
-(defn panel-team []
-  (panel "チーム"
+(defn panel-linked [txt]
+  (panel (txt "連携アカウント" "Linked accounts")
+   [:div {:id "account-linked"}
+    (row (txt "状態" "Status") "account-linked-state")]
+   (dds/row
+    (dds/button (txt "Google を連携" "Link Google") {:id "account-link-google" :href "/account/link/google" :type :outline :attrs {:hidden true}})
+    (dds/button (txt "GitHub を連携" "Link GitHub") {:id "account-link-github" :href "/account/link/github" :type :outline :attrs {:hidden true}}))
+   (console/note "" {:id "account-linked-note" :role "status"})
+   (details (txt "連携アカウントとは" "What is a linked account?")
+            (txt "Google / GitHub のアカウントを紐づけると、次回から「Google で続行」でこのアカウントのパスキーが提案されます。連携アカウントはログイン手段ではなく、アカウントの目印です。"
+                 "Linking a Google or GitHub account lets \"Continue with Google\" offer this account's passkey next time. A linked account names the account; it is not a way to sign in.")
+            (txt "解除しても、パスキー・ウォレットでのログインには影響しません。"
+                 "Unlinking does not affect signing in with a passkey or a wallet."))
+   {:id "account-panel-linked"}))
+
+(defn panel-org-sso [txt]
+  (panel (txt "組織 SSO（Team / Enterprise）" "Organization SSO (Team / Enterprise)")
+   [:div {:id "account-org-sso"}
+    (row (txt "状態" "Status") "account-org-sso-state")]
+   [:div {:id "account-org-sso-admin" :hidden true}
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-org"} (txt "組織" "Organization")]
+     [:span {:class "ck-console__value"} [:select {:id "account-sso-org"}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-issuer"} "Issuer"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-issuer" :placeholder "https://login.example.com" :maxlength 512}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-client-id"} "Client ID"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-client-id" :maxlength 512}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-client-secret"} "Client secret"]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-client-secret" :type "password" :autocomplete "off" :maxlength 1024}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-domains"} (txt "メールドメイン" "Email domains")]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-domains" :placeholder "example.com, example.co.jp" :maxlength 512}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-role-map"} (txt "ロール対応 (group=role)" "Role mapping (group=role)")]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-role-map" :placeholder "kotoba-admins=admin, finance=billing" :maxlength 1024}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-max-age"} (txt "再認証間隔（時間）" "Re-authentication interval (hours)")]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-max-age" :inputmode "numeric" :placeholder "12" :maxlength 3}]]]
+    [:div {:class "ck-console__row"}
+     [:label {:class "ck-console__label" :for "account-sso-enforce"} (txt "IdP の認証を必須にする" "Require IdP authentication")]
+     [:span {:class "ck-console__value"} [:input {:id "account-sso-enforce" :type "checkbox"}]]]
+    (dds/row
+     (dds/button (txt "SSO を保存" "Save SSO") {:id "account-sso-save" :type :solid-fill})
+     (dds/button (txt "SSO を削除" "Remove SSO") {:id "account-sso-remove" :type :outline}))]
+   [:div {:id "account-org-sso-member" :hidden true}
+    (dds/row
+     (dds/button (txt "組織の IdP で認証する" "Authenticate with the organization's IdP") {:id "account-sso-assert" :type :outline}))]
+   (console/note "" {:id "account-org-sso-note" :role "status"})
+   (details (txt "組織 SSO とは" "What is organization SSO?")
+            (txt "組織の ID プロバイダー（Google Workspace / Microsoft Entra ID / Okta などの OpenID Connect）でメンバーを管理します。IdP から外れたメンバーは、次の再認証間隔で組織へのアクセスを失います。"
+                 "Members are managed by the organization's identity provider (OpenID Connect: Google Workspace, Microsoft Entra ID, Okta and others). A member removed from the IdP loses organization access at the next re-authentication interval.")
+            (txt "IdP はログイン手段ではありません。メンバーは先にパスキーまたはウォレットでログインし、その上で組織の IdP に認証してメンバーシップを得ます。ロールは admin / member / billing のいずれかで、owner は IdP から付与されません。"
+                 "The IdP is not a way to sign in. Members first sign in with a passkey or a wallet, then authenticate with the organization's IdP to obtain membership. Roles are admin / member / billing; owner is never granted by an IdP.")
+            (txt "Team / Enterprise プランの組織で利用できます。SAML は現時点では未対応です。"
+                 "Available to organizations on the Team / Enterprise plans. SAML is not supported yet."))
+   {:id "account-panel-org-sso"}))
+
+(defn panel-team [txt]
+  (panel (txt "チーム" "Team")
    [:div {:id "account-team"}
-    (row "状態" "account-team-state")]
-   (console/note "メンバーの招待は組織を作成すると開きます。" {:id "account-team-note"})
+    (row (txt "状態" "Status") "account-team-state")]
+   (console/note (txt "メンバーの招待は組織を作成すると開きます。" "Member invitations open once an organization exists.") {:id "account-team-note"})
    {:id "account-panel-team"}))
 
-(defn panel-secure []
+(defn panel-secure [txt]
   "The SECURE console has its own document (/secure/) rendered from the
   enforced policy; here only the entry, so the fact has one home."
-  (panel "セキュリティ管理"
-   (console/note "ガードレール・ファイアウォール・コンプライアンスの規則と版は、セキュリティ管理で確認できます。")
+  (panel (txt "セキュリティ管理" "Security controls")
+   (console/note (txt "ガードレール・ファイアウォール・コンプライアンスの規則と版は、セキュリティ管理で確認できます。"
+                      "Guardrail, firewall and compliance rules and their versions are shown under Security controls."))
    (dds/row
-    (dds/button "セキュリティ管理を開く" {:href "/secure/" :type :outline}))
+    (dds/button (txt "セキュリティ管理を開く" "Open security controls") {:href "/secure/" :type :outline}))
    {:id "account-panel-secure"}))
 
-(defn panel-billing []
-  (panel "請求・クレジット"
-   (row "状態" "account-billing-state")
+(defn panel-billing [txt]
+  (panel (txt "請求・クレジット" "Billing and credits")
+   (row (txt "状態" "Status") "account-billing-state")
    (dds/row
-    (dds/button "料金ページへ" {:href "/billing/" :type :outline}))
-   (details "課金について"
-            "本人確認済みの無料研究枠は課金されません。有料枠の購入は自動チャージなしです。")
+    (dds/button (txt "料金ページへ" "Go to billing") {:href "/billing/" :type :outline}))
+   (details (txt "課金について" "About charges")
+            (txt "本人確認済みの無料研究枠は課金されません。有料枠の購入は自動チャージなしです。"
+                 "The verified free research allowance is never charged. Paid capacity is bought without automatic top-up."))
    {:id "account-panel-billing"}))
 
-(defn panel-cli []
-  (panel "CLI / IDE から使う"
-   (console/note "ローカルの CLI / IDE エージェント用の接続トークンを発行します。表示は一度だけです。")
+(defn panel-cli [txt]
+  (panel (txt "CLI / IDE から使う" "Use from a CLI / IDE")
+   (console/note (txt "ローカルの CLI / IDE エージェント用の接続トークンを発行します。表示は一度だけです。"
+                      "Issue a connection token for a local CLI / IDE agent. It is shown once."))
    (dds/row
-    (dds/button "接続トークンを発行" {:id "account-pat-create" :type :solid-fill})
-    (dds/button "ガイドを開く" {:href "/ekyc.md" :type :outline}))
+    (dds/button (txt "接続トークンを発行" "Issue a connection token") {:id "account-pat-create" :type :solid-fill})
+    (dds/button (txt "ガイドを開く" "Open the guide") {:href "/ekyc.md" :type :outline}))
    (console/note "" {:id "account-pat-note" :role "status"})
    [:div {:id "account-pat-result" :hidden true}
     [:div {:class "ck-console__row"}
-     [:span {:class "ck-console__label"} "接続トークン（一度だけ表示）"]
+     [:span {:class "ck-console__label"} (txt "接続トークン（一度だけ表示）" "Connection token (shown once)")]
      [:span {:class "ck-console__value" :id "account-pat-token"} "—"]
-     (dds/button "コピー" {:id "account-pat-copy" :type :outline :size "sm"})]
+     (dds/button (txt "コピー" "Copy") {:id "account-pat-copy" :type :outline :size "sm"})]
     [:div {:class "ck-console__row"}
-     [:span {:class "ck-console__label"} "環境変数"]
+     [:span {:class "ck-console__label"} (txt "環境変数" "Environment variables")]
      [:span {:class "ck-console__value" :id "account-pat-env"} "—"]
-     (dds/button "コピー" {:id "account-pat-copy-env" :type :outline :size "sm"})]
+     (dds/button (txt "コピー" "Copy") {:id "account-pat-copy-env" :type :outline :size "sm"})]
     [:div {:class "ck-console__row"}
      [:span {:class "ck-console__label"} "curl"]
      [:span {:class "ck-console__value" :id "account-pat-curl"} "—"]
-     (dds/button "コピー" {:id "account-pat-copy-curl" :type :outline :size "sm"})]]
-   (details "エージェントからの利用"
-            [:span "Claude Code など MCP 対応エージェントは "
-             [:a {:href "/mcp.json"} "/mcp.json"] " を参照してください。完全なガイドは "
-             [:a {:href "/llms.txt"} "/llms.txt"] " と " [:a {:href "/ekyc.md"} "/ekyc.md"]
-             " にあります。取り消しは署名鍵の交換（サポート連絡）で行われます: support@kotoba.cloud"])
+     (dds/button (txt "コピー" "Copy") {:id "account-pat-copy-curl" :type :outline :size "sm"})]]
+   ;; issued tokens: one row per token (label · issued · id), each with its own
+   ;; 取り消し; filled by account-browser from /v1/account/api-tokens. Legacy
+   ;; tokens (issued before the registry) have no row; one action revokes them all.
+   [:div {:id "account-pat-list"}
+    (row (txt "発行済みトークン" "Issued tokens") "account-pat-list-state")]
+   (dds/row
+    (dds/button (txt "登録前に発行したトークンをすべて失効" "Revoke every token issued before the registry")
+                {:id "account-pat-revoke-legacy" :type :outline :size "sm"}))
+   (console/note "" {:id "account-pat-list-note" :role "status"})
+   (details (txt "エージェントからの利用" "Use from an agent")
+            [:span (txt "Claude Code など MCP 対応エージェントは " "MCP-capable agents such as Claude Code read ")
+             [:a {:href "/mcp.json"} "/mcp.json"]
+             (txt " を参照してください。完全なガイドは " ". The full guide is at ")
+             [:a {:href "/llms.txt"} "/llms.txt"] (txt " と " " and ") [:a {:href "/ekyc.md"} "/ekyc.md"]
+             (txt " にあります。トークンは上の一覧から 1 本ずつ取り消せます。取り消した瞬間から API は 401 token-revoked を返します。"
+                  ". Tokens are revoked one by one from the list above; from that moment the API answers 401 token-revoked.")])
    {:id "account-panel-cli"}))
 
 (def sign-in-href
@@ -174,22 +262,35 @@
    at; returns to this document."
   "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Faccount")
 
-(defn section []
-  [:section {:id "account-console" :class "kc-research-section"}
-   (dds/container
-    (dds/heading 1 "アカウント" {:size "36"})
-    ;; the ONE pending region of the idle document
-    [:div {:class "kc-account__status"}
-     [:p {:id "account-session-status" :role "status" :data-state "loading"}
-      "サインイン状態を確認しています…"]
-     [:span {:id "account-refresh-slot" :hidden true}
-      (dds/button "状態を更新" {:id "account-refresh" :type :outline :size "sm"})]]
-    [:noscript
-     (dds/button "サインイン" {:href sign-in-href :type :solid-fill})]
-    [:div {:id "account-signed-out" :class "kc-account__signed-out" :hidden true}
-     [:p "サインインすると、本人確認・研究環境の利用・組織・請求・接続トークンをここで管理できます。"]
-     (dds/row
-      (dds/button "サインイン" {:id "account-sign-in" :href sign-in-href :type :solid-fill}))]
-    (into [:div {:id "account-console-body" :class "kc-account" :hidden true}]
-          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes)
-           (panel-org) (panel-team) (panel-secure) (panel-billing) (panel-cli)]))])
+(defn section
+  "The console in one locale: :ja in Japanese, every other locale in
+   English (the shell around it is localized by site.cljk)."
+  ([] (section :ja))
+  ([locale]
+   (let [txt (txt-for locale)]
+     [:section {:id "account-console" :class "kc-research-section"}
+      (dds/container
+       (dds/heading 1 (txt "アカウント" "Account") {:size "36"})
+       ;; the ONE pending region of the idle document
+       [:div {:class "kc-account__status"}
+        [:p {:id "account-session-status" :role "status" :data-state "loading"}
+         (txt "サインイン状態を確認しています…" "Checking your sign-in status…")]
+        [:span {:id "account-refresh-slot" :hidden true}
+         (dds/button (txt "状態を更新" "Refresh") {:id "account-refresh" :type :outline :size "sm"})]]
+       [:noscript
+        (dds/button (txt "サインイン" "Sign in") {:href sign-in-href :type :solid-fill})]
+       [:div {:id "account-signed-out" :class "kc-account__signed-out" :hidden true}
+        [:p (txt "サインインすると、本人確認・研究環境の利用・組織・請求・接続トークンをここで管理できます。"
+                 "Sign in to manage identity verification, research access, organizations, billing and connection tokens here.")]
+        (dds/row
+         (dds/button (txt "サインイン" "Sign in") {:id "account-sign-in" :href sign-in-href :type :solid-fill})
+         ;; Google / GitHub name the account; the passkey or wallet proves it
+         ;; (ADR-2609151900). The apex hands off to auth.kotoba.cloud's link start.
+         (dds/button (txt "Google で続行" "Continue with Google") {:id "account-continue-google" :href "/sign-in/google" :type :outline :attrs {:hidden true}})
+         (dds/button (txt "GitHub で続行" "Continue with GitHub") {:id "account-continue-github" :href "/sign-in/github" :type :outline :attrs {:hidden true}}))
+        [:p {:class "ck-console__note"}
+         (txt "Google / GitHub はアカウントの特定に使います。ログイン自体はパスキーまたはウォレットで行い、パスワードは使いません。"
+              "Google / GitHub only identify the account. Signing in itself uses a passkey or a wallet — never a password.")]]
+       (into [:div {:id "account-console-body" :class "kc-account" :hidden true}]
+             [(panel-session txt) (panel-linked txt) (panel-identity txt) (panel-eligibility txt) (panel-scopes txt)
+              (panel-org txt) (panel-org-sso txt) (panel-team txt) (panel-secure txt) (panel-billing txt) (panel-cli txt)]))])))

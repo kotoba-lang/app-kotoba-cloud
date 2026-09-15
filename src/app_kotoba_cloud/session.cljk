@@ -18,9 +18,11 @@
   [locale]
   (str profile/identity-sign-in
        "?return_to="
+       ;; locale-free return: the apex negotiates; a Japanese reader comes
+       ;; back to /?lang=ja (served in place, choice persisted) — no /ja/ hop
        (if (= locale :en)
          "https%3A%2F%2Fkotoba.cloud%2F"
-         "https%3A%2F%2Fkotoba.cloud%2Fja%2F")))
+         "https%3A%2F%2Fkotoba.cloud%2F%3Flang%3Dja")))
 
 (defn apex-sign-in-location
   "Send mistaken apex login paths to the live Passkey RP, keeping any query

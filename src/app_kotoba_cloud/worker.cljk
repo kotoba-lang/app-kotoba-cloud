@@ -12,9 +12,12 @@
             [app-kotoba-cloud.security-fit :as security-fit]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
+            [app-kotoba-cloud.org-sso-gateway :as org-sso-gateway]
+            [app-kotoba-cloud.fake-report-gateway :as fake-report-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.sousa :as sousa]
+            [app-kotoba-cloud.console :as console]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.rootkey :as rootkey]
             [app-kotoba-cloud.pqc :as pqc]
@@ -289,13 +292,53 @@
                      (if (and (some? label)
                               (or (not (string? label)) (> (count label) 64)))
                        (private-json-response {:ok false :error "invalid-token-label"} 400)
+                       ;; mint, then REGISTER the id with the research authority —
+                       ;; an unregistered v2 token is refused on the bearer path,
+                       ;; so a failed registration must not hand out a token
                        (-> (pat/issue (:principalId viewer) secret)
-                           (.then (fn [token]
-                                    (private-json-response
-                                     {:ok true :token token
-                                      :label (when (seq label) label)
-                                      :note "This token is shown once. Store it now. Revocation is by rotating the signing secret — contact support@kotoba.cloud."
-                                      :issuedAt (.toISOString (js/Date.))}))))))))))))
+                           (.then (fn [{:keys [token tokenId]}]
+                                    (-> (research-gateway/token-registry-call
+                                         env "register" (:principalId viewer)
+                                         {:tokenId tokenId :label (when (seq label) label)})
+                                        (.then (fn [registered]
+                                                 (private-json-response
+                                                  {:ok true :token token :tokenId tokenId
+                                                   :label (get-in registered [:token :label])
+                                                   :note "This token is shown once. Store it now. Revoke it any time from the account console (CLI / IDE panel)."
+                                                   :issuedAt (.toISOString (js/Date. (get-in registered [:token :issuedAt])))})))
+                                        (.catch (fn [e]
+                                                  (private-json-response
+                                                   {:ok false :error (if (= "too-many-tokens" (ex-message e))
+                                                                       "too-many-tokens" "token-registry-unavailable")}
+                                                   (if (= "too-many-tokens" (ex-message e)) 409 503))))))))))))))))
+
+(defn- route-api-token-registry
+  "Same-origin, signed-in: list the principal's tokens (GET /v1/account/api-tokens),
+  revoke one (POST /v1/account/api-token/revoke {tokenId}), or revoke every
+  legacy token (POST /v1/account/api-token/revoke-legacy). Only ids and labels
+  cross this route; the token strings are never stored anywhere."
+  [request env viewer op]
+  (let [origin (.get (.-headers request) "origin")
+        method (.-method request)]
+    (cond
+      (and (= "POST" method) (not (contains? research-gateway/origins origin)))
+      (private-json-response {:ok false :error "invalid-origin"} 403)
+      :else
+      (-> (if (= "POST" method) (.text request) (js/Promise.resolve "{}"))
+          (.then (fn [text]
+                   (let [body (try (js->clj (js/JSON.parse (if (seq text) text "{}")) :keywordize-keys true)
+                                   (catch :default _ nil))]
+                     (if (and (= op "revoke") (not (pat/token-id? (:tokenId body))))
+                       (private-json-response {:ok false :error "invalid-token-id"} 400)
+                       (-> (research-gateway/token-registry-call env op (:principalId viewer)
+                                                                 (select-keys (or body {}) [:tokenId]))
+                           (.then (fn [answer] (private-json-response (assoc answer :ok true) 200)))
+                           (.catch (fn [e]
+                                     (let [code (ex-message e) status (or (:status (ex-data e)) 503)]
+                                       (private-json-response
+                                        {:ok false :error (if (contains? #{"token-not-found" "invalid-token-id"} code)
+                                                            code "token-registry-unavailable")}
+                                        (if (contains? #{"token-not-found" "invalid-token-id"} code) status 503))))))))))))))
 
 (def publication-schema
   "https://kotoba.cloud/schemas/library-publication-request/v3")
@@ -612,6 +655,7 @@
   (let [url (js/URL. (.-url request))
         decision (locale/static-decision
                   {:path path
+                   :query (.get (.-searchParams url) locale/query-param)
                    :cookie (session/cookie-value (.get (.-headers request) "cookie")
                                                  locale/cookie-name)
                    :accept-language (.get (.-headers request) "accept-language")
@@ -648,6 +692,31 @@
                                            "connect-src 'self'" "connect-src 'self' https://api.kotoba.cloud"))
                           (:set-cookie? decision)
                           (assoc "set-cookie" (locale/cookie-header (:locale decision)))))))))))))
+
+(def docs-host "docs.kotoba.cloud")
+
+(defn- route-docs-host
+  "docs.kotoba.cloud (owner direction 2026-09-15: /docs/ moves to its own
+  host). The documents are the /docs/… emit of the ONE asset tree — the
+  host root is that directory (/ → /docs/index.html, /reference/quickstart/
+  → /docs/reference/quickstart/); locale variants and ?lang= negotiate
+  exactly as on the apex (route-static over the apex-form path). The
+  documents themselves were emitted for this surface (console/href-for):
+  docs links are host-relative, apex links absolute."
+  [request env path]
+  (if (some #(.startsWith path %) console/shared-asset-prefixes)
+    (route-static request env path)
+    (let [url (js/URL. (.-url request))
+          apex-path (str "/docs" (if (= path "/") "/" path))
+          apex-url (str (get-in console/surfaces [:apex :origin]) apex-path (.-search url))]
+      (route-static (js/Request. apex-url request) env apex-path))))
+
+(defn- docs-host-location
+  "Where an apex /docs/… request goes: the same path on the docs host."
+  [path search]
+  (str (get-in console/surfaces [:docs :origin])
+       (console/href-for :docs path)
+       search))
 
 (defn- boot-error [error status]
   (response (js/JSON.stringify (clj->js {:ok false :error error}))
@@ -795,6 +864,14 @@
       (= hostname "boot.kotoba.cloud")
       (route-boot-host request env path)
 
+      (= hostname docs-host)
+      (route-docs-host request env path)
+
+      ;; the docs moved to docs.kotoba.cloud: the apex keeps the old
+      ;; addresses as a 301 (locale prefix first: /ja/docs/x → /docs/x → host)
+      (and (= method "GET") (or (= path "/docs") (.startsWith path "/docs/")))
+      (locale-redirect (docs-host-location path (.-search url)) 301)
+
       ;; Operator console: admin.kotoba.cloud serves only the console document
       ;; and the shared identity gateway. No marketing surface, no discovery,
       ;; noindex, no-store. The private authority still decides availability.
@@ -841,8 +918,11 @@
       (identity-gateway/operation path)
       (identity-gateway/route request env fetch-viewer private-json-response)
 
+      ;; /identity is a locale variant root like /account (2026-09-15): the
+      ;; negotiated emit is served in place by route-static, the document's
+      ;; own headers go on top
       (and (contains? #{"/identity" "/identity/"} path) (= method "GET"))
-      (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/identity/") request))
+      (-> (route-static (js/Request. (str (.-origin url) "/identity/" (.-search url)) request) env "/identity/")
           (.then #(with-security-headers % {"cache-control" "no-store, private"
                                            "content-security-policy" csp/identity-document
                                            "permissions-policy" "camera=(self), microphone=(), geolocation=(), payment=()"})))
@@ -850,8 +930,36 @@
       (contains? org-gateway/paths path)
       (org-gateway/route request env fetch-viewer private-json-response)
 
+      ;; Linked identities and organization SSO (ADR-2609151900): the apex
+      ;; owns plan + org role and mints the entitlement; auth.kotoba.cloud
+      ;; owns the IdP round trip. No session is minted on either side.
+      (contains? org-sso-gateway/paths path)
+      (org-sso-gateway/route request env fetch-viewer private-json-response)
+
+      ;; "Continue with Google / GitHub" — a link-start on auth.kotoba.cloud,
+      ;; not a sign-in: the provider names the account, the passkey proves it.
+      (and (= method "GET") (re-matches #"^/sign-in/(google|github)$" path))
+      (redirect (org-sso-gateway/link-start-location
+                 (second (re-matches #"^/sign-in/(google|github)$" path))
+                 ;; return to the locale-free apex; a catalog locale rides
+                 ;; along as ?lang= (served in place, no /ja/ hop)
+                 (let [l (locale/query-locale (.get (.-searchParams url) locale/query-param))]
+                   (str "https://kotoba.cloud/"
+                        (when (and l (not= l :en)) (str "?" locale/query-param "=" (name l))))))
+                (emit-signup-intent! request))
+      (and (= method "GET") (re-matches #"^/account/link/(google|github)$" path))
+      (redirect (org-sso-gateway/link-start-location
+                 (second (re-matches #"^/account/link/(google|github)$" path))
+                 "https://kotoba.cloud/account/"))
+
+      (contains? fake-report-gateway/paths path)
+      (fake-report-gateway/route request env fetch-viewer private-json-response)
+
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
-      (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
+      ;; the console is a locale variant root like /billing/: the negotiated
+      ;; emit (cookie, ?lang=, Accept-Language) is served in place by
+      ;; route-static; the account document's own headers go on top
+      (-> (route-static (js/Request. (str (.-origin url) "/account/" (.-search url)) request) env "/account/")
           (.then #(with-security-headers % {"cache-control" "no-store, private"
                                            "content-security-policy" csp/account-document})))
 
@@ -873,16 +981,10 @@
       ;; Former kotobase.net surfaces. Operations resolve to the graph
       ;; workbench on the apex document; documentation is a static page.
       ;; graph.kotoba.cloud stays unprovisioned (one canonical origin).
+      ;; Locale-free target: the apex negotiates the variant from the same
+      ;; cookie / Accept-Language this request carried (no /ja/ hop).
       (and (= path "/graph") (= method "GET"))
-      (redirect (if (= (locale/negotiate
-                        {:path path
-                         :cookie (session/cookie-value (.get (.-headers request) "cookie")
-                                                       locale/cookie-name)
-                         :accept-language (.get (.-headers request) "accept-language")
-                         :country (request-country request)})
-                       :ja)
-                 "/ja/#knowledge/overview"
-                 "/#knowledge/overview"))
+      (redirect "/#knowledge/overview")
 
       (and (= path "/v1/logout") (= method "POST"))
       (route-logout request)
@@ -895,6 +997,21 @@
                    (if-not (:valid viewer)
                      (private-json-response {:ok false :error "sign-in-required"} 401)
                      (route-api-token request env viewer)))))
+
+      ;; Token registry for the account console: list / revoke one / revoke
+      ;; legacy. Same viewer gate as issuance.
+      (or (and (= path "/v1/account/api-tokens") (= method "GET"))
+          (and (= path "/v1/account/api-token/revoke") (= method "POST"))
+          (and (= path "/v1/account/api-token/revoke-legacy") (= method "POST")))
+      (-> (fetch-viewer request)
+          (.then (fn [viewer]
+                   (if-not (:valid viewer)
+                     (private-json-response {:ok false :error "sign-in-required"} 401)
+                     (route-api-token-registry request env viewer
+                                               (case path
+                                                 "/v1/account/api-tokens" "list"
+                                                 "/v1/account/api-token/revoke" "revoke"
+                                                 "revoke-legacy"))))))
 
       ;; VM ledger API (PR: security-apps). Deterministic, stateless: POST
       ;; /v1/security/findings validates the submitted finding records and
@@ -975,7 +1092,7 @@
                                                                      "cache-control" "public, max-age=3600"}}))))))))
           (json-response {:error {:code "not-found"}} 404)))
 
-      ;; SECURE surface (orcarouter pattern): public metadata of the runtime
+      ;; SECURE surface: public metadata of the runtime
       ;; controls — guardrail templates, firewall tool map, compliance coverage.
       ;; Read-only; the authority enforces, the edge only describes.
       ;; Security-services suite catalog (describing only): the edge serves

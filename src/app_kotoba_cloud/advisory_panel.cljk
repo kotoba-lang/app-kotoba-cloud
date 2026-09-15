@@ -6,7 +6,7 @@
   count of distinct (endpoint, credential) pairs, not the count of models. Three
   models behind one aggregator and one key is one seat wearing three names.
 
-  The owner's decision (2026-09-06) is to start on OpenRouter with claude, gpt
+  The owner's decision (2026-09-06) is to start on one aggregator with claude, gpt
   and gemini and split the endpoints later. That is a reasonable order to build
   in and a dangerous one to forget, so `independence` computes the real number
   and `panel-verdict` carries it in every result. Nothing here refuses to run at
@@ -32,7 +32,10 @@
   be able to answer for a model without a network."
   (:require [kotoba.lang.text :as str]))
 
-(def openrouter-base "https://openrouter.ai/api/v1")
+(def aggregator-base
+  "The one aggregator endpoint the panel starts on (operator configuration;
+   the seat count below is what keeps this honest)."
+  "https://openrouter.ai/api/v1")
 
 (def default-panel
   "The starting panel. One base and one credential, on purpose and for now.
@@ -40,11 +43,11 @@
   `credential-ref` names where the key is read from, not the key. Two members
   sharing a ref share a failure, which is what `independence` counts."
   [{:seat :claude :model "anthropic/claude-sonnet-5"
-    :api-base openrouter-base :credential-ref "env:OPENROUTER_API_KEY"}
+    :api-base aggregator-base :credential-ref "env:OPENROUTER_API_KEY"}
    {:seat :gpt :model "openai/gpt-5.6-luna-pro"
-    :api-base openrouter-base :credential-ref "env:OPENROUTER_API_KEY"}
+    :api-base aggregator-base :credential-ref "env:OPENROUTER_API_KEY"}
    {:seat :gemini :model "google/gemini-3.8-flash"
-    :api-base openrouter-base :credential-ref "env:OPENROUTER_API_KEY"}])
+    :api-base aggregator-base :credential-ref "env:OPENROUTER_API_KEY"}])
 
 (defn independence
   "How many independent seats a panel actually has.
