@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.secure
-  "OrcaRouter-style SECURE surfaces: Guardrails (content policy enforced on
+  "SECURE surfaces: Guardrails (content policy enforced on
   every request), Firewall (which task tools a principal may call), and
   Compliance (framework coverage + audit-log retention + would-block events).
 
@@ -51,7 +51,11 @@
   "Returns {:verdict allow|block :matches [{ruleId action ruleIndex}]}
   over the flattened request messages. Deterministic; never invents."
   [messages]
-  (let [text (reduce str " " (mapcat (fn [m] [(str (:content m))]) (or messages [])))
+  ;; Tool-call arguments the client echoes back (assistant turns) are part of
+  ;; the conversation the model will read again; scan them with the content.
+  (let [text (reduce str " " (mapcat (fn [m] (into [(str (:content m))]
+                                                    (map #(str (get-in % [:function :arguments])) (:tool_calls m))))
+                                     (or messages [])))
         matches (for [[i rule] (map-indexed vector guardrail-templates)
                       :when (some #(rule-matches? % text) (:patterns rule))]
                   {:ruleId (:id rule) :action (:action rule) :ruleIndex i})]

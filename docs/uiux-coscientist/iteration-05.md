@@ -58,7 +58,7 @@ opened: none
 
 ## Console IA coverage (this round's second measurement — `console-coverage.edn`)
 
-Reference: the owner-supplied OrcaRouter console (15 screens). Coverage is
+Reference: the owner-supplied reference console (15 screens). Coverage is
 counted per destination as document / live data / action; a destination
 without a backend surface is recorded as a gap with its owner, never as a
 placeholder view.

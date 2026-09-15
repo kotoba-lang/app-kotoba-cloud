@@ -124,15 +124,15 @@
     // bpc_1UFI88ITDawH5x8adO7LxkD1 belongs to the Kotoba Labs test account
     // and must not be sent to the live account.
     "STRIPE_PORTAL_CONFIGURATION_ID": "",
-    // blue-team route (research.cljk teams :blue → OpenRouter). The key itself is a
-    // secret on the research authority Worker (OPENROUTER_API_KEY,
-    // wrangler.research.jsonc); this flag is what /v1/models reports as the
-    // blue models' availability. Set to "true" once the secret is stored.
     // Organization SSO (ADR-2609151900): Enterprise is quote-based, so an
     // operator grants it here as {"com-<handle>.kotoba.cloud": "enterprise"}.
     // Team comes from the org owner's paid Stripe plan (billing/active-plan).
     // ORG_SSO_ENTITLEMENT_SECRET is a Worker secret shared with kotobase-authn.
     "ORG_PLAN_OVERRIDES": "{}",
-    "OPENROUTER_CONFIGURED": "false"
+    // blue-team route (research.cljk teams :blue → the shared inference
+    // route). The key itself is a secret on the research authority Worker
+    // (BLUE_ROUTE_API_KEY, wrangler.research.jsonc); this flag is what
+    // /v1/models reports as the blue models' availability.
+    "BLUE_ROUTE_CONFIGURED": "true"
   }
 }

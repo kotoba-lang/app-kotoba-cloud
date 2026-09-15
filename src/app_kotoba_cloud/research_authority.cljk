@@ -181,7 +181,7 @@
 ;; Mirror of app-kotoba-cloud.research/free-limits (owner direction 2026-09-15:
 ;; 524,288 input characters ≈ a 128k-token context, 32k output tokens; the
 ;; daily count is unchanged).
-(def free-limits {:requestsPerDay 50 :maxOutputTokens 32768 :maxInputCharacters 524288})
+(def free-limits {:requestsPerDay 1000 :maxOutputTokens 32768 :maxInputCharacters 524288})
 ;; Longest answer the job store accepts: 32k tokens of CJK text can approach
 ;; 200k characters; SQLite-backed DO storage takes values up to 2 MB.
 (def max-content-characters 1048576)
@@ -195,7 +195,7 @@
 (def upstream-models
   {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-cybersecurity-nvfp4"
    "glm5.3-flash" "glm5.3-flash"
-   ;; blue team (OpenRouter): the public id is the OpenRouter id
+   ;; blue team (the shared route): the public id is the publisher's id
    "qwen/qwen3.8-flash" "qwen/qwen3.8-flash"
    "z-ai/glm-5.3-flash" "z-ai/glm-5.3-flash"})
 (def blue-models #{"qwen/qwen3.8-flash" "z-ai/glm-5.3-flash"})
@@ -204,7 +204,7 @@
 (defn- upstream-model-for [public-id] (get upstream-models public-id public-model))
 
 ;; --- Card-based identity verification (sole verification/approval path) -----
-;; OrcaRouter-style assurance rung 1: a live payment method on file is the
+;; Assurance rung 1: a live payment method on file is the
 ;; verification instrument. Prepaid (and unknown-funding) cards are rejected;
 ;; only credit/debit funding admits. Challenges live under `ekyc:<principalId>`
 ;; (slot kept for wire compatibility). No document PII is persisted: only the
@@ -355,7 +355,7 @@
              (js/JSON.stringify (clj->js challenge))))
 
 (defn- card-method!
-  "Card-based verification start (OrcaRouter-style rung 1). Mints/locates one
+  "Card-based verification start (assurance rung 1). Mints/locates one
   customer per principal, requires a live card on file, and rejects prepaid
   (and unknown-funding) cards. Returns a hosted Setup Session URL when no card
   is on file (the human completes card entry at checkout.stripe.com — never the
@@ -700,6 +700,8 @@
    ;; the prompt) so the edge can settle a paid reservation from a terminal
    ;; receipt, never from the request or the response text
    :usageReceipt (:usageReceipt job)
+   :toolCalls (:toolCalls job)
+   :finishReason (:finishReason job)
    :record (public-record record session-ref (get-in job [:request :task]) now)})
 (defn- load-state [storage]
   (-> (js-invoke storage "get" "record") (.then decode)))
@@ -711,40 +713,113 @@
 (defn- load-job [storage job-id]
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
-(defn- upstream-body [request]
-  #js {:model (upstream-model-for (:model request)) :stream false
-       :messages (clj->js (:messages request))
-       :max_tokens (:max_tokens request)})
+;; --- text-form tool calls -------------------------------------------------
+;; The origin's vLLM runs --tool-call-parser hermes, but this model emits
+;; Qwen3-Coder XML (`<tool_call><function=NAME><parameter=KEY>VALUE
+;; </parameter>…</function></tool_call>`), which that parser does not read —
+;; so the calls arrive as TEXT content and the agent, which only reads
+;; native tool_calls (or `<tool_call>{json}</tool_call>`), sees an empty
+;; answer and falls back to another provider (measured 2026-09-15 21:04).
+;; Convert both text forms to native tool_calls here. Parameter values are
+;; strings in the XML; the request's tool schema says which are numbers,
+;; booleans, objects or arrays (what vLLM's qwen3_xml parser does).
+(def ^:private tool-call-block #"<tool_call>([\s\S]*?)</tool_call>")
+(def ^:private xml-function #"<function=([^>\n]+)>([\s\S]*?)</function>")
+(def ^:private xml-parameter #"<parameter=([^>\n]+)>\n?([\s\S]*?)\n?</parameter>")
 
-(def openrouter-url "https://openrouter.ai/api/v1/chat/completions")
-(defn- openrouter-headers
-  "Blue-team route. The key is an operator secret (OPENROUTER_API_KEY);
+(defn- schema-type [tools fname key]
+  (some (fn [t]
+          (when (= fname (get-in t [:function :name]))
+            (get-in t [:function :parameters :properties (keyword key) :type])))
+        tools))
+
+(defn- coerce-parameter [type value]
+  (case type
+    ("integer" "number") (let [n (js/Number value)] (if (js/isNaN n) value n))
+    "boolean" (case (.trim value) "true" true "false" false value)
+    ("object" "array") (try (js->clj (js/JSON.parse value)) (catch :default _ value))
+    value))
+
+(defn- xml-tool-call [tools body]
+  (when-let [[_ fname inner] (re-find xml-function body)]
+    (let [fname (.trim fname)
+          args (into {} (map (fn [[_ k v]] [(.trim k) (coerce-parameter (schema-type tools fname (.trim k)) v)])
+                             (re-seq xml-parameter inner)))]
+      {:id (str "call_" (subs (str (random-uuid)) 0 12)) :type "function"
+       :function {:name fname :arguments (js/JSON.stringify (clj->js args))}})))
+
+(defn- json-tool-call [body]
+  (let [parsed (try (js->clj (js/JSON.parse (.trim body)) :keywordize-keys true) (catch :default _ nil))]
+    (when (and (map? parsed) (string? (:name parsed)))
+      {:id (str "call_" (subs (str (random-uuid)) 0 12)) :type "function"
+       :function {:name (:name parsed)
+                  :arguments (let [a (:arguments parsed)]
+                               (if (string? a) a (js/JSON.stringify (clj->js (or a {})))))}})))
+
+(defn- text-tool-calls
+  "Native tool_calls recovered from text content, and the text that is left
+  once the blocks are removed (nil when only whitespace remains). Blocks that
+  parse as neither form are left in the text untouched."
+  [content tools]
+  (if-not (and (string? content) (.includes content "<tool_call>"))
+    {:content content :tool-calls nil}
+    (let [calls (keep (fn [[_ body]] (or (json-tool-call body) (xml-tool-call tools body)))
+                      (re-seq tool-call-block content))]
+      (if (empty? calls)
+        {:content content :tool-calls nil}
+        (let [rest (.trim (.replace content (js/RegExp. (.-source tool-call-block) "g") ""))]
+          {:content (when (seq rest) rest) :tool-calls (vec calls)})))))
+
+(defn- upstream-body
+  "The origin request. Client tool definitions and tool_choice pass through
+  when the edge admitted them: the origin's vLLM runs a tool-call parser, so
+  the model answers with native `tool_calls` the agent executes on ITS side
+  (nothing runs here). Without them the model cannot call anything — the
+  agent's first two calls came back empty and it fell back to another
+  provider (measured 2026-09-15)."
+  [request]
+  (clj->js (cond-> {:model (upstream-model-for (:model request)) :stream false
+                    :messages (:messages request)
+                    :max_tokens (:max_tokens request)}
+             (seq (:tools request)) (assoc :tools (:tools request))
+             (some? (:tool_choice request)) (assoc :tool_choice (:tool_choice request)))))
+
+(def blue-route-url
+  "The shared inference route's OpenAI-compatible endpoint. Which provider
+  stands behind it is operator configuration; the public catalog never
+  names it."
+  "https://openrouter.ai/api/v1/chat/completions")
+(defn- blue-route-headers
+  "Blue-team route. The key is an operator secret (BLUE_ROUTE_API_KEY);
   without it the route refuses by name — a blue job never silently falls
-  back to the red team's Modal deployment."
+  back to the red team's dedicated deployment. The two attribution headers
+  are what the route expects from an application."
   [env]
-  (let [key (aget env "OPENROUTER_API_KEY")]
+  (let [key (aget env "BLUE_ROUTE_API_KEY")]
     (when-not (text? key 512)
-      (throw (ex-info "openrouter-not-configured" {:status 503})))
+      (throw (ex-info "blue-route-not-configured" {:status 503})))
     #js {"content-type" "application/json"
          "authorization" (str "Bearer " key)
          "HTTP-Referer" "https://kotoba.cloud"
          "X-Title" "Kotoba Cloud"}))
-(defn- modal-upstream-url
-  "The Modal deployment URL is an operator secret/configuration, never a
-  browser field. Restrict it to Modal's deployment host so this private Worker
-  cannot be turned into an arbitrary authenticated HTTP relay."
+(defn- red-route-url
+  "The dedicated research deployment's URL is an operator secret /
+  configuration (MODAL_INFERENCE_URL — the secret's name is fixed by the
+  stored value), never a browser field. Restricted to the deployment's host
+  so this private Worker cannot be turned into an arbitrary authenticated
+  HTTP relay."
   [env]
   (let [raw (aget env "MODAL_INFERENCE_URL")]
     (when-not (text? raw 2048)
-      (throw (ex-info "modal-inference-not-configured" {:status 503})))
+      (throw (ex-info "red-route-not-configured" {:status 503})))
     (let [url (js/URL. raw)
           host (.toLowerCase (.-hostname url))]
       (when-not (and (= "https:" (.-protocol url)) (.endsWith host ".modal.run"))
-        (throw (ex-info "modal-inference-url-invalid" {:status 503})))
+        (throw (ex-info "red-route-url-invalid" {:status 503})))
       raw)))
 
 (defn- upstream-usage-receipt
-  "Accept only Modal's measured OpenAI-compatible usage. Missing, negative, or
+  "Accept only the upstream's measured OpenAI-compatible usage. Missing, negative, or
   inconsistent values are a provider error; no request-derived estimate may
   enter a future billing ledger."
   [decoded job]
@@ -755,9 +830,9 @@
     (when-not (and (integer? input) (<= 0 input)
                    (integer? output) (<= 0 output)
                    (integer? total) (= total (+ input output)))
-      (throw (ex-info "modal-usage-receipt-invalid" {})))
+      (throw (ex-info "usage-receipt-invalid" {})))
     {:receiptVersion "kotoba-inference-usage-2026-09-v1"
-     :source "modal-openai-compatible"
+     :source "upstream-openai-compatible"
      :requestId (:jobId job)
      :receiptId (:receiptId job)
      :model (get-in job [:request :model])
@@ -776,17 +851,18 @@
       (when (and job (= "queued" (:status job)))
         (let [blue? (blue-model? (get-in job [:request :model]))
               ;; the route is decided by the model's team (research.cljk
-              ;; teams): blue → OpenRouter, red → Modal. A route that is not
+              ;; teams): blue → the shared route, red → the dedicated
+              ;; deployment. A route that is not
               ;; configured refuses by name INSIDE the promise chain, so the
               ;; terminal catch below stores it — never a fallback to the
               ;; other team's deployment.
-              unavailable (if blue? "openrouter-inference-unavailable" "modal-inference-unavailable")
+              unavailable (if blue? "blue-route-unavailable" "red-route-unavailable")
               q (try
-                  (js/fetch (if blue? openrouter-url (modal-upstream-url env))
+                  (js/fetch (if blue? blue-route-url (red-route-url env))
                             #js {:method "POST" :redirect "manual"
                                  :signal (js/AbortSignal.timeout 2100000)
                                  :headers (if blue?
-                                            (openrouter-headers env)
+                                            (blue-route-headers env)
                                             #js {"content-type" "application/json"
                                                  "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
                                  :body (js/JSON.stringify (upstream-body (:request job)))})
@@ -807,13 +883,15 @@
                                                   :error (str (or (.-message e) e))
                                                   :upstreamStatus (:status data)
                                                   :finishedAt (js/Date.now)))))
-              succeed (fn [{:keys [content usage-receipt]}]
-                        (when-not (text? content max-content-characters)
+              succeed (fn [{:keys [content tool-calls finish-reason usage-receipt]}]
+                        (when-not (or (text? content max-content-characters) (seq tool-calls))
                           (throw (ex-info "inference-result-empty" {})))
-                        (store-job! storage (assoc job :status "succeeded"
-                                                   :content content
-                                                   :usageReceipt usage-receipt
-                                                   :finishedAt (js/Date.now))))
+                        (store-job! storage (cond-> (assoc job :status "succeeded"
+                                                           :content (when (text? content max-content-characters) content)
+                                                           :finishReason finish-reason
+                                                           :usageReceipt usage-receipt
+                                                           :finishedAt (js/Date.now))
+                                              (seq tool-calls) (assoc :toolCalls (vec tool-calls)))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
@@ -832,17 +910,47 @@
               parsed (js-invoke fetched "then"
                        (fn [raw]
                          (let [decoded (decode raw)
-                               content (get-in decoded [:choices 0 :message :content])
-                               reasoning (get-in decoded [:choices 0 :message :reasoning])
+                               choice (get-in decoded [:choices 0])
+                               content (get-in choice [:message :content])
+                               reasoning (get-in choice [:message :reasoning])
                                fallback (if (text? content max-content-characters) content reasoning)
+                               ;; native tool calls: id / type function / name / arguments
+                               ;; (a JSON string). Anything else is a malformed origin answer.
+                               ;; Text-form calls (Qwen XML / json tags) are converted first.
+                               recovered (text-tool-calls fallback (get-in job [:request :tools]))
+                               fallback (:content recovered)
+                               tool-calls (let [tc (get-in choice [:message :tool_calls])]
+                                            (or (when (and (vector? tc) (seq tc)) tc)
+                                                (:tool-calls recovered)))
+                               tool-calls-ok? (or (nil? tool-calls)
+                                                  (and (<= (count tool-calls) 64)
+                                                       (every? #(and (map? %) (text? (:id %) 128)
+                                                                     (= "function" (:type %))
+                                                                     (text? (get-in % [:function :name]) 64)
+                                                                     (string? (get-in % [:function :arguments]))
+                                                                     (<= (count (get-in % [:function :arguments])) max-content-characters))
+                                                               tool-calls)))
+                               ;; calls recovered from text arrive with the origin's
+                               ;; "stop"; the agent needs tool_calls to act on them
+                               finish-reason (cond (seq tool-calls) "tool_calls"
+                                                   (= "length" (:finish_reason choice)) "length"
+                                                   :else "stop")
                                expected (upstream-model-for (get-in job [:request :model]))]
                            (if-not (and (or (not expected)
                                             (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
-                                        (text? fallback max-content-characters))
-                             (throw (ex-info "unexpected-modal-model-or-response"
-                                             {:upstream {:model (:model decoded) :object (:object decoded)}}))
+                                        tool-calls-ok?
+                                        (or (text? fallback max-content-characters) tool-calls))
+                             (throw (ex-info "unexpected-upstream-model-or-response"
+                                             {:upstream {:model (:model decoded) :object (:object decoded)
+                                                         :finish (:finish_reason choice)}}))
                              {:content fallback
+                              :tool-calls (when tool-calls
+                                            (mapv #(hash-map :id (:id %) :type "function"
+                                                             :function {:name (get-in % [:function :name])
+                                                                        :arguments (get-in % [:function :arguments])})
+                                                  tool-calls))
+                              :finish-reason finish-reason
                               :usage-receipt (upstream-usage-receipt decoded job)}))))]
           (js-invoke (js-invoke parsed "then" succeed) "catch" fail)))))))
 ;; --- request handling -------------------------------------------------------
@@ -935,7 +1043,7 @@
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
                                                      :status "queued" :receiptId (str "receipt-" (:jobId body))
                                                      :billing (if paid? "paid" "free")
-                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens])
+                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens :tools :tool_choice])
                                                      :createdAt now :sessionRef (:sessionRef body)}
                                                 next (if paid? record
                                                        (-> record (assoc-in [:usage :day] day)

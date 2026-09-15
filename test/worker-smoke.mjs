@@ -705,13 +705,16 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
       jobs.set(body.jobId, job);
       setTimeout(() => { if (job.status === "queued") {
         // upstreamOutcome: "ok" (default) | "failed" | "empty" — the last two
-        // are what a refused Modal origin used to look like on the edge
-        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "modal-inference-unavailable"; }
-        else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record.";
-          // the provider's measured usage as the authority stores it
-          job.usageReceipt = { receiptVersion: "kotoba-inference-usage-2026-09-v1", source: "modal-openai-compatible",
-            requestId: job.jobId, receiptId: job.receiptId, model: job.request.model, inputTokens: 120, cachedInputTokens: 0,
-            outputTokens: 30, totalTokens: 150, observedAt: Date.now() }; } } }, 5);
+        // are what a refused dedicated origin used to look like on the edge
+        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "red-route-unavailable"; }
+        else if (upstreamOutcome === "tool_calls") { job.status = "succeeded"; job.content = null; job.finishReason = "tool_calls";
+          job.toolCalls = [{ id: "call_9", type: "function", function: { name: "write_file", arguments: "{\"path\":\"a.txt\"}" } }]; }
+        else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; }
+        // the provider's measured usage as the authority stores it on every
+        // succeeded job (research_authority run-inference!)
+        if (job.status === "succeeded") job.usageReceipt = { receiptVersion: "kotoba-inference-usage-2026-09-v1", source: "origin-openai-compatible",
+          requestId: job.jobId, receiptId: job.receiptId, model: job.request.model, inputTokens: 120, cachedInputTokens: 0,
+          outputTokens: 30, totalTokens: 150, observedAt: Date.now() }; } }, 5);
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, policyDecision: "allowed",
@@ -770,26 +773,28 @@ assert.equal(researchCalls.length, 0);
 }
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
 const modelCatalogBody = await modelCatalog.json();
-// Two teams (owner direction 2026-09-15): red = Modal, the identity ladder;
-// blue = OpenRouter, sign-in + free quota. The blue rows' availability is the
-// edge's OPENROUTER_CONFIGURED flag, never the key.
+// Two teams (owner direction 2026-09-15): red = the dedicated research
+// deployment, the identity ladder; blue = the shared route, sign-in + free
+// quota. The blue rows' availability is the edge's BLUE_ROUTE_CONFIGURED
+// flag, never the key. No provider is named anywhere in the catalog.
 assert.deepEqual(modelCatalogBody.data.map(m => m.id).sort(),
   ["glm5.3-flash", "qwen/qwen3.8-flash", "qwen3.8-flash-next-whitehacker", "z-ai/glm-5.3-flash"]);
 const catalogRow = id => modelCatalogBody.data.find(m => m.id === id);
 assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").team, "red");
-assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").route, "modal");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").route, "dedicated");
 assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").availability, "upstream-tested-access-gated");
 assert.equal(catalogRow("z-ai/glm-5.3-flash").team, "blue");
-assert.equal(catalogRow("z-ai/glm-5.3-flash").route, "openrouter");
-assert.equal(catalogRow("z-ai/glm-5.3-flash").availability, "openrouter-key-not-configured");
-assert.equal(catalogRow("qwen/qwen3.8-flash").upstream, "https://openrouter.ai/api/v1/chat/completions");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").route, "shared");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").availability, "route-key-not-configured");
+assert.equal(catalogRow("qwen/qwen3.8-flash").upstream, undefined, "no upstream endpoint in the public catalog");
+assert.doesNotMatch(JSON.stringify(modelCatalogBody), /openrouter|modal|orcarouter/i, "no provider is named in the public catalog");
 assert.deepEqual(modelCatalogBody.teams.red.requirements.slice(0, 3),
   ["authenticated-principal", "verified-ekyc-card", "aup-consent"]);
 assert.deepEqual(modelCatalogBody.teams.blue.requirements,
   ["authenticated-principal", "available-free-quota", "guardrails"]);
 {
-  const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, OPENROUTER_CONFIGURED: "true" })).json();
-  assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "openrouter-configured");
+  const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, BLUE_ROUTE_CONFIGURED: "true" })).json();
+  assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "route-configured");
   assert.equal(configured.data.find(m => m.id === "glm5.3-flash").availability, "upstream-tested-access-gated");
 }
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
@@ -1133,9 +1138,73 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
     assert.equal(frames[2], "data: [DONE]");
     const agentCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
     assert.equal(agentCreate.body.request.max_tokens, 32768);
-    assert.equal(agentCreate.body.request.tools, undefined);
+    // tool definitions travel to the authority (native tool calls); the
+    // transport flags do not
+    assert.equal(agentCreate.body.request.tools.length, 1);
+    assert.equal(agentCreate.body.request.tool_choice, "auto");
     assert.equal(agentCreate.body.request.stream, undefined);
+    assert.equal(agentCreate.body.request.stream_options, undefined);
     assert.equal(agentCreate.body.request.messages[0].content.length, 100000);
+    // Native tool calls: an agent's conversation (assistant tool_calls turn,
+    // tool result turn last) is admitted; tools + tool_choice and the
+    // sanitized turns reach the authority; a tool_calls answer comes back
+    // as finish_reason tool_calls with content null — as JSON and as SSE.
+    {
+      const agentTurns = { model: researchModel, max_tokens: 256, tool_choice: "auto",
+        tools: [{ type: "function", function: { name: "write_file", description: "write", parameters: { type: "object", properties: { path: { type: "string" } } } } }],
+        messages: [{ role: "system", content: "You are an agent." }, { role: "user", content: "Create a.txt" },
+          { role: "assistant", content: null, tool_calls: [{ id: "call_0", type: "function", function: { name: "read_file", arguments: "{\"path\":\"a.txt\"}" } }], reasoning_content: "thinking" },
+          { role: "tool", tool_call_id: "call_0", content: "(no such file)" }] };
+      // reasoning_content is not an admitted assistant field
+      assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify(agentTurns) }), bearerPatEnv)).status, 400);
+      delete agentTurns.messages[2].reasoning_content;
+      for (const bad of [{ tool_choice: "auto", tools: undefined }, { tools: [{ type: "function", function: { name: "bad name" } }] },
+        { messages: [...agentTurns.messages.slice(0, 2), { role: "assistant", content: "", tool_calls: [{ type: "function", function: { name: "x", arguments: "{}" } }] }, agentTurns.messages[3]] },
+        { messages: [...agentTurns.messages.slice(0, 3)] }]) {
+        const r = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+          method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+          body: JSON.stringify({ ...agentTurns, ...bad }) }), bearerPatEnv);
+        assert.equal(r.status, 400, JSON.stringify(Object.keys(bad)));
+      }
+      upstreamOutcome = "tool_calls";
+      const savedForTools = structuredClone(researchRecord);
+      researchRecord.continuous.sessionRef = agentSessionRef;
+      researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+      const toolJson = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify(agentTurns) }), bearerPatEnv);
+      const toolText = await toolJson.text();
+      assert.equal(toolJson.status, 200, toolText);
+      const toolBody = JSON.parse(toolText);
+      assert.equal(toolBody.choices[0].finish_reason, "tool_calls");
+      assert.equal(toolBody.choices[0].message.content, null);
+      assert.equal(toolBody.choices[0].message.tool_calls[0].function.name, "write_file");
+      const toolCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+      assert.equal(toolCreate.body.request.tools.length, 1);
+      assert.equal(toolCreate.body.request.tool_choice, "auto");
+      assert.deepEqual(toolCreate.body.request.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
+      assert.equal(toolCreate.body.request.messages[2].content, "");
+      assert.equal(toolCreate.body.request.messages[2].reasoning_content, undefined);
+      assert.equal(toolCreate.body.request.messages[3].tool_call_id, "call_0");
+      // the same answer over SSE carries the tool call in the delta with an index
+      researchRecord.continuous.sessionRef = agentSessionRef;
+      researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+      const toolSse = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify({ ...agentTurns, stream: true, messages: [...agentTurns.messages, { role: "user", content: "again" }] }) }), bearerPatEnv);
+      researchRecord = savedForTools;
+      upstreamOutcome = "ok";
+      const sseFrames = (await toolSse.text()).split("\n\n").filter(Boolean);
+      assert.equal(toolSse.status, 200, sseFrames.join("|"));
+      const d1 = JSON.parse(sseFrames[0].replace(/^data: /, ""));
+      const d2 = JSON.parse(sseFrames[1].replace(/^data: /, ""));
+      assert.equal(d1.choices[0].delta.tool_calls[0].index, 0);
+      assert.equal(d1.choices[0].delta.tool_calls[0].function.name, "write_file");
+      assert.equal(d2.choices[0].finish_reason, "tool_calls");
+      assert.equal(sseFrames[2], "data: [DONE]");
+    }
     // stream: false stays a JSON body
     const savedForJson = structuredClone(researchRecord);
     researchRecord.continuous.sessionRef = agentSessionRef;

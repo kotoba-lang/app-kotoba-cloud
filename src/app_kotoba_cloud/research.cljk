@@ -6,23 +6,24 @@
 (def model-id "qwen3.8-flash-next-whitehacker")
 (def teams
   "Two teams, two routes, two admission bars (owner direction 2026-09-15).
-   :red  — the security-research models served through Modal; admitted only
-           with card-based identity verification and consent to the
-           Acceptable Use Policy (/security/aup/), plus trust / screening /
-           scope as before.
-   :blue — general models served through OpenRouter; admitted with a
-           signed-in principal and free quota. Guardrails run on every
-           request for both teams."
-  {:blue {:label "ブルーチーム" :label-en "Blue team" :route :openrouter
+   :red  — the security-research models on Kotoba's dedicated research
+           deployment; admitted only with card-based identity verification
+           and consent to the Acceptable Use Policy (/security/aup/), plus
+           trust / screening / scope as before.
+   :blue — general models on Kotoba's shared inference route; admitted
+           with a signed-in principal and free quota. Guardrails run on
+           every request for both teams. Which providers stand behind each
+           route is operator configuration, not public policy."
+  {:blue {:label "ブルーチーム" :label-en "Blue team" :route :shared
           :requirements ["authenticated-principal" "available-free-quota" "guardrails"]}
-   :red {:label "レッドチーム" :label-en "Red team" :route :modal
+   :red {:label "レッドチーム" :label-en "Red team" :route :dedicated
          :requirements ["authenticated-principal" "verified-ekyc-card" "aup-consent"
                         "current-aml-ctf-clearance" "current-trust-route"
                         "approved-research-scope" "available-free-quota" "guardrails"]}})
 (def models
   "Selectable research models. `:upstream` is the model id forwarded to the
   team's route; `:strictAttribution` requires the upstream to echo its own
-  model id. Blue-team public ids ARE the OpenRouter ids (an OpenAI-
+  model id. Blue-team public ids are the publishers' ids (an OpenAI-
   compatible client uses them unchanged); red-team ids are Kotoba's."
   {"qwen3.8-flash-next-whitehacker"
    {:team :red :upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
@@ -32,10 +33,10 @@
     :source "https://huggingface.co/zai-org/GLM"}
    "qwen/qwen3.8-flash"
    {:team :blue :upstream "qwen/qwen3.8-flash" :strictAttribution true
-    :source "https://openrouter.ai/qwen/qwen3.8-flash"}
+    :source "https://huggingface.co/Qwen"}
    "z-ai/glm-5.3-flash"
    {:team :blue :upstream "z-ai/glm-5.3-flash" :strictAttribution true
-    :source "https://openrouter.ai/z-ai/glm-5.3-flash"}})
+    :source "https://huggingface.co/zai-org"}})
 (defn model-team [id] (get-in models [id :team]))
 (defn blue? [id] (= :blue (model-team id)))
 (def model-ids (set (keys models)))
@@ -52,7 +53,12 @@
 ;; request count is unchanged.
 (def max-input-characters 524288)
 (def max-output-tokens 32768)
-(def free-limits {:requestsPerDay 50 :maxOutputTokens max-output-tokens :maxInputCharacters max-input-characters})
+;; 1,000 requests/day (owner direction 2026-09-15): an agent coding session
+;; spends 3–10 calls per task; the previous 50 ran out within one day of
+;; verification. The per-day count is the only enforced quota (the token
+;; ladder is a projection); it resets at UTC midnight.
+(def requests-per-day 1000)
+(def free-limits {:requestsPerDay requests-per-day :maxOutputTokens max-output-tokens :maxInputCharacters max-input-characters})
 (def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
                    :threshold 60 :ceiling 100 :defaultRoute "web-reviewed" :provisional true})
 (def session-policy {:version "kotoba-session-evidence-2026-09-v1" :calibrated false :maxProjectionAgeMs 15000
@@ -63,11 +69,8 @@
                  {:id id :object "model" :owned_by "kotoba"
                   :team (name (:team spec))
                   :route (name (get-in teams [(:team spec) :route]))
-                  :upstream (case (:team spec)
-                              :blue "https://openrouter.ai/api/v1/chat/completions"
-                              "https://api.murakumo.cloud/v1/chat/completions")
                   ;; the edge overrides :availability from its environment
-                  ;; (blue: whether the OpenRouter key is configured)
+                  ;; (blue: whether the shared route's key is configured)
                   :availability (case (:team spec) :blue "route-not-configured" "upstream-tested-access-gated")
                   :source (:source spec)})
                (seq models))
@@ -160,52 +163,146 @@
   "Standard OpenAI parameters a text-completion gateway may accept and then
   drop: they never reach the authority or the upstream (the forwarded body is
   rebuilt from the strict admission shape). Accepting-and-ignoring is what an
-  OpenAI SDK client needs; unknown keys remain rejected. `tools` is here too:
-  an agent client (hermes, 2026-09-15) always sends its tool list; the model
-  never emits native tool calls, so the list is dropped and the client falls
-  back to its text-tag tool protocol."
+  OpenAI SDK client needs; unknown keys remain rejected."
   #{"temperature" "top_p" "presence_penalty" "frequency_penalty" "stop"
-    "response_format" "tool_choice" "parallel_tool_calls" "tools"
+    "response_format" "parallel_tool_calls"
     "stream_options" "user" "seed" "logit_bias" "logprobs" "top_logprobs"
     "metadata" "store" "service_tier" "reasoning_effort" "reasoning"
     "prompt_cache_key" "safety_identifier" "modalities"})
 
-(defn completion-openai-compatible?
-  "OpenAI-compatible shape for local CLI/IDE agents on the bearer (PAT) path.
-  The admission fields the transport cannot send are server-derived by the
-  gateway (task defaults to code-review, scopeId resolves to the caller's own
-  approved scope). Core message rules are identical to completion? (system
-  turns allowed only as the first message, max-input-characters total,
-  non-empty, user-terminated); openai-ignorable-keys are accepted and dropped;
-  `stream: true` is accepted and served as a one-chunk SSE emulation by the
-  gateway; `max_completion_tokens` is the OpenAI alias of max_tokens; n must
-  be 1."
+;; --- native tool calls (agent clients) --------------------------------------
+;; Tool DEFINITIONS travel to the origin so the model can answer with
+;; `tool_calls`; the agent executes them on its own machine and sends the
+;; results back as `tool` turns. Nothing is executed here. Measured
+;; 2026-09-15: with the list dropped the agent's calls came back empty and it
+;; fell back to another provider.
+(def max-tools 128)
+(def max-tool-calls 64)
+(def tool-name-pattern #"[A-Za-z0-9_.\-]{1,64}")
+
+(defn tool-name? [n] (and (string? n) (boolean (re-matches tool-name-pattern n))))
+
+(defn tool-def? [t]
+  (and (map? t) (= "function" (:type t))
+       (every? #{:type :function} (keys t))
+       (let [f (:function t)]
+         (and (map? f) (tool-name? (:name f))
+              (or (nil? (:description f)) (string? (:description f)))
+              (or (nil? (:parameters f)) (map? (:parameters f)))
+              (or (nil? (:strict f)) (boolean? (:strict f)))
+              (every? #{:name :description :parameters :strict} (keys f))))))
+
+(defn tool-call? [c]
+  (and (map? c) (text? (:id c) 128) (= "function" (:type c))
+       (every? #{:id :type :function :index} (keys c))
+       (let [f (:function c)]
+         (and (map? f) (tool-name? (:name f)) (string? (:arguments f))
+              (every? #{:name :arguments} (keys f))))))
+
+(defn tool-choice? [v]
+  (or (nil? v) (#{"auto" "none" "required"} v)
+      (and (map? v) (= "function" (:type v)) (tool-name? (get-in v [:function :name]))
+           (every? #{:type :function} (keys v))
+           (every? #{:name} (keys (:function v))))))
+
+(defn message-characters
+  "What a turn costs against the input ceiling: its content plus the
+  arguments of any tool calls it carries."
+  [m]
+  (+ (count (str (:content m)))
+     (reduce + 0 (map #(count (str (get-in % [:function :arguments]))) (:tool_calls m)))))
+
+(defn agent-message?
+  "One conversation turn as an OpenAI agent client sends it. `system` is
+  admitted only as the first turn (checked by the caller). `assistant`
+  turns may carry native tool_calls with empty content; `tool` turns are the
+  agent's results, bound to a call by tool_call_id."
+  [m]
+  (and (map? m)
+       (case (:role m)
+         "user" (and (text? (:content m) max-input-characters)
+                     (every? #{:role :content :name} (keys m)))
+         "assistant" (let [tc (:tool_calls m) c (:content m)]
+                       (and (every? #{:role :content :tool_calls :name} (keys m))
+                            (or (nil? c) (string? c))
+                            (or (nil? tc) (and (vector? tc) (<= 1 (count tc) max-tool-calls) (every? tool-call? tc)))
+                            (or (text? c max-input-characters) (seq tc))))
+         "tool" (and (text? (:tool_call_id m) 128)
+                     (string? (:content m)) (<= (count (:content m)) max-input-characters)
+                     (every? #{:role :content :tool_call_id :name} (keys m)))
+         false)))
+
+(defn sanitize-message
+  "The turn the authority and the origin see: role, content, tool binding —
+  never a client's extra fields."
+  [m]
+  (case (:role m)
+    "assistant" (cond-> {:role "assistant" :content (or (:content m) "")}
+                  (seq (:tool_calls m))
+                  (assoc :tool_calls (mapv #(hash-map :id (:id %) :type "function"
+                                                      :function {:name (get-in % [:function :name])
+                                                                 :arguments (get-in % [:function :arguments])})
+                                           (:tool_calls m))))
+    "tool" (cond-> {:role "tool" :content (:content m) :tool_call_id (:tool_call_id m)}
+             (string? (:name m)) (assoc :name (:name m)))
+    {:role (:role m) :content (:content m)}))
+
+(defn completion-openai-compatible-problem
+  "The first admission rule an OpenAI-shaped bearer request breaks, as a
+  short reason for the 400 body, or nil when the request is admitted.
+  Shape (see completion-openai-compatible?): an optional leading system
+  turn, then user / assistant (native tool_calls) / tool turns ending in a
+  user or tool turn; tool definitions and tool_choice; ceilings on input
+  characters (content + tool-call arguments + tool definitions) and output
+  tokens; openai-ignorable-keys dropped; n must be 1."
   [body]
   (let [ms (:messages body)
         sys-only (and (vector? ms) (pos? (count ms))
                        (= "system" (get (first ms) :role)))
         chat (if sys-only (vec (drop 1 ms)) (vec ms))
-        ks (set (map name (keys body)))]
-    (and (contains? model-ids (:model body))
-         (or (nil? (:task body)) (contains? tasks (:task body)))
-         (or (nil? (:scopeId body)) (text? (:scopeId body) 256))
-         (vector? ms) (<= 1 (count ms) 64)
-         (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))
-         (every? #(and (map? %) (#{"user" "assistant"} (:role %))
-                        (text? (:content %) max-input-characters)
-                        (every? #{:role :content} (keys %))) chat)
-         (or (not sys-only)
-             (and (every? #{:role :content} (keys (first ms)))
-                  (text? (:content (first ms)) max-input-characters)))
-         (= "user" (:role (last ms)))
-         (<= (reduce + (map #(count (:content %)) ms)) max-input-characters)
-         (or (nil? (:max_tokens body)) (output-tokens? (:max_tokens body)))
-         (or (nil? (:max_completion_tokens body)) (output-tokens? (:max_completion_tokens body)))
-         (or (nil? (:stream body)) (boolean? (:stream body)))
-         (or (nil? (:n body)) (= 1 (:n body)))
-         (or (nil? (:tools body)) (vector? (:tools body)))
-         (every? #(or (#{"model" "messages" "max_tokens" "max_completion_tokens" "task" "scopeId" "stream" "n"} %)
-                      (contains? openai-ignorable-keys %)) ks))))
+        tools (:tools body)
+        tools-chars (if (seq tools) (count (js/JSON.stringify (clj->js tools))) 0)
+        ks (set (map name (keys body)))
+        admitted-keys #{"model" "messages" "max_tokens" "max_completion_tokens" "task" "scopeId"
+                        "stream" "n" "tools" "tool_choice"}]
+    (cond
+      (not (contains? model-ids (:model body))) "model: unknown id"
+      (not (or (nil? (:task body)) (contains? tasks (:task body)))) "task: unknown"
+      (not (or (nil? (:scopeId body)) (text? (:scopeId body) 256))) "scopeId: not text"
+      (not (vector? ms)) "messages: not an array"
+      (not (<= 1 (count ms) 256)) "messages: 1..256 turns"
+      (not (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))) "messages: no turn after the system turn"
+      (and sys-only (not (and (every? #{:role :content :name} (keys (first ms)))
+                              (text? (:content (first ms)) max-input-characters))))
+      "messages[0]: system turn needs string content and only role/content/name"
+      :else
+      (or (some (fn [[i m]]
+                  (when-not (agent-message? m)
+                    (str "messages[" (+ i (if sys-only 1 0)) "]: role " (pr-str (:role m))
+                         " — user needs non-empty string content; assistant needs string content or tool_calls"
+                         " (id, type function, function.name, function.arguments string) and only"
+                         " role/content/tool_calls/name; tool needs tool_call_id and string content")))
+                (map-indexed vector chat))
+          (cond
+            (not (contains? #{"user" "tool"} (:role (last ms)))) "messages: the last turn must be user or tool"
+            (> (+ tools-chars (reduce + 0 (map message-characters ms))) max-input-characters)
+            (str "input: over " max-input-characters " characters (content + tool-call arguments + tool definitions)")
+            (not (or (nil? tools) (and (vector? tools) (<= (count tools) max-tools) (every? tool-def? tools))))
+            (str "tools: each {type function, function {name [A-Za-z0-9_.-]{1,64}, description?, parameters? (object), strict?}}, at most " max-tools)
+            (not (tool-choice? (:tool_choice body))) "tool_choice: auto | none | required | {type function, function {name}}"
+            (not (or (nil? (:tool_choice body)) (seq tools))) "tool_choice: needs tools"
+            (not (or (nil? (:max_tokens body)) (output-tokens? (:max_tokens body)))) (str "max_tokens: 1.." max-output-tokens)
+            (not (or (nil? (:max_completion_tokens body)) (output-tokens? (:max_completion_tokens body)))) (str "max_completion_tokens: 1.." max-output-tokens)
+            (not (or (nil? (:stream body)) (boolean? (:stream body)))) "stream: boolean"
+            (not (or (nil? (:n body)) (= 1 (:n body)))) "n: must be 1"
+            :else (when-let [k (first (remove #(or (admitted-keys %) (contains? openai-ignorable-keys %)) ks))]
+                    (str "unknown parameter: " k)))))))
+
+(defn completion-openai-compatible?
+  "OpenAI-compatible shape for local CLI/IDE agents on the bearer (PAT) path
+  — true when completion-openai-compatible-problem finds nothing."
+  [body]
+  (nil? (completion-openai-compatible-problem body)))
 
 (defn scope-approved? [record body now]
   (some #(and (= (:scopeId body) (:id %)) (= "approved" (:status %))
@@ -213,11 +310,11 @@
               (some #{(:task body)} (:tasks %))) (:scopes record)))
 
 
-;; --- Assurance ladder (OrcaRouter-style rungs) ------------------------------
+;; --- Assurance ladder (rungs) ------------------------------------------------
 ;; Each rung names the evidence that puts a workspace at that level and the
 ;; daily token allowance it unlocks. The bottom rung (a chargeable card is not
-;; an identity) unlocks only the free research allowance — 50 requests/day with
-;; the 2,048-token per-request output cap, i.e. 102,400 tokens/day; identity
+;; an identity) unlocks only the free research allowance — requests-per-day
+;; with the max-output-tokens per-request cap; identity
 ;; verification and governance checks (business, contracted) come after it and
 ;; raise the ceiling. Each higher rung inherits the ones below. The authority
 ;; computes the reached rung from the record; the edge only displays it.
@@ -306,7 +403,7 @@
      :grantsBand (:grantsBand rung)}
     {:rungId :none :level 0 :tokensPerDay 0 :ceilingTokensPerDay 0 :grantsBand nil}))
 
-;; --- SECURE public metadata (orcarouter pattern) ----------------------------
+;; --- SECURE public metadata --------------------------------------------------
 ;; What the edge tells the browser/API about the runtime controls. Coverage
 ;; is automated runtime controls only — never a certification claim.
 (def secure-profile
