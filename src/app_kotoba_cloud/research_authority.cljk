@@ -1565,6 +1565,18 @@
       :ekyc-status (handle-ekyc-status storage body)
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 
+(defn- op-failure-response
+  "The refusal (ex-info :status) or, for anything unnamed, 500 authority-internal."
+  [e]
+  (js/console.error "authority-op-failed" (or (.-stack e) (str e)))
+  (let [data (ex-data e)
+        status (or (:status data) 500)]
+    (response (merge {:error (if (= 500 status) "authority-internal"
+                               (or (.-message e) "authority-error"))}
+                     (select-keys data [:guardrailVersion :matches
+                                        :firewallVersion :tool]))
+              status)))
+
 (deftype ResearchAuthority [^js state env]
   Object
   (alarm [_]
@@ -1576,17 +1588,19 @@
       (-> (.json request)
           (.then (fn [body]
                    (.blockConcurrencyWhile state
-                     (fn [] (handle state env (.-pathname (js/URL. (.-url request)))
-                                    (js->clj body :keywordize-keys true))))))
-          (.catch (fn [e]
-                    (js/console.error "authority-op-failed" (.-stack e))
-                    (let [data (ex-data e)
-                          status (or (:status data) 500)]
-                      (response (merge {:error (if (= 500 status) "authority-internal"
-                                                 (or (.-message e) "authority-error"))}
-                                       (select-keys data [:guardrailVersion :matches
-                                                          :firewallVersion :tool]))
-                                status)))))
+                     (fn []
+                       ;; Every refusal resolves INSIDE the callback. A throw or
+                       ;; rejection that escapes blockConcurrencyWhile does not
+                       ;; reach the .catch below: workerd aborts the object
+                       ;; (in-memory state reset, in-flight requests fail) and
+                       ;; the caller gets the exception, so the edge saw 503
+                       ;; instead of the named 400/403 (measured 2026-09-16,
+                       ;; test/workerd-contract.cljk; the Node mock returned fn()).
+                       (-> (js/Promise.resolve nil)
+                           (.then (fn [_] (handle state env (.-pathname (js/URL. (.-url request)))
+                                                  (js->clj body :keywordize-keys true))))
+                           (.catch op-failure-response))))))
+          (.catch op-failure-response))
       (js/Promise.resolve (response {:error "private-binding-required"} 403)))))
 
 (defn make-research-authority [state env] (ResearchAuthority. state env))
@@ -1617,7 +1631,12 @@
                    (.fetch stub (js/Request. (.-url request)
                                              #js {:method "POST"
                                                   :headers #js {"content-type" "application/json"}
-                                                  :body (js/JSON.stringify body)})))))))))
+                                                  :body (js/JSON.stringify body)})))))
+        ;; a stub that throws (object aborted, storage unavailable) must be a
+        ;; named JSON 503 across the binding, not an uncaught-exception 500
+        (.catch (fn [e]
+                  (js/console.error "authority-stub-failed" (str (or (.-message e) e)))
+                  (response {:error "authority-unavailable"} 503)))))))
 
 
 (def default #js {:fetch fetch!})

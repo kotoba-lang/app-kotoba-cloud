@@ -567,6 +567,10 @@
         :else (op storage))
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 
+(defn- op-failure-response [e]
+  (js/console.error "org-authority-op-failed" (or (.-stack e) (str e)))
+  (response {:error "org-authority-internal"} 500))
+
 (deftype OrgAuthority [^js state env]
   Object
   (fetch [_ request]
@@ -574,11 +578,16 @@
       (-> (.json request)
           (.then (fn [body]
                    (.blockConcurrencyWhile state
-                     (fn [] (handle state env (.-pathname (js/URL. (.-url request)))
-                                    (js->clj body :keywordize-keys true))))))
-          (.catch (fn [e]
-                    (js/console.error "org-authority-op-failed" (.-stack e))
-                    (response {:error "org-authority-internal"} 500))))
+                     (fn []
+                     ;; refusals resolve INSIDE the callback: a rejection escaping
+                     ;; blockConcurrencyWhile aborts the object and bypasses the
+                     ;; .catch below (workerd, measured 2026-09-16 in
+                     ;; test/workerd-contract.cljk; the Node mock returned fn())
+                       (-> (js/Promise.resolve nil)
+                           (.then (fn [_] (handle state env (.-pathname (js/URL. (.-url request)))
+                                                  (js->clj body :keywordize-keys true))))
+                           (.catch op-failure-response))))))
+          (.catch op-failure-response))
       (js/Promise.resolve (response {:error "private-binding-required"} 403)))))
 
 (defn make-org-authority [state env] (OrgAuthority. state env))

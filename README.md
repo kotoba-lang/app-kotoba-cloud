@@ -219,6 +219,58 @@ iteration, plus the per-axis delta from the previous one — the roadmap is
 a prediction, the delta is the proof). `uiux_audit_test.cljk` pins the
 `/account` contract at 100 and proves the gate falls on a broken document.
 
+### workerd contract (after build, before the ship step)
+
+`test/worker-smoke.mjs` and `test/research-authority-local.mjs` import the
+bundles into Node with mocked bindings — they see logic, not the runtime.
+The 2026-09-15 webhook outage (`redirect: "error"` is a TypeError in
+workerd's fetch, accepted by Node's; every Stripe delivery answered 503
+with an empty `eventId` for a week) lived in that gap. `npm run test:workerd`
+(`test/workerd-contract.cljk`) starts `wrangler dev` with **both** configs
+(`wrangler.jsonc` primary, `wrangler.research.jsonc` auxiliary, so the
+`RESEARCH_AUTHORITY` binding is the local authority DO), hands both workers
+test-only secrets through a minimal process env (`--env-file` reaches only
+the primary; `CLOUDFLARE_INCLUDE_PROCESS_ENV` reaches both), and pins status
+**and** literal error code on a free port, no network. The configs are
+rewritten into a scratch dir with absolute `main` paths and an assets dir of
+`public/`'s top-level files only: the full 13,969-file tree made every
+workerd/esbuild spawn fail with `spawn EBADF` (fd numbers past what macOS
+`posix_spawn` accepts, node 26 / wrangler 4.131.1).
+
+- `GET /v1/models` 200 with a non-empty catalog
+- `POST /v1/chat/completions`: no Origin → 403 `origin-not-allowed`; browser
+  Origin without cookie → 401 `sign-in-required`; `kc_pat_` with a bad MAC →
+  403 `research-access-denied` (503 `pat-not-configured` would mean the env
+  file did not load); a **well-signed but unregistered** v2 token → 401
+  `token-revoked` (the edge→authority hop and the SQLite DO, inside workerd)
+- `POST /v1/research/ekyc/webhook`: junk → 400 with empty `eventId` (edge);
+  unsigned event → 400 with the `eventId` echoed (authority); signed with
+  the test secret for an unknown session → 403 `stripe-webhook-rejected`
+  (`redirect: "manual"` + WebCrypto HMAC + DO read — a 503 here is the
+  regression); signed with the wrong key → 400 (the boundary partner: the
+  verify is real)
+
+Exit 0 only when all 9 ran and passed (`SCANNED<TAB>9`), 1 on a failed
+check, 2 when it could not run (no build, wrangler not ready in 120 s).
+Shown to fall (2026-09-16): with `redirect:"manual"` flipped back to
+`"error"` in the built edge bundle, 4 of 9 fail (exit 1).
+
+Its first run found a second runtime-only fault, in all four Durable
+Objects: a throw or rejection that escapes `blockConcurrencyWhile` does
+**not** reach the `.catch` chained after it — workerd aborts the object
+(in-memory state reset, in-flight requests fail) and the caller gets the
+exception. Every named refusal thrown inside `handle` (`stripe-signature-*`,
+`stripe-challenge-unknown`, `invalid-ekyc-request`, guardrails, …) therefore
+surfaced as 503 `stripe-webhook-rejected` / `research-service-unavailable`
+instead of its 400/403 (production, unsigned event: 503 with an empty
+`eventId`). The Node mocks' `blockConcurrencyWhile(fn) { return fn(); }`
+could not see it. Fixed by resolving refusals inside the callback
+(`op-failure-response`), and the research entry worker now answers a stub
+failure as JSON 503 `authority-unavailable` instead of an uncaught exception.
+The `deploy` and `dry-run` npm scripts run it right after `test:worker`.
+A fresh worktree has no `build/`; the build script now creates it before
+`amu compile` (measured 2026-09-16: `output parent must be a directory`).
+
 Locale smoke after render + Worker:
 
 - `GET /` with `Accept-Language: id` is `200` serving the `id` emit in
