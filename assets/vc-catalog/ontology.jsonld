@@ -6,7 +6,7 @@
   "acquired-by": "https://kotoba.cloud/vocab/vc#acquiredBy",
   "co-invested-with": "https://kotoba.cloud/vocab/vc#coInvestedWith"
  },
- "generatedAt": "2026-09-15T16:15:17.296Z",
+ "generatedAt": "2026-09-15T16:46:31.186Z",
  "@graph": [
   {
    "@id": "vc/fund/dnx-capital",
@@ -26,7 +26,7 @@
    "@id": "vc/fund/syn-ventures",
    "@type": "vc-fund",
    "name": "SYN Ventures, Inc.",
-   "source-url": "https://www.syncapital.vc/",
+   "source-url": "https://synventures.com/",
    "layer": "primary-fetched"
   },
   {
