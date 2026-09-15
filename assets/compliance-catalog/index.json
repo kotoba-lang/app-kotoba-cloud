@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:48:17.428Z",
+ "generatedAt": "2026-09-15T10:00:11.016Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 45,
- "productCount": 367,
+ "productCount": 368,
  "ontology": {
   "nodes": 45,
-  "claims": 3987,
+  "claims": 3992,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerangja7647if3smh36eu3ap2bm6nywg22jc76vzvwptzkczbtrs7pa"
+   "/": "baguqeerau6iustxzwdt6qqbis3d4b3opexxlqcfdejsrba4j7zgqgwoshq7a"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -3428,6 +3428,19 @@
    ],
    "record": {
     "/": "baguqeerak5hpyhilpuelggxhoknbeialv2emg47l54mzx5enz57xwlb4rsla"
+   }
+  },
+  {
+   "id": "trend-vb-mac",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター for Mac",
+   "categoryId": "consumer-av",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/ivb.html",
+   "pricingNote": "ダウンロード1年版 4,070円（税込）／1台・1年（ja_jp product page, verified 2026-09-15）",
+   "record": {
+    "/": "baguqeera2vn2pcjgpwivk2m7dig5idksdd2wg6t6ehw4cm4qglcg2scydfra"
    }
   },
   {
@@ -8026,6 +8039,11 @@
    "bytes": 354,
    "codec": "dag-json"
   },
+  "baguqeera2vn2pcjgpwivk2m7dig5idksdd2wg6t6ehw4cm4qglcg2scydfra": {
+   "path": "/compliance-data/compliance/blocks/baguqeera2vn2pcjgpwivk2m7dig5idksdd2wg6t6ehw4cm4qglcg2scydfra.json",
+   "bytes": 357,
+   "codec": "dag-json"
+  },
   "baguqeera5zjh3w4uciv3uafh3atl7ntmndm7edervznsibmjxe54hhc4utta": {
    "path": "/compliance-data/compliance/blocks/baguqeera5zjh3w4uciv3uafh3atl7ntmndm7edervznsibmjxe54hhc4utta.json",
    "bytes": 304,
@@ -9286,18 +9304,18 @@
    "bytes": 478,
    "codec": "dag-json"
   },
-  "baguqeerangja7647if3smh36eu3ap2bm6nywg22jc76vzvwptzkczbtrs7pa": {
-   "path": "/compliance-data/compliance/blocks/baguqeerangja7647if3smh36eu3ap2bm6nywg22jc76vzvwptzkczbtrs7pa.json",
+  "baguqeerau6iustxzwdt6qqbis3d4b3opexxlqcfdejsrba4j7zgqgwoshq7a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerau6iustxzwdt6qqbis3d4b3opexxlqcfdejsrba4j7zgqgwoshq7a.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerahizdnoc7mygng2prluyxjtgcnqtokbtyqiygycmjjro33ea6k4na": {
-   "path": "/compliance-data/compliance/blocks/baguqeerahizdnoc7mygng2prluyxjtgcnqtokbtyqiygycmjjro33ea6k4na.json",
-   "bytes": 262763,
+  "baguqeera45tmazbcagalkcor3y6kw4loej5odyhup4ozpt7lvwwingqpyn2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeera45tmazbcagalkcor3y6kw4loej5odyhup4ozpt7lvwwingqpyn2a.json",
+   "bytes": 263408,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerahizdnoc7mygng2prluyxjtgcnqtokbtyqiygycmjjro33ea6k4na"
+  "/": "baguqeera45tmazbcagalkcor3y6kw4loej5odyhup4ozpt7lvwwingqpyn2a"
  }
 }

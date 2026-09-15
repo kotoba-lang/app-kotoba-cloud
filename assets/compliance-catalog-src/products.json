@@ -1573,6 +1573,17 @@
    ]
   },
   {
+   "id": "trend-vb-mac",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター for Mac",
+   "categoryId": "consumer-av",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/ivb.html",
+   "pricingNote": "ダウンロード1年版 4,070円（税込）／1台・1年（ja_jp product page, verified 2026-09-15）",
+   "complianceFits": []
+  },
+  {
    "id": "fortra-agari",
    "provider": "Fortra",
    "providerHq": "US",
