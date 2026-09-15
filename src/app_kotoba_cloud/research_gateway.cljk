@@ -207,7 +207,9 @@
                (.then #(respond % 200))))))
       (.catch
        (fn [e]
-         (let [code (or (:message (ex-data e)) (str e))]
+         ;; the authority code is the ex-info MESSAGE (see `service`); ex-data
+         ;; never carried :message, so every failure read as unavailable
+         (let [code (or (ex-message e) (str e))]
            (respond {:error {:code (case code
                                      "inference-run-failed" "inference-failed"
                                      "inference-job-timeout" "inference-timeout"
