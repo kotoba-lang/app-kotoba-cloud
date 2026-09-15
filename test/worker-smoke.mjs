@@ -571,6 +571,16 @@ assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
   const graph = await route(new Request("https://kotoba.cloud/graph", { headers: { cookie: "kb_locale=ja" } }), env);
   assert.equal(graph.status, 302);
   assert.equal(graph.headers.get("location"), "/#knowledge/overview");
+  // Continue with Google (ADR-2609151900) returns to the locale-free apex;
+  // a catalog locale rides along as ?lang=, an unknown one is dropped.
+  const returnTo = async (q) => {
+    const r = await route(new Request("https://kotoba.cloud/sign-in/google" + q), env);
+    assert.equal(r.status, 302);
+    return decodeURIComponent(new URL(r.headers.get("location")).searchParams.get("return_to"));
+  };
+  assert.equal(await returnTo("?lang=ja"), "https://kotoba.cloud/?lang=ja");
+  assert.equal(await returnTo(""), "https://kotoba.cloud/");
+  assert.equal(await returnTo("?lang=klingon"), "https://kotoba.cloud/");
 }
 
 assert(idFromHeader.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));

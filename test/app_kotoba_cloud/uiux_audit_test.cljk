@@ -24,7 +24,9 @@
                 "/agent-quickstart.md" "/ekyc.md" "/llms.txt" "/security-data/pep/index.json"
                 "/security-data/pep/schema.edn" "/security-data/index.json" "/compliance-data/compliance/index.json"
                 "/security/" "/security/compliance/"}
-   :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"]
+   :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"
+            ;; worker.cljk: Continue with Google/GitHub hand-offs (ADR-2609151900)
+            "/sign-in/" "/account/link/"]
    :locale-prefixes (set (map name site/supported-locales))
    :csp csp/for-path})
 

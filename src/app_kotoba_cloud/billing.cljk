@@ -25,6 +25,20 @@
   {:autoCharge false :creditsExpire false :cancelAnyTime true
    :renewal "monthly" :note "Auto-charged each period, cancel anytime, credits never expire."})
 (defn plan [sku] (first (filter #(= sku (:sku %)) plans)))
+(def plan-rank {"pro" 1 "team" 2 "max" 3 "ultra" 4})
+(defn active-plan
+  "The platform plan a ledger is currently on: the highest-ranked platform sku
+  among grants whose paid period covers `now`, or nil. A grant written before
+  skus were recorded (no :sku) contributes nothing — an unknown plan is not a
+  plan, and organization SSO (Team/Enterprise) must not open on a guess."
+  [ledger now]
+  (->> (vals (:grants ledger))
+       (filter #(and (string? (:sku %)) (contains? plan-rank (:sku %))
+                     (not (:topup %)) (integer? (:start %)) (integer? (:end %))
+                     (<= (:start %) now) (< now (:end %))))
+       (map :sku)
+       (sort-by plan-rank)
+       last))
 (def rates {:input-per-million 900000 :cached-input-per-million 225000
             :output-per-million 4500000 :storage-gib-month 200000
             :egress-gib 90000 :query-vcpu-hour 60000})

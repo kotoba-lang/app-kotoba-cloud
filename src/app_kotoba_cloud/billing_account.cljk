@@ -72,6 +72,13 @@
                                                         (* (:gib grant) (:storage-gib-month billing/rates))
                                                         (* 1000000 (:credits grant)))
                                               :topup (boolean (:topup grant))
+                                              ;; The plan the grant came from, so
+                                              ;; /status can say which plan is
+                                              ;; active (organization SSO is a
+                                              ;; Team/Enterprise feature,
+                                              ;; ADR-2609151900). Grants written
+                                              ;; before this carry no sku.
+                                              :sku (:sku grant)
                                               :start (:start grant) :end (:end grant)}))
                              (or (decode saved) limits/empty-ledger) grants))))))
 (defn- admission [storage operation body]
@@ -214,9 +221,11 @@
                                      (.then #(response {:url (.-url %)} 200)))))))
       "/status" (-> (.get storage "limits")
                       (.then (fn [saved]
-                               (let [ledger (or (decode saved) limits/empty-ledger)]
+                               (let [ledger (or (decode saved) limits/empty-ledger)
+                                     now (js/Math.floor (/ (js/Date.now) 1000))]
                                  (response {:status (if (:frozen ledger) "frozen" (if saved "connected" "free"))
-                                            :balances (limits/balances ledger (js/Math.floor (/ (js/Date.now) 1000)))} 200)))))
+                                            :plan (billing/active-plan ledger now)
+                                            :balances (limits/balances ledger now)} 200)))))
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 (deftype BillingAccount [^js state env]
   Object
