@@ -1518,7 +1518,27 @@
       ]
     },
     {
-      "id": "trend-micro-email-security",
+     "id": "trend-zero-trust-secure-access",
+     "provider": "Trend Micro",
+     "providerHq": "JP",
+     "name": "Trend Micro Zero Trust Secure Access (ZTSA)",
+     "categoryId": "ztna",
+     "pricingMode": "quote-based",
+     "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m769-web-pricelist.html",
+     "pricingNote": "quote-based; ja_jp 製品ページの「価格を見る」は価格表/見積フォームへの誘導 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access.html も 200。"
+    },
+    {
+     "id": "trend-ai-secure-access",
+     "provider": "Trend Micro",
+     "providerHq": "JP",
+     "name": "Trend Micro AI Secure Access",
+     "categoryId": "ztna",
+     "pricingMode": "quote-based",
+     "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m646-web-vision-one-price-infomation.html",
+     "pricingNote": "quote-based; ja_jp 製品ページの価格案内は Vision One 価格情報フォーム経由 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access/ai.html も 200。"
+    },
+    {
+     "id": "trend-micro-email-security",
       "provider": "Trend Micro",
       "providerHq": "JP",
       "name": "Trend Micro Email Security",
