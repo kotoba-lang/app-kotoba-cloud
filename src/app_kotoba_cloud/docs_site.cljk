@@ -185,7 +185,40 @@
     :desc-en "ZDR design: only minimal state is retained."}
    {:id "byok" :name "BYOK"
     :desc-ja "上流プロバイダキーの持ち込みは現在提供していません (first-party 推論)。"
-    :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}])
+    :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}
+   {:id "security-services" :name "Security services (CTEM)"
+    :desc-ja "セキュリティサービススイートの公開カタログ GET /v1/security/services。CTEM (component-shipped) の 4 capability と VM 台帳への連携。"
+    :desc-en "The public catalog of the security-services suite at GET /v1/security/services — CTEM (component-shipped) and its four capabilities feeding the VM ledger."}])
+
+(defn security-services-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Security services (CTEM)" "Security services (CTEM)")]
+     [:p {:class "kc-docs__lead"}
+      (txt "セキュリティサービススイート (CTEM / DAST / SAST / VM) のカタログは GET /v1/security/services で取得できます。認証不要の公開エッジで、記述 (describe) のみを行います。"
+           "The security-services suite (CTEM / DAST / SAST / VM) is described by GET /v1/security/services — a public, unauthenticated edge that DESCRIBES only.")]
+     (config-block (str "curl -s https://api.kotoba.cloud/v1/security/services | jq '.[] | {id, status}'\n\n"
+                        "# ctem  → \"component-shipped\"\n"
+                        "# dast  → \"gated\"\n"
+                        "# sast  → \"gated\"\n"
+                        "# vm    → \"component-shipped\""))
+     [:h2 "CTEM — exposure management"]
+     [:p {:class "kc-docs__lead"}
+      (txt "CTEM は外部攻撃表面と社内エントリポイントを継続的に列挙し、攻撃パスと資産コンテキストを VM 台帳へ渡します (status: component-shipped)。"
+           "CTEM continuously enumerates the external attack surface and entry points, and hands attack paths plus asset context to the VM ledger (status: component-shipped).")]
+     (config-block (str "# CTEM capabilities (from the catalog entry)\n"
+                        "surface-inventory  # continuous external attack-surface / asset inventory\n"
+                        "attack-path        # reachable attack-path identification\n"
+                        "context            # asset context (public routes, deps, owner)\n"
+                        "exposure-feed      # exposure events fed to the VM ledger\n\n"
+                        "# inputs:  assets, dns, certificates, open-endpoints\n"
+                        "# outputs: attack-paths, exposure-findings, asset-context\n"
+                        "# integration: feeds vm, emits :finding (shared finding-schema)"))
+     (note-block
+      (txt "DAST / SAST は gated (非公開の authority の後方でゲート中)。3 つの上流サービスは共通 finding-schema で所見を出し、VM が重複排除・スコアリング (到達可能性 × 悪用可能性)・修正ライフサイクルを CPE/CVE キーで管理します。"
+           "DAST / SAST are gated (behind the private authority). The three upstream services emit findings in the shared finding-schema; VM dedups, scores (reachability × exploitability) and tracks remediation keyed by CPE/CVE."))
+     [:p {:class "kc-docs__lead"}
+      "→ "
+      [:a {:href "/security/services/"} (txt "セキュリティサービスのページ" "The /security/services/ page")]]]))
 
 (defn quickstart-view [locale]
   (let [txt (fn [ja en] (if (= :ja locale) ja en))]
@@ -325,6 +358,7 @@
 (defn ref-view [id locale]
   (case id
     "quickstart" (quickstart-view locale)
+    "security-services" (security-services-view locale)
     "streaming" (streaming-view locale)
     "tools" (tools-view locale)
     "structured-outputs" (structured-view locale)
