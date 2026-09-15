@@ -57,19 +57,33 @@
   (is (not= :su (locale/country-locale "ID")))
   (is (empty? (filter locale/country-never (vals locale/country-locales)))))
 
-(deftest apex-redirects-except-english
-  (is (= {:locale :en}
-         (locale/static-decision {:path "/"})))
-  (is (= {:locale :id :redirect "/id/"}
-         (locale/static-decision {:path "/" :country "ID"})))
-  (is (= {:locale :he :redirect "/he/"}
-         (locale/static-decision {:path "/" :accept-language "he"})))
-  (is (= {:locale :jv :redirect "/jv/"}
-         (locale/static-decision {:path "/" :cookie "jv" :country "ID"})))
-  (is (= {:locale :su :set-cookie? true}
-         (locale/static-decision {:path "/su/" :cookie "he"})))
-  (is (= {:locale :en :set-cookie? true}
-         (locale/static-decision {:path "/en/" :country "ID"})))
+(deftest serve-in-place-never-redirects
+  ;; shinkansen.locale contract: one locale-free URL per document; weaker
+  ;; signals than the path rewrite the asset path in place, never 302.
+  (is (= {:locale :en :serve nil}
+         (select-keys (locale/static-decision {:path "/"}) [:locale :serve])))
+  (is (= {:locale :id :serve "/id/"}
+         (select-keys (locale/static-decision {:path "/" :country "ID"}) [:locale :serve])))
+  (is (= {:locale :he :serve "/he/"}
+         (select-keys (locale/static-decision {:path "/" :accept-language "he"}) [:locale :serve])))
+  (is (= {:locale :jv :serve "/jv/"}
+         (select-keys (locale/static-decision {:path "/" :cookie "jv" :country "ID"}) [:locale :serve])))
+  ;; explicit locale prefix → canonicalized away (301) with cookie persisted
+  (is (= {:locale :su :set-cookie? true :canonical "/"}
+         (select-keys (locale/static-decision {:path "/su/" :cookie "he"}) [:locale :set-cookie? :canonical])))
+  (is (= {:locale :en :set-cookie? true :canonical "/"}
+         (select-keys (locale/static-decision {:path "/en/" :country "ID"}) [:locale :set-cookie? :canonical])))
+  (is (= {:locale :ja :set-cookie? true :canonical "/billing/"}
+         (select-keys (locale/static-decision {:path "/ja/billing/"}) [:locale :set-cookie? :canonical])))
+  ;; shared infrastructure namespaces are never rewritten or canonicalized
+  (is (nil? (locale/serve-path "/account" :ja)))
+  (is (nil? (locale/canonical-path "/ja/account")))
+  (is (nil? (locale/canonical-path "/v1/models")))
+  ;; billing/legal/security/csf2/docs fork; unknown locales don't
+  (is (= "/ja/billing/" (locale/serve-path "/billing/" :ja)))
+  (is (= "/ja/legal/tokushoho/" (locale/serve-path "/legal/tokushoho/" :ja)))
+  (is (= "/ja/" (locale/serve-path "/" :ja)))
+  (is (nil? (locale/serve-path "/billing/" :en)))
   (is (true? (locale/apex-path? "/")))
   (is (false? (locale/apex-path? "/id/"))))
 

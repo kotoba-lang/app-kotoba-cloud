@@ -463,47 +463,65 @@ env.ASSETS = {
   }
 };
 
+// Cookie-negotiated, path-independent serving (shinkansen.locale contract):
+// weaker signals than the path never redirect — the Worker rewrites the asset
+// path to the emit directory in place; explicit locale prefixes 301 to the
+// canonical path with the choice persisted as kb_locale.
 const beforeAssets = assetReads.length;
 const idFromHeader = await route(new Request("https://kotoba.cloud/?utm=1", {
   headers: { "accept-language": "id,en;q=0.8" }
 }), env);
-assert.equal(idFromHeader.status, 302);
-assert.equal(idFromHeader.headers.get("location"), "/id/?utm=1");
-assert.equal(idFromHeader.headers.get("cache-control"), "private, no-store");
-assert.equal(assetReads.length, beforeAssets, "locale redirect happens before Static Assets HIT");
+assert.equal(idFromHeader.status, 200);
+assert.equal(idFromHeader.headers.get("location"), null);
+assert.deepEqual(assetReads[assetReads.length - 1], "https://kotoba.cloud/id/?utm=1", "apex serves the id emit in place");
 
 const idFromCountry = await route(new Request("https://kotoba.cloud/", {
   headers: { "cf-ipcountry": "ID" }
 }), env);
-assert.equal(idFromCountry.headers.get("location"), "/id/");
-assert.notEqual(idFromCountry.headers.get("location"), "/jv/");
-assert.notEqual(idFromCountry.headers.get("location"), "/su/");
+assert.equal(idFromCountry.status, 200);
+assert.match(assetReads[assetReads.length - 1], /\/id\/$/);
+assert(!assetReads[assetReads.length - 1].includes("/jv/"));
+assert(!assetReads[assetReads.length - 1].includes("/su/"));
 
 const heFromCountry = await route(new Request("https://kotoba.cloud/", {
   headers: { "cf-ipcountry": "IL" }
 }), env);
-assert.equal(heFromCountry.headers.get("location"), "/he/");
+assert.match(assetReads[assetReads.length - 1], /\/he\/$/);
 
 const headerBeatsCountry = await route(new Request("https://kotoba.cloud/", {
   headers: { "accept-language": "en", "cf-ipcountry": "ID" }
 }), env);
 assert.equal(headerBeatsCountry.status, 200);
 assert.equal(headerBeatsCountry.headers.get("location"), null);
+assert.match(assetReads[assetReads.length - 1], /\/$/);
 
 const cookieBeatsCountry = await route(new Request("https://kotoba.cloud/", {
   headers: { cookie: "kb_locale=jv", "cf-ipcountry": "ID" }
 }), env);
-assert.equal(cookieBeatsCountry.headers.get("location"), "/jv/");
+assert.match(assetReads[assetReads.length - 1], /\/jv\/$/);
 
 const pathWins = await route(new Request("https://kotoba.cloud/su/", {
   headers: { cookie: "kb_locale=he", "accept-language": "it", "cf-ipcountry": "IL" }
 }), env);
-assert.equal(pathWins.status, 200);
-assert.equal(pathWins.headers.get("location"), null);
+assert.equal(pathWins.status, 301);
+assert.equal(pathWins.headers.get("location"), "/");
 assert.match(pathWins.headers.get("set-cookie") || "", /^kb_locale=su;/);
 
+const jaCanonical = await route(new Request("https://kotoba.cloud/ja/billing/", {
+  headers: {}
+}), env);
+assert.equal(jaCanonical.status, 301);
+assert.equal(jaCanonical.headers.get("location"), "/billing/");
+assert.match(jaCanonical.headers.get("set-cookie") || "", /^kb_locale=ja;/);
+
+const sharedUntouched = await route(new Request("https://kotoba.cloud/account", {
+  headers: { cookie: "kb_locale=ja" }
+}), env);
+assert.equal(sharedUntouched.status, 200);
+assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
+
+assert(idFromHeader.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
-assert(pathWins.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 
 const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/session"), env);
 assert.equal(sessionUntouched.status, 200);
@@ -847,7 +865,7 @@ assert.deepEqual(orgRegistryBody.organizations, []);
     if (new URL(url instanceof Request?url.url:url).pathname==='/registry') return Response.json({organizations:[
       {orgDid:'did:webvh:zS:com-live.kotoba.cloud',handle:'com-live.kotoba.cloud',scid:'zS',
        didLog:'/.well-known/kotoba-org-dids/com-live.kotoba.cloud/did.jsonl',members:1,createdAt:1}],
-      statusLists:[{id:'https://kotoba.cloud/.well-known/kotoba-org-status/com-live.kotoba.cloud/v1'}]});
+     statusLists:[{id:'https://kotoba.cloud/.well-known/kotoba-org-status/com-live.kotoba.cloud/v1'}]});
     return Response.json({ok:true});
   }}};
   const lr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),liveEnv);
