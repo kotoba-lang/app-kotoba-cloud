@@ -20,6 +20,11 @@
    (catalog/page
     {:title "セキュリティ製品 × NIST CSF 2.0 カタログ"
      :lead "全世界のサイバーセキュリティ製品から、使っている（導入を検討している）製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをその製品がサポートするかを機能別チャートで表示します。"
+       :nav (catalog/breadcrumb
+          "カタログ"
+          [["ホーム" "/ja/"]
+           ["セキュリティ公開データ" "/ja/security/"]
+           ["このカタログ" nil]])
      :embedded? embedded?
      :id "csf2-main"}
     (catalog/status "csf2-summary" "データを読み込んでいます…")

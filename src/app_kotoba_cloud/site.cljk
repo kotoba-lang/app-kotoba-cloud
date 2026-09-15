@@ -677,7 +677,7 @@
 
 (defn document-css []
   (str (resource-read "jp_go_dds/dds.css")
-       "\n" (css-for-extras [:language-selector :menu-list-box :menu-list])))
+       "\n" (css-for-extras [:language-selector :menu-list-box :menu-list :breadcrumb :step-navigation])))
 
 (defn document-head
      [locale path-key title description]

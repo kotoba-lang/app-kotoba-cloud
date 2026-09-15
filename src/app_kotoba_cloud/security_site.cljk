@@ -21,9 +21,12 @@
      :lead "脆弱性、攻撃手法、グループ、ログを、出典まで辿って調べる。"
      :embedded? embedded?
      :id "security-main"
-     :nav [[:a {:href "/ja/"} "← チャット"]
-           [:a {:href "https://wiki.kotobase.net/"} "百科"]
-           [:a {:href "/security-data/README.md"} "LLM向け利用案内"]]}
+     :nav (catalog/breadcrumb
+          "公開データ"
+          [["チャット" "/ja/"]
+           ["百科" "https://wiki.kotobase.net/"]
+           ["このハブ" nil]
+           ["LLM向け利用案内" "/security-data/README.md"]])}
     (catalog/status "security-summary" "データを読み込んでいます…")
     (catalog/tools
      {:search-id "security-search" :search-label "データを検索"

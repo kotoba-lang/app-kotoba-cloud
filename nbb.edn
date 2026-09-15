@@ -19,4 +19,4 @@
         ;; COPIED from deps.edn: chat_site/knowledge_site require cloud-kotoba-dds.
         io.github.kotoba-lang/cloud-kotoba-dds
         {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git"
-         :git/sha "062e61980e472a2d698efad57f3c893bb53a3d1b"}}}
+         :git/sha "6eb8c827b5dd5561d1eef28b3c8648aef272b3e8"}}}
