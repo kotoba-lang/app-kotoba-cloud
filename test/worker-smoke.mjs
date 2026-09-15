@@ -661,9 +661,28 @@ assert.equal(researchCalls.length, 0);
 }
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
 const modelCatalogBody = await modelCatalog.json();
-assert.equal(modelCatalogBody.data[0].availability, "upstream-tested-access-gated");
+// Two teams (owner direction 2026-09-15): red = Modal, the identity ladder;
+// blue = OpenRouter, sign-in + free quota. The blue rows' availability is the
+// edge's OPENROUTER_CONFIGURED flag, never the key.
 assert.deepEqual(modelCatalogBody.data.map(m => m.id).sort(),
-  ["glm5.3-flash", "qwen3.8-flash-next-whitehacker"]);
+  ["glm5.3-flash", "qwen/qwen3.8-flash", "qwen3.8-flash-next-whitehacker", "z-ai/glm-5.3-flash"]);
+const catalogRow = id => modelCatalogBody.data.find(m => m.id === id);
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").team, "red");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").route, "modal");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").availability, "upstream-tested-access-gated");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").team, "blue");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").route, "openrouter");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").availability, "openrouter-key-not-configured");
+assert.equal(catalogRow("qwen/qwen3.8-flash").upstream, "https://openrouter.ai/api/v1/chat/completions");
+assert.deepEqual(modelCatalogBody.teams.red.requirements.slice(0, 3),
+  ["authenticated-principal", "verified-ekyc-card", "aup-consent"]);
+assert.deepEqual(modelCatalogBody.teams.blue.requirements,
+  ["authenticated-principal", "available-free-quota", "guardrails"]);
+{
+  const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, OPENROUTER_CONFIGURED: "true" })).json();
+  assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "openrouter-configured");
+  assert.equal(configured.data.find(m => m.id === "glm5.3-flash").availability, "upstream-tested-access-gated");
+}
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 const eligibleStatusBody = await eligibleStatus.json();
 assert.equal(eligibleStatusBody.status, "eligible");
@@ -686,6 +705,30 @@ for (const mutate of [r => { r.principalId = "another"; }, r => { r.status = "su
   researchRecord = saved;
 }
 assert.equal(researchCalls.filter(c => c.path === "/complete").length, beforeDenials);
+// Blue team at the edge: the same suspended / unscoped / stale-session record
+// that refuses a red model does not gate a blue one — the edge makes no
+// /status hop and the job carries the blue id. A red request on that record
+// stays 403 in the same breath, so the two bars are measured side by side.
+{
+  const blueBody = { ...researchBody, model: "z-ai/glm-5.3-flash" };
+  const saved = structuredClone(researchRecord);
+  researchRecord.status = "suspended"; researchRecord.scopes = []; researchRecord.continuous.expiresAt = 1;
+  const statusHops = researchCalls.filter(c => c.path === "/status").length;
+  assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 403);
+  const blueOk = await route(researchRequest("/v1/chat/completions", blueBody), researchEnv);
+  researchRecord = saved;
+  assert.equal(blueOk.status, 200);
+  const blueJson = await blueOk.json();
+  assert.equal(blueJson.model, "z-ai/glm-5.3-flash");
+  assert.equal(blueJson.billing, "free");
+  assert.equal(researchCalls.filter(c => c.path === "/status").length, statusHops + 1, "only the red request asked /status");
+  const blueCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(blueCreate.body.request.model, "z-ai/glm-5.3-flash");
+  assert.equal(blueCreate.body.billing, "free-only");
+  // the edge shape still closes the offensive band for blue
+  assert.equal((await route(researchRequest("/v1/chat/completions", { ...blueBody, task: "payload-crafting" }), researchEnv)).status, 400);
+  console.log("blue/red teams: catalog split by team and route, blue admitted at the edge without the ladder, red still 403 on the same record");
+}
 const researchOk = await route(researchRequest("/v1/chat/completions", researchBody), researchEnv);
 assert.equal(researchOk.status, 200);
 assert.equal((await researchOk.json()).billing, "free");

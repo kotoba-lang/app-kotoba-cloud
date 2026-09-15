@@ -25,56 +25,80 @@
    ".kc-models__tile{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);padding:var(--hig-spacing-4)}"
    ".kc-models__tile dt{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);letter-spacing:.06em;color:var(--hig-color-secondary-label)}"
    ".kc-models__tile dd{margin:var(--hig-spacing-2) 0 0;font-family:var(--hig-font-mono);font-size:var(--hig-text-title2-font-size);font-weight:700}"
+   ".kc-models__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--hig-spacing-3)}"
+   ".kc-models__head h2{margin:0}"
+   ".kc-models__reqs{margin:var(--hig-spacing-2) 0 0;padding-inline-start:1.2em;display:grid;gap:var(--hig-spacing-1)}"
+   ".kc-models__reqs code{color:var(--hig-color-secondary-label)}"
    ".kc-models pre{overflow-x:auto;padding:var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7}"))
 
-(def requirements
-  "What a request must carry to be admitted — the gateway's list, in the
-   person's words."
-  [["authenticated-principal" "サインイン済み"]
-   ["verified-ekyc" "本人確認済み"]
-   ["current-aml-ctf-clearance" "AML/CTF 照合が有効"]
-   ["current-trust-route" "信頼経路が有効"]
-   ["approved-research-scope" "承認済みスコープ"]
-   ["available-free-quota" "無料枠の残り"]])
+(def requirement-labels
+  "The gateway's admission conditions, in the person's words, with the
+   place to satisfy each."
+  {"authenticated-principal" ["サインイン済み" "/account"]
+   "verified-ekyc-card" ["カード登録による本人確認" "/account#account-panel-identity"]
+   "aup-consent" ["利用ポリシー（AUP）への同意" "/security/aup/"]
+   "current-aml-ctf-clearance" ["AML/CTF 照合が有効" "/account#account-panel-eligibility"]
+   "current-trust-route" ["信頼経路が有効" "/account#account-panel-eligibility"]
+   "approved-research-scope" ["承認済みスコープ" "/account#account-panel-scopes"]
+   "available-free-quota" ["無料枠の残り" "/account#account-panel-eligibility"]
+   "guardrails" ["全リクエストにガードレールが適用" "/secure/#guardrails"]})
+
+(def team-copy
+  {:blue {:title "ブルーチーム"
+          :lead "一般用途のモデル。OpenRouter 経由で提供し、サインインすれば無料枠の範囲で使えます。"
+          :route "OpenRouter"}
+   :red {:title "レッドチーム"
+         :lead "セキュリティ研究向けの無制限モデル。Modal 経由で提供し、カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"
+         :route "Modal"}})
+
+(defn- model-rows [team]
+  (for [[id {:keys [source strictAttribution] :as spec}] research/models
+        :when (= team (:team spec))]
+    [:tr {:data-model id}
+     [:td [:code id] (when (= id research/model-id) [:span " " (console/badge "既定" {:state :ok})])]
+     ;; availability is live state: filled from /v1/models
+     [:td [:span {:class "ck-console__value" :data-model-availability id :data-state "empty"} "—"]]
+     [:td [:a {:href source} (last (str/split source #"/"))]]
+     [:td (if strictAttribution "上流が自身のモデル ID を返すことを要求" "応答の形と内容で検証")]]))
+
+(defn- team-section [team]
+  (let [{:keys [title lead route]} (get team-copy team)
+        reqs (get-in research/teams [team :requirements])]
+    [:section {:class "ck-console__panel" :id (str "team-" (name team))}
+     [:div {:class "kc-models__head"}
+      [:h2 title]
+      (console/badge (str "経路: " route) {:state (if (= team :red) :action :ok)})]
+     [:p {:class "ck-console__note"} lead]
+     [:div {:class "kc-models__table"}
+      [:table
+       [:thead [:tr [:th "モデル"] [:th "提供状態"] [:th "出所"] [:th "帰属検証"]]]
+       (into [:tbody] (model-rows team))]]
+     [:h3 "利用の条件"]
+     (into [:ul {:class "kc-models__reqs"}]
+           (for [r reqs
+                 :let [[label href] (get requirement-labels r [r nil])]]
+             [:li (if href [:a {:href href} label] label) " " [:code r]]))]))
 
 (defn section []
   (let [{:keys [requestsPerDay maxOutputTokens maxInputCharacters]} research/free-limits]
     [:div {:class "kc-models"}
      (dds/heading 1 "モデル" {:size "36"})
      [:p {:class "kc-models__lead"}
-      "研究 API で選べるモデル。既定は " [:code research/model-id] "。いずれも許可されたリクエストだけが到達します。"]
+      "研究 API で選べるモデルは 2 つのチームに分かれます。ブルーチームはサインインだけで、レッドチームは本人確認と利用ポリシーへの同意のうえで使えます。既定は " [:code research/model-id] "。"]
      [:p {:id "models-status" :role "status" :class "ck-console__note"} ""]
-     [:section {:class "ck-console__panel"}
-      [:h2 "選択できるモデル"]
-      [:div {:class "kc-models__table"}
-       [:table
-        [:thead [:tr [:th "モデル"] [:th "提供状態"] [:th "出所"] [:th "帰属検証"]]]
-        (into [:tbody]
-              (for [[id {:keys [source strictAttribution]}] research/models]
-                [:tr {:data-model id}
-                 [:td [:code id] (when (= id research/model-id) [:span " " (console/badge "既定" {:state :ok})])]
-                 ;; availability is live state: filled from /v1/models
-                 [:td [:span {:class "ck-console__value" :data-model-availability id :data-state "empty"} "—"]]
-                 [:td [:a {:href source} (last (str/split source #"/"))]]
-                 [:td (if strictAttribution "上流が自身のモデル ID を返すことを要求" "応答の形と内容で検証")]]))]]]
+     (team-section :blue)
+     (team-section :red)
      [:section {:class "ck-console__panel"}
       [:h2 "無料枠"]
       [:dl {:class "kc-models__limits"}
        [:div {:class "kc-models__tile"} [:dt "1 日のリクエスト"] [:dd requestsPerDay]]
        [:div {:class "kc-models__tile"} [:dt "出力トークン上限"] [:dd maxOutputTokens]]
        [:div {:class "kc-models__tile"} [:dt "入力文字数上限"] [:dd maxInputCharacters]]]
-      [:p {:class "ck-console__note"} "本人確認済みの研究者の無料枠。有料枠は" [:a {:href "/billing/"} "料金・決済"] "で追加できます。"]]
-     [:section {:class "ck-console__panel"}
-      [:h2 "許可の条件"]
-      [:div {:class "kc-models__table"}
-       [:table
-        [:thead [:tr [:th "条件"] [:th "意味"]]]
-        (into [:tbody] (for [[k ja] requirements] [:tr [:td [:code k]] [:td ja]]))]]
-      [:p {:class "ck-console__note"} "状態は" [:a {:href "/account"} "アカウント"] "で確認できます。"]]
+      [:p {:class "ck-console__note"} "両チーム共通。有料枠は" [:a {:href "/billing/"} "料金・決済"] "で追加できます。"]]
      [:section {:class "ck-console__panel"}
       [:h2 "呼び出し方"]
       [:pre [:code (str "curl -s -X POST https://api.kotoba.cloud/v1/chat/completions \\\n"
                         "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
                         "  -H \"content-type: application/json\" \\\n"
                         "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'")]]
-      [:p {:class "ck-console__note"} [:a {:href "/docs/reference/quickstart/"} "クイックスタート"] "に発行から最初のリクエストまでの手順があります。"]]]))
+      [:p {:class "ck-console__note"} "ブルーチームのモデルは OpenRouter の ID をそのまま `model` に指定します。" [:a {:href "/docs/reference/quickstart/"} "クイックスタート"] "に発行から最初のリクエストまでの手順があります。"]]]))

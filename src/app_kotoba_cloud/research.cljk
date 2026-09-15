@@ -4,18 +4,40 @@
 
 (def policy-version "whitehat-2026-09-12-v1")
 (def model-id "qwen3.8-flash-next-whitehacker")
+(def teams
+  "Two teams, two routes, two admission bars (owner direction 2026-09-15).
+   :red  — the security-research models served through Modal; admitted only
+           with card-based identity verification and consent to the
+           Acceptable Use Policy (/security/aup/), plus trust / screening /
+           scope as before.
+   :blue — general models served through OpenRouter; admitted with a
+           signed-in principal and free quota. Guardrails run on every
+           request for both teams."
+  {:blue {:label "ブルーチーム" :label-en "Blue team" :route :openrouter
+          :requirements ["authenticated-principal" "available-free-quota" "guardrails"]}
+   :red {:label "レッドチーム" :label-en "Red team" :route :modal
+         :requirements ["authenticated-principal" "verified-ekyc-card" "aup-consent"
+                        "current-aml-ctf-clearance" "current-trust-route"
+                        "approved-research-scope" "available-free-quota" "guardrails"]}})
 (def models
   "Selectable research models. `:upstream` is the model id forwarded to the
-  configured inference endpoint; `:strictAttribution` requires the upstream
-  to echo its own model id. Models served behind a router reporting a
-  different serving name (e.g. murakumo-main) set it false and are validated
-  on object shape + content only."
+  team's route; `:strictAttribution` requires the upstream to echo its own
+  model id. Blue-team public ids ARE the OpenRouter ids (an OpenAI-
+  compatible client uses them unchanged); red-team ids are Kotoba's."
   {"qwen3.8-flash-next-whitehacker"
-   {:upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
+   {:team :red :upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
     :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}
    "glm5.3-flash"
-   {:upstream "glm5.3-flash" :strictAttribution false
-    :source "https://huggingface.co/zai-org/GLM"}})
+   {:team :red :upstream "glm5.3-flash" :strictAttribution false
+    :source "https://huggingface.co/zai-org/GLM"}
+   "qwen/qwen3.8-flash"
+   {:team :blue :upstream "qwen/qwen3.8-flash" :strictAttribution true
+    :source "https://openrouter.ai/qwen/qwen3.8-flash"}
+   "z-ai/glm-5.3-flash"
+   {:team :blue :upstream "z-ai/glm-5.3-flash" :strictAttribution true
+    :source "https://openrouter.ai/z-ai/glm-5.3-flash"}})
+(defn model-team [id] (get-in models [id :team]))
+(defn blue? [id] (= :blue (model-team id)))
 (def model-ids (set (keys models)))
 (def upstream-model-id (get-in models [model-id :upstream]))
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
@@ -28,13 +50,19 @@
   {:object "list"
    :data (mapv (fn [[id spec]]
                  {:id id :object "model" :owned_by "kotoba"
-                  :upstream "https://api.murakumo.cloud/v1/chat/completions"
-                  :availability "upstream-tested-access-gated"
+                  :team (name (:team spec))
+                  :route (name (get-in teams [(:team spec) :route]))
+                  :upstream (case (:team spec)
+                              :blue "https://openrouter.ai/api/v1/chat/completions"
+                              "https://api.murakumo.cloud/v1/chat/completions")
+                  ;; the edge overrides :availability from its environment
+                  ;; (blue: whether the OpenRouter key is configured)
+                  :availability (case (:team spec) :blue "route-not-configured" "upstream-tested-access-gated")
                   :source (:source spec)})
                (seq models))
+   :teams (into {} (map (fn [[k v]] [k (select-keys v [:label :label-en :route :requirements])]) teams))
    :policyVersion policy-version :freeTier free-limits
-   :requirements ["authenticated-principal" "verified-ekyc" "current-aml-ctf-clearance"
-                  "current-trust-route" "approved-research-scope" "available-free-quota"]
+   :requirements (get-in teams [:red :requirements])
    :trustPolicy trust-policy :sessionPolicy session-policy})
 
 (defn text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))

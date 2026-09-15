@@ -188,7 +188,12 @@
 (def session-window-ms 15000)
 (def upstream-models
   {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-cybersecurity-nvfp4"
-   "glm5.3-flash" "glm5.3-flash"})
+   "glm5.3-flash" "glm5.3-flash"
+   ;; blue team (OpenRouter): the public id is the OpenRouter id
+   "qwen/qwen3.8-flash" "qwen/qwen3.8-flash"
+   "z-ai/glm-5.3-flash" "z-ai/glm-5.3-flash"})
+(def blue-models #{"qwen/qwen3.8-flash" "z-ai/glm-5.3-flash"})
+(defn- blue-model? [public-id] (contains? blue-models public-id))
 (def public-model "qwen3.8-flash-next-whitehacker")
 (defn- upstream-model-for [public-id] (get upstream-models public-id public-model))
 
@@ -701,6 +706,19 @@
        :messages (clj->js (:messages request))
        :max_tokens (:max_tokens request)})
 
+(def openrouter-url "https://openrouter.ai/api/v1/chat/completions")
+(defn- openrouter-headers
+  "Blue-team route. The key is an operator secret (OPENROUTER_API_KEY);
+  without it the route refuses by name — a blue job never silently falls
+  back to the red team's Modal deployment."
+  [env]
+  (let [key (aget env "OPENROUTER_API_KEY")]
+    (when-not (text? key 512)
+      (throw (ex-info "openrouter-not-configured" {:status 503})))
+    #js {"content-type" "application/json"
+         "authorization" (str "Bearer " key)
+         "HTTP-Referer" "https://kotoba.cloud"
+         "X-Title" "Kotoba Cloud"}))
 (defn- modal-upstream-url
   "The Modal deployment URL is an operator secret/configuration, never a
   browser field. Restrict it to Modal's deployment host so this private Worker
@@ -746,29 +764,50 @@
   (let [p (load-job storage job-id)]
     (.then p (fn [job]
       (when (and job (= "queued" (:status job)))
-        (let [q (js/fetch (modal-upstream-url env)
-                          #js {:method "POST" :redirect "manual"
-                               :signal (js/AbortSignal.timeout 2100000)
-                               :headers #js {"content-type" "application/json"
-                                             "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))}
-                               :body (js/JSON.stringify (upstream-body (:request job)))})
+        (let [blue? (blue-model? (get-in job [:request :model]))
+              ;; the route is decided by the model's team, and a route that is
+              ;; not configured refuses by name inside the same promise chain
+              q (try
+                  (js/fetch (if blue? openrouter-url (modal-upstream-url env))
+                            #js {:method "POST" :redirect "manual"
+                                 :signal (js/AbortSignal.timeout 2100000)
+                                 :headers (if blue?
+                                            (openrouter-headers env)
+                                            #js {"content-type" "application/json"
+                                                 "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
+                                 :body (js/JSON.stringify (upstream-body (:request job)))})
+                  (catch :default e (js/Promise.reject e)))
+              ;; a failure is stored ONCE with its own reason and short-circuits
+              ;; the rest of the chain via the ::failed sentinel — before this,
+              ;; the rejection handler's resolved value flowed into the parse
+              ;; step, which failed again and overwrote e.g.
+              ;; openrouter-not-configured with unexpected-modal-model-or-response
               fail (fn [e]
-                     (store-job! storage (assoc job :status "failed"
-                                                :error (str (or (.-message e) e))
-                                                :finishedAt (js/Date.now))))
-              succeed (fn [{:keys [content usage-receipt]}]
-                        (store-job! storage (assoc job :status "succeeded"
-                                                   :content content
-                                                   :usageReceipt usage-receipt
-                                                   :finishedAt (js/Date.now))))
+                     (-> (store-job! storage (assoc job :status "failed"
+                                                    :error (str (or (.-message e) e))
+                                                    :finishedAt (js/Date.now)))
+                         (.then (fn [_] ::failed))))
+              succeed (fn [result]
+                        (if (= ::failed result)
+                          (js/Promise.resolve ::failed)
+                          (let [{:keys [content usage-receipt]} result]
+                            (store-job! storage (assoc job :status "succeeded"
+                                                       :content content
+                                                       :usageReceipt usage-receipt
+                                                       :finishedAt (js/Date.now))))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
-                            (throw (ex-info "modal-inference-unavailable" {:status (.-status r)}))
+                            (throw (ex-info (if (blue-model? (get-in job [:request :model]))
+                                              "openrouter-inference-unavailable"
+                                              "modal-inference-unavailable")
+                                            {:status (.-status r)}))
                             (.json r)))
                         fail)
               parsed (js-invoke fetched "then"
                        (fn [raw]
+                         (if (= ::failed raw)
+                           ::failed
                          (let [decoded (decode raw)
                                content (get-in decoded [:choices 0 :message :content])
                                reasoning (get-in decoded [:choices 0 :message :reasoning])
@@ -780,7 +819,7 @@
                                         (text? fallback 65536))
                              (throw (ex-info "unexpected-modal-model-or-response" {}))
                              {:content fallback
-                              :usage-receipt (upstream-usage-receipt decoded job)})))
+                              :usage-receipt (upstream-usage-receipt decoded job)}))))
                        fail)]
           (js-invoke parsed "then" succeed fail)))))))
 ;; --- request handling -------------------------------------------------------
@@ -828,17 +867,26 @@
         (.then (fn [record]
                  (let [record (or record {:status "none" :principalId (:principalId body)})]
                    ;; Firewall: deterministic tool deny INSIDE the loaded-record
-                   ;; branch, after the guardrail gate, before eligibility.
-                   (let [fw (secure/firewall-decision record (get-in body [:request :task]) now)]
+                   ;; branch, after the guardrail gate, before eligibility. The
+                   ;; blue team has no identity rung: it may call the three
+                   ;; standard tasks and nothing in the offensive band.
+                   (let [blue? (blue-model? (get-in body [:request :model]))
+                         task (get-in body [:request :task])
+                         fw (if blue?
+                              {:tool task :decision (if (contains? tasks task) "allow" "deny")}
+                              (secure/firewall-decision record task now))]
                      (when (= "deny" (:decision fw))
                        (throw (ex-info "firewall-denied"
                                        {:status 403
                                         :firewallVersion secure/firewall-version
                                         :tool (:tool fw)}))))
                    ;; Admission recheck happens here, atomically, before any reservation.
-                   (if-let [reason (or (eligibility-reason record now)
-                                       (when-not (trust-valid? record now)
-                                         "trust-route-required"))]
+                   ;; Blue team: a signed-in principal and free quota (the edge
+                   ;; authenticated the principal); red team: the whole ladder.
+                   (if-let [reason (when-not (blue-model? (get-in body [:request :model]))
+                                     (or (eligibility-reason record now)
+                                         (when-not (trust-valid? record now)
+                                           "trust-route-required")))]
                      (response {:error reason} 403)
                      (let [day (utc-day now) used (quota-used record day)]
                        (cond
