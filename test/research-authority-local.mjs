@@ -138,6 +138,29 @@ assert.deepEqual(storedJob.usageReceipt && {
   // and the poll reports the failure, not a receipt
   const rs = await call("/jobs/status", { principalId: principal, sessionRef, jobId: failJobId });
   assert.equal(rs.json.status, "failed");
+  // The same prompt again re-dispatches the FAILED reservation (the origin is
+  // back) instead of replaying the failure — measured live 2026-09-15: the
+  // second identical request answered 502 in 0.3 s without a run.
+  const usedBefore = JSON.parse(await state.storage.get("record")).usage.count;
+  const rr = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rr.status, 200, JSON.stringify(rr));
+  await new Promise(r => setTimeout(r, 50));
+  const retried = JSON.parse(await state.storage.get("job:" + failJobId));
+  assert.equal(retried.status, "succeeded", "a failed reservation must run again: " + JSON.stringify(retried));
+  assert.equal(retried.content, "Fix authorization.");
+  assert.equal(JSON.parse(await state.storage.get("record")).usage.count, usedBefore + 1, "the retry is counted");
+  // a succeeded reservation is still replayed, not re-run
+  const rr2 = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rr2.json.receiptId, "receipt-" + failJobId);
+  assert.equal(JSON.parse(await state.storage.get("record")).usage.count, usedBefore + 1, "a replay is not counted");
 }
 
 // 6c. native tool calls: the request's tools reach the origin verbatim, and
@@ -154,6 +177,7 @@ assert.deepEqual(storedJob.usageReceipt && {
     return new Response(JSON.stringify({
       id: "chatcmpl-tool", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
       choices: [{ index: 0, finish_reason: "tool_calls", message: { role: "assistant", content: null,
+        reasoning: "The user wants a file.",
         tool_calls: [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{\"path\":\"hello.txt\",\"content\":\"hi\"}" } }] } }],
       usage: { prompt_tokens: 40, completion_tokens: 20, total_tokens: 60 },
     }), { status: 200, headers: { "content-type": "application/json" } });
@@ -178,7 +202,7 @@ assert.deepEqual(storedJob.usageReceipt && {
   assert.deepEqual(seenTools.roles, ["system", "user", "assistant", "tool"]);
   const toolJob = JSON.parse(await state.storage.get("job:" + toolJobId));
   assert.equal(toolJob.status, "succeeded", JSON.stringify(toolJob));
-  assert.equal(toolJob.content, null);
+  assert.equal(toolJob.content, null, "reasoning must not stand in for content next to native tool calls");
   assert.equal(toolJob.finishReason, "tool_calls");
   assert.deepEqual(toolJob.toolCalls, [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{\"path\":\"hello.txt\",\"content\":\"hi\"}" } }]);
   const rts = await call("/jobs/status", { principalId: principal, sessionRef, jobId: toolJobId });

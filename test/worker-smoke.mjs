@@ -1157,11 +1157,12 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
         messages: [{ role: "system", content: "You are an agent." }, { role: "user", content: "Create a.txt" },
           { role: "assistant", content: null, tool_calls: [{ id: "call_0", type: "function", function: { name: "read_file", arguments: "{\"path\":\"a.txt\"}" } }], reasoning_content: "thinking" },
           { role: "tool", tool_call_id: "call_0", content: "(no such file)" }] };
-      // reasoning_content is not an admitted assistant field
+      // reasoning_content echoed back by the client is accepted and dropped
+      // (it never reaches the authority); an unknown assistant field is not
       assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
         method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
-        body: JSON.stringify(agentTurns) }), bearerPatEnv)).status, 400);
-      delete agentTurns.messages[2].reasoning_content;
+        body: JSON.stringify({ ...agentTurns, messages: [agentTurns.messages[0], agentTurns.messages[1],
+          { ...agentTurns.messages[2], surprise: 1 }, agentTurns.messages[3]] }) }), bearerPatEnv)).status, 400);
       for (const bad of [{ tool_choice: "auto", tools: undefined }, { tools: [{ type: "function", function: { name: "bad name" } }] },
         { messages: [...agentTurns.messages.slice(0, 2), { role: "assistant", content: "", tool_calls: [{ type: "function", function: { name: "x", arguments: "{}" } }] }, agentTurns.messages[3]] },
         { messages: [...agentTurns.messages.slice(0, 3)] }]) {

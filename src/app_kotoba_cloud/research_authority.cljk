@@ -913,15 +913,21 @@
                                choice (get-in decoded [:choices 0])
                                content (get-in choice [:message :content])
                                reasoning (get-in choice [:message :reasoning])
-                               fallback (if (text? content max-content-characters) content reasoning)
+                               native (let [tc (get-in choice [:message :tool_calls])]
+                                        (when (and (vector? tc) (seq tc)) tc))
+                               ;; reasoning stands in for empty content ONLY when the
+                               ;; answer is text: next to native tool calls it would be
+                               ;; served as the assistant's words (measured 2026-09-15
+                               ;; after the origin's qwen3_xml parser landed)
+                               fallback (cond (text? content max-content-characters) content
+                                              native nil
+                                              :else reasoning)
                                ;; native tool calls: id / type function / name / arguments
                                ;; (a JSON string). Anything else is a malformed origin answer.
                                ;; Text-form calls (Qwen XML / json tags) are converted first.
                                recovered (text-tool-calls fallback (get-in job [:request :tools]))
                                fallback (:content recovered)
-                               tool-calls (let [tc (get-in choice [:message :tool_calls])]
-                                            (or (when (and (vector? tc) (seq tc)) tc)
-                                                (:tool-calls recovered)))
+                               tool-calls (or native (:tool-calls recovered))
                                tool-calls-ok? (or (nil? tool-calls)
                                                   (and (<= (count tool-calls) 64)
                                                        (every? #(and (map? %) (text? (:id %) 128)
@@ -1038,7 +1044,13 @@
                                           (and prior (not= (get-in body [:request :messages])
                                                            (get-in prior [:request :messages])))
                                           (response {:error "job-input-conflict"} 409)
-                                          prior (response (job-response prior record (:sessionRef body) now) 200)
+                                          ;; a FAILED reservation is not a receipt: the same
+                                          ;; prompt again re-dispatches (the deterministic id
+                                          ;; otherwise made one transient origin failure
+                                          ;; permanent for that prompt — measured 2026-09-15:
+                                          ;; second identical request 502 in 0.3 s, no run)
+                                          (and prior (not= "failed" (:status prior)))
+                                          (response (job-response prior record (:sessionRef body) now) 200)
                                           :else
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
                                                      :status "queued" :receiptId (str "receipt-" (:jobId body))
