@@ -645,11 +645,36 @@
               (.then (fn [auth]
                        (if (nil? auth)
                          (respond {:error {:code "research-access-denied"}} 403)
-                         (-> (pat/agent-session-reference
-                              (:principalId auth) (subs (:tokenHash auth) 0 16))
-                             (.then #(if ekyc?
-                                       (ekyc-route request path binding (:principalId auth) % respond)
-                                       (authorized-route request path binding (:principalId auth) % respond env)))))))))))))
+                         ;; the registry's answer first: a revoked (or never
+                         ;; registered) v2 token, or a legacy token after the
+                         ;; principal revoked legacy tokens, acts no further.
+                         ;; 401 token-revoked names it for the agent's log.
+                         (-> (service binding "/tokens/check" {:principalId (:principalId auth)
+                                                                :tokenId (:tokenId auth)})
+                             (.then (fn [_]
+                                      (-> (pat/agent-session-reference
+                                           (:principalId auth) (subs (:tokenHash auth) 0 16))
+                                          (.then #(if ekyc?
+                                                    (ekyc-route request path binding (:principalId auth) % respond)
+                                                    (authorized-route request path binding (:principalId auth) % respond env))))))
+                             (.catch (fn [e]
+                                       (if (= 403 (:status (ex-data e)))
+                                         (respond {:error {:code "token-revoked"
+                                                           :message (str "personal API token refused: " (ex-message e)
+                                                                         " — issue a new one at https://kotoba.cloud/account")
+                                                           :type "invalid_request_error"}} 401)
+                                         (throw e))))))))))))))
+
+;; Token registry calls the account console makes over the cookie session
+;; (the token itself never travels here; only its id and label).
+(defn token-registry-call
+  "Promise of the authority's answer for one registry op, for the account
+  console routes in worker.cljk."
+  [^js env op principal payload]
+  (let [binding (.-RESEARCH_AUTHORITY env)]
+    (if (nil? binding)
+      (js/Promise.reject (ex-info "research-service-unavailable" {:status 503}))
+      (service binding (str "/tokens/" op) (assoc payload :principalId principal)))))
 
 
 (defn route [request ^js env fetch-viewer respond]

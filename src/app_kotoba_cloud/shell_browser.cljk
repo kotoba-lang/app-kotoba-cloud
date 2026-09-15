@@ -74,7 +74,12 @@
           (when-let [link (el "kc-setup-banner-link")] (set! (.-href link) (str (apex) (:href next))))
           ;; not on the page the step lives on: the banner would repeat the
           ;; panel right under it
-          (when-not (str/starts-with? (.-pathname js/location) "/account")
+          (when-not (or (str/starts-with? (.-pathname js/location) "/account")
+                        ;; the console names itself: its locale variants are
+                        ;; emitted under /<locale>/account/ (served in place
+                        ;; at /account by the Worker; at their own path by a
+                        ;; static harness)
+                        (some? (.getElementById js/document "account-console")))
             (show! "kc-setup-banner")))
       (hide! "kc-setup-banner"))))
 

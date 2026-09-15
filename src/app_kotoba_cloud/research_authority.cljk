@@ -1242,9 +1242,75 @@
                                            :op (:op body) :receiptId (:receiptId audit)
                                            :status (:status next)} 200))))))))))
 
+;; --- personal API token registry -------------------------------------------
+;; The edge verifies a PAT statelessly (HMAC); this registry gives each v2
+;; token (tokenId) a life: label / issuedAt / revokedAt on the principal's
+;; record, consulted by the bearer path on every request. Legacy v1 tokens
+;; carry no id; `legacyRevokedAt` refuses all of them at once. Nothing here
+;; holds a token or its hash — only the 12-hex id the token itself carries.
+(def max-tokens-per-principal 32)
+
+(defn- tokens-of [record] (vec (or (:tokens record) [])))
+
+(defn- handle-tokens [storage op body]
+  (let [now (.now js/Date)
+        token-id (:tokenId body)]
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (let [record (or record {:status "none" :principalId (:principalId body)})
+                       tokens (tokens-of record)]
+                   (case op
+                     :tokens-register
+                     (cond
+                       (not (and (string? token-id) (re-matches #"[0-9a-f]{12}" token-id)))
+                       (response {:error "invalid-token-id"} 400)
+                       (some #(= token-id (:id %)) tokens)
+                       (response {:error "token-id-taken"} 409)
+                       (>= (count (remove :revokedAt tokens)) max-tokens-per-principal)
+                       (response {:error "too-many-tokens"} 409)
+                       :else
+                       (let [entry {:id token-id :issuedAt now
+                                    :label (when (text? (:label body) 64) (:label body))}]
+                         (-> (save-state storage (assoc record :tokens (conj tokens entry)))
+                             (.then (fn [_] (response {:principalId (:principalId body) :token entry} 200))))))
+                     :tokens-list
+                     (response {:principalId (:principalId body)
+                                :tokens (mapv #(select-keys % [:id :label :issuedAt :revokedAt]) tokens)
+                                :legacyRevokedAt (:legacyRevokedAt record)} 200)
+                     :tokens-revoke
+                     (if-not (some #(= token-id (:id %)) tokens)
+                       (response {:error "token-not-found"} 404)
+                       (let [next (mapv #(if (and (= token-id (:id %)) (nil? (:revokedAt %)))
+                                           (assoc % :revokedAt now) %) tokens)]
+                         (-> (save-state storage (assoc record :tokens next))
+                             (.then (fn [_] (response {:principalId (:principalId body)
+                                                       :token (some #(when (= token-id (:id %)) %) next)} 200))))))
+                     :tokens-revoke-legacy
+                     (-> (save-state storage (assoc record :legacyRevokedAt now))
+                         (.then (fn [_] (response {:principalId (:principalId body) :legacyRevokedAt now} 200))))
+                     :tokens-check
+                     ;; the bearer path's question: may this token act? A v2 id
+                     ;; must be registered and unrevoked; a legacy token (no id)
+                     ;; is admitted until legacy tokens are revoked.
+                     (let [entry (when token-id (some #(when (= token-id (:id %)) %) tokens))
+                           allowed? (if token-id
+                                      (and (some? entry) (nil? (:revokedAt entry)))
+                                      (nil? (:legacyRevokedAt record)))]
+                       (if allowed?
+                         (response {:principalId (:principalId body) :ok true
+                                    :tokenId token-id :label (:label entry)} 200)
+                         (response {:error (cond (nil? token-id) "legacy-token-revoked"
+                                                 (nil? entry) "token-unknown"
+                                                 :else "token-revoked")} 403))))))))))
+
 (defn- route-op [path]
   (case path
     "/status" :status
+    "/tokens/register" :tokens-register
+    "/tokens/list" :tokens-list
+    "/tokens/revoke" :tokens-revoke
+    "/tokens/revoke-legacy" :tokens-revoke-legacy
+    "/tokens/check" :tokens-check
     "/applications" :applications
     "/jobs/create" :jobs-create
     "/jobs/status" :jobs-status
@@ -1318,6 +1384,8 @@
   (let [storage (aget state "storage") now (.now js/Date)]
     (case (route-op path)
       :status (handle-status storage body)
+      (:tokens-register :tokens-list :tokens-revoke :tokens-revoke-legacy :tokens-check)
+      (handle-tokens storage (route-op path) body)
       :applications (handle-applications storage body)
       :jobs-create (-> (handle-jobs-create storage body)
                        ;; Fire the detached upstream call only after the 202/200 is
