@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T19:21:29.201Z",
+ "generatedAt": "2026-09-15T19:38:10.570Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
@@ -7442,8 +7442,12 @@
    "pricingMode": "public-list",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/idp.html",
    "pricingNote": "standalone product page https://www.trendmicro.com/ja_jp/forHome/products/pwmgr.html now 301-redirects to the トレンドマイクロ ID プロテクション page (HTTP 200, verified 2026-09-15) — the password manager is sold as a bundled feature of ID プロテクション (subscription via in-app purchase, no separate price list on the ja_jp page)",
+   "complianceFits": [
+    "cis-controls",
+    "nist-csf-20"
+   ],
    "record": {
-    "/": "baguqeera5b3fayo44comzfwfd3cltku6tppp3uwp34rlw7wiwi5dpj5vxkva"
+    "/": "baguqeeraovicyeixftsrxuhnq5e3u7t7gbnynalummb6gekgmiiqfhk5rkka"
    }
   }
  ],
@@ -9383,9 +9387,9 @@
    "bytes": 511,
    "codec": "dag-json"
   },
-  "baguqeera5b3fayo44comzfwfd3cltku6tppp3uwp34rlw7wiwi5dpj5vxkva": {
-   "path": "/compliance-data/compliance/blocks/baguqeera5b3fayo44comzfwfd3cltku6tppp3uwp34rlw7wiwi5dpj5vxkva.json",
-   "bytes": 675,
+  "baguqeeraovicyeixftsrxuhnq5e3u7t7gbnynalummb6gekgmiiqfhk5rkka": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraovicyeixftsrxuhnq5e3u7t7gbnynalummb6gekgmiiqfhk5rkka.json",
+   "bytes": 723,
    "codec": "dag-json"
   },
   "baguqeeraybcst3arns3njtponbqaaohjoc4ca5llynxre322nm6xu36j5vba": {
@@ -9393,13 +9397,13 @@
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeeranqmotcjmwdqfznz3tk3bwok4wmlzlddiv4yb3smu6zoyissoh5ea": {
-   "path": "/compliance-data/compliance/blocks/baguqeeranqmotcjmwdqfznz3tk3bwok4wmlzlddiv4yb3smu6zoyissoh5ea.json",
-   "bytes": 266767,
+  "baguqeera4b5h5uflc2qoorh3bh5wghggt3tf7b5egwv4ux5mj34mowostqea": {
+   "path": "/compliance-data/compliance/blocks/baguqeera4b5h5uflc2qoorh3bh5wghggt3tf7b5egwv4ux5mj34mowostqea.json",
+   "bytes": 266815,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeeranqmotcjmwdqfznz3tk3bwok4wmlzlddiv4yb3smu6zoyissoh5ea"
+  "/": "baguqeera4b5h5uflc2qoorh3bh5wghggt3tf7b5egwv4ux5mj34mowostqea"
  }
 }
