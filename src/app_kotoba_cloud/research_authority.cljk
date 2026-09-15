@@ -202,6 +202,32 @@
 (declare load-state save-state hmac! timing-safe=?)
 (def challenge-ttl-ms 900000)
 (def admissible-funding #{"credit" "debit"})
+;; Hosted Checkout (mode=setup) is refused without success_url — Stripe 400
+;; parameter_missing, measured live 2026-09-15 (every /v1/checkout/sessions
+;; POST from this route on the AWAI account was 400). The human is sent back
+;; to the account console, whose client re-reads /v1/research/ekyc/status;
+;; approval itself comes from the checkout.session.completed webhook, never
+;; from the redirect.
+(def account-console-url "https://kotoba.cloud/account")
+(def card-setup-success-url (str account-console-url "?card=done#account-panel-identity"))
+(def card-setup-cancel-url (str account-console-url "?card=cancelled#account-panel-identity"))
+
+(defn- stripe-error!
+  "Turn a non-ok Stripe response into the thrown `code`, keeping Stripe's own
+  error (type / code / param / message — never card or document data) in
+  ex-data and on the log line, so an operator can tell a missing param from a
+  revoked key from an outage. Discarding the body hid a 400 parameter_missing
+  behind `stripe-unavailable`."
+  [code path r]
+  (-> (.text r)
+      (.catch (fn [_] ""))
+      (.then (fn [detail]
+               (let [err (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
+                              (catch :default _ nil))
+                     stripe (when (map? err) (select-keys err [:type :code :param :message]))]
+                 (js/console.error "stripe-request-failed" path (.-status r)
+                                   (js/JSON.stringify (clj->js (or stripe {}))))
+                 (throw (ex-info code {:status 503 :stripeStatus (.-status r) :stripe stripe})))))))
 
 (defn- stripe-credential! [env]
   ;; Preferred dedicated card key; falls back to the Identity key, then the
@@ -221,7 +247,7 @@
                      :headers #js {"authorization" (str "Bearer " key)}})
       (.then (fn [r]
                (if (.-ok r) (.json r)
-                   (throw (ex-info "stripe-unavailable" {:status 503})))))))
+                   (stripe-error! "stripe-unavailable" path r))))))
 
 (defn- card-customer!
   "One Stripe customer per principal, minted server-side with an idempotency
@@ -237,7 +263,7 @@
                        :body (str "metadata[principal]=" (js/encodeURIComponent principal))})
         (.then (fn [r]
                  (if (.-ok r) (.json r)
-                     (throw (ex-info "stripe-unavailable" {:status 503}))))))))
+                     (stripe-error! "stripe-unavailable" "/v1/customers" r)))))))
 
 (defn- create-identity-session!
   "Inline Stripe Identity session create (document type, bound verification
@@ -349,12 +375,14 @@
                                                         :body (str "mode=setup"
                                                                    "&customer=" (js/encodeURIComponent id)
                                                                    "&payment_method_types[0]=card"
+                                                                   "&success_url=" (js/encodeURIComponent card-setup-success-url)
+                                                                   "&cancel_url=" (js/encodeURIComponent card-setup-cancel-url)
                                                                    "&setup_intent_data[metadata][principal]=" (js/encodeURIComponent principal)
                                                                    "&metadata[principal]=" (js/encodeURIComponent principal)
                                                                    "&metadata[purpose]=identity-verification")})
                                          (.then (fn [r]
                                                   (if (.-ok r) (.json r)
-                                                      (throw (ex-info "stripe-unavailable" {:status 503})))))
+                                                      (stripe-error! "stripe-unavailable" "/v1/checkout/sessions" r))))
                                          (.then (fn [sess]
                                                   (let [s (js->clj sess :keywordize-keys true)]
                                                     (when-not (and (text? (:url s) 512) (text? (:id s) 128))
@@ -516,15 +544,22 @@
                                                             {:id (:scopeId challenge) :status "approved"
                                                              :tasks (:tasks challenge) :expiresAt (+ now 86400000)}))
                                           next (assoc next :status "active")]
-                                      (-> (save-challenge! storage (:principalId body)
-                                                           (assoc challenge :consumed true
-                                                                  :receiptId receipt-id :verifiedAt now))
-                                          (.then (fn [_] (save-state storage (assoc next :lastReview audit))))
-                                          (.then (fn [_]
-                                                   (response {:principalId (:principalId body)
-                                                              :status (:status next)
-                                                              :receiptId receipt-id
-                                                              :approvedBy (if setup? "stripe-card" "stripe-identity")} 200)))))))))))))))))
+                                      (let [consumed (assoc challenge :consumed true
+                                                            :receiptId receipt-id :verifiedAt now)]
+                                        (-> (save-challenge! storage (:principalId body) consumed)
+                                            ;; The replay lookup above resolves by the
+                                            ;; session index first; an index copy left
+                                            ;; unconsumed re-applied the chain on every
+                                            ;; Stripe retry (the E2E only passed when
+                                            ;; both calls shared a millisecond).
+                                            (.then (fn [_] (when (text? (:stripeSessionId challenge) 128)
+                                                             (save-session-challenge! storage (:stripeSessionId challenge) consumed))))
+                                            (.then (fn [_] (save-state storage (assoc next :lastReview audit))))
+                                            (.then (fn [_]
+                                                     (response {:principalId (:principalId body)
+                                                                :status (:status next)
+                                                                :receiptId receipt-id
+                                                                :approvedBy (if setup? "stripe-card" "stripe-identity")} 200))))))))))))))))))
 
 (defn- handle-ekyc-status [storage body]
   (-> (load-state storage)

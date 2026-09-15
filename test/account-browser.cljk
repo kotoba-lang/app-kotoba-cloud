@@ -101,6 +101,41 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(shots)await page.screenshot({path:shots+'/account-signed-in-'+width+'.png',fullPage:true});
   await page.close();
  }
+ console.log('block ekyc-start');
+ // --- 本人確認を開始: the click posts { scopeId, tasks } (no principalId —
+ // the edge takes it from the session), follows verificationUrl, and maps
+ // the surfaced authority codes to their sentences. Back from Checkout with
+ // ?card=done the pending note says the card was received.
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  const starts=[]; let answer={status:200,body:{verificationUrl:'https://checkout.stripe.com/c/pay/cs_test_x'}};
+  await page.route('**/v1/research/ekyc/start',r=>{starts.push({method:r.request().method(),body:r.request().postDataJSON()});r.fulfill({status:answer.status,contentType:'application/json',body:JSON.stringify(answer.body)})});
+  await page.route('https://checkout.stripe.com/**',r=>r.fulfill({status:200,contentType:'text/html',body:'<title>checkout</title>'}));
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  await Promise.all([page.waitForURL('https://checkout.stripe.com/**',{timeout:5000}),page.click('#account-ekyc-start')]);
+  if(starts.length!==1)throw Error('start posted '+starts.length+' times');
+  if(starts[0].method!=='POST')throw Error('start method '+starts[0].method);
+  if(JSON.stringify(starts[0].body)!==JSON.stringify({scopeId:'owned',tasks:['code-review']}))throw Error('start body '+JSON.stringify(starts[0].body));
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  for(const [code,status,expect] of [['prepaid-card-not-accepted',403,/プリペイドカード/],['card-verification-not-configured',503,/一時的に利用できません/],['stripe-unavailable',503,/Stripe に接続できませんでした/],['something-else',503,/開始できませんでした/]]){
+    answer={status,body:{error:{code}}};
+    await page.click('#account-ekyc-start');
+    await page.waitForFunction(()=>!document.getElementById('account-ekyc-start').disabled,null,{timeout:5000});
+    const note=await page.evaluate(()=>document.getElementById('account-ekyc-note').textContent);
+    if(!expect.test(note))throw Error('note for '+code+': '+note);
+  }
+  await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'pending',sessionId:'s1',expiresAt:Date.now()+600000})}));
+  await page.goto(base+'/account/?card=done#account-panel-identity');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  const back=await page.evaluate(()=>({state:document.getElementById('account-ekyc-state').textContent,note:document.getElementById('account-ekyc-note').textContent,button:document.getElementById('account-ekyc-start').textContent}));
+  if(back.state!=='確認中')throw Error('back state '+back.state);
+  if(!/カード登録を受け付けました/.test(back.note))throw Error('back note '+back.note);
+  if(back.button!=='カードを登録・再開')throw Error('back button '+back.button);
+  await page.close();
+ }
  console.log('block shell');
  // --- console shell on /account (signed in): setup chip, account chip ----
  {

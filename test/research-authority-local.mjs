@@ -153,6 +153,9 @@ const realFetch = globalThis.fetch;
 // Card-verification Stripe mock: customers, setup-mode checkout sessions and
 // per-customer payment method listings. Cards map: customer -> funding kind.
 const cardFunding = new Map();
+const stripeRefusals = [];
+const checkoutParams = [];
+let refuseCheckout = false;
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   if (u.startsWith("https://api.stripe.com/")) {
@@ -170,6 +173,18 @@ globalThis.fetch = async (url, init) => {
       const customer = params.get("customer");
       const principal = params.get("metadata[principal]");
       if (!customer || !principal) throw new Error("stripe setup session missing bindings");
+      // Hosted Checkout refuses a session without success_url — the exact
+      // 400 the live AWAI account returned to this route on 2026-09-15
+      // (parameter_missing). The mock must say no the way Stripe does, or a
+      // green test proves nothing about the live call.
+      if (!params.get("success_url") || refuseCheckout) {
+        stripeRefusals.push({ path: "/v1/checkout/sessions", param: "success_url" });
+        return new Response(JSON.stringify({ error: { type: "invalid_request_error",
+          code: "parameter_missing", param: "success_url",
+          message: "Missing required param: success_url." } }),
+          { status: 400, headers: { "content-type": "application/json" } });
+      }
+      checkoutParams.push(Object.fromEntries(params.entries()));
       return new Response(JSON.stringify({
         id: "cs_setup_" + customer.slice(-10), object: "checkout.session",
         status: "open", mode: "setup", customer, metadata: { principal },
@@ -206,6 +221,42 @@ const { sessionId, externalId, verificationUrl, expiresAt, requiresCard } = r.js
 assert.ok(sessionId && externalId.startsWith("opaque-") && verificationUrl && expiresAt > Date.now());
 assert.equal(requiresCard, true);
 assert.ok(verificationUrl.startsWith("https://checkout.stripe.com/"), "setup URL must be checkout.stripe.com");
+// The setup session must carry the return legs Stripe requires, pointing the
+// human back at the account console's identity panel (the client re-reads
+// /ekyc/status there; approval arrives by webhook).
+assert.deepEqual(stripeRefusals, [], "Stripe refused the setup session: " + JSON.stringify(stripeRefusals));
+assert.equal(checkoutParams.length, 1);
+assert.equal(checkoutParams[0].success_url, "https://kotoba.cloud/account?card=done#account-panel-identity");
+assert.equal(checkoutParams[0].cancel_url, "https://kotoba.cloud/account?card=cancelled#account-panel-identity");
+assert.equal(checkoutParams[0].mode, "setup");
+assert.equal(checkoutParams[0]["metadata[principal]"], p2);
+
+// S1b. Stripe refuses the setup session -> 503 stripe-unavailable, and the
+// refusal itself (type/code/param) is on the operator log line instead of
+// being dropped. The reason literal is pinned: a 503 for any other cause
+// must not pass this block.
+{
+  const errLines = [];
+  const realError = console.error;
+  console.error = (...args) => { errLines.push(args.map(String).join(" ")); };
+  refuseCheckout = true;
+  const stRef = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const authRef = new ResearchAuthority(stRef, stripeEnv2);
+  const rRef = await authRef.fetch(new Request("https://research.internal/ekyc/start", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-666666666666",
+      sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] }),
+  })).then(x => x.json().then(j => ({ status: x.status, json: j })));
+  refuseCheckout = false;
+  console.error = realError;
+  assert.equal(rRef.status, 503, JSON.stringify(rRef));
+  assert.equal(rRef.json.error, "stripe-unavailable");
+  const logged = errLines.filter(l => l.startsWith("stripe-request-failed /v1/checkout/sessions 400"));
+  assert.equal(logged.length, 1, "Stripe refusal must reach the log once: " + JSON.stringify(errLines));
+  assert.match(logged[0], /"code":"parameter_missing"/);
+  assert.match(logged[0], /"param":"success_url"/);
+  assert.equal(stRef.storage.map.size, 0, "a refused setup session must not leave a challenge behind");
+}
 
 // S2. ekyc/status pending (card not yet added)
 r = await call2("/ekyc/status", { principalId: p2 });
