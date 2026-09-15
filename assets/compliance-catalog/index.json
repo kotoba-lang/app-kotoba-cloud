@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:23:51.901Z",
+ "generatedAt": "2026-09-15T09:30:45.811Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 363,
+ "productCount": 364,
  "ontology": {
   "nodes": 44,
-  "claims": 3958,
+  "claims": 3965,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a"
+   "/": "baguqeerahuvc6dowcootr372677fy4dlknejhireqttdb233eqqywsltfiaa"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -4780,6 +4780,23 @@
    }
   },
   {
+   "id": "trend-security-awareness",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Vision One Security Awareness Training",
+   "categoryId": "awareness",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/cyber-risk-exposure-management/security-awareness.html",
+   "pricingNote": "quote-based; no public list pricing on the vendor JP product page (observed 2026-09-15)",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeeragxporcbv3yk3ajqjp53p4cfmjtle5zlfiodksr6fx22dhbygwtxa"
+   }
+  },
+  {
    "id": "trend-identity-security",
    "provider": "Trend Micro",
    "providerHq": "JP",
@@ -8366,6 +8383,11 @@
    "bytes": 279,
    "codec": "dag-json"
   },
+  "baguqeeragxporcbv3yk3ajqjp53p4cfmjtle5zlfiodksr6fx22dhbygwtxa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeragxporcbv3yk3ajqjp53p4cfmjtle5zlfiodksr6fx22dhbygwtxa.json",
+   "bytes": 455,
+   "codec": "dag-json"
+  },
   "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka": {
    "path": "/compliance-data/compliance/blocks/baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka.json",
    "bytes": 438,
@@ -9191,18 +9213,18 @@
    "bytes": 467,
    "codec": "dag-json"
   },
-  "baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a": {
-   "path": "/compliance-data/compliance/blocks/baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a.json",
+  "baguqeerahuvc6dowcootr372677fy4dlknejhireqttdb233eqqywsltfiaa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerahuvc6dowcootr372677fy4dlknejhireqttdb233eqqywsltfiaa.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja": {
-   "path": "/compliance-data/compliance/blocks/baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja.json",
-   "bytes": 259384,
+  "baguqeera3c5bnkvy46cng6wxypslxcj7cesxq2wi4af7zqrglwvx2u6owmxa": {
+   "path": "/compliance-data/compliance/blocks/baguqeera3c5bnkvy46cng6wxypslxcj7cesxq2wi4af7zqrglwvx2u6owmxa.json",
+   "bytes": 260127,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja"
+  "/": "baguqeera3c5bnkvy46cng6wxypslxcj7cesxq2wi4af7zqrglwvx2u6owmxa"
  }
 }
