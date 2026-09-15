@@ -908,7 +908,10 @@
                  "https://kotoba.cloud/account/"))
 
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
-      (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
+      ;; the console is a locale variant root like /billing/: the negotiated
+      ;; emit (cookie, ?lang=, Accept-Language) is served in place by
+      ;; route-static; the account document's own headers go on top
+      (-> (route-static (js/Request. (str (.-origin url) "/account/" (.-search url)) request) env "/account/")
           (.then #(with-security-headers % {"cache-control" "no-store, private"
                                            "content-security-policy" csp/account-document})))
 

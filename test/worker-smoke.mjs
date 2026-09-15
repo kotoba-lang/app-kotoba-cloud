@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { route, resetFunnelStore } from "../build/worker.js";
-import { readdirSync, existsSync } from "node:fs";
+import { readdirSync, existsSync, readFileSync } from "node:fs";
 
 const calls = [];
 let upstreamStatus = 200;
@@ -515,11 +515,38 @@ assert.equal(jaCanonical.status, 301);
 assert.equal(jaCanonical.headers.get("location"), "/billing/");
 assert.match(jaCanonical.headers.get("set-cookie") || "", /^kb_locale=ja;/);
 
-const sharedUntouched = await route(new Request("https://kotoba.cloud/account", {
-  headers: { cookie: "kb_locale=ja" }
-}), env);
-assert.equal(sharedUntouched.status, 200);
-assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
+// The account console is a locale variant root like /billing/ (owner
+// direction 2026-09-15: /account?lang=en answered the Japanese document —
+// "account" sat in locale/shared-prefixes and the Worker fetched the one
+// emit directly). Cookie, ?lang= and Accept-Language pick the emit; the
+// document keeps its own no-store + CSP; the shared /admin stays untouched.
+const sharedUntouched = await route(new Request("https://kotoba.cloud/account", { headers: { cookie: "kb_locale=ja" } }), env);
+{
+  const accountJa = sharedUntouched;
+  assert.equal(accountJa.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/ja/account/", "the ja variant by cookie");
+  assert.match(accountJa.headers.get("cache-control") || "", /no-store/);
+  assert.match(accountJa.headers.get("content-security-policy") || "", /connect-src/);
+  const accountEn = await route(new Request("https://kotoba.cloud/account?lang=en", { headers: { cookie: "kb_locale=ja" } }), env);
+  assert.equal(accountEn.status, 200);
+  assert.equal(accountEn.headers.get("location"), null, "served in place, no redirect");
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/account/?lang=en", "?lang=en beats the ja cookie: the English document at the locale-free root");
+  assert.match(accountEn.headers.get("set-cookie") || "", /^kb_locale=en;/, "the switch is persisted");
+  const accountDe = await route(new Request("https://kotoba.cloud/account/", { headers: { "accept-language": "de" } }), env);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/de/account/", "every public locale has an emit (German shell, English body)");
+  assert.equal(accountDe.status, 200);
+  // the emitted documents: 22 locales, each with its own <html lang>, RTL
+  // marked, the non-ja/en body in English
+  const accountRoot = new URL("../public/", import.meta.url);
+  const arDoc = readFileSync(new URL("ar/account/index.html", accountRoot), "utf8");
+  assert.match(arDoc, /<html lang="ar" dir="rtl">/);
+  assert.match(arDoc, /<div lang="en">/, "an English body under a non-English shell says so");
+  assert.match(readFileSync(new URL("ja/account/index.html", accountRoot), "utf8"), /<html lang="ja">[\s\S]*本人確認/);
+  assert.match(readFileSync(new URL("account/index.html", accountRoot), "utf8"), /<html lang="en">[\s\S]*Identity verification/);
+  const adminUntouched = await route(new Request("https://kotoba.cloud/admin", { headers: { cookie: "kb_locale=ja" } }), env);
+  assert(!assetReads[assetReads.length - 1].includes("/ja/admin"), "shared infrastructure is never rewritten");
+  assert.notEqual(adminUntouched.status, 500);
+}
 
 // The language switch is ?lang=<locale> on the SAME route (owner direction
 // 2026-09-15: the /ja, /en paths are no longer needed): served directly as

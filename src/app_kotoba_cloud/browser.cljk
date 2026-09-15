@@ -260,7 +260,11 @@
     (contains? #{"/identity" "/identity/"} (.-pathname js/location))
     (identity-browser/init!)
 
-    (contains? #{"/account" "/account/"} (.-pathname js/location))
+    ;; the account console names itself (its locale variants are emitted
+    ;; under /<locale>/account/ and served in place at /account — the
+    ;; document, not the pathname, says which client runs)
+    (or (contains? #{"/account" "/account/"} (.-pathname js/location))
+        (some? (.getElementById js/document "account-console")))
     (account-browser/init!)
 
     :else

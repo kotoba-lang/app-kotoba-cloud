@@ -159,13 +159,24 @@
                   (str (:id s) " · " (:status s) " · " (str/join ", " (:tasks s))))
             (.append host row)))))))
 
-(defn render-billing [r]
+(defn render-billing
+  "The billing cell from /v1/billing/status: {status plan balances} once
+  billing is configured, {status pending-configuration} before. The old
+  branch read a `checkoutEnabled` key that only the catalog carries, so a
+  configured account still said \"in validation\" (live 2026-09-15, after
+  checkout opened)."
+  [r]
   (state! "account-billing-state" (if (:httpOk r) :value :error))
   (say! "account-billing-state"
         (cond
           (not (:httpOk r)) (t "請求サービスに接続できません。" "Billing service unavailable.")
-          (:checkoutEnabled r) (t "有料枠の購入・管理は料金ページから行えます。" "Purchases and management are on the plans page.")
-          :else (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet."))))
+          (= "pending-configuration" (:status r)) (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet.")
+          (= "frozen" (:status r)) (t "請求の照合が必要です。サポートに連絡してください。" "Billing needs reconciliation. Contact support.")
+          :else (let [ai (some #(when (= "ai" (:scope %)) %) (:balances r))
+                      avail (.toFixed (/ (or (:availableMicroUSD ai) 0) 1000000) 2)
+                      plan (:plan r)]
+                  (t (str (if plan (str plan " プラン") "無料枠") " · AI 残高 $" avail " · 購入・管理は料金ページから")
+                     (str (if plan (str plan " plan") "Free allowance") " · AI balance $" avail " · buy and manage on the billing page"))))))
 
 (defn render-team [r]
   (let [host (el "account-team")]
