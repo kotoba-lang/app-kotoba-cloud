@@ -47,6 +47,7 @@ Free allowance after verified identity: 50 requests per day, up to 2,048 output 
    headers: {"content-type":"application/json","idempotency-key":"<uuid-v4>"}
    body: {"model":"qwen3.8-flash-next-whitehacker","task":"code-review","scopeId":"owned",
           "max_tokens":2048,"messages":[{"role":"user","content":"Review owned code."}]}
+   (also available: "glm5.3-flash" — see GET /v1/models for the current catalog.)
    202 = queued, poll GET /v1/research/job?jobId=<uuid> every 5s; 200 = terminal.
 
 Error codes map to the missing step: sign-in-required → step 1, invalid-ekyc-request →

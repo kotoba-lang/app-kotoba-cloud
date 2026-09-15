@@ -75,7 +75,8 @@ Qualification note (8 September 2026): the installed native CLI reference-packag
 - https://kotoba.cloud/security-data/README.md
 - https://kotoba.cloud/security-data/index.json
 - https://kotoba.cloud/security-data/graph.jsonld
-- https://kotoba.cloud/ja/security/
+- Security data hub: https://kotoba.cloud/csf2/ (the former /ja/security/ page is
+  currently unreachable in production: it redirects to /security/, which returns 404)
 
 ## Read-only evidence retrieval for LLMs
 - Search: https://kotoba.cloud/v1/knowledge/search?q=T1018
