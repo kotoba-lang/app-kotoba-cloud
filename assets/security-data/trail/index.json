@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-15T15:47:52Z",
+  "dns": [
+    {"name": "kotoba.cloud", "type": "A", "value": "172.67.144.171"},
+    {"name": "kotoba.cloud", "type": "A", "value": "104.21.87.163"},
+    {"name": "kotoba.cloud", "type": "AAAA", "value": "2606:4700:3034::ac43:90ab"},
+    {"name": "kotoba.cloud", "type": "AAAA", "value": "2606:4700:3037::6815:57a3"},
+    {"name": "api.kotoba.cloud", "type": "A", "value": "172.67.144.171"},
+    {"name": "api.kotoba.cloud", "type": "A", "value": "104.21.87.163"},
+    {"name": "api.kotoba.cloud", "type": "AAAA", "value": "2606:4700:3037::6815:57a3"},
+    {"name": "api.kotoba.cloud", "type": "AAAA", "value": "2606:4700:3034::ac43:90ab"},
+    {"name": "api.murakumo.cloud", "type": "A", "value": "172.67.129.232"},
+    {"name": "api.murakumo.cloud", "type": "A", "value": "104.21.1.204"},
+    {"name": "api.murakumo.cloud", "type": "AAAA", "value": "2606:4700:3033::6815:1cc"},
+    {"name": "api.murakumo.cloud", "type": "AAAA", "value": "2606:4700:3035::ac43:81e8"},
+    {"name": "github.com", "type": "A", "value": "20.27.177.113"},
+    {"name": "github.com", "type": "AAAA", "value": "::ffff:20.27.177.113"}
+  ],
+  "ip": [
+    {"address": "172.67.144.171", "reverse": "172.67.144.171"},
+    {"address": "104.21.87.163", "reverse": "104.21.87.163"},
+    {"address": "2606:4700:3034::ac43:90ab", "reverse": "2606:4700:3034::ac43:90ab"},
+    {"address": "2606:4700:3037::6815:57a3", "reverse": "2606:4700:3037::6815:57a3"},
+    {"address": "172.67.129.232", "reverse": "172.67.129.232"},
+    {"address": "104.21.1.204", "reverse": "104.21.1.204"},
+    {"address": "2606:4700:3033::6815:1cc", "reverse": "2606:4700:3033::6815:1cc"},
+    {"address": "2606:4700:3035::ac43:81e8", "reverse": "2606:4700:3035::ac43:81e8"},
+    {"address": "20.27.177.113", "reverse": "20.27.177.113"},
+    {"address": "::ffff:20.27.177.113", "reverse": "::ffff:20.27.177.113"}
+  ],
+  "kev": [
+    {"cveId": "CVE-2021-21985", "datePublished": "2021-11-03", "name": "VMware vCenter Server Improper Input Validation Vulnerability"},
+    {"cveId": "CVE-2020-4006", "datePublished": "2021-11-03", "name": "Multiple VMware Products Command Injection Vulnerability"},
+    {"cveId": "CVE-2020-25213", "datePublished": "2021-11-03", "name": "WordPress File Manager Plugin Remote Code Execution Vulnerability"},
+    {"cveId": "CVE-2020-11738", "datePublished": "2021-11-03", "name": "WordPress Snap Creek Duplicator Plugin File Download Vulnerability"},
+    {"cveId": "CVE-2019-9978", "datePublished": "2021-11-03", "name": "WordPress Social Warfare Plugin Cross-Site Scripting (XSS) Vulnerability"},
+    {"cveId": "CVE-2021-27561", "datePublished": "2021-11-03", "name": "Yealink Device Management Server-Side Request Forgery (SSRF) Vulnerability"},
+    {"cveId": "CVE-2021-40539", "datePublished": "2021-11-03", "name": "Zoho ManageEngine ADSelfService Plus Authentication Bypass Vulnerability"},
+    {"cveId": "CVE-2020-10189", "datePublished": "2021-11-03", "name": "Zoho ManageEngine Desktop Central File Upload Vulnerability"},
+    {"cveId": "CVE-2019-8394", "datePublished": "2021-11-03", "name": "Zoho ManageEngine ServiceDesk Plus (SDP) File Upload Vulnerability"},
+    {"cveId": "CVE-2020-29583", "datePublished": "2021-11-03", "name": "Zyxel Multiple Products Use of Hard-Coded Credentials Vulnerability"}
+  ],
+  "nvd": [
+    {"cveId": "CVE-2019-7105", "name": "Adobe XD versions 16.0 and earlier have a path traversal vulnerability. Successful exploitation could lead to arbitrary code execution."},
+    {"cveId": "CVE-2019-7106", "name": "Adobe XD versions 16.0 and earlier have a path traversal vulnerability. Successful exploitation could lead to arbitrary code execution."},
+    {"cveId": "CVE-2011-1136", "name": "In tesseract 2.03 and 2.04, an attacker can rewrite an arbitrary user file by guessing the PID and creating a link to the user's file."},
+    {"cveId": "CVE-2021-36081", "name": "Tesseract OCR 5.0.0-alpha-20201231 has a one_ell_conflict use-after-free during a strpbrk call."},
+    {"cveId": "CVE-2022-29567", "name": "The default configuration of a TreeGrid component uses Object::toString as a key on the client-side and server communication in Vaadin 14.8.5 through 14.8.9, 22"}
+  ],
+  "analysis": {
+    "ja": "本日の KEV には Zoho ManageEngine ADSelfService Plus の認証バイパス (CVE-2021-40539) が含まれる。CISA は既知の悪用事例があるとして同件をカタログに掲載しており、ManageEngine 製品を運用する場合は優先的なパッチ適用が望ましい。同系列の CVE-2020-10189 / CVE-2019-8394 も同カタログに掲載されている。DNS trail では自サービスが Cloudflare 配下の address で解決されており、異常は確認できていない。出典: https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+    "en": "Today's KEV feed includes the Zoho ManageEngine ADSelfService Plus authentication bypass (CVE-2021-40539). CISA lists it as known exploited, so environments running ManageEngine products should prioritize patching. Related ManageEngine entries CVE-2020-10189 and CVE-2019-8394 also appear in the same catalog. The DNS trail resolved our services under Cloudflare addresses with no anomalies observed. Source: https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+  }
+}
