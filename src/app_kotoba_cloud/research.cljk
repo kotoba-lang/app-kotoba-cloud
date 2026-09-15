@@ -145,18 +145,20 @@
 
 ;; --- Assurance ladder (OrcaRouter-style rungs) ------------------------------
 ;; Each rung names the evidence that puts a workspace at that level and the
-;; daily token allowance it unlocks. The bottom rung proves nothing about who
-;; the caller is (a chargeable card is not an identity), so it unlocks nothing
-;; on its own; each higher rung inherits the ones below. The authority computes
-;; the reached rung from the record; the edge only displays it.
+;; daily token allowance it unlocks. The bottom rung (a chargeable card is not
+;; an identity) unlocks only the free research allowance — 50 requests/day with
+;; the 2,048-token per-request output cap, i.e. 102,400 tokens/day; identity
+;; verification and governance checks (business, contracted) come after it and
+;; raise the ceiling. Each higher rung inherits the ones below. The authority
+;; computes the reached rung from the record; the edge only displays it.
 (def assurance-ladder
   {:version "kotoba-assurance-ladder-2026-09-v1"
    :unit "tokensPerDay"
    :rungs
    [{:id "card" :level 1 :label "Payment method on file"
      :evidence "a live credit/debit card (prepaid rejected) verified with a $0 check"
-     :defaultTokensPerDay 0 :ceilingTokensPerDay 0
-     :grantsBand nil}
+     :defaultTokensPerDay 102400 :ceilingTokensPerDay 102400
+     :grantsBand "code-review"}
     {:id "identity" :level 2 :label "Identity verified"
      :evidence "Stripe Identity document + selfie check bound to the principal"
      :defaultTokensPerDay 50000 :ceilingTokensPerDay 200000
@@ -190,7 +192,11 @@
    :privacy {:title "Privacy"
              :points ["Designed for zero data retention"
                       "Request content is screened in memory"
-                      "When zero-data-retention is enabled, your content is not used for training"]}})
+                      "When zero-data-retention is enabled, your content is not used for training"]}
+   :localExecution {:title "Local execution boundary"
+                    :points ["The model never emits tool calls and the service never executes tools, code, commands or network actions server-side"
+                             "Tool use, command execution and automation stay entirely on the user's local machine, driven by the user's own agent"
+                             "Generated exploit or payload text is data returned to the caller — it is never run by kotoba.cloud"]}})
 
 (defn reached-rung
   "The highest rung the record's evidence reaches. Never fabricates: a rung is
@@ -213,8 +219,11 @@
       card? :card
       :else :none)))
 
-(defn rung-by-id [id]
-  (some #(when (= id (:id %)) %) (:rungs assurance-ladder)))
+(defn rung-by-id
+  "Accepts the string ids used in the ladder and the keyword ids reached-rung
+  returns (= by name); mixing them silently resolves to nil otherwise."
+  [id]
+  (some #(when (and id (= (name id) (:id %))) %) (:rungs assurance-ladder)))
 
 (defn rung-allowance
   "Daily token allowance at the record's reached rung. The bottom rung and no

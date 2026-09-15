@@ -862,8 +862,8 @@
           "Security Research 層は, 認可された合法的なセキュリティ業務のための無制限モデルを提供します. アクセスは検証済みのセキュリティ専門家に付与され, 本ポリシーに従います. 悪用は即時失効となります. "
           (:intro aup))]
      (dds/heading 2 (txt "Assurance Ladder(Assurance Ladder)" "Assurance ladder") {:size "24"})
-     [:p (txt "各レベルが満たすべきEvidenceと, 解禁される 1 日あたりトークンAllowance. 下位レベルだけではモデルは開きません. "
-              "The evidence each rung requires and the daily token allowance it unlocks. No model opens on the bottom rung alone.")]
+     [:p (txt "各レベルが満たすべきEvidenceと, 解禁される 1 日あたりトークンAllowance. カード登録(レベル1)で無料研究枠が開き, 本人確認・ガバナンス確認(レベル2以降)で上限が上がります. "
+              "The evidence each rung requires and the daily token allowance it unlocks. The card rung opens the free research allowance; identity and governance checks raise the ceiling after it.")]
      (into [:ol]
            (map (fn [r]
                   [:li [:strong (:label r)]
@@ -880,6 +880,8 @@
      [:p (get-in aup [:offensive :intro])]
      (dds/heading 2 (txt "Privacy" "Privacy") {:size "24"})
      (into [:ul] (map (fn [x] [:li x]) (:points (:privacy aup))))
+     (dds/heading 2 (txt "ローカル実行境界" "Local execution boundary") {:size "24"})
+     (into [:ul] (map (fn [x] [:li x]) (:points (:localExecution aup))))
      (dds/heading 3 (str "Version: " (:version aup)) {:size "20"}))))
 
 (defn aup-html
