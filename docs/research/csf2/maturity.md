@@ -46,3 +46,22 @@ NIST CSF 2.0 サブカテゴリ 106 件に対する製品カタログの coverag
 | https://www.drata.com/ | 403 (bot block; site 自体は稼働。curl -L で代替確認不可 → 残置) |
 
 結論: 死亡リンクなし。drata.com は 403 bot 対策で、製品実在のため URL 変更不要と判断。
+
+## 2026-09-16 第 3 回 (成熟度反復, branch research/csf2-2026-09-16)
+
+- 再計測: **coverage 変化なし 59 / 106 (56%)**, 製品 40 件 (9/14 の 39 件から Teleport 追加 +1), test gate OK。
+- 機能別カバー率 (9/14 から変化なし): DE 9/11, GV 8/31 (最薄弱), ID 12/21, PR 18/22, RC 4/8, RS 8/13。
+- カテゴリ別製品数 (薄い順): SIEM/EDR, PAM, HSM, ZTNA, DAST, Forensics/DFIR, Sandbox, Secrets detection, SCA/container scan, Training 各 1 件。
+- 未カバー 47 サブカテゴリは 9/14 記録と同一。GV 未カバー 23/31 のため、次回 (拡張反復) は GRC / リスク管理製品の追加が最も効率が良い。
+
+## 出典リンク死活チェック (2026-09-16, curl -sL -o /dev/null -w '%{http_code}')
+
+| URL | status |
+|---|---|
+| https://goteleport.com/docs/zero-trust-access/compliance-frameworks/fedramp/ | 200 |
+| https://docs.velociraptor.app/ | 200 |
+| https://github.com/gitleaks/gitleaks | 200 |
+| https://www.filigran.io/products/opencti/ | 000 (curl exit 60: ローカル環境で TLS 証明書検証が失敗。検証緩和時は 307 redirect。404/5xx ではなく環境問題のため URL 変更せず残置 — drata 403 と同様の扱い) |
+| https://www.knowbe4.com/products/kevin-mitnick-security-awareness-training | 200 |
+
+結論: 確実な死亡リンクなし。
