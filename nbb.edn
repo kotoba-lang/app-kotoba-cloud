@@ -24,7 +24,7 @@
         ;; require shinkansen.audit / shinkansen.coscientist.
         io.github.kotoba-lang/shinkansen
         {:git/url "https://github.com/kotoba-lang/shinkansen.git"
-         :git/sha "4e12bfd6e3608a7cc5157235ec8564adb7f8fd5e"}
+         :git/sha "e085c42537cceb53358fda254ef063ae1ff086c5"}
         ;; Transitive via jp-go-dds tokens (css.core): declared here because
         ;; nbb does not read the dependency's own deps.edn.
         io.github.kotoba-lang/css

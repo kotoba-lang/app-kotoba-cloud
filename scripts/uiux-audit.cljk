@@ -7,8 +7,13 @@
 ;;   kbb --backend sci scripts/uiux-audit.cljk [--root public] [--only /account/]
 ;;                                             [--min 80] [--iteration N] [--json]
 ;;
-;; exit 0  every document at or above --min (or no floor given)
-;; exit 1  a document scored below the floor (findings are printed with WHY)
+;; exit 0  every document at or above --min (or no floor given) and no HARD finding
+;; exit 1  a document scored below the floor, or a HARD axis has a finding in
+;;         any document. Hard axes are outright breakage, not degradation:
+;;         assets-resolve / links-resolve / unique-ids / csp-allows-assets —
+;;         a single dead nav link across 100 documents must not average away
+;;         above the floor (it did: 0.66 × 76 documents stayed above 80).
+;;         Override with --hard a,b,c (empty string = none).
 ;; exit 2  REFUSED — nothing to measure (no documents under --root) or an axis
 ;;         could not be measured (a referenced script/stylesheet nobody
 ;;         supplied). Never the same value as a pass.
@@ -23,6 +28,7 @@
 (ns uiux-audit
   (:require [kotoba.lang.text :as str]
             [clojure.edn :as edn]
+            [app-kotoba-cloud.csp :as csp]
             [shinkansen.audit :as audit]
             [shinkansen.coscientist :as cosci]
             ["node:fs" :as fs]
@@ -75,6 +81,7 @@
   (let [root (opt "--root" "public")
         only (opt "--only" nil)
         min-floor (some-> (opt "--min" nil) js/parseFloat)
+        hard (set (map keyword (remove str/blank? (str/split (opt "--hard" "assets-resolve,links-resolve,unique-ids,csp-allows-assets") #","))))
         iteration (some-> (opt "--iteration" nil) js/parseInt)
         out-dir (opt "--out" "docs/uiux-coscientist")
         files (walk-files root)
@@ -87,10 +94,26 @@
                   (map (fn [p] {:file (url-path root p) :html (str (fs/readFileSync p "utf8"))}))
                   (filter #(or (nil? only) (str/includes? (:file %) only)))
                   vec)
-        report (audit/audit docs {:assets assets :stylesheets stylesheets})]
+        ;; every same-origin link must land on a published document or on a
+        ;; path the Worker itself answers (worker.cljk route table — kept as
+        ;; data here so a new Worker route is a one-line addition, and an
+        ;; emitted link to anything else fails the build, not the visitor)
+        worker-routes ["/account" "/identity" "/graph" "/health" "/favicon.ico"
+                       "/mcp.json" "/.well-known/mcp-config.json"   ; knowledge.cljk
+                       "/v1/" "/api/" "/schemas/" "/.well-known/"]
+        report (audit/audit docs {:assets assets
+                                  :stylesheets stylesheets
+                                  :documents assets
+                                  :routes worker-routes
+                                  :csp csp/for-path})]
     (if (flag? "--json")
       (println (js/JSON.stringify (clj->js (dissoc report :documents))))
       (print-report report min-floor))
+    (let [hard-hits (filter #(contains? hard (:axis %)) (:findings report))]
+      (when (seq hard-hits)
+        (println "\nHARD (breakage, fails regardless of the floor):")
+        (doseq [{:keys [axis files finding]} hard-hits]
+          (println (str "- " (name axis) " [" (count files) " doc(s)] " finding)))))
     (when iteration
       (let [{:keys [doc meta]} (cosci/kaizen-cycle report {:n iteration
                                                             :seed (str "kotoba.cloud emitted documents under " root
@@ -138,6 +161,7 @@
     (cond
       (:empty? report) (.exit proc 2)
       (seq (:unmeasured report)) (.exit proc 2)
+      (some #(contains? hard (:axis %)) (:findings report)) (.exit proc 1)
       (and min-floor (some #(< (:overall %) min-floor) (vals (:documents report)))) (.exit proc 1)
       :else (.exit proc 0))))
 
