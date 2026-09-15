@@ -808,20 +808,6 @@
    ]
   },
   {
-   "id": "semgrep-pro",
-   "provider": "Semgrep (skip-existing-adjacent)",
-   "providerHq": "US",
-   "name": "Semgrep AppSec Platform (Pro tier)",
-   "categoryId": "sast-dast",
-   "pricingMode": "quote-based",
-   "pricingUrl": "https://semgrep.dev/pricing",
-   "pricingNote": "OSS core free; Pro platform quote-based. Sibling record to existing 'semgrep' id with platform scope",
-   "complianceFits": [
-    "iso-27001",
-    "soc2"
-   ]
-  },
-  {
    "id": "aqua-security-platform",
    "provider": "Aqua Security",
    "providerHq": "IL",
@@ -1038,7 +1024,7 @@
   },
   {
    "id": "crashoverride-api",
-   "provider": "CrashedOverride Labs",
+   "provider": "Akto",
    "providerHq": "US",
    "name": "Akto API Security (OSS + cloud)",
    "categoryId": "api-sec",
@@ -1294,21 +1280,6 @@
    "pricingNote": "quote-based",
    "complianceFits": [
     "cra",
-    "soc2"
-   ]
-  },
-  {
-   "id": "prisma-cloud-cwpp-nonwiz",
-   "provider": "Palo Alto Networks",
-   "providerHq": "US",
-   "name": "Prisma Cloud CWPP (container workload)",
-   "categoryId": "container",
-   "pricingMode": "quote-based",
-   "pricingUrl": "https://www.paloaltonetworks.com/prisma/cloud",
-   "pricingNote": "quote-based; CWPP/CCM module of Prisma Cloud (distinct scope from existing id 'prisma-cloud')",
-   "complianceFits": [
-    "fedramp",
-    "pci-dss-40",
     "soc2"
    ]
   },

@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T08:04:50.494Z",
+ "generatedAt": "2026-09-15T08:11:05.565Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 352,
+ "productCount": 350,
  "ontology": {
   "nodes": 44,
-  "claims": 3849,
+  "claims": 3833,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeera6bci4okzfezxo4qr4oj6g3dox763hfma3mfoq65wdgodapu7a4sa"
+   "/": "baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -2479,23 +2479,6 @@
    }
   },
   {
-   "id": "semgrep-pro",
-   "provider": "Semgrep (skip-existing-adjacent)",
-   "providerHq": "US",
-   "name": "Semgrep AppSec Platform (Pro tier)",
-   "categoryId": "sast-dast",
-   "pricingMode": "quote-based",
-   "pricingUrl": "https://semgrep.dev/pricing",
-   "pricingNote": "OSS core free; Pro platform quote-based. Sibling record to existing 'semgrep' id with platform scope",
-   "complianceFits": [
-    "iso-27001",
-    "soc2"
-   ],
-   "record": {
-    "/": "baguqeerav4pgdvva7o2mjhb7l2lwz42ynnbp2nzwlvwi62i6pwmd3oycqpta"
-   }
-  },
-  {
    "id": "aqua-security-platform",
    "provider": "Aqua Security",
    "providerHq": "IL",
@@ -2757,7 +2740,7 @@
   },
   {
    "id": "crashoverride-api",
-   "provider": "CrashedOverride Labs",
+   "provider": "Akto",
    "providerHq": "US",
    "name": "Akto API Security (OSS + cloud)",
    "categoryId": "api-sec",
@@ -2768,7 +2751,7 @@
     "pci-dss-40"
    ],
    "record": {
-    "/": "baguqeeralvuoqumkb5mtqzws2ygkf7zgb4vfhzoqpy732ze4luokmtvgmpga"
+    "/": "baguqeerapnhm3gptaj5udi6ptiqndws2rwknhkxrvowrjcobuuoyjbpv6q2a"
    }
   },
   {
@@ -3071,24 +3054,6 @@
    ],
    "record": {
     "/": "baguqeera5cuquu5ifmotbonortkedbbpyf3g3gouuz2ar5tp6arwbjqxay7a"
-   }
-  },
-  {
-   "id": "prisma-cloud-cwpp-nonwiz",
-   "provider": "Palo Alto Networks",
-   "providerHq": "US",
-   "name": "Prisma Cloud CWPP (container workload)",
-   "categoryId": "container",
-   "pricingMode": "quote-based",
-   "pricingUrl": "https://www.paloaltonetworks.com/prisma/cloud",
-   "pricingNote": "quote-based; CWPP/CCM module of Prisma Cloud (distinct scope from existing id 'prisma-cloud')",
-   "complianceFits": [
-    "fedramp",
-    "pci-dss-40",
-    "soc2"
-   ],
-   "record": {
-    "/": "baguqeerab33spldfnvfasrmsqdokxnpiedkvizy3rfeyplgrcgqd6qlwswja"
    }
   },
   {
@@ -7529,11 +7494,6 @@
    "bytes": 290,
    "codec": "dag-json"
   },
-  "baguqeerav4pgdvva7o2mjhb7l2lwz42ynnbp2nzwlvwi62i6pwmd3oycqpta": {
-   "path": "/compliance-data/compliance/blocks/baguqeerav4pgdvva7o2mjhb7l2lwz42ynnbp2nzwlvwi62i6pwmd3oycqpta.json",
-   "bytes": 379,
-   "codec": "dag-json"
-  },
   "baguqeerau5dbllcixml7gtocq5ndrrymrple7zy3m2fbmhmnlvgrqhamijpa": {
    "path": "/compliance-data/compliance/blocks/baguqeerau5dbllcixml7gtocq5ndrrymrple7zy3m2fbmhmnlvgrqhamijpa.json",
    "bytes": 340,
@@ -7609,9 +7569,9 @@
    "bytes": 332,
    "codec": "dag-json"
   },
-  "baguqeeralvuoqumkb5mtqzws2ygkf7zgb4vfhzoqpy732ze4luokmtvgmpga": {
-   "path": "/compliance-data/compliance/blocks/baguqeeralvuoqumkb5mtqzws2ygkf7zgb4vfhzoqpy732ze4luokmtvgmpga.json",
-   "bytes": 300,
+  "baguqeerapnhm3gptaj5udi6ptiqndws2rwknhkxrvowrjcobuuoyjbpv6q2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerapnhm3gptaj5udi6ptiqndws2rwknhkxrvowrjcobuuoyjbpv6q2a.json",
+   "bytes": 284,
    "codec": "dag-json"
   },
   "baguqeera24jwm2shod6m2hb5q4vty72inbcgvjsynrimvxqbbgoyscebsaza": {
@@ -7702,11 +7662,6 @@
   "baguqeera5cuquu5ifmotbonortkedbbpyf3g3gouuz2ar5tp6arwbjqxay7a": {
    "path": "/compliance-data/compliance/blocks/baguqeera5cuquu5ifmotbonortkedbbpyf3g3gouuz2ar5tp6arwbjqxay7a.json",
    "bytes": 292,
-   "codec": "dag-json"
-  },
-  "baguqeerab33spldfnvfasrmsqdokxnpiedkvizy3rfeyplgrcgqd6qlwswja": {
-   "path": "/compliance-data/compliance/blocks/baguqeerab33spldfnvfasrmsqdokxnpiedkvizy3rfeyplgrcgqd6qlwswja.json",
-   "bytes": 404,
    "codec": "dag-json"
   },
   "baguqeeraxf3djsvcuekibqic7ostjraq5tdwokgzqly6r7jlcfx6ka6wriga": {
@@ -8994,18 +8949,18 @@
    "bytes": 264,
    "codec": "dag-json"
   },
-  "baguqeera6bci4okzfezxo4qr4oj6g3dox763hfma3mfoq65wdgodapu7a4sa": {
-   "path": "/compliance-data/compliance/blocks/baguqeera6bci4okzfezxo4qr4oj6g3dox763hfma3mfoq65wdgodapu7a4sa.json",
+  "baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya": {
+   "path": "/compliance-data/compliance/blocks/baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera5wpqeunyjxilaipgal6skofm6ywyojfvvzpxzfveuszhvizc3rra": {
-   "path": "/compliance-data/compliance/blocks/baguqeera5wpqeunyjxilaipgal6skofm6ywyojfvvzpxzfveuszhvizc3rra.json",
-   "bytes": 250657,
+  "baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa.json",
+   "bytes": 249282,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera5wpqeunyjxilaipgal6skofm6ywyojfvvzpxzfveuszhvizc3rra"
+  "/": "baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa"
  }
 }
