@@ -38,7 +38,8 @@
      [:section {:id "csf2-coverage" :aria-live "polite"}]
      [:div {:id "csf2-chart" :class "csf2-chart" :role "img" :aria-label "機能別サブカテゴリカバー率"}]
      (catalog/chips {:id "csf2-chips"})
-     (catalog/detail {:id "csf2-detail" :label "製品の詳細"}))
+     (catalog/detail {:id "csf2-detail" :label "製品の詳細"})
+     [:button {:id "csf2-report" :type "button" :hidden true} "カバレッジレポートをダウンロード（JSON）"])
     (catalog/about
      {:summary "このカタログについて"
       :links [[:a {:href "/security-data/csf2/index.json"} "IPLD インデックス"]
