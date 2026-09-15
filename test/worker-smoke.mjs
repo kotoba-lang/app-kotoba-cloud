@@ -686,9 +686,11 @@ let researchRecord = { principalId: researchPrincipal, policyVersion: researchPo
   continuous: { policyVersion: "kotoba-session-evidence-2026-09-v1", sessionRef: researchSessionRef, action: 'code-review', decision: 'allow',
     opinion: { belief: .9, disbelief: 0, uncertainty: .1, calibrated: false }, evaluatedAt: researchNow, expiresAt: researchNow + 15000 },
   trust: { policyVersion: "kotoba-trust-routes-2026-09-v1", score: 60, routes: ["web-reviewed"], evaluatedAt: researchNow, expiresAt: researchNow + 60000 },
-  ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
-  screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
-  scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 60000 }] };
+  // evidence windows: an hour, so a run slowed by a concurrent build cannot
+  // outlive them (the projections below are re-stamped per read instead)
+  ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 3600000 },
+  screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 3600000 },
+  scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 3600000 }] };
 // The authority re-stamps its trust / session projections on every read
 // (research_authority trust-projection / session-projection: evaluatedAt =
 // its now). This mock did not: the stamps were minted once at module load
