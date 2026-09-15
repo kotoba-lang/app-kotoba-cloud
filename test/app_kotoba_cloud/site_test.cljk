@@ -95,7 +95,9 @@
     (is (not (re-find #"font-family:(?!var\()" site/app-css)))))
 
 (deftest localized-not-found-pages-are-finite-documents
-  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/ja/\""]
+  ;; the way home is locale-free on both variants: the edge negotiates the
+  ;; variant by cookie (shinkansen.locale); /ja/ would be a 301 hop
+  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/\""]
                                  [:en "That entrance does not exist." "href=\"/\""]]]
     (let [html (site/not-found-html locale)]
       (is (str/includes? html "404 / NOT FOUND"))
@@ -190,7 +192,10 @@
       (is (str/includes? html "Enterprise"))
       (is (not (str/includes? html "https://kotobase.net/signup")))
       (is (not (str/includes? html "https://murakumo.cloud/portal/#store")))
-      (is (str/includes? html "data-billing-sku=\"pro\" disabled"))
+      ;; a plan button is hidden until the catalog says checkout is enabled —
+      ;; never a greyed 'checking' control (shinkansen.audit :idle-disabled)
+      (is (re-find #"data-billing-sku=\"pro\" hidden" html))
+      (is (not (str/includes? html "disabled")))
       (is (not (str/includes? html "sk_live_"))))))
 
 (deftest home-is-a-shared-conversation-workspace

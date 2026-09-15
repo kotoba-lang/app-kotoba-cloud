@@ -1,0 +1,119 @@
+(ns app-kotoba-cloud.console
+  "The console's information architecture as DATA (ADR-2608080100: views
+  are data, the nav is generated). One table declares every sidebar
+  destination — its group, label, href, badge — and everything else derives
+  from it: the sidebar, the top bar's section label, the setup steps.
+
+  Reference IA (owner-supplied, 2026-09-15): an OrcaRouter-style console —
+  MAIN / MANAGE / SECURE / ACCOUNT groups, a top bar with the section name,
+  a credit chip, a docs link and a 'Get started n/N' progress chip, a
+  'Resume setup' banner naming the next step, and an account chip at the
+  foot of the sidebar. Every destination here is a REAL document or a
+  Worker route (shinkansen.audit :links-resolve is a hard axis); every
+  badge is a fact, not a decoration.
+
+  Pure .cljk: no DOM, no fetch. site.cljk renders it; shell-browser
+  hydrates the chips from the session."
+  (:require [kotoba.lang.text :as str]))
+
+(def groups
+  "Sidebar groups in order. :items are {:id :ja :en :href :badge?}.
+   :href is where the item lands; a fragment on a document is a view of
+   that document (one document, several views — never a second page)."
+  [{:id :main :label "MAIN"
+    :items [{:id :docs :ja "ドキュメント" :en "Docs" :href "/docs/"}
+            {:id :apps :ja "アプリ" :en "Apps" :href "/apps/"}
+            {:id :blog :ja "ブログ" :en "Blog" :href "/blog/"}]}
+   {:id :manage :label "MANAGE"
+    :items [{:id :keys :ja "接続トークン" :en "API tokens" :href "/account#account-panel-cli"}
+            {:id :models :ja "モデル" :en "Models" :href "/models/"}
+            {:id :register :ja "研究者登録" :en "Researcher registration" :href "/#research-register"}
+            {:id :usage :ja "利用とインサイト" :en "Usage & insights" :href "/docs/reference/billing-and-usage/"}]}
+   {:id :secure :label "SECURE"
+    :items [{:id :guardrails :ja "ガードレール" :en "Guardrails" :href "/secure/#guardrails"}
+            {:id :firewall :ja "ファイアウォール" :en "Firewall" :href "/secure/#firewall"}
+            {:id :compliance :ja "コンプライアンス" :en "Compliance" :href "/secure/#compliance"}
+            {:id :services :ja "セキュリティサービス" :en "Security services" :href "/security/services/"}
+            {:id :aup :ja "利用ポリシー" :en "Acceptable use" :href "/security/aup/"}]}
+   {:id :account :label "ACCOUNT"
+    :items [{:id :account :ja "アカウント" :en "Account" :href "/account"}
+            {:id :team :ja "チーム" :en "Team" :href "/account#account-panel-org" :badge "Team"}
+            {:id :billing :ja "料金・決済" :en "Billing" :href "/billing/"}]}])
+
+(def get-started
+  "The sidebar's primary action — the quickstart, once."
+  {:ja "＋ はじめる" :en "＋ Get started" :href "/docs/reference/quickstart/"})
+
+(defn- label [item locale] (if (= locale :ja) (:ja item) (:en item)))
+
+(defn- document-of
+  "/secure/#guardrails → /secure/ ; /account#x → /account"
+  [href]
+  (first (str/split href #"#" 2)))
+
+(defn current-item
+  "The item the page `current` belongs to: exact href first, then the item
+   whose document is the page (so /secure/ highlights ガードレール, the
+   first view of that document), then the longest document prefix (so
+   /docs/reference/quickstart/ highlights ドキュメント)."
+  [current]
+  (let [items (mapcat :items groups)
+        cur (document-of (str current))]
+    (or (some #(when (= (:href %) current) %) items)
+        (some #(when (= (document-of (:href %)) cur) %) items)
+        (->> items
+             (filter #(let [d (document-of (:href %))]
+                        (and (str/ends-with? d "/") (str/starts-with? cur d) (not= d "/"))))
+             (sort-by #(- (count (:href %))))
+             first))))
+
+(defn section-label
+  "The top bar's section name for a page: the group label + item label
+   (セキュリティ › ガードレール). Nil when the page is not in the table."
+  [current locale]
+  (when-let [item (current-item current)]
+    (let [group (some #(when (some #{item} (:items %)) %) groups)]
+      {:group (case (:id group)
+                :main (if (= locale :ja) "メイン" "Main")
+                :manage (if (= locale :ja) "管理" "Manage")
+                :secure (if (= locale :ja) "セキュリティ" "Secure")
+                :account (if (= locale :ja) "アカウント" "Account"))
+       :item (label item locale)})))
+
+(defn sidebar-items
+  "Render-ready rows for the sidebar: {:label :href :badge :current?}."
+  [current locale]
+  (let [cur (current-item current)]
+    (for [g groups]
+      {:group (:label g)
+       :items (for [i (:items g)]
+                {:label (label i locale) :href (:href i) :badge (:badge i)
+                 :current? (= i cur)})})))
+
+;; --- setup progress ---------------------------------------------------------
+;; The reference shows "Get started 2/4" and a "Resume setup — finish
+;; connecting your key" banner. Ours has three measurable steps (each backed
+;; by an endpoint the console already reads); a fourth ("first request")
+;; needs a job-list endpoint that does not exist yet, so it is NOT shown —
+;; a step whose state cannot be read is not a step.
+
+(def setup-steps
+  [{:id :sign-in :ja "サインイン" :en "Sign in" :href "/account"}
+   {:id :verify :ja "本人確認" :en "Verify identity" :href "/account#account-panel-identity"}
+   {:id :eligible :ja "研究環境の利用資格" :en "Research eligibility" :href "/account#account-panel-eligibility"}])
+
+(defn setup-progress
+  "state: {:signed-in? bool :ekyc \"verified\"|\"pending\"|\"missing\"|nil :eligible? bool|nil}
+   → {:done n :total 3 :steps [{:id :label :done? :href}] :next step-or-nil}.
+   Unknown (nil) never counts as done."
+  [{:keys [signed-in? ekyc eligible?]} locale]
+  (let [done {:sign-in (true? signed-in?)
+              :verify (= "verified" ekyc)
+              :eligible (true? eligible?)}
+        steps (mapv (fn [s] {:id (:id s) :label (label s locale) :href (:href s)
+                             :done? (get done (:id s))})
+                    setup-steps)]
+    {:done (count (filter :done? steps))
+     :total (count steps)
+     :steps steps
+     :next (first (remove :done? steps))}))

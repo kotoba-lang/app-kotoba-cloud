@@ -125,18 +125,12 @@
    {:id "account-panel-team"}))
 
 (defn panel-secure []
-  "Guardrails / Firewall / Compliance state from /v1/secure. The edge
-  describes, the authority enforces."
+  "The SECURE console has its own document (/secure/) rendered from the
+  enforced policy; here only the entry, so the fact has one home."
   (panel "セキュリティ管理"
-   [:div {:id "account-secure"}
-    (row "コンテンツポリシー" "account-secure-guardrails")
-    (row "ツール許可" "account-secure-firewall")
-    (row "準拠フレームワーク" "account-secure-compliance")]
+   (console/note "ガードレール・ファイアウォール・コンプライアンスの規則と版は、セキュリティ管理で確認できます。")
    (dds/row
-    (dds/button "ポリシー全文" {:href "/security/aup/" :type :outline}))
-   (details "各項目の意味"
-            "コンテンツポリシー（Guardrails）は全リクエストに適用されます: CSAM / CBRN / 詐欺は block、秘密情報は mask。"
-            "ツール許可（Firewall）はタスクツールの許可判定で、run は assurance rung で決まります。準拠フレームワーク（Compliance）は自動実行の制御であり、認証ではありません。")
+    (dds/button "セキュリティ管理を開く" {:href "/secure/" :type :outline}))
    {:id "account-panel-secure"}))
 
 (defn panel-billing []

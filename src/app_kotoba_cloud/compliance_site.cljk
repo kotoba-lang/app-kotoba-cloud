@@ -25,8 +25,8 @@
      :lead "全世界のコンプライアンス基準（ISO / SOC 2 / PCI DSS / GDPR / DORA / CRA ほか）と、脆弱性管理・AppSec・EDR・GRC などの製品カテゴリ、プロバイダーと価格帯を 1 つの出典付きカタログにまとめた公開データです。各カテゴリは「対応する脆弱性・脅威クラス」と NIST CSF 2.0 のサブカテゴリ対応 (オントロジー) を持ち、製品はカテゴリ経由で transitive に CSF 対応へ結びつきます。"
        :nav (catalog/breadcrumb
           "カタログ"
-          [["ホーム" "/ja/"]
-           ["セキュリティ公開データ" "/ja/security/"]
+          [["ホーム" "/"]
+           ["セキュリティ公開データ" "/security/"]
            ["このカタログ" nil]])
      :embedded? embedded?
      :id "kcp-main"}
