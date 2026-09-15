@@ -4803,6 +4803,16 @@
       "pricingMode": "public-list",
       "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/idp.html",
       "pricingNote": "consumer subscription via in-app purchase (mobile app only — not sold in the Trend Micro online shop); free personal-info leak check available on the product page (verified 2026-09-15, ja_jp product page)"
+    },
+    {
+      "id": "trend-password-manager",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "トレンドマイクロ パスワードマネージャー (Trend Micro Password Manager)",
+      "categoryId": "password-mgr",
+      "pricingMode": "public-list",
+      "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/idp.html",
+      "pricingNote": "standalone product page https://www.trendmicro.com/ja_jp/forHome/products/pwmgr.html now 301-redirects to the トレンドマイクロ ID プロテクション page (HTTP 200, verified 2026-09-15) — the password manager is sold as a bundled feature of ID プロテクション (subscription via in-app purchase, no separate price list on the ja_jp page)"
     }
   ]
 }
