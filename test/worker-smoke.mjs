@@ -1172,7 +1172,7 @@ try {
  r=await doBill('/usage',{kind:'inference',receipt:{...receipt,outputTokens:20}});assert.equal(r.status,503,'conflicting receipt rejected');
 
  r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200,await r.clone().text());
- assert.equal((await r.json()).amountMicroUSD,66);
+ assert.equal((await r.json()).amountMicroUSD,108);
  const settledSnapshot=memory.get('limits');
  r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200);
  assert.equal(memory.get('limits'),settledSnapshot,'retry cannot charge twice');

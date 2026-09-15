@@ -1,6 +1,6 @@
 (ns app-kotoba-cloud.billing
   "Versioned prices and measurement contracts. Money is integer micro-USD.")
-(def version "2026-09-15-v4")
+(def version "2026-09-15-v5")
 (def plans
   [{:sku "pro" :name "Pro" :scope "platform" :cents 2000 :credits 12 :gib 20}
    {:sku "team" :name "Team" :scope "platform" :cents 15000 :credits 60 :gib 50 :seats 6}
@@ -25,8 +25,8 @@
   {:autoCharge false :creditsExpire false :cancelAnyTime true
    :renewal "monthly" :note "Auto-charged each period, cancel anytime, credits never expire."})
 (defn plan [sku] (first (filter #(= sku (:sku %)) plans)))
-(def rates {:input-per-million 600000 :cached-input-per-million 150000
-            :output-per-million 2400000 :storage-gib-month 200000
+(def rates {:input-per-million 900000 :cached-input-per-million 225000
+            :output-per-million 4500000 :storage-gib-month 200000
             :egress-gib 90000 :query-vcpu-hour 60000})
 (def catalog {:version version :currency "usd" :status "sandbox-proposal"
               :creditValueUSD 1 :plans plans :ratesMicroUSD rates
