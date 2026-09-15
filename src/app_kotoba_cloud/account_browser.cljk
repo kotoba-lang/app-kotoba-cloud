@@ -78,6 +78,14 @@
         (show! "account-refresh-slot")
         false)))
 
+(defn card-return
+  "Where Stripe Checkout sent the person back to: the authority's setup
+  session carries success_url ?card=done and cancel_url ?card=cancelled on
+  this document. nil when the page was opened directly."
+  []
+  (let [v (.get (js/URLSearchParams. (.-search js/location)) "card")]
+    (when (contains? #{"done" "cancelled"} v) v)))
+
 (defn render-ekyc [r]
   (let [status (cond
                  (not (:httpOk r)) "unavailable"
@@ -92,7 +100,15 @@
                      (when-let [b (el "account-ekyc-start")] (set! (.-hidden b) true)))
       "pending" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "確認中" "Pending"))
-                    (say! "account-ekyc-note" (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。カード登録を中断した場合は下のボタンから再開できます。" "Approval happens automatically when Stripe completes. Refresh this page to see the change. If you left the card entry midway, resume below."))
+                    (say! "account-ekyc-note"
+                          (case (card-return)
+                            ;; back from checkout.stripe.com: the webhook approves
+                            ;; within seconds; the refresh button re-reads status
+                            "done" (t "カード登録を受け付けました。Stripe からの通知が届くと自動承認されます（通常は数秒）。「状態を更新」で確認できます。"
+                                      "Card received. Approval follows Stripe's notification, usually within seconds. Use 状態を更新 to re-check.")
+                            "cancelled" (t "カード登録を中断しました。下のボタンから再開できます。"
+                                           "Card entry was cancelled. Resume below.")
+                            (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。カード登録を中断した場合は下のボタンから再開できます。" "Approval happens automatically when Stripe completes. Refresh this page to see the change. If you left the card entry midway, resume below.")))
                     ;; A pending challenge means a setup session may still be
                     ;; open — re-running start mints a fresh one (or verifies
                     ;; inline once the card is on file), so keep the button
@@ -216,16 +232,23 @@
     (say! "account-ekyc-note" (t "Stripe の確認セッションを作成しています…" "Creating the Stripe verification session…"))
     (-> (api "/v1/research/ekyc/start" {:scopeId "owned" :tasks ["code-review"]})
         (.then (fn [r]
-                 (if (and (:httpOk r) (:verificationUrl r))
+                 (cond
+                   (and (:httpOk r) (:verificationUrl r))
                    (set! (.-location js/window) (:verificationUrl r))
+                   ;; an admissible card was already on file: the authority
+                   ;; applied the approval chain inline and answered 200 with
+                   ;; no URL — re-read the console instead of calling it a failure
+                   (:httpOk r)
+                   (refresh!)
+                   :else
                    (do (say! "account-ekyc-note"
                              (case (get-in r [:error :code])
                                "card-verification-not-configured" (t "本人確認サービスは一時的に利用できません。時間をおいて再試行してください。" "Verification is temporarily unavailable. Try again later.")
                                "prepaid-card-not-accepted" (t "プリペイドカード・バーチャルカードは本人確認に使えません。クレジットカードまたはデビットカードを登録してください。" "Prepaid and virtual cards cannot be used for verification. Add a regular credit or debit card.")
+                               ("stripe-unavailable" "invalid-stripe-session") (t "Stripe に接続できませんでした。時間をおいて再試行してください。続く場合は support@kotoba.cloud へ。" "Could not reach Stripe. Try again later; if it persists, contact support@kotoba.cloud.")
                                "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
                                (t "開始できませんでした。状態を更新してください。" "Could not start. Refresh and retry.")))
-                       (set! (.-disabled b) false))))))
-        ))
+                       (set! (.-disabled b) false))))))))
 
 (defn render-pat [r]
   (let [result (el "account-pat-result")

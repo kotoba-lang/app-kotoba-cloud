@@ -46,9 +46,16 @@
                      (.then (fn [detail]
                               (let [code (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
                                               (catch :default _ nil))]
-                                (throw (ex-info (or code "research-service-unavailable")
+                                (throw (ex-info (if (string? code) code "research-service-unavailable")
                                                 {:status (if (contains? #{402 403 404 409 429 502 503} (.-status r))
                                                            (.-status r) 503)})))))))))))
+
+;; Authority error codes the account console maps to a specific sentence
+;; (account-browser start-ekyc!). Everything else collapses to the status
+;; family below, so nothing internal leaks through the edge.
+(def surfaced-ekyc-codes
+  #{"card-verification-not-configured" "prepaid-card-not-accepted" "stripe-unavailable"
+    "invalid-stripe-session"})
 
 (defn- ekyc-route [request path binding principal reference respond]
   (if (= path "/v1/research/ekyc/status")
@@ -57,8 +64,12 @@
     (-> (bounded-json request 32768)
         (.then
          (fn [body]
-           (if-not (and (policy/text? (:principalId body) 256)
-                        (policy/text? (:scopeId body) 256)
+           ;; The principal is the session's, never the body's — the console
+           ;; sends {scopeId, tasks} only (a principalId requirement here
+           ;; turned every browser start into 400 invalid-ekyc-request,
+           ;; measured live 2026-09-15). The PAT path may still send one; it
+           ;; is ignored the same way.
+           (if-not (and (policy/text? (:scopeId body) 256)
                         (vector? (:tasks body)) (pos? (count (:tasks body))))
              (respond {:error {:code "invalid-ekyc-request"}} 400)
              (-> (service binding "/ekyc/start"
@@ -330,6 +341,19 @@
 ;; authority trusts the edge's sessionRef, so a stable agent-domain reference
 ;; is enough; the token itself is verified statelessly by HMAC before any
 ;; service hop. No origin header, no cookie, no viewer is required here.
+(defn- edge-error-code
+  "The code the edge answers with for a failed authority hop. Status families
+  first; on the eKYC paths an allow-listed authority code (the ex-info message
+  `service` threw) wins over the family, since 503 alone cannot tell the
+  console 'Stripe refused' from 'no key configured'."
+  [e status ekyc?]
+  (let [code (ex-message e)]
+    (if (and ekyc? (contains? surfaced-ekyc-codes code))
+      code
+      (case status 413 "body-too-large" 400 "invalid-json" 401 "sign-in-required"
+            403 "research-access-denied" 404 "job-not-found" 409 "idempotency-conflict"
+            429 "free-quota-exhausted" "research-service-unavailable"))))
+
 (defn- bearer-auth [request ^js env respond path ekyc?]
   (let [binding (.-RESEARCH_AUTHORITY env)
         secret (aget env pat/secret-name)]
@@ -387,8 +411,8 @@
           (.then (fn [] (bearer-auth request env respond path ekyc?)))
           (.catch (fn [e]
                     (let [status (or (:status (ex-data e)) 503)]
-                      (respond {:error {:code (case status 413 "body-too-large" 400 "invalid-json" 415 "json-required"
-                                                   "research-service-unavailable")}} status)))))
+                      (respond {:error {:code (if (= 415 status) "json-required" (edge-error-code e status ekyc?))}}
+                               status)))))
       (and post? (not (contains? origins (.get (.-headers request) "origin"))))
       (respond {:error {:code "origin-not-allowed"}} 403)
       (and post? (not (re-find #"(?i)^application/json(?:;|$)" (or (.get (.-headers request) "content-type") ""))))
@@ -406,6 +430,4 @@
                                          (authorized-route request path binding (:principalId viewer) % respond)))))))
           (.catch (fn [e]
                     (let [status (or (:status (ex-data e)) 503)]
-                      (respond {:error {:code (case status 413 "body-too-large" 400 "invalid-json" 401 "sign-in-required"
-                                                   403 "research-access-denied" 404 "job-not-found" 409 "idempotency-conflict"
-                                                   429 "free-quota-exhausted" "research-service-unavailable")}} status))))))))
+                      (respond {:error {:code (edge-error-code e status ekyc?)}} status))))))))

@@ -564,12 +564,18 @@ let researchRecord = { principalId: researchPrincipal, policyVersion: researchPo
 let corruptReceipt = false;
 let oldTrustReceipt = false;
 let exhausted = false;
+// When set, /ekyc/start answers with the authority's own error shape
+// ({ error: <code> }, status) so the edge's code surfacing can be measured.
+let ekycAuthorityRefusal = null;
 const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => {
   const body = JSON.parse(init.body);
   const path = new URL(url).pathname;
   researchCalls.push({ path, body, headers: new Headers(init.headers) });
   assert.equal(new Headers(init.headers).get("cookie"), null);
   if (path === "/status") return Response.json(researchRecord);
+  if (path === "/ekyc/start" && ekycAuthorityRefusal) {
+    return Response.json({ error: ekycAuthorityRefusal.error }, { status: ekycAuthorityRefusal.status });
+  }
   if (path === "/ekyc/start") return Response.json({ sessionId: "session-1",
     externalId: "ext-1", verificationUrl: "https://verify.stripe.com/test",
     expiresAt: Date.now() + 900000, scopeId: body.scopeId, tasks: body.tasks });
@@ -696,6 +702,53 @@ assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions"
 }), researchEnv)).status, 413);
 console.log("research gateway identity, evidence, scope, free-only receipts and streamed limits passed");
 
+// Account console eKYC start: the browser sends exactly { scopeId, tasks }
+// (account-browser start-ekyc!) — no principalId. The edge must take the
+// principal from the session, not demand it in the body (the live console
+// got 400 invalid-ekyc-request for every click on 2026-09-15).
+{
+  const before = researchCalls.filter(c => c.path === "/ekyc/start").length;
+  const consoleStart = await route(researchRequest("/v1/research/ekyc/start",
+    { scopeId: "owned", tasks: ["code-review"] }), researchEnv);
+  const consoleStartText = await consoleStart.text();
+  assert.equal(consoleStart.status, 200, consoleStartText);
+  const consoleStartBody = JSON.parse(consoleStartText);
+  assert.equal(consoleStartBody.verificationUrl, "https://verify.stripe.com/test");
+  const starts = researchCalls.filter(c => c.path === "/ekyc/start");
+  assert.equal(starts.length, before + 1);
+  assert.equal(starts[starts.length - 1].body.principalId, researchPrincipal);
+  assert.equal(starts[starts.length - 1].body.sessionRef, researchSessionRef);
+  assert.deepEqual(starts[starts.length - 1].body.tasks, ["code-review"]);
+  // A body principalId is still ignored, never trusted.
+  const spoofed = await route(researchRequest("/v1/research/ekyc/start",
+    { principalId: "urn:kotoba:principal:someone-else", scopeId: "owned", tasks: ["code-review"] }), researchEnv);
+  assert.equal(spoofed.status, 200);
+  const spoofedCall = researchCalls.filter(c => c.path === "/ekyc/start").pop();
+  assert.equal(spoofedCall.body.principalId, researchPrincipal);
+  // Malformed bodies are still refused by name.
+  for (const bad of [{}, { scopeId: "owned" }, { scopeId: "owned", tasks: [] }, { scopeId: "", tasks: ["code-review"] }]) {
+    const r = await route(researchRequest("/v1/research/ekyc/start", bad), researchEnv);
+    assert.equal(r.status, 400, JSON.stringify(bad));
+    assert.equal((await r.json()).error.code, "invalid-ekyc-request");
+  }
+  // The authority's operator-visible codes survive the hop with their status;
+  // an unlisted code still collapses to the status family.
+  for (const [refusal, expectStatus, expectCode] of [
+    [{ status: 503, error: "card-verification-not-configured" }, 503, "card-verification-not-configured"],
+    [{ status: 403, error: "prepaid-card-not-accepted" }, 403, "prepaid-card-not-accepted"],
+    [{ status: 503, error: "stripe-unavailable" }, 503, "stripe-unavailable"],
+    [{ status: 503, error: "some-internal-detail" }, 503, "research-service-unavailable"],
+    [{ status: 403, error: "some-internal-detail" }, 403, "research-access-denied"],
+  ]) {
+    ekycAuthorityRefusal = refusal;
+    const r = await route(researchRequest("/v1/research/ekyc/start", { scopeId: "owned", tasks: ["code-review"] }), researchEnv);
+    assert.equal(r.status, expectStatus, JSON.stringify(refusal));
+    assert.equal((await r.json()).error.code, expectCode, JSON.stringify(refusal));
+  }
+  ekycAuthorityRefusal = null;
+  console.log("account console ekyc/start: session principal, spoof ignored, authority codes surfaced");
+}
+
 // PAT (personal API token) path for local CLI/IDE agents: stateless HMAC
 // token issued same-origin, verified on the bearer research path. The
 // authority must see a STABLE agent-domain sessionRef and the SAME principal.
@@ -735,11 +788,12 @@ assert.notEqual(agentSessionRef, researchSessionRef);
 // The agent's first ekyc/start binds continuous evidence to the AGENT
 // sessionRef (the authority stores what the edge sends, no recompute).
 const patBodyReq = { principalId: researchPrincipal, scopeId: "owned", tasks: ["code-review"] };
+const ekycCallsBefore = researchCalls.filter(c => c.path === "/ekyc/start").length;
 assert.equal((await route(new Request("https://kotoba.cloud/v1/research/ekyc/start", {
   method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
   body: JSON.stringify(patBodyReq)
 }), patEnv)).status, 200);
-const ekycCalls = researchCalls.filter(c => c.path === "/ekyc/start");
+const ekycCalls = researchCalls.filter(c => c.path === "/ekyc/start").slice(ekycCallsBefore);
 assert.equal(ekycCalls.length, 1);
 assert.equal(ekycCalls[0].body.principalId, researchPrincipal);
 assert.equal(ekycCalls[0].body.sessionRef, agentSessionRef);
