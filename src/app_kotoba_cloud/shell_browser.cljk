@@ -151,6 +151,8 @@
                          (set! (.-textContent cell)
                                (case (:availability m)
                                  "upstream-tested-access-gated" (t "提供中（許可されたリクエストのみ）" "Serving (admitted requests only)")
+                                 "openrouter-configured" (t "提供中（OpenRouter）" "Serving (OpenRouter)")
+                                 "openrouter-key-not-configured" (t "未接続（OpenRouter キー未設定）" "Not connected (OpenRouter key not configured)")
                                  (str (:availability m))))))
                      (doseq [cell (array-seq (.querySelectorAll js/document "[data-model-availability][data-state=empty]"))]
                        (.setAttribute cell "data-state" "error")

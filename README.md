@@ -244,6 +244,30 @@ Kotobase review/quota state, human-review operation and durable asynchronous
 inference jobs remain required before public intake can open. See
 `docs/research-authority-contract.md` for the exact activation boundary.
 
+### Two model teams (2026-09-15)
+
+`/v1/models` and `/models/` split the catalog into two teams
+(`app-kotoba-cloud.research/teams`, one table; the page, the edge and the
+authority all read it):
+
+| team | models | route | admitted on |
+|---|---|---|---|
+| red | `qwen3.8-flash-next-whitehacker`, `glm5.3-flash` | Modal (`MODAL_INFERENCE_URL`) | sign-in, card-based identity verification (`/v1/research/ekyc/start`, credit/debit funding only), consent to the Acceptable Use Policy (`/security/aup/`, `policyVersion`), screening, trust route, approved scope, free quota, guardrails |
+| blue | `qwen/qwen3.8-flash`, `z-ai/glm-5.3-flash` (the OpenRouter ids, unchanged) | OpenRouter (`OPENROUTER_API_KEY`, a secret on the research authority Worker) | sign-in, free quota, guardrails; the three standard tasks only |
+
+The edge makes no `/status` hop for a blue model and the authority skips the
+identity ladder for it; the offensive band (`payload-crafting`, `c2-tooling`)
+stays closed to blue by the request shape. Without the key the blue route
+refuses by name (`openrouter-not-configured`, 503) — a blue job never falls
+back to Modal. `OPENROUTER_CONFIGURED` in `wrangler.jsonc` is what `/v1/models`
+reports as the blue rows' availability (`openrouter-configured` /
+`openrouter-key-not-configured`); flip it to `"true"` after
+`wrangler secret put OPENROUTER_API_KEY --config wrangler.research.jsonc`.
+Measured: `test/worker-smoke.mjs` (catalog split; blue 200 / red 403 on the
+same suspended record), `test/research-authority-local.mjs` block 11 (blue
+admitted with no record, refuses by name without the key, OpenRouter URL +
+bearer + model id with it), `test/account-browser.cljk` block models.
+
 ### Shared conversation UI
 
 The homepage uses pinned `cloud-kotoba-dds` conversation components, with new

@@ -95,17 +95,37 @@
     "enabled": true
   },
   "vars": {
+    // Billing runs against the AWAI live Stripe account (docs/billing/
+    // stripe-live-catalog.json, verified 2026-09-15). The two launch flags
+    // below are the ONLY switch left: while either is "false",
+    // billing-gateway/configured? is false, /v1/billing/catalog answers
+    // checkoutEnabled:false and no Checkout session can be created.
+    // Flip both to "true" to accept live payments (owner decision — see
+    // docs/billing/configuration.md: paid usage is not yet metered, so a
+    // purchased balance is a ledger entry, not consumed capacity).
     "BILLING_ENABLED": "false",
     "BILLING_METERING_READY": "false",
-    "BILLING_MODE": "test",
-    "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UFI88ITDawH5x8adO7LxkD1",
-    "STRIPE_PRICE_IDS": "{\"pro\":\"price_1UFHkyITDawH5x8a0nH7NXzS\",\"max\":\"price_1UFHkzITDawH5x8aHd8HPjNH\",\"ultra\":\"price_1UFHl0ITDawH5x8ajNZWUO5O\",\"ai-credits-25\":\"price_1UFHGEITDawH5x8arkcNfHgW\",\"storage-credits-25\":\"price_1UFHGFITDawH5x8aAbVBVXhu\"}",
-    "BILLING_SANDBOX_ENABLED": "true",
+    "BILLING_MODE": "live",
+    "BILLING_SANDBOX_ENABLED": "false",
+    "BILLING_ENVIRONMENT_ID": "acct_1TuxvPIzvFrqWhXK-live",
+    // live price map = docs/billing/stripe-live-catalog.json (never test ids
+    // in live mode). SKUs without a live price (the credits-* monthly tiers)
+    // are absent here and the page shows them as not yet purchasable.
+    "STRIPE_PRICE_IDS": "{\"pro\": \"price_1UFJ5TIzvFrqWhXKHHsr82B0\", \"team\": \"price_1UFnZ5IzvFrqWhXKvUHHAwO5\", \"max\": \"price_1UFJ60IzvFrqWhXKzi7RBX6d\", \"ultra\": \"price_1UFJ6UIzvFrqWhXKl2ichBCD\", \"ai-credits-25\": \"price_1UFJ72IzvFrqWhXKEvUlJ9Nj\", \"storage-credits-25\": \"price_1UFJ7YIzvFrqWhXKqs1H0DCV\"}",
+    // the live portal configuration is resolved at runtime by the billing
+    // account (billing_account.cljk portal-configuration!): the test id
+    // bpc_1UFI88ITDawH5x8adO7LxkD1 belongs to the Kotoba Labs test account
+    // and must not be sent to the live account.
+    "STRIPE_PORTAL_CONFIGURATION_ID": "",
+    // blue-team route (research.cljk teams :blue → OpenRouter). The key itself is a
+    // secret on the research authority Worker (OPENROUTER_API_KEY,
+    // wrangler.research.jsonc); this flag is what /v1/models reports as the
+    // blue models' availability. Set to "true" once the secret is stored.
     // Organization SSO (ADR-2609151900): Enterprise is quote-based, so an
     // operator grants it here as {"com-<handle>.kotoba.cloud": "enterprise"}.
     // Team comes from the org owner's paid Stripe plan (billing/active-plan).
     // ORG_SSO_ENTITLEMENT_SECRET is a Worker secret shared with kotobase-authn.
     "ORG_PLAN_OVERRIDES": "{}",
-    "BILLING_ENVIRONMENT_ID": "acct_1U7sRyITDawH5x8a-test"
+    "OPENROUTER_CONFIGURED": "false"
   }
 }

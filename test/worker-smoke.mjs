@@ -564,15 +564,29 @@ let researchRecord = { principalId: researchPrincipal, policyVersion: researchPo
 let corruptReceipt = false;
 let oldTrustReceipt = false;
 let exhausted = false;
+let upstreamOutcome = "ok";
 // When set, /ekyc/start answers with the authority's own error shape
 // ({ error: <code> }, status) so the edge's code surfacing can be measured.
 let ekycAuthorityRefusal = null;
+// The authority's answer to a forwarded Stripe webhook ({ error } + status
+// when set, else the approval receipt).
+let webhookAuthorityAnswer = null;
 const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => {
   const body = JSON.parse(init.body);
   const path = new URL(url).pathname;
-  researchCalls.push({ path, body, headers: new Headers(init.headers) });
+  researchCalls.push({ path, body, headers: new Headers(init.headers), redirect: init.redirect });
   assert.equal(new Headers(init.headers).get("cookie"), null);
+  // workerd's fetch accepts only "follow" | "manual"; "error" throws a
+  // TypeError before the hop — the real binding never sees the request.
+  // Mirror that here so a bundle that regresses fails the same way live did.
+  if (init.redirect !== undefined && init.redirect !== "follow" && init.redirect !== "manual") {
+    throw new TypeError("Invalid redirect mode: " + init.redirect);
+  }
   if (path === "/status") return Response.json(researchRecord);
+  if (path === "/ekyc/webhook") {
+    if (webhookAuthorityAnswer) return Response.json({ error: webhookAuthorityAnswer.error }, { status: webhookAuthorityAnswer.status });
+    return Response.json({ principalId: body.principalId, status: "active", receiptId: "op-card-setup-1", approvedBy: "stripe-card" });
+  }
   if (path === "/ekyc/start" && ekycAuthorityRefusal) {
     return Response.json({ error: ekycAuthorityRefusal.error }, { status: ekycAuthorityRefusal.status });
   }
@@ -588,8 +602,11 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
       job = { jobId: body.jobId, principalId: body.principalId, sessionRef: body.sessionRef,
         status: "queued", receiptId: "receipt-" + body.jobId, request: body.request, createdAt: Date.now() };
       jobs.set(body.jobId, job);
-      setTimeout(() => { if (job.status === "queued") { job.status = "succeeded";
-        job.content = "Check ownership before returning the record."; } }, 5);
+      setTimeout(() => { if (job.status === "queued") {
+        // upstreamOutcome: "ok" (default) | "failed" | "empty" — the last two
+        // are what a refused Modal origin used to look like on the edge
+        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "modal-inference-unavailable"; }
+        else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; } } }, 5);
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
@@ -648,9 +665,28 @@ assert.equal(researchCalls.length, 0);
 }
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
 const modelCatalogBody = await modelCatalog.json();
-assert.equal(modelCatalogBody.data[0].availability, "upstream-tested-access-gated");
+// Two teams (owner direction 2026-09-15): red = Modal, the identity ladder;
+// blue = OpenRouter, sign-in + free quota. The blue rows' availability is the
+// edge's OPENROUTER_CONFIGURED flag, never the key.
 assert.deepEqual(modelCatalogBody.data.map(m => m.id).sort(),
-  ["glm5.3-flash", "qwen3.8-flash-next-whitehacker"]);
+  ["glm5.3-flash", "qwen/qwen3.8-flash", "qwen3.8-flash-next-whitehacker", "z-ai/glm-5.3-flash"]);
+const catalogRow = id => modelCatalogBody.data.find(m => m.id === id);
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").team, "red");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").route, "modal");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").availability, "upstream-tested-access-gated");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").team, "blue");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").route, "openrouter");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").availability, "openrouter-key-not-configured");
+assert.equal(catalogRow("qwen/qwen3.8-flash").upstream, "https://openrouter.ai/api/v1/chat/completions");
+assert.deepEqual(modelCatalogBody.teams.red.requirements.slice(0, 3),
+  ["authenticated-principal", "verified-ekyc-card", "aup-consent"]);
+assert.deepEqual(modelCatalogBody.teams.blue.requirements,
+  ["authenticated-principal", "available-free-quota", "guardrails"]);
+{
+  const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, OPENROUTER_CONFIGURED: "true" })).json();
+  assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "openrouter-configured");
+  assert.equal(configured.data.find(m => m.id === "glm5.3-flash").availability, "upstream-tested-access-gated");
+}
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 const eligibleStatusBody = await eligibleStatus.json();
 assert.equal(eligibleStatusBody.status, "eligible");
@@ -673,9 +709,46 @@ for (const mutate of [r => { r.principalId = "another"; }, r => { r.status = "su
   researchRecord = saved;
 }
 assert.equal(researchCalls.filter(c => c.path === "/complete").length, beforeDenials);
+// Blue team at the edge: the same suspended / unscoped / stale-session record
+// that refuses a red model does not gate a blue one — the edge makes no
+// /status hop and the job carries the blue id. A red request on that record
+// stays 403 in the same breath, so the two bars are measured side by side.
+{
+  const blueBody = { ...researchBody, model: "z-ai/glm-5.3-flash" };
+  const saved = structuredClone(researchRecord);
+  researchRecord.status = "suspended"; researchRecord.scopes = []; researchRecord.continuous.expiresAt = 1;
+  const statusHops = researchCalls.filter(c => c.path === "/status").length;
+  assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 403);
+  const blueOk = await route(researchRequest("/v1/chat/completions", blueBody), researchEnv);
+  researchRecord = saved;
+  assert.equal(blueOk.status, 200);
+  const blueJson = await blueOk.json();
+  assert.equal(blueJson.model, "z-ai/glm-5.3-flash");
+  assert.equal(blueJson.billing, "free");
+  assert.equal(researchCalls.filter(c => c.path === "/status").length, statusHops + 1, "only the red request asked /status");
+  const blueCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(blueCreate.body.request.model, "z-ai/glm-5.3-flash");
+  assert.equal(blueCreate.body.billing, "free-only");
+  // the edge shape still closes the offensive band for blue
+  assert.equal((await route(researchRequest("/v1/chat/completions", { ...blueBody, task: "payload-crafting" }), researchEnv)).status, 400);
+  console.log("blue/red teams: catalog split by team and route, blue admitted at the edge without the ladder, red still 403 on the same record");
+}
 const researchOk = await route(researchRequest("/v1/chat/completions", researchBody), researchEnv);
 assert.equal(researchOk.status, 200);
 assert.equal((await researchOk.json()).billing, "free");
+// A job the authority ends as failed is 502 inference-failed by name — the
+// catch used to look for the code in ex-data and answered
+// research-service-unavailable for everything. A job that "succeeded" with
+// no text is a broken receipt, never a 200 with content null (live
+// 2026-09-15: the first PAT completions after eligibility).
+for (const [outcome, expectStatus, expectCode] of [["failed", 502, "inference-failed"], ["empty", 502, "invalid-inference-receipt"]]) {
+  upstreamOutcome = outcome;
+  const r = await route(researchRequest("/v1/chat/completions", { ...researchBody, messages: [{ role: "user", content: "outcome " + outcome }] }), researchEnv);
+  const j = await r.json();
+  assert.equal(r.status, expectStatus, outcome + " " + JSON.stringify(j));
+  assert.equal(j.error.code, expectCode, outcome + " " + JSON.stringify(j));
+}
+upstreamOutcome = "ok";
 corruptReceipt = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
 corruptReceipt = false; oldTrustReceipt = true;
@@ -747,6 +820,48 @@ console.log("research gateway identity, evidence, scope, free-only receipts and 
   }
   ekycAuthorityRefusal = null;
   console.log("account console ekyc/start: session principal, spoof ignored, authority codes surfaced");
+}
+
+// Stripe -> /v1/research/ekyc/webhook (server-to-server: no origin, no cookie).
+// The edge forwards raw body + signature and only ROUTING HINTS; the
+// authority decides. Live, every delivery was 503 with an empty eventId
+// because the hop asked for redirect "error" (2026-09-15, 5/5 that week).
+{
+  const checkoutEvent = { id: "evt_setup_1", type: "checkout.session.completed", created: Math.floor(Date.now() / 1000),
+    data: { object: { id: "cs_test_setup_1", object: "checkout.session", mode: "setup", status: "complete",
+      client_reference_id: null, metadata: { principal: researchPrincipal, purpose: "identity-verification" } } } };
+  const deliver = (event) => route(new Request("https://api.kotoba.cloud/v1/research/ekyc/webhook", {
+    method: "POST", headers: { "content-type": "application/json", "stripe-signature": "t=1,v1=" + "ab".repeat(32) },
+    body: JSON.stringify(event) }), researchEnv);
+  const before = researchCalls.length;
+  const ok = await deliver(checkoutEvent);
+  const okText = await ok.text();
+  assert.equal(ok.status, 200, okText);
+  assert.equal(JSON.parse(okText).approvedBy, "stripe-card");
+  const hop = researchCalls.slice(before).filter(c => c.path === "/ekyc/webhook");
+  assert.equal(hop.length, 1, "exactly one authority hop per delivery");
+  assert.equal(hop[0].redirect, "manual");
+  assert.equal(hop[0].body.principalId, researchPrincipal);
+  assert.equal(hop[0].body.sessionId, "cs_test_setup_1");
+  assert.equal(hop[0].body.signatureHeader, "t=1,v1=" + "ab".repeat(32));
+  assert.equal(hop[0].body.raw, JSON.stringify(checkoutEvent), "raw body must reach the authority byte-for-byte for HMAC");
+  // Authority refusals keep their status and carry the event id, nothing else.
+  for (const [answer, expectStatus] of [[{ status: 403, error: "stripe-evidence-not-admissible" }, 403],
+    [{ status: 400, error: "stripe-signature-invalid" }, 400], [{ status: 500, error: "authority-internal" }, 503]]) {
+    webhookAuthorityAnswer = answer;
+    const r = await deliver(checkoutEvent);
+    const j = await r.json();
+    assert.equal(r.status, expectStatus, JSON.stringify(answer));
+    assert.equal(j.error.code, expectStatus === 400 ? "invalid-json" : "stripe-webhook-rejected");
+    assert.equal(j.error.eventId, "evt_setup_1");
+  }
+  webhookAuthorityAnswer = null;
+  // A body that is not a Stripe event never reaches the authority.
+  const junk = await route(new Request("https://api.kotoba.cloud/v1/research/ekyc/webhook", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hello: 1 }) }), researchEnv);
+  assert.equal(junk.status, 400);
+  assert.equal(researchCalls.slice(before).filter(c => c.path === "/ekyc/webhook").length, 4, "junk must not reach the authority");
+  console.log("stripe webhook edge hop: manual redirect, raw+signature forwarded, refusals carry the event id");
 }
 
 // PAT (personal API token) path for local CLI/IDE agents: stateless HMAC
@@ -1252,6 +1367,53 @@ try {
  assert.equal((await r.json()).amountMicroUSD,278);
 } finally {globalThis.fetch=oldFetchBilling;}
 console.log('billing provider, invoice replay, tenant and durable usage checks passed');
+
+// Live environment (2026-09-15): the AWAI account, live price map, launch
+// flags. While either flag is "false" nothing can be sold; the catalog
+// still names the mode and the SKUs a live price exists for; the portal
+// never sends a test configuration id to the live account.
+{
+  const liveBase = {BILLING_MODE:'live', BILLING_SANDBOX_ENABLED:'false', BILLING_ENVIRONMENT_ID:'acct_1TuxvPIzvFrqWhXK-live',
+    STRIPE_AWAI_LIVE_KEY:'sk_live_fixture_not_a_real_key', STRIPE_AWAI_LIVE_WEBHOOK_SECRET:'whsec_live_fixture',
+    STRIPE_PRICE_IDS:JSON.stringify({pro:'price_live_pro', 'ai-credits-25':'price_live_topup'}), STRIPE_PORTAL_CONFIGURATION_ID:'', BILLING_ACCOUNTS:{}};
+  const closed = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'false', BILLING_METERING_READY:'false'})).json();
+  assert.equal(closed.mode, 'live');
+  assert.equal(closed.checkoutEnabled, false, 'live mode with a launch flag off sells nothing');
+  assert.deepEqual(closed.purchasable, ['pro','ai-credits-25'], 'the catalog names the SKUs a live price exists for');
+  const halfOpen = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'false'})).json();
+  assert.equal(halfOpen.checkoutEnabled, false, 'both flags are required');
+  const open = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true'})).json();
+  assert.equal(open.checkoutEnabled, true, 'live: both flags + live key + webhook secret + price map; no portal id needed');
+  const wrongEnv = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true', BILLING_ENVIRONMENT_ID:'acct_other-live'})).json();
+  assert.equal(wrongEnv.checkoutEnabled, false, 'a different live account never becomes configured');
+  // portal in live mode: resolved from the live account, stored, reused; the test id is never sent
+  const liveMemory = new Map([['customer', '{:stripe "cus_live_fixture"}']]);
+  const liveState = {storage:{get:async k=>liveMemory.get(k), put:async(k,v)=>liveMemory.set(k,v), list:async()=>new Map(), setAlarm:async()=>{}}, blockConcurrencyWhile: f=>f()};
+  const liveDO = BillingAccount(liveState, {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true', STRIPE_PORTAL_CONFIGURATION_ID:'bpc_TESTID_MUST_NOT_LEAK'});
+  const portalCalls = [];
+  const oldFetchLive = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url); portalCalls.push({url:u, body:String(init?.body||'')});
+    if (u.startsWith('https://api.stripe.com/v1/billing_portal/configurations?')) return Response.json({data:[], has_more:false});
+    if (u === 'https://api.stripe.com/v1/billing_portal/configurations') return Response.json({id:'bpc_live_created'});
+    if (u === 'https://api.stripe.com/v1/billing_portal/sessions') return Response.json({url:'https://billing.stripe.com/p/session/fixture'});
+    throw new Error('Unexpected live billing URL ' + u);
+  };
+  try {
+    const r = await liveDO.fetch(new Request('https://billing.internal/portal', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({principal:'principal_live'})}));
+    assert.equal(r.status, 200, 'portal session created against the live account');
+    const session = portalCalls.find(c => c.url === 'https://api.stripe.com/v1/billing_portal/sessions');
+    assert(session && /configuration=bpc_live_created/.test(session.body), 'the created live configuration is used: ' + session?.body);
+    assert(!portalCalls.some(c => /bpc_TESTID_MUST_NOT_LEAK/.test(c.body)), 'the test portal id never reaches the live account');
+    const created = decodeURIComponent(portalCalls.find(c => c.url === 'https://api.stripe.com/v1/billing_portal/configurations').body);
+    assert(/subscription_cancel\]\[mode\]=at_period_end/.test(created) && /subscription_update\]\[enabled\]=false/.test(created) && /subscription_pause\]\[enabled\]=false/.test(created), 'live configuration mirrors the qualified test features: ' + created);
+    assert.equal(liveMemory.get('portal-configuration'), '{:id "bpc_live_created"}', 'stored for reuse');
+    portalCalls.length = 0;
+    await liveDO.fetch(new Request('https://billing.internal/portal', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({principal:'principal_live'})}));
+    assert(!portalCalls.some(c => c.url.includes('billing_portal/configurations')), 'second portal session reuses the stored configuration');
+  } finally { globalThis.fetch = oldFetchLive; }
+  console.log('billing live environment: flags gate checkout, purchasable SKUs named, live portal configuration resolved without the test id');
+}
 
 // Raw-body Stripe signature/mode enforcement precedes any account mutation.
 const webhookSecret = 'whsec_fixture_only';

@@ -53,10 +53,13 @@
                   (when gib [:li (str gib (txt " GiB の保存容量" " GiB storage"))])
                   (when seats [:li (str seats (txt " 席" " seats"))])
                   (when monthly [:li (txt "毎月付与・失効なし・いつでも解約" "Granted monthly · never expires · cancel anytime")])]))
-   ;; hidden until the catalog says checkout is enabled (billing-browser)
+   ;; hidden until the catalog says checkout is enabled AND this SKU has a
+   ;; price in the live catalog (billing-browser); otherwise the note shows
    [:button {:class "dads-button" :data-type "solid-fill" :data-size "md" :type "button"
              :data-billing-sku sku :hidden true}
-    (txt "選択" "Select")]])
+    (txt "選択" "Select")]
+   [:p {:class "ck-console__note" :data-billing-unavailable sku :hidden true}
+    (txt "このプランは準備中です。" "This plan is not purchasable yet.")]])
 
 (defn section [locale sign-in-href]
   (let [ja? (= locale :ja) txt (fn [ja en] (if ja? ja en))

@@ -105,6 +105,41 @@ assert.deepEqual(storedJob.usageReceipt && {
   totalTokens: storedJob.usageReceipt.totalTokens,
 }, { source: "modal-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
 
+// 6b. upstream refuses (401) -> terminal state is FAILED with the upstream
+// status; never "succeeded" with nil content. Live, the chain's per-step
+// rejection handlers let `succeed` run on undefined after `fail` had
+// already stored "failed", and the edge served 200 + content null.
+{
+  const realUpstream = globalThis.fetch;
+  const errLines = [];
+  const realError = console.error;
+  console.error = (...args) => { errLines.push(args.map(String).join(" ")); };
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { type: "invalid_request_error",
+    code: "invalid_api_key", message: "Incorrect API key provided" } }),
+    { status: 401, headers: { "content-type": "application/json" } });
+  const failJobId = "33333333-3333-4333-8333-333333333333";
+  const rf = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rf.status, 200, JSON.stringify(rf));
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  console.error = realError;
+  const failed = JSON.parse(await state.storage.get("job:" + failJobId));
+  assert.equal(failed.status, "failed", "terminal state must be failed: " + JSON.stringify(failed));
+  assert.equal(failed.error, "modal-inference-unavailable");
+  assert.equal(failed.upstreamStatus, 401);
+  assert.equal(failed.content, undefined);
+  const logged = errLines.filter(l => l.startsWith("inference-run-failed " + failJobId));
+  assert.equal(logged.length, 1, JSON.stringify(errLines));
+  assert.match(logged[0], /"code":"invalid_api_key"/);
+  // and the poll reports the failure, not a receipt
+  const rs = await call("/jobs/status", { principalId: principal, sessionRef, jobId: failJobId });
+  assert.equal(rs.json.status, "failed");
+}
+
 // 7. replay same input -> same receipt, not double-counted
 r = await call("/jobs/create", {
   principalId: principal, sessionRef, jobId, policyVersion: "whitehat-2026-09-12-v1",
@@ -134,6 +169,59 @@ r = await call("/applications", {
 });
 assert.equal(r.status, 200);
 assert.ok(r.json.applicationId.startsWith("app-req-1"));
+
+// 11. blue team (OpenRouter): a signed-in principal with NO record is admitted,
+//     the job goes to OpenRouter with the OpenRouter id, and the offensive
+//     band stays closed. Without the key the route refuses by name.
+{
+  const blueState = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const bluePrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-222222222222";
+  const blueJob = "33333333-3333-4333-8333-333333333333";
+  const blueRequest = (model, task, content) => ({
+    principalId: bluePrincipal, sessionRef, jobId: blueJob, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model, task, scopeId: "owned", max_tokens: 64, messages: [{ role: "user", content }] },
+  });
+  const oldFetch = globalThis.fetch;
+  const routed = [];
+  globalThis.fetch = async (url, init) => {
+    routed.push({ url: String(url), auth: init.headers.authorization, referer: init.headers["HTTP-Referer"], body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ id: "gen-1", object: "chat.completion", model: "qwen/qwen3.8-flash",
+      choices: [{ index: 0, message: { role: "assistant", content: "Blue answer." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    // key absent → the job is admitted but the run refuses by name (never falls back to Modal)
+    const noKey = new ResearchAuthority(blueState, { ...env });
+    const callNoKey = (path, body) => noKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
+    let b = await callNoKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
+    assert.equal(b.status, 200, "blue: no record needed " + JSON.stringify(b.json));
+    let stored = JSON.parse(await blueState.storage.get("job:" + blueJob));
+    assert.equal(stored.status, "failed");
+    assert.match(stored.error, /openrouter-not-configured/);
+    assert.equal(routed.length, 0, "nothing was fetched — no fallback to the red route");
+    // key present → OpenRouter, OpenRouter id, referer, strict attribution
+    const blueState2 = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+    const withKey = new ResearchAuthority(blueState2, { ...env, OPENROUTER_API_KEY: "or-test-key" });
+    const callKey = (path, body) => withKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
+    b = await callKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
+    assert.equal(b.status, 200, JSON.stringify(b.json));
+    stored = JSON.parse(await blueState2.storage.get("job:" + blueJob));
+    assert.equal(stored.status, "succeeded", JSON.stringify(stored));
+    assert.equal(routed.length, 1);
+    assert.equal(routed[0].url, "https://openrouter.ai/api/v1/chat/completions");
+    assert.equal(routed[0].auth, "Bearer or-test-key");
+    assert.equal(routed[0].referer, "https://kotoba.cloud");
+    assert.equal(routed[0].body.model, "qwen/qwen3.8-flash");
+    // the offensive band is closed to the blue team regardless of key
+    b = await callKey("/jobs/create", { ...blueRequest("z-ai/glm-5.3-flash", "payload-crafting", "x"), jobId: "44444444-4444-4444-8444-444444444444" });
+    assert.equal(b.status, 403, JSON.stringify(b.json));
+    // red team on a fresh principal is still refused
+    b = await callKey("/jobs/create", { ...blueRequest("qwen3.8-flash-next-whitehacker", "code-review", "x"), jobId: "55555555-5555-4555-8555-555555555555" });
+    assert.equal(b.status, 403, "red stays gated: " + JSON.stringify(b.json));
+    assert.equal(b.json.error, "review-required");
+  } finally { globalThis.fetch = oldFetch; }
+  console.log("blue team route: admitted on sign-in, OpenRouter with its id, refuses by name without the key, offensive band closed, red still gated");
+}
 
 console.log("research authority local checks: all passed");
 
@@ -370,6 +458,42 @@ assert.equal(r.status, 400, JSON.stringify(r));
   const sig2 = "t=" + t2 + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t2 + "." + badPayload).digest("hex");
   const rBad = await callS6("/ekyc/webhook", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-777777777777", raw: badPayload, signatureHeader: sig2 });
   assert.equal(rBad.status, 403, JSON.stringify(rBad));
+
+  // S6b. The trust grant outlives its 60-second stamp. Age the stored stamp
+  // by two minutes (what any /status read after the first minute sees) and
+  // the projection must still carry the grant: policyVersion, score 60, a
+  // fresh evaluatedAt and an expiresAt at most 60 s later. Live, the first
+  // console read after approval said trust-route-required (2026-09-15).
+  const aged = JSON.parse(await stS6.storage.get("record"));
+  aged.trust.evaluatedAt = Date.now() - 120000;
+  aged.trust.expiresAt = Date.now() - 60000;
+  await stS6.storage.put("record", JSON.stringify(aged));
+  const t0 = Date.now();
+  const rSt = await callS6("/status", { principalId: pS6, sessionRef: ref2, action: "code-review" });
+  assert.equal(rSt.status, 200, JSON.stringify(rSt));
+  assert.equal(rSt.json.trust.policyVersion, "kotoba-trust-routes-2026-09-v1", "trust must be projected after the stamp aged: " + JSON.stringify(rSt.json.trust));
+  assert.equal(rSt.json.trust.score, 60);
+  assert.deepEqual(rSt.json.trust.routes, ["web-reviewed"]);
+  assert.ok(rSt.json.trust.evaluatedAt >= t0, "projection is stamped now");
+  assert.ok(rSt.json.trust.expiresAt - rSt.json.trust.evaluatedAt <= 60000, "projection window is at most 60 s");
+  assert.ok(rSt.json.trust.expiresAt <= aged.ekyc.expiresAt, "projection never outlives the evidence");
+  // and a job admitted on the same aged record is not trust-route-required
+  const rJob = await callS6("/jobs/create", { principalId: pS6, sessionRef: ref2, jobId: "job-aged-1",
+    policyVersion: "whitehat-2026-09-12-v1", billing: "free-only",
+    trustPolicyVersion: "kotoba-trust-routes-2026-09-v1", sessionPolicyVersion: "kotoba-session-evidence-2026-09-v1",
+    request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review", scopeId: "owned", max_tokens: 64,
+      messages: [{ role: "user", content: "Review my authorization checks." }] },
+    limits: { requestsPerDay: 50, maxOutputTokens: 2048, maxInputCharacters: 24000 } });
+  assert.notEqual(rJob.json.error, "trust-route-required", JSON.stringify(rJob));
+  // Evidence gone -> no projection (the reason literal is verification-expired
+  // upstream; here the trust simply is not re-stamped).
+  const expired = JSON.parse(await stS6.storage.get("record"));
+  expired.ekyc.expiresAt = Date.now() - 1;
+  await stS6.storage.put("record", JSON.stringify(expired));
+  const rEx = await callS6("/status", { principalId: pS6, sessionRef: ref2, action: "code-review" });
+  assert.equal(rEx.json.trust.policyVersion, undefined, "no evidence, no projection: " + JSON.stringify(rEx.json.trust));
+  expired.ekyc.expiresAt = aged.ekyc.expiresAt;
+  await stS6.storage.put("record", JSON.stringify(expired));
 }
 console.log("card setup webhook E2E: passed");
 

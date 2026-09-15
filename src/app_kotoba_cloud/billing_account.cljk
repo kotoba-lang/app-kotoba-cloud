@@ -164,6 +164,44 @@
                                 (when-not prior
                                   (save storage key {:event event :status "recorded" :recordedAt (js/Date.now)}))))
                        (.then (fn [_] (response {:accepted true :id (:transaction_id event)} 202))))))))))
+(def ^:private portal-features
+  ;; mirrors the qualified test configuration bpc_1UFI88ITDawH5x8adO7LxkD1
+  ;; (docs/billing/configuration.md 2026-09-14): payment-method update,
+  ;; customer information, invoice history; cancellation at period end
+  ;; without proration; no plan changes, no pauses.
+  {:business_profile {:headline "Kotoba Cloud"}
+   :default_return_url "https://kotoba.cloud/billing/"
+   :features {:customer_update {:enabled true :allowed_updates ["email" "address" "phone"]}
+              :invoice_history {:enabled true}
+              :payment_method_update {:enabled true}
+              :subscription_cancel {:enabled true :mode "at_period_end" :proration_behavior "none"}
+              :subscription_update {:enabled false}
+              :subscription_pause {:enabled false}}})
+
+(defn- portal-configuration
+  "The Customer Portal configuration id for this environment. Test mode
+   uses the configured id. Live mode never sends a test id to the live
+   account: it uses the id stored for this account, else the live
+   account's default configuration, else creates one with the qualified
+   features and stores its id."
+  [storage env]
+  (if-not (gateway/live? env)
+    (js/Promise.resolve (aget env "STRIPE_PORTAL_CONFIGURATION_ID"))
+    (-> (.get storage "portal-configuration")
+        (.then (fn [saved]
+                 (if saved (js/Promise.resolve (:id (decode saved)))
+                   (let [configs (.. (gateway/client env) -billingPortal -configurations)]
+                     (-> (.list configs #js {:is_default true :limit 1})
+                         (.then (fn [^js page]
+                                  (if-let [existing (first (array-seq (.-data page)))]
+                                    (.-id existing)
+                                    (-> (.create configs (clj->js portal-features)
+                                                 #js {:idempotencyKey (str "kotoba-portal:" (aget env "BILLING_ENVIRONMENT_ID"))})
+                                        (.then (fn [created] (.-id created)))))))
+                         (.then (fn [id]
+                                  (-> (save storage "portal-configuration" {:id id})
+                                      (.then (fn [_] id)))))))))))))
+
 (defn- handle [state env path body]
   (let [storage (aget state "storage") principal (:principal body)]
     (case path
@@ -175,8 +213,11 @@
       "/portal" (-> (.get storage "customer")
                       (.then (fn [saved]
                                (if-not saved (response {:error "no-billing-account"} 404)
-                                 (-> (.create (.. (gateway/client env) -billingPortal -sessions)
-                                              #js {:customer (:stripe (decode saved)) :return_url "https://kotoba.cloud/billing/" :configuration (aget env "STRIPE_PORTAL_CONFIGURATION_ID")})
+                                 (-> (portal-configuration storage env)
+                                     (.then (fn [configuration]
+                                              (.create (.. (gateway/client env) -billingPortal -sessions)
+                                                       #js {:customer (:stripe (decode saved)) :return_url "https://kotoba.cloud/billing/"
+                                                            :configuration configuration})))
                                      (.then #(response {:url (.-url %)} 200)))))))
       "/status" (-> (.get storage "limits")
                       (.then (fn [saved]
