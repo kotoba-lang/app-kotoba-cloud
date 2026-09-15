@@ -78,7 +78,8 @@ const shots=process.env.ACCOUNT_SHOTS||'';
       disabled:[...document.querySelectorAll('button[disabled]')].filter(b=>b.offsetParent!==null).map(b=>b.id),
       iw:innerWidth, scrollW:document.documentElement.scrollWidth,
       sbPos:getComputedStyle(sb).position, sbLeft:r.left, sbTop:r.top, sbH:r.height, sbW:r.width,
-      mainTop:main.top, mainLeft:main.left, h1Top:document.querySelector('h1').getBoundingClientRect().top};
+      mainTop:main.top, mainLeft:main.left, h1Top:document.querySelector('h1').getBoundingClientRect().top,
+      brandH:Math.round(document.querySelector('.kc-sb__brand img').getBoundingClientRect().height)};
   });
   console.log('layout',width,JSON.stringify({iw:s.iw,scrollW:s.scrollW,sb:[s.sbPos,s.sbLeft,s.sbTop,s.sbW,s.sbH],mainTop:s.mainTop,mainLeft:s.mainLeft,h1Top:s.h1Top}));
   if(!s.bodyVisible||!s.signedOutHidden||!s.refreshVisible)throw Error('signed-in reveal wrong '+JSON.stringify(s));
@@ -95,6 +96,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     if(s.mainLeft<240||s.mainLeft>300)throw Error('desktop main offset '+s.mainLeft); }
   else { if(s.sbH>60)throw Error('phone nav is '+s.sbH+'px tall');
     if(s.sbW>s.iw)throw Error('phone nav is wider than the viewport ('+s.sbW+'px): the chip row must scroll inside it, not overflow it');
+    if(s.brandH<16||s.brandH>28)throw Error('brand mark on the chip row is '+s.brandH+'px tall');
     if(s.h1Top>220)throw Error('content starts at '+s.h1Top+'px on '+width+' (chip row + top bar + padding must leave the heading well inside the first screen)'); }
   if(shots)await page.screenshot({path:shots+'/account-signed-in-'+width+'.png',fullPage:true});
   await page.close();
@@ -111,6 +113,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     bannerHidden:document.getElementById('kc-setup-banner').hidden,
     creditHidden:document.getElementById('kc-credit-chip').hidden,
     foot:document.getElementById('kc-session-nav-side').textContent.replace(/\\s+/g,' ').trim(),
+    brand:(()=>{const i=document.querySelector('.kc-sb__brand img');const r=i.getBoundingClientRect();return {loaded:i.complete&&i.naturalWidth>0,left:Math.round(r.left),top:Math.round(r.top),h:Math.round(r.height)}})(),
     section:document.querySelector('.kc-topbar__section').textContent.replace(/\\s+/g,' ').trim()}));
   if(s.chip!=='はじめる 1/3')throw Error('setup chip '+s.chip);
   if(s.state!=='pending'||!/account-panel-identity/.test(s.chipHref))throw Error('setup chip next '+JSON.stringify(s));
@@ -118,6 +121,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(!s.creditHidden)throw Error('credit chip shown without a balance');
   if(!/@hanako/.test(s.foot)||!/個人/.test(s.foot))throw Error('account chip '+s.foot);
   if(s.section!=='アカウント')throw Error('section '+s.section);
+  if(!s.brand.loaded||s.brand.left>32||s.brand.top>40||s.brand.h<20||s.brand.h>40)throw Error('brand mark not top-left / not loaded '+JSON.stringify(s.brand));
   await page.close();
  }
  console.log('block secure');

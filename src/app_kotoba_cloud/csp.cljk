@@ -12,13 +12,13 @@
   "The apex, locale emits and every static site-layout page. connect-src
    stays 'self' for first-party funnel POSTs; freebuff.com only so a
    measured bfcid can load the vendor tag."
-  "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+  "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' https://freebuff.com; img-src 'self'; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
 
 (def account-document
-  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
 
 (def admin-document
-  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
 
 (def identity-document admin-document)
 
