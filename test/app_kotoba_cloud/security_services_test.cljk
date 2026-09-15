@@ -45,6 +45,64 @@
 (deftest page-and-api-cannot-drift
   (is (= "/security/services/" sec/ledger-page)))
 
+(def sample-finding
+  {:finding-id "xss-reflected"
+   :service :dast
+   :asset "https://api.example.com/login"
+   :severity :high
+   :evidence {:kind "request-response" :cve "CVE-2026-1234" :cpe "cpe:2.3:a:acme:gw"}
+   :first-seen "2026-09-01"
+   :last-seen "2026-09-10"})
+
+(deftest finding-validation-rejects-schema-violations
+  (is (nil? (sec/finding-error sample-finding)))
+  (is (= {:field :service :code "invalid-service"}
+         (sec/finding-error (assoc sample-finding :service :iaas))))
+  (is (= {:field :severity :code "invalid-severity"}
+         (sec/finding-error (assoc sample-finding :severity :catastrophic))))
+  (is (= {:field :finding-id :code "missing-or-empty"}
+         (sec/finding-error (assoc sample-finding :finding-id ""))))
+  (is (= {:field :asset :code "missing-or-empty"}
+         (sec/finding-error (assoc sample-finding :asset nil))))
+  (is (= {:field nil :code "not-a-map"} (sec/finding-error 42)))
+  (is (= {:field :evidence :code "not-a-map-or-string"}
+         (sec/finding-error (assoc sample-finding :evidence 7)))))
+
+(deftest ledger-dedupes-and-scores-deterministically
+  (let [dup (assoc sample-finding :first-seen "2026-08-01" :last-seen "2026-09-15")
+        other {:finding-id "sqli-blind"
+               :service :sast
+               :asset "https://api.example.com/login"
+               :severity :low
+               :evidence {:kind "taint-path"}
+               :first-seen "2026-09-02"
+               :last-seen "2026-09-02"}
+        ledger (sec/build-ledger [sample-finding dup other])
+        asset (first (:assets ledger))
+        vulns (vec (:vulnerabilities asset))]
+    ;; grouped by asset
+    (is (= 1 (count (:assets ledger))))
+    (is (= "https://api.example.com/login" (:asset asset)))
+    ;; deduped identical finding-ids: 2 findings -> 2 vulnerabilities
+    (is (= 2 (count vulns)))
+    (is (= {:findings 3 :assets 1 :vulnerabilities 2} (:counts ledger)))
+    ;; deterministic scoring sample: dast + request-response + high =
+    ;; 12*4 + 8*(2+1) = 72
+    (let [xss (first (filter #(= "xss-reflected" (:finding-id %)) vulns))]
+      (is (= 72 (:score xss)))
+      (is (= 4 (:exploitability xss)))
+      (is (= 3 (:reachability xss)))
+      (is (= {:cve "CVE-2026-1234" :cpe "cpe:2.3:a:acme:gw"} (:evidence-refs xss)))
+      (is (= "open" (:status xss)))
+      (is (= "2026-08-01" (:first-seen xss)))
+      (is (= "2026-09-15" (:last-seen xss)))
+      (is (= 2 (:occurrences xss))))
+    ;; sast taint-path low = 12*2 + 8*1 = 32
+    (let [sqli (first (filter #(= "sqli-blind" (:finding-id %)) vulns))]
+      (is (= 32 (:score sqli))))
+    ;; sorted deterministically by asset then finding-id, repeatable
+    (is (= (:assets ledger) (:assets (sec/build-ledger [dup other sample-finding]))))
+    (is (= "kotoba.security/vm-ledger-v1" (:schema ledger)))))
 (deftest docs-page-covers-dast-capabilities
   (let [html (pr-str (docs-site/security-services-view :ja))]
     (doseq [cap (:capabilities (sec/service-by-id :dast))]

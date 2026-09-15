@@ -90,3 +90,132 @@
     :status "component-shipped"}])
 
 (defn service-by-id [id] (some #(when (= id (:id %)) %) security-services))
+
+;; ---------------------------------------------------------------------------
+;; VM ledger (deterministic, no AI): validation + dedup + scoring.
+;; The edge computes the ledger FROM the submitted findings per request —
+;; pure-stateless, no DO, no stored state. Every field below is derived
+;; deterministically so tests and live responses match byte for byte.
+;; ---------------------------------------------------------------------------
+
+(def valid-services #{:ctem :dast :sast})
+
+(def valid-severities #{:critical :high :medium :low :info})
+
+(def severity-points
+  "Exploitability points per severity (deterministic scoring input)."
+  {:critical 5 :high 4 :medium 3 :low 2 :info 1})
+
+(def evidence-kind-bonus
+  "Reachability points contributed by the evidence kind. A proven
+  request/response pair or an enumerated attack path is direct evidence of
+  reachability; a static taint path is weaker; a feed record alone is none."
+  {"request-response" 2 "attack-path" 2 "taint-path" 1})
+
+(def service-reachability
+  "Base reachability points per emitting service: DAST proves runtime
+  reachability, CTEM proves an enumerable attack path, SAST is code-only."
+  {:dast 1 :ctem 1 :sast 0})
+
+(defn- str-field [v] (if (string? v) (not-empty v) nil))
+
+(defn- max-str [a b] (if (neg? (compare (or a "") (or b ""))) b a))
+(defn- min-str [a b] (if (pos? (compare (or a "") (or b ""))) b a))
+
+(defn- evidence-kind
+  [evidence]
+  (cond
+    (map? evidence) (or (str-field (:kind evidence)) "unspecified")
+    (string? evidence) (or (str-field evidence) "unspecified")
+    :else "unspecified"))
+
+(defn- evidence-refs
+  "Optional CVE/CPE refs carried inside the evidence map."
+  [evidence]
+  (if (map? evidence)
+    (into {} (remove (fn [[_ v]] (nil? v)))
+          {:cve (str-field (:cve evidence))
+           :cpe (str-field (:cpe evidence))})
+    {}))
+
+(defn finding-error
+  "Returns the first schema violation of one finding record as
+  {:index i :field k :code reason}, or nil when the record conforms."
+  [f]
+  (let [first-err (fn [ok field code] (when-not ok {:field field :code code}))]
+    (or (when-not (map? f) {:field nil :code "not-a-map"})
+        (first-err (str-field (:finding-id f)) :finding-id "missing-or-empty")
+        (first-err (contains? valid-services (:service f)) :service "invalid-service")
+        (first-err (contains? valid-severities (:severity f)) :severity "invalid-severity")
+        (first-err (str-field (:asset f)) :asset "missing-or-empty")
+        (first-err (or (map? (:evidence f)) (string? (:evidence f)))
+                   :evidence "not-a-map-or-string")
+        (first-err (str-field (:first-seen f)) :first-seen "missing-or-empty")
+        (first-err (str-field (:last-seen f)) :last-seen "missing-or-empty"))))
+
+(defn finding-score
+  "Deterministic score in 0..100: 12 points per severity point
+  (exploitability) + 8 points per reachability point, capped at 100."
+  [f]
+  (let [sev (severity-points (:severity f) 1)
+        kind (evidence-kind (:evidence f))
+        reach (min 3 (+ (evidence-kind-bonus kind 0)
+                        (service-reachability (:service f) 0)))]
+    {:score (min 100 (+ (* 12 sev) (* 8 reach)))
+     :exploitability sev
+     :reachability reach
+     :evidence-kind kind}))
+
+(defn- ledger-entry
+  [f extra]
+  (let [s (finding-score f)]
+    (merge {:finding-id (:finding-id f)
+            :asset (:asset f)
+            :service (:service f)
+            :severity (:severity f)
+            :status "open"
+            :first-seen (:first-seen f)
+            :last-seen (:last-seen f)
+            :occurrences 0
+            :evidence-refs (evidence-refs (:evidence f))}
+           s
+           extra)))
+
+(defn build-ledger
+  "The deduped, scored VM ledger computed from a seq of validated findings.
+  Groups by asset, dedups identical finding-ids (min first-seen, max
+  last-seen, occurrence count), scores deterministically. Output is sorted
+  by asset then finding-id so the same input always yields the same ledger."
+  [findings]
+  (let [fs (seq findings)
+        merged (reduce
+                (fn [acc f]
+                  (let [k [(:asset f) (:finding-id f)]]
+                    (update acc k
+                            (fn [e]
+                              (let [e (or e (ledger-entry f nil))]
+                                (-> e
+                                    (assoc :first-seen (min-str (:first-seen e)
+                                                                (:first-seen f)))
+                                    (assoc :last-seen (max-str (:last-seen e)
+                                                               (:last-seen f)))
+                                    (update :occurrences inc)))))))
+                {} fs)
+        by-asset (reduce (fn [acc [[asset _fid] e]]
+                           (update acc asset (fnil conj []) e))
+                         {} merged)
+        assets (into []
+                     (map (fn [[asset vs]]
+                            {:asset asset
+                             :vulnerabilities (vec (sort-by :finding-id vs))})
+                          (sort-by first by-asset)))]
+    {:schema "kotoba.security/vm-ledger-v1"
+     :scoring {:severity-points severity-points
+               :evidence-kind-bonus evidence-kind-bonus
+               :service-reachability service-reachability
+               :formula "score = min(100, 12 * exploitability + 8 * reachability)"
+               :lifecycle-statuses ["open" "in-progress" "verified" "closed"]}
+     :assets assets
+     :counts {:findings (count fs)
+              :assets (count assets)
+              :vulnerabilities (count merged)}}))
