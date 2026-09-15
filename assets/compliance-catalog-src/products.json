@@ -4765,6 +4765,34 @@
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbm.html",
    "pricingNote": "ja_jp product page (verified HTTP 200 on 2026-09-15) shows feature list and purchase flow but no public price; linked online store (virusbuster.jp/store/vbm/) returned HTTP 403 to automated fetch — pricing unverified"
+  },
+  {
+   "id": "trend-vbhn",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター for Home Network",
+   "categoryId": "iot-sec",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbhn.html",
+   "pricingNote": "public-list; router device incl. 1yr service 9,900 JPY (tax incl.), renewal 6,600 JPY/yr (ja_jp product page, fetched 2026-09-15, HTTP 200)",
+   "complianceFits": [
+    "cra",
+    "jp-appi"
+   ]
+  },
+  {
+   "id": "trend-hns",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "トレンドマイクロ ホームネットワークセキュリティ",
+   "categoryId": "iot-sec",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/hns/requirement.html",
+   "pricingNote": "bundled with ウイルスバスター for Home Network device (1yr 9,900 JPY / renewal 6,600 JPY incl. tax); no standalone price listed on the requirement page (fetched 2026-09-15, HTTP 200, no price markup found)",
+   "complianceFits": [
+    "cra",
+    "jp-appi"
+   ]
   }
  ]
 }
