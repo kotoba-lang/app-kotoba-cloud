@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.security-services
-  "First-party security-services suite catalog (orcarouter pattern): ONE
+  "First-party security-services suite catalog: ONE
   canonical def describes the four services — CTEM, DAST, SAST and VM —
   and every surface (the /apps cards, the /security/services/ document and
   the GET /v1/security/services edge catalog) renders from it, so the page
@@ -21,63 +21,69 @@
 (def security-services
   "The canonical suite def. :integration states how the service feeds VM;
   :status is component-shipped (shipped as a component of the platform) or
-  gated (gated behind the private authority / not yet offered)."
+  gated (gated behind the private authority / not yet offered). Person-facing
+  text (:summary, capability labels, :integration :note) is a {:ja :en} map,
+  so the /security/services/ document renders in either language and the
+  edge catalog carries both."
   [{:id :ctem
     :name "CTEM"
     :summary {:ja "継続的脅威曝露管理。外部攻撃表面と社内エントリポイントを継続的に列挙し、攻撃パスと資産コンテキストを VM 台帳へ渡します。"
               :en "Continuous Threat Exposure Management: continuously enumerates the external attack surface and entry points, and hands attack paths plus asset context to the VM ledger."}
     :domain :exposure-management
-    :capabilities [[:surface-inventory "外部攻撃表面・資産インベントリの継続列挙"]
-                   [:attack-path "到達可能な攻撃パスの特定"]
-                   [:context "資産コンテキスト（公開経路・依存・所有者）の付与"]
-                   [:exposure-feed "曝露イベントの VM フィード出力"]]
+    :capabilities [[:surface-inventory {:ja "外部攻撃表面・資産インベントリの継続列挙" :en "continuous external attack-surface and asset inventory"}]
+                   [:attack-path {:ja "到達可能な攻撃パスの特定" :en "reachable attack-path identification"}]
+                   [:context {:ja "資産コンテキスト（公開経路・依存・所有者）の付与" :en "asset context (public routes, dependencies, owner)"}]
+                   [:exposure-feed {:ja "曝露イベントの VM フィード出力" :en "exposure events fed to the VM ledger"}]]
     :inputs [:assets :dns :certificates :open-endpoints]
     :outputs [:attack-paths :exposure-findings :asset-context]
     :integration {:feeds "vm"
                   :emits :finding
                   :role "attack-path-and-context"
-                  :note "CTEM は攻撃パスと資産コンテキストを VM 台帳へ渡し、到達可能性スコアの根拠になります。"}
+                  :note {:ja "CTEM は攻撃パスと資産コンテキストを VM 台帳へ渡し、到達可能性スコアの根拠になります。"
+                         :en "CTEM hands attack paths and asset context to the VM ledger; they are the basis of the reachability score."}}
     :status "component-shipped"}
    {:id :dast
     :name "DAST"
     :summary {:ja "動的アプリケーションセキュリティテスト。稼働中のアプリを実行して脆弱性を検出し、ランタイム所見を VM 台帳へ報告します。"
               :en "Dynamic application security testing: probes running applications and reports runtime findings to the VM ledger."}
     :domain :dynamic-testing
-    :capabilities [[:runtime-probe "稼働中アプリへの動的検査"]
-                   [:auth-scenarios "認証シナリオつき検査"]
-                   [:runtime-finding "実行時脆弱性の検出と所見化"]]
+    :capabilities [[:runtime-probe {:ja "稼働中アプリへの動的検査" :en "dynamic probing of running applications"}]
+                   [:auth-scenarios {:ja "認証シナリオつき検査" :en "probing with authenticated scenarios"}]
+                   [:runtime-finding {:ja "実行時脆弱性の検出と所見化" :en "runtime vulnerability detection as findings"}]]
     :inputs [:running-apps :scan-scopes :auth-scenarios]
     :outputs [:runtime-findings :request-response-evidence]
     :integration {:feeds "vm"
                   :emits :finding
                   :role "runtime-findings"
-                  :note "DAST は実行時の再現性のある所見（リクエスト・レスポンスのエビデンス）を VM 台帳へ出します。"}
+                  :note {:ja "DAST は実行時の再現性のある所見（リクエスト・レスポンスのエビデンス）を VM 台帳へ出します。"
+                         :en "DAST emits reproducible runtime findings (request/response evidence) to the VM ledger."}}
     :status "gated"}
    {:id :sast
     :name "SAST"
     :summary {:ja "静的アプリケーションセキュリティテスト。ソースコードを解析して脆弱パターンとサニタイズ漏れを検出し、コード所見を VM 台帳へ報告します。"
               :en "Static application security testing: analyzes source code for vulnerable patterns and missing sanitization, reporting code findings to the VM ledger."}
     :domain :static-analysis
-    :capabilities [[:code-analysis "ソースコード静的解析"]
-                   [:taint-flow "データフロー・検査（taint）"]
-                   [:code-finding "コード所見（ファイル・行）の検出"]]
+    :capabilities [[:code-analysis {:ja "ソースコード静的解析" :en "static source-code analysis"}]
+                   [:taint-flow {:ja "データフロー・検査（taint）" :en "taint / data-flow inspection"}]
+                   [:code-finding {:ja "コード所見（ファイル・行）の検出" :en "code findings with file and line"}]]
     :inputs [:source-code :dependency-manifests]
     :outputs [:code-findings :taint-paths :dependency-notes]
     :integration {:feeds "vm"
                   :emits :finding
                   :role "code-findings"
-                  :note "SAST はファイル・行つきのコード所見を VM 台帳へ出し、修正対象の特定を速くします。"}
+                  :note {:ja "SAST はファイル・行つきのコード所見を VM 台帳へ出し、修正対象の特定を速くします。"
+                         :en "SAST emits code findings with file and line to the VM ledger, so the fix target is found faster."}}
     :status "gated"}
    {:id :vm
     :name "VM"
     :summary {:ja "脆弱性管理 (wvme)。3 つの上流サービスが発した共通スキーマの所見を重複排除し、到達可能性と悪用可能性でスコアリングして、CPE/CVE キーつきの修正ライフサイクル台帳として管理します。CVE/CPE フィード入力を受け付けます。"
               :en "Vulnerability management (wvme): consumes the shared-schema findings emitted by the three upstream services, dedups and scores them by reachability and exploitability, and tracks the remediation lifecycle in a ledger keyed by CPE/CVE. Accepts CVE/CPE feed input."}
     :domain :vulnerability-management
-    :capabilities [[:dedup "所見の重複排除（資産 × 脆弱性キー）"]
-                   [:scoring "到達可能性 × 悪用可能性スコアリング"]
-                   [:ledger "CPE/CVE キーつき脆弱性台帳"]
-                   [:remediation "修正ライフサイクル（検出→着手→確認→閉じ）"]
-                   [:cve-cpe-feed "CVE/CPE フィード入力"]]
+    :capabilities [[:dedup {:ja "所見の重複排除（資産 × 脆弱性キー）" :en "finding deduplication (asset × vulnerability key)"}]
+                   [:scoring {:ja "到達可能性 × 悪用可能性スコアリング" :en "reachability × exploitability scoring"}]
+                   [:ledger {:ja "CPE/CVE キーつき脆弱性台帳" :en "vulnerability ledger keyed by CPE/CVE"}]
+                   [:remediation {:ja "修正ライフサイクル（検出→着手→確認→閉じ）" :en "remediation lifecycle (detected → in progress → verified → closed)"}]
+                   [:cve-cpe-feed {:ja "CVE/CPE フィード入力" :en "CVE/CPE feed intake"}]]
     :inputs [:findings-from-ctem :findings-from-dast :findings-from-sast :cve-cpe-feeds]
     :outputs [:vulnerability-ledger :remediation-status :exposure-reports]
     :integration {:role "aggregation-ledger"
@@ -86,7 +92,8 @@
                   :ledger-keys [:cpe :cve]
                   :remediation-lifecycle [:detected :in-progress :verified :closed]
                   :consumes "ctem-dast-sast-findings"
-                  :note "VM は台帳サービス: 上流 3 サービスの所見を共通スキーマで受け、重複排除・スコアリング・修正追跡を行います。"}
+                  :note {:ja "VM は台帳サービス: 上流 3 サービスの所見を共通スキーマで受け、重複排除・スコアリング・修正追跡を行います。"
+                         :en "VM is the ledger service: it receives the three upstream services' findings in the shared schema and dedups, scores and tracks remediation."}}
     :status "component-shipped"}])
 
 (defn service-by-id [id] (some #(when (= id (:id %)) %) security-services))

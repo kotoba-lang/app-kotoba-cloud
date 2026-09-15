@@ -1,0 +1,230 @@
+#!/usr/bin/env kbb
+;; scripts/translate-console-copy.cljk — the console chrome's copy in every
+;; public locale, generated from the authored en / ja source over the
+;; OpenRouter API (owner direction 2026-09-15: the landing page carries 22
+;; locales, the console must too; machine translation is permitted by
+;; ADR-2609091700 and is not mistaken for native review).
+;;
+;;   kbb --backend sci scripts/translate-console-copy.cljk            ; every locale not yet generated
+;;   kbb --backend sci scripts/translate-console-copy.cljk --all      ; regenerate every locale
+;;   kbb --backend sci scripts/translate-console-copy.cljk --only id,fr
+;;   kbb --backend sci scripts/translate-console-copy.cljk --check    ; coverage, no network
+;;
+;; Reads:   src/app_kotoba_cloud/console_locales.cljk    (def source …)  — the authored pairs
+;;          src/app_kotoba_cloud/public_locales.cljk     locale-order / native-names
+;; Writes:  src/app_kotoba_cloud/console_copy_generated.cljk  (def copy …) + provenance
+;; Env:     OPENROUTER_API_KEY (required for generation), OPENROUTER_MODEL
+;;          (default anthropic/claude-sonnet-5 — a model, not an alias, because
+;;          this is a one-off authoring tool, not the fleet's inference path).
+;;
+;; Every generated locale is validated before it is written: every source
+;; key present, no blank, every {placeholder} of the source kept verbatim,
+;; product names kept. A locale that fails validation is NOT written and is
+;; reported; --check fails (exit 1) on any locale × key that is missing or
+;; blank, exit 2 when it cannot read the files at all.
+(ns translate-console-copy
+  (:require [clojure.edn :as edn]
+            [clojure.string :as str]
+            ["node:fs" :as fs]
+            ["node:process" :as proc]))
+
+(def argv (vec (.slice (.-argv proc) 2)))
+(defn- flag? [f] (some #(= % f) argv))
+(defn- opt [f] (let [i (.indexOf argv f)] (when-not (neg? i) (nth argv (inc i) nil))))
+
+(def source-file "src/app_kotoba_cloud/console_locales.cljk")
+(def locales-file "src/app_kotoba_cloud/public_locales.cljk")
+(def out-file "src/app_kotoba_cloud/console_copy_generated.cljk")
+
+(defn- read-def
+  "The literal of `(def <name> …)` in a .cljk file — the first collection
+   opening with `open` (\"{\" or \"[\") after the def — read as EDN
+   (comments allowed)."
+  ([file name] (read-def file name "{"))
+  ([file name open]
+   (let [text (fs/readFileSync file "utf8")
+         i (str/index-of text (str "(def " name))
+         _ (when (nil? i) (throw (ex-info (str "no (def " name ") in " file) {})))
+         ;; skip the docstring, whose own braces would otherwise be read
+         after (+ i (count (str "(def " name)))
+         body (str/triml (subs text after))
+         start (if (str/starts-with? body "\"")
+                 (loop [k 1]                        ; the closing quote, escapes skipped
+                   (let [c (nth body k)]
+                     (cond (= c "\\") (recur (+ k 2))
+                           (= c "\"") (inc k)
+                           :else (recur (inc k)))))
+                 0)
+         j (str/index-of body open start)]
+     (edn/read-string (subs body j)))))
+
+(def language-names
+  "IANA subtag → the name the translator is told (ADR-2609091700: ar is
+   Modern Standard Arabic, arz Egyptian Arabic, ar-MA Moroccan Darija, pcm
+   Nigerian Pidgin — not English, pt region-neutral)."
+  {:zh-Hans "Simplified Chinese" :hi "Hindi" :es "Spanish" :ar "Modern Standard Arabic"
+   :fr "French" :bn "Bengali" :pt "Portuguese (region-neutral)" :id "Indonesian"
+   :ur "Urdu" :ru "Russian" :de "German" :ko "Korean" :pcm "Nigerian Pidgin (Naijá — not English)"
+   :arz "Egyptian Arabic (Masri, distinct from Modern Standard Arabic)" :mr "Marathi"
+   :jv "Javanese" :su "Sundanese" :he "Hebrew" :it "Italian"
+   :ar-MA "Moroccan Arabic (Darija, distinct from Modern Standard Arabic)"})
+
+(defn- placeholders [s] (set (re-seq #"\{[a-z]+\}" (str s))))
+
+(defn- validate
+  "nil when `translated` (key→string) covers `source` faithfully; else a
+   vector of reasons."
+  [source translated]
+  (let [reasons (for [[k {:keys [en]}] source
+                      :let [v (get translated (name k))]
+                      :when (or (not (string? v)) (str/blank? v)
+                                (not= (placeholders en) (placeholders v))
+                                (and (str/includes? en "Kotoba Cloud") (not (str/includes? v "Kotoba Cloud")))
+                                (and (str/starts-with? en "＋ ") (not (str/starts-with? v "＋ "))))]
+                  (str (name k) ": " (pr-str v)))]
+    (when (seq reasons) (vec reasons))))
+
+(defn- prompt [locale source]
+  (str "You localize the user interface of Kotoba Cloud, a developer console for an AI research API.\n"
+       "Target language: " (get language-names locale (name locale)) " (BCP 47 " (name locale) ").\n\n"
+       "SOURCE (JSON: key → English text; the English is the original):\n"
+       (js/JSON.stringify (clj->js (into {} (map (fn [[k v]] [(name k) (:en v)]) source))) nil 1)
+       "\n\nREFERENCE (the same keys in Japanese, only to disambiguate meaning):\n"
+       (js/JSON.stringify (clj->js (into {} (map (fn [[k v]] [(name k) (:ja v)]) source))) nil 1)
+       "\n\nRules:\n"
+       "- Short navigation labels, buttons and status chips: keep them short and idiomatic for a software UI in the target language.\n"
+       "- Keep product and technical names: Kotoba Cloud, AI, API. Guardrails / Firewall may be translated only where the language has an established UI term; otherwise keep the English term.\n"
+       "- Keep every {placeholder} such as {done}, {total}, {step} exactly as written.\n"
+       "- Keep a leading \"＋ \" where the English has one.\n"
+       "- No explanations, no quotes, no trailing punctuation. Never answer in English unless the term is kept on purpose.\n"
+       "OUTPUT: exactly one JSON object with exactly the SOURCE keys, and every value a plain string in the target language — never a nested object.\n"))
+
+(defn- first-json-object
+  "The first balanced {…} of `text` (a model sometimes appends a second
+   object or prose after its answer)."
+  [text]
+  (let [i (str/index-of text "{")]
+    (when i
+      (loop [k i depth 0 in-str? false esc? false]
+        (when (< k (count text))
+          (let [c (nth text k)]
+            (cond
+              esc? (recur (inc k) depth in-str? false)
+              (and in-str? (= c "\\")) (recur (inc k) depth in-str? true)
+              (= c "\"") (recur (inc k) depth (not in-str?) false)
+              in-str? (recur (inc k) depth in-str? false)
+              (= c "{") (recur (inc k) (inc depth) in-str? false)
+              (= c "}") (if (= depth 1) (subs text i (inc k)) (recur (inc k) (dec depth) in-str? false))
+              :else (recur (inc k) depth in-str? false))))))))
+
+(defn- plain-value
+  "A translated value as a string: the string itself, or — when the model
+   mirrored the input shape — the target-language / value member of an
+   object. Anything else is nil (rejected by validate)."
+  [locale v]
+  (cond
+    (string? v) v
+    (map? v) (some #(let [x (get v %)] (when (string? x) x))
+                   [(name locale) "value" "translation" "text" "target"])
+    :else nil))
+
+(defn- translate! [locale source]
+  (let [key (.-OPENROUTER_API_KEY (.-env proc))
+        model (or (.-OPENROUTER_MODEL (.-env proc)) "anthropic/claude-sonnet-5")]
+    (when (str/blank? key) (throw (ex-info "OPENROUTER_API_KEY is not set" {})))
+    (-> (js/fetch "https://openrouter.ai/api/v1/chat/completions"
+                  #js {:method "POST"
+                       :headers #js {"authorization" (str "Bearer " key)
+                                     "content-type" "application/json"
+                                     "http-referer" "https://kotoba.cloud"
+                                     "x-title" "kotoba.cloud console copy"}
+                       :body (js/JSON.stringify
+                              #js {:model model
+                                   :temperature 0.2
+                                   :response_format #js {:type "json_object"}
+                                   :messages #js [#js {:role "user" :content (prompt locale source)}]})})
+        (.then (fn [r] (.then (.json r) (fn [j] [(.-status r) j]))))
+        (.then (fn [[status j]]
+                 (let [content (some-> j .-choices (aget 0) .-message .-content)]
+                   (when (or (not= 200 status) (nil? content))
+                     (throw (ex-info (str "openrouter " status ": " (js/JSON.stringify j)) {})))
+                   (let [text (or (first-json-object (str content))
+                                  (throw (ex-info (str "no JSON object in the answer: " (subs (str content) 0 200)) {})))
+                         obj (js->clj (js/JSON.parse text))]
+                     {:model (or (.-model j) model)
+                      :translated (into {} (map (fn [[k v]] [k (plain-value locale v)]) obj))})))))))
+
+(defn- read-generated []
+  (if (fs/existsSync out-file)
+    (let [copy (read-def out-file "copy")
+          prov (read-def out-file "provenance")]
+      {:copy copy :provenance prov})
+    {:copy {} :provenance {}}))
+
+(defn- write-generated! [{:keys [copy provenance]}]
+  (let [ordered (into (sorted-map) copy)
+        prov (into (sorted-map) provenance)]
+    (fs/writeFileSync
+     out-file
+     (str "(ns app-kotoba-cloud.console-copy-generated\n"
+          "  \"GENERATED by scripts/translate-console-copy.cljk — do not edit by hand.\n"
+          "   The console chrome's copy for every public locale other than en / ja,\n"
+          "   machine-translated from app-kotoba-cloud.console-locales/source over the\n"
+          "   OpenRouter API. `provenance` names the model and date per locale; none of\n"
+          "   it is native-speaker reviewed (ADR-2609091700 permits machine translation\n"
+          "   and forbids claiming review). Regenerate a locale with --only <code>.\")\n\n"
+          "(def provenance\n  " (pr-str prov) ")\n\n"
+          "(def copy\n  " (pr-str ordered) ")\n"))))
+
+(defn- coverage
+  "[missing-count report-lines] over every locale except en / ja."
+  [source locale-order copy]
+  (let [targets (remove #{:en :ja} locale-order)
+        rows (for [loc targets
+                   [k {:keys [en]}] source
+                   :let [v (get-in copy [loc k])]
+                   :when (or (not (string? v)) (str/blank? v) (not= (placeholders en) (placeholders v)))]
+               (str (name loc) "\t" (name k) "\t" (pr-str v)))]
+    [(count rows) rows]))
+
+(defn -main []
+  (let [source (read-def source-file "source")
+        locale-order (read-def locales-file "locale-order" "[")
+        targets (vec (remove #{:en :ja} locale-order))
+        {:keys [copy provenance] :as gen} (read-generated)]
+    (cond
+      (flag? "--check")
+      (let [[n rows] (coverage source locale-order copy)]
+        (println (str "SCANNED\t" (* (count targets) (count source)) "\tlocales " (count targets) " × keys " (count source)))
+        (doseq [r rows] (println (str "MISSING\t" r)))
+        (println (str "MISSING\t" n))
+        (.exit proc (if (zero? n) 0 1)))
+
+      :else
+      (let [only (some-> (opt "--only") (str/split #",") (->> (map keyword) set))
+            todo (cond
+                   only (filter only targets)
+                   (flag? "--all") targets
+                   :else (remove #(let [[n _] (coverage source [%] copy)] (zero? n)) targets))]
+        (println (str "translating " (count todo) " locale(s): " (str/join " " (map name todo))))
+        (-> (reduce (fn [p loc]
+                      (.then p (fn [acc]
+                                 (-> (translate! loc source)
+                                     (.then (fn [{:keys [model translated]}]
+                                              (if-let [reasons (validate source translated)]
+                                                (do (println (str "REJECTED\t" (name loc) "\t" (str/join "; " reasons)))
+                                                    acc)
+                                                (do (println (str "OK\t" (name loc) "\t" (count translated) " keys\t" model))
+                                                    (-> acc
+                                                        (assoc-in [:copy loc] (into {} (map (fn [[k v]] [(keyword k) v]) translated)))
+                                                        (assoc-in [:provenance loc] {:model model :date (subs (.toISOString (js/Date.)) 0 10)}))))))
+                                     (.catch (fn [e] (println (str "FAILED\t" (name loc) "\t" (.-message e))) acc))))))
+                    (js/Promise.resolve gen)
+                    todo)
+            (.then (fn [acc]
+                     (write-generated! acc)
+                     (let [[n _] (coverage source locale-order (:copy acc))]
+                       (println (str "wrote " out-file " — locales " (count (:copy acc)) ", missing " n))
+                       (.exit proc (if (zero? n) 0 1))))))))))
+
+(-main)

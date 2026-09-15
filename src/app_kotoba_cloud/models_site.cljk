@@ -5,12 +5,17 @@
   browser adds what only the live surface knows: each model's current
   availability and the running policy version (/v1/models).
 
-  Reference IA (OrcaRouter Models / Routing): title + one-line meaning, a
-  table with explicit columns, the request shape the caller sends."
+  Reference IA (Models / Routing): title + one-line meaning, a
+  table with explicit columns, the request shape the caller sends.
+
+  Locales: the copy is authored in Japanese and English (`txt`); the
+  document is emitted per public locale by site.cljk (body ja for :ja, en
+  otherwise)."
   (:require [jp-go-dds.core :as dds]
             [kotoba.lang.text :as str]
             [app-kotoba-cloud.research :as research]
-            [cloud-kotoba-dds.console :as console]))
+            [cloud-kotoba-dds.console :as console]
+            [app-kotoba-cloud.code-block :as code-block]))
 
 (def css
   (str
@@ -25,56 +30,100 @@
    ".kc-models__tile{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);padding:var(--hig-spacing-4)}"
    ".kc-models__tile dt{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);letter-spacing:.06em;color:var(--hig-color-secondary-label)}"
    ".kc-models__tile dd{margin:var(--hig-spacing-2) 0 0;font-family:var(--hig-font-mono);font-size:var(--hig-text-title2-font-size);font-weight:700}"
-   ".kc-models pre{overflow-x:auto;padding:var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7}"))
+   ".kc-models__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--hig-spacing-3)}"
+   ".kc-models__head h2{margin:0}"
+   ".kc-models__reqs{margin:var(--hig-spacing-2) 0 0;padding-inline-start:1.2em;display:grid;gap:var(--hig-spacing-1)}"
+   ".kc-models__reqs code{color:var(--hig-color-secondary-label)}"
+   ;; the call example is cloud-kotoba-dds.code/block (its own css)
+   ""))
 
-(def requirements
-  "What a request must carry to be admitted — the gateway's list, in the
-   person's words."
-  [["authenticated-principal" "サインイン済み"]
-   ["verified-ekyc" "本人確認済み"]
-   ["current-aml-ctf-clearance" "AML/CTF 照合が有効"]
-   ["current-trust-route" "信頼経路が有効"]
-   ["approved-research-scope" "承認済みスコープ"]
-   ["available-free-quota" "無料枠の残り"]])
+(def requirement-labels
+  "The gateway's admission conditions, in the person's words (ja / en),
+   with the place to satisfy each."
+  {"authenticated-principal" ["サインイン済み" "Signed in" "/account"]
+   "verified-ekyc-card" ["カード登録による本人確認" "Identity verified with a card" "/account#account-panel-identity"]
+   "aup-consent" ["利用ポリシー（AUP）への同意" "Acceptable-use policy (AUP) accepted" "/security/aup/"]
+   "current-aml-ctf-clearance" ["AML/CTF 照合が有効" "AML/CTF screening current" "/account#account-panel-eligibility"]
+   "current-trust-route" ["信頼経路が有効" "Trust route current" "/account#account-panel-eligibility"]
+   "approved-research-scope" ["承認済みスコープ" "Approved research scope" "/account#account-panel-scopes"]
+   "available-free-quota" ["無料枠の残り" "Free allowance remaining" "/account#account-panel-eligibility"]
+   "guardrails" ["全リクエストにガードレールが適用" "Guardrails on every request" "/secure/#guardrails"]})
 
-(defn section []
-  (let [{:keys [requestsPerDay maxOutputTokens maxInputCharacters]} research/free-limits]
-    [:div {:class "kc-models"}
-     (dds/heading 1 "モデル" {:size "36"})
-     [:p {:class "kc-models__lead"}
-      "研究 API で選べるモデル。既定は " [:code research/model-id] "。いずれも許可されたリクエストだけが到達します。"]
-     [:p {:id "models-status" :role "status" :class "ck-console__note"} ""]
-     [:section {:class "ck-console__panel"}
-      [:h2 "選択できるモデル"]
-      [:div {:class "kc-models__table"}
-       [:table
-        [:thead [:tr [:th "モデル"] [:th "提供状態"] [:th "出所"] [:th "帰属検証"]]]
-        (into [:tbody]
-              (for [[id {:keys [source strictAttribution]}] research/models]
-                [:tr {:data-model id}
-                 [:td [:code id] (when (= id research/model-id) [:span " " (console/badge "既定" {:state :ok})])]
-                 ;; availability is live state: filled from /v1/models
-                 [:td [:span {:class "ck-console__value" :data-model-availability id :data-state "empty"} "—"]]
-                 [:td [:a {:href source} (last (str/split source #"/"))]]
-                 [:td (if strictAttribution "上流が自身のモデル ID を返すことを要求" "応答の形と内容で検証")]]))]]]
-     [:section {:class "ck-console__panel"}
-      [:h2 "無料枠"]
-      [:dl {:class "kc-models__limits"}
-       [:div {:class "kc-models__tile"} [:dt "1 日のリクエスト"] [:dd requestsPerDay]]
-       [:div {:class "kc-models__tile"} [:dt "出力トークン上限"] [:dd maxOutputTokens]]
-       [:div {:class "kc-models__tile"} [:dt "入力文字数上限"] [:dd maxInputCharacters]]]
-      [:p {:class "ck-console__note"} "本人確認済みの研究者の無料枠。有料枠は" [:a {:href "/billing/"} "料金・決済"] "で追加できます。"]]
-     [:section {:class "ck-console__panel"}
-      [:h2 "許可の条件"]
-      [:div {:class "kc-models__table"}
-       [:table
-        [:thead [:tr [:th "条件"] [:th "意味"]]]
-        (into [:tbody] (for [[k ja] requirements] [:tr [:td [:code k]] [:td ja]]))]]
-      [:p {:class "ck-console__note"} "状態は" [:a {:href "/account"} "アカウント"] "で確認できます。"]]
-     [:section {:class "ck-console__panel"}
-      [:h2 "呼び出し方"]
-      [:pre [:code (str "curl -s -X POST https://api.kotoba.cloud/v1/chat/completions \\\n"
+(def team-copy
+  {:blue {:title ["ブルーチーム" "Blue team"]
+          :lead ["一般用途のモデル。サインインすれば無料枠の範囲で使えます。"
+                 "General-purpose models. Signing in is enough; the free allowance applies."]}
+   :red {:title ["レッドチーム" "Red team"]
+         :lead ["セキュリティ研究向けの無制限モデル。カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"
+                "Unrestricted models for security research. Only researchers who verified their identity with a card and accepted the acceptable-use policy can use them."]}})
+
+(defn- model-rows [txt team]
+  (for [[id {:keys [source strictAttribution] :as spec}] research/models
+        :when (= team (:team spec))]
+    [:tr {:data-model id}
+     [:td [:code id] (when (= id research/model-id) [:span " " (console/badge (txt "既定" "Default") {:state :ok})])]
+     ;; availability is live state: filled from /v1/models
+     [:td [:span {:class "ck-console__value" :data-model-availability id :data-state "empty"} "—"]]
+     [:td [:a {:href source} (last (str/split source #"/"))]]
+     [:td (if strictAttribution
+            (txt "上流が自身のモデル ID を返すことを要求" "The upstream must return its own model id")
+            (txt "応答の形と内容で検証" "Verified by the shape and content of the response"))]]))
+
+(defn- team-section [txt team]
+  (let [{:keys [title lead]} (get team-copy team)
+        reqs (get-in research/teams [team :requirements])]
+    [:section {:class "ck-console__panel" :id (str "team-" (name team))}
+     [:div {:class "kc-models__head"}
+      [:h2 (apply txt title)]
+      (console/badge (if (= team :red) (txt "本人確認が必要" "Verification required") (txt "サインインで利用" "Sign in to use"))
+                     {:state (if (= team :red) :action :ok)})]
+     [:p {:class "ck-console__note"} (apply txt lead)]
+     [:div {:class "kc-models__table"}
+      [:table
+       [:thead [:tr [:th (txt "モデル" "Model")] [:th (txt "提供状態" "Availability")] [:th (txt "出所" "Source")] [:th (txt "帰属検証" "Attribution check")]]]
+       (into [:tbody] (model-rows txt team))]]
+     [:h3 (txt "利用の条件" "Conditions of use")]
+     (into [:ul {:class "kc-models__reqs"}]
+           (for [r reqs
+                 :let [[ja en href] (get requirement-labels r [r r nil])
+                       label (txt ja en)]]
+             [:li (if href [:a {:href href} label] label) " " [:code r]]))]))
+
+(defn section
+  "The MANAGE › Models console body for one locale (:ja / :en). Same ids
+   and structure in both; only the copy differs."
+  ([] (section :ja))
+  ([locale]
+   (let [ja? (= :ja locale)
+         txt (fn [ja en] (if ja? ja en))
+         {:keys [requestsPerDay maxOutputTokens maxInputCharacters]} research/free-limits]
+     [:div {:class "kc-models"}
+      (dds/heading 1 (txt "モデル" "Models") {:size "36"})
+      [:p {:class "kc-models__lead"}
+       (txt "研究 API で選べるモデルは 2 つのチームに分かれます。ブルーチームはサインインだけで、レッドチームは本人確認と利用ポリシーへの同意のうえで使えます。既定は "
+            "The research API's models come in two teams. The blue team needs only a sign-in; the red team needs identity verification and acceptance of the acceptable-use policy. The default is ")
+       [:code research/model-id] (txt "。" ".")]
+      [:p {:id "models-status" :role "status" :class "ck-console__note"} ""]
+      (team-section txt :blue)
+      (team-section txt :red)
+      [:section {:class "ck-console__panel"}
+       [:h2 (txt "無料枠" "Free allowance")]
+       [:dl {:class "kc-models__limits"}
+        [:div {:class "kc-models__tile"} [:dt (txt "1 日のリクエスト" "Requests per day")] [:dd requestsPerDay]]
+        [:div {:class "kc-models__tile"} [:dt (txt "出力トークン上限" "Max output tokens")] [:dd maxOutputTokens]]
+        [:div {:class "kc-models__tile"} [:dt (txt "入力文字数上限" "Max input characters")] [:dd maxInputCharacters]]]
+       [:p {:class "ck-console__note"}
+        (txt "両チーム共通。有料枠は" "Shared by both teams. Paid credits are added under ")
+        [:a {:href "/billing/"} (txt "料金・決済" "Billing")]
+        (txt "で追加できます。" ".")]]
+      [:section {:class "ck-console__panel"}
+       [:h2 (txt "呼び出し方" "How to call it")]
+       (code-block/block (if ja? :ja :en)
+                   (str "curl -s -X POST https://api.kotoba.cloud/v1/chat/completions \\\n"
                         "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
                         "  -H \"content-type: application/json\" \\\n"
-                        "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'")]]
-      [:p {:class "ck-console__note"} [:a {:href "/docs/reference/quickstart/"} "クイックスタート"] "に発行から最初のリクエストまでの手順があります。"]]]))
+                        "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'"))
+       [:p {:class "ck-console__note"}
+        (txt "モデルは表の ID をそのまま `model` に指定します。" "Pass the id from the table as `model`, unchanged. ")
+        [:a {:href "/docs/reference/quickstart/"} (txt "クイックスタート" "The quickstart")]
+        (txt "に発行から最初のリクエストまでの手順があります。" " walks from issuing a token to the first request.")]]])))

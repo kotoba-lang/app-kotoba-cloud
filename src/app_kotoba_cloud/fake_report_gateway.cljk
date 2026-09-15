@@ -1,0 +1,132 @@
+(ns app-kotoba-cloud.fake-report-gateway
+  "Edge-side surface for the private fake-report authority (ADR-2609141800
+   Phase 2). Same seam as org-gateway: session-authenticated, same-origin
+   POST only, bodies are bounded JSON; the authority owns the state.
+   Charter gates enforced at this hop:
+   - C3 person-boundary: every call requires a valid session AND a Stripe
+     Identity verification (eKYC) that is currently verified. The gateway
+     refuses anything but a live `verified` status with 403 ekyc-required,
+     and fails closed when no verification provider is configured.
+   - C4: the gateway exposes no send/submit-to-platform op of its own; the
+     only \"submit\" records the reporter's own manual submission."
+  (:require [app-kotoba-cloud.research-gateway :as shared]))
+
+(def paths #{"/v1/fake-report/case" "/v1/fake-report/draft" "/v1/fake-report/submit"
+             "/v1/fake-report/status" "/v1/fake-report/purge"})
+(def origins shared/origins)
+
+;; Edge path -> authority op. The authority owns the ledger; the edge never
+;; invents ops (C4: no send/submit-to-platform op exists on either side).
+(def ops {"/v1/fake-report/case" "/case/create"
+          "/v1/fake-report/draft" "/case/draft"
+          "/v1/fake-report/submit" "/case/submit"
+          "/v1/fake-report/status" "/case/status"
+          "/v1/fake-report/purge" "/case/purge"})
+
+;; Same derivation as research-gateway/session-reference: a bounded session
+;; binding digest the authority can pin a case to a live session with. The
+;; seam contract (inputs + domain string) is the public interface.
+(defn- session-reference [request principal]
+  (let [token (or (.get (.-headers request) "x-kotoba-session-ref") "")]
+    (-> (.digest (.-subtle js/crypto) "SHA-256"
+                 (.encode (js/TextEncoder.) (js/JSON.stringify #js ["kotoba-fake-report-session-v1" "https://kotoba.cloud" principal token])))
+        (.then #(apply str (map (fn [b] (.padStart (.toString b 16) 2 "0")) (array-seq (js/Uint8Array. %))))))))
+
+;; cljs js->clj ignores :keywordize-keys on the test engine; keywordize
+;; explicitly so the status payload is read the same way everywhere.
+(defn- kwdeep [x]
+  (cond
+    (map? x) (into {} (map (fn [[k v]] [(if (and (string? k) (re-find #"^[a-zA-Z][a-zA-Z0-9-]*$" k)) (keyword k) k)
+                                        (kwdeep v)]) x))
+    (vector? x) (mapv kwdeep x)
+    (seq? x) (mapv kwdeep x)
+    :else x))
+
+;; clj->js drops keyword namespaces (:case/platform would serialize as
+;; "platform"); dekw keeps the full name as the JSON key.
+(defn- dekw [x]
+  (cond
+    (keyword? x) (subs (str x) 1)
+    (map? x) (into {} (map (fn [[k v]] [(if (keyword? k) (subs (str k) 1) k) (dekw v)]) x))
+    (vector? x) (mapv dekw x)
+    :else x))
+
+(defn- ekyc-verified? [binding principal reference]
+  (-> (.fetch binding "https://research.internal/ekyc/status"
+              #js {:method "POST" :redirect "manual"
+                   :signal (js/AbortSignal.timeout 30000)
+                   :headers #js {"content-type" "application/json"}
+                   :body (js/JSON.stringify (clj->js {:principalId principal :sessionRef reference}))})
+      (.then (fn [r]
+               (if (.-ok r)
+                 (-> (.text r)
+                     (.then (fn [raw]
+                              (let [status (kwdeep (js->clj (js/JSON.parse raw)))]
+                              (and (= "verified" (:status status))
+                                   (or (not (int? (:expiresAt status)))
+                                       (> (:expiresAt status) (js/Date.now))))))))
+                 false)))
+      (.catch (fn [_] false))))
+
+(defn- service [binding path payload respond]
+  (-> (.fetch binding (str "https://fake-report.internal" path)
+              #js {:method "POST" :redirect "manual"
+                   :signal (js/AbortSignal.timeout 30000)
+                   :headers #js {"content-type" "application/json"}
+                   :body (js/JSON.stringify (clj->js (dekw payload)))})
+      (.then (fn [r]
+               (if (.-ok r)
+                 (-> (shared/bounded-json r 65536)
+                     (.then #(respond % 200)))
+                 (-> (.text r)
+                     (.catch (fn [_] ""))
+                     (.then (fn [detail]
+                              (let [code (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
+                                              (catch :default _ nil))]
+                                (respond {:error {:code (or code "fake-report-authority-unavailable")}}
+                                         (if (contains? #{400 403 404 409 422} (.-status r)) (.-status r) 503)))))))))))
+
+(defn route [request env viewer-fn respond]
+  (let [url (js/URL. (.-url request))
+        path (.-pathname url)
+        method (.-method request)
+        binding (aget env "FAKE_REPORT_AUTHORITY")
+        ekyc-binding (aget env "RESEARCH_AUTHORITY")]
+    (cond
+      (not= method "POST")
+      (respond {:error {:code "method-not-allowed"}} 405)
+
+      (not (contains? origins (.get (.-headers request) "origin")))
+      (respond {:error {:code "origin-not-allowed"}} 403)
+
+      (not (re-find #"(?i)^application/json(?:;|$)" (or (.get (.-headers request) "content-type") "")))
+      (respond {:error {:code "json-required"}} 415)
+
+      :else
+      (-> (shared/bounded-json request 32768)
+          (.then (fn [body]
+                   (-> (viewer-fn request)
+                       (.then (fn [viewer]
+                                (if-not (true? (:valid viewer))
+                                  (respond {:error {:code "sign-in-required"}} 401)
+                                  (if (or (nil? binding) (undefined? binding))
+                                    (respond {:error {:code "fake-report-authority-not-configured"}} 503)
+                                    (if (or (nil? ekyc-binding) (undefined? ekyc-binding))
+                                      ;; C3 fail-closed: no verification provider,
+                                      ;; no fake-report surface.
+                                      (respond {:error {:code "ekyc-required"}} 403)
+                                      (let [principal (:principalId viewer)]
+                                        (-> (session-reference request principal)
+                                            (.then (fn [reference]
+                                                     (-> (ekyc-verified? ekyc-binding principal reference)
+                                                         (.then (fn [ok?]
+                                                                  (if-not ok?
+                                                                    (respond {:error {:code "ekyc-required"}} 403)
+                                                                    (service binding (get ops path "/unknown")
+                                                                             (assoc body :principalId principal)
+                                                                             respond)))))))))))))))))
+          (.catch (fn [e]
+                    (let [status (or (:status (ex-data e)) 503)]
+                      (respond {:error {:code (case status 413 "body-too-large" 400 "invalid-json"
+                                                "fake-report-service-unavailable")}}
+                               (if (contains? #{413 400} status) status 503)))))))))

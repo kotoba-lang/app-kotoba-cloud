@@ -12,7 +12,7 @@ Security-focused LLM inference for authorized code review, vulnerability triage 
 Status: LIVE. Identity verification runs on Stripe Identity only (no manual review queue).
 One Stripe Identity verification approves the account automatically: ekyc, screening, trust, scope and activation.
 
-Free allowance: 50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
+Free allowance: 1,000 requests per day, up to 32,768 output tokens per request (524,288 input characters, about 128k tokens). No automatic paid fallback.
 Access order: a card on file unlocks the free allowance immediately; identity verification
 and governance checks come after and raise the ceiling. Tool calls are never executed
 server-side — the model returns text only; run tools locally.
@@ -75,7 +75,14 @@ Qualification note (8 September 2026): the installed native CLI reference-packag
 - https://kotoba.cloud/security-data/README.md
 - https://kotoba.cloud/security-data/index.json
 - https://kotoba.cloud/security-data/graph.jsonld
-- https://kotoba.cloud/ja/security/
+- Security data hub: https://kotoba.cloud/csf2/ (the former /ja/security/ page is
+  currently unreachable in production: it redirects to /security/, which returns 404)
+
+## Legal
+- Terms / policies: https://kotoba.cloud/legal/
+- Specified Commercial Transactions notice (特定商取引法に基づく表記):
+  https://kotoba.cloud/legal/tokushoho/
+- Japanese: https://kotoba.cloud/legal/?lang=ja and https://kotoba.cloud/legal/tokushoho/?lang=ja
 
 ## Read-only evidence retrieval for LLMs
 - Search: https://kotoba.cloud/v1/knowledge/search?q=T1018

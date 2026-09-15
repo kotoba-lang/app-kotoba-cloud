@@ -19,6 +19,18 @@
 (defn- el [id] (.getElementById js/document id))
 (defn- ja? [] (= "ja" (.-lang (.-documentElement js/document))))
 (defn- t [ja en] (if (ja?) ja en))
+
+(defn- copy
+  "A console-chrome string in the document's own locale: site.cljk emits
+   console-locales/browser-keys on #kc-console-copy as data-<key> (22
+   public locales). `fallback` is the English of the key for a document
+   emitted before that span existed."
+  [key fallback]
+  (or (some-> (el "kc-console-copy") (.getAttribute (str "data-" key)))
+      fallback))
+
+(defn- fill [s vars]
+  (reduce (fn [acc [k v]] (.replace acc (str "{" k "}") (str v))) s vars))
 (defn- show! [id] (when-let [x (el id)] (set! (.-hidden x) false)))
 (defn- hide! [id] (when-let [x (el id)] (set! (.-hidden x) true)))
 
@@ -31,48 +43,57 @@
 
 ;; --- account chip -----------------------------------------------------------
 
+(defn- apex
+  "The apex origin when this document lives on another host (docs.kotoba.cloud
+   carries <meta name=kc-apex>); \"\" on the apex itself. Hrefs set at
+   runtime (setup chip / banner) are prefixed with it."
+  []
+  (or (some-> (.querySelector js/document "meta[name=\"kc-apex\"]") (.getAttribute "content")) ""))
+
 (defn account-chip!
-  "Replace the sidebar's sign-in control with the account chip: avatar
-   initial, @username, workspace, and a disclosure with アカウント / ログアウト."
+  "Reveal the sidebar's account chip (cloud-kotoba-dds.shell account-entry:
+   both states are in the document; cloudKotobaShell.hydrateSession fills
+   the username / workspace / the initial, hides the sign-in control, opens the
+   floating menu on the chip and closes it on Escape / outside). Sign-out is
+   this host's: POST /v1/logout, then home."
   [nav username workspace]
-  (set! (.-innerHTML nav)
-        (str "<details class=\"kc-session-menu\">"
-             "<summary class=\"kc-account-chip\" aria-label=\"" (t "アカウントメニュー" "Account menu") "\">"
-             "<span class=\"kc-account-chip__avatar\" aria-hidden=\"true\">" (str/upper (subs (str username) 0 1)) "</span>"
-             "<span class=\"kc-account-chip__name\"><span>@" username "</span>"
-             "<span class=\"kc-account-chip__ws\">" workspace "</span></span>"
-             "<span class=\"kc-account-chip__caret\" aria-hidden=\"true\">⌃</span></summary>"
-             "<div class=\"kc-session-menu__panel\">"
-             "<a class=\"kc-session-menu__item\" href=\"/account\">" (t "アカウント" "Account") "</a>"
-             "<a class=\"kc-session-menu__item\" href=\"/billing/\">" (t "料金・決済" "Billing") "</a>"
-             "<button type=\"button\" class=\"kc-session-menu__item\" id=\"kc-session-signout\">" (t "ログアウト" "Sign out") "</button>"
-             "</div></details>"))
-  (when-let [sign-out (.querySelector nav "#kc-session-signout")]
-    (.addEventListener sign-out "click"
-                       (fn [_]
-                         (set! (.-disabled sign-out) true)
-                         (-> (js/fetch "/v1/logout" #js {:method "POST" :credentials "same-origin"
-                                                        :headers #js {"accept" "application/json"}})
-                             (.catch (fn [_] nil))
-                             (.finally (fn [] (set! (.-href (.-location js/window)) "/"))))))))
+  (if-not (exists? js/cloudKotobaShell)
+    (js/console.error "shell-runtime-missing" "/js/shell.js did not load — the account entry stays signed-out")
+    (do
+      (.hydrateSession js/cloudKotobaShell nav #js {:name username :workspace workspace})
+      (when-let [sign-out (.querySelector nav "#kc-session-signout")]
+        (.addEventListener sign-out "click"
+                           (fn [_]
+                             (set! (.-disabled sign-out) true)
+                             (-> (js/fetch (str (apex) "/v1/logout") #js {:method "POST" :credentials "same-origin"
+                                                                         :headers #js {"accept" "application/json"}})
+                                 (.catch (fn [_] nil))
+                                 (.finally (fn [] (set! (.-href (.-location js/window)) (str (apex) "/")))))))))))
 
 ;; --- setup progress + credits ------------------------------------------------
 
 (defn- render-setup! [state]
-  (let [{:keys [done total next]} (console/setup-progress state (if (ja?) :ja :en))]
+  (let [{:keys [done total next]} (console/setup-progress
+                                    state
+                                    ;; the step labels in the document's locale
+                                    (fn [k] (copy (name k) (name k))))]
     (when-let [chip (el "kc-setup-chip")]
-      (set! (.-textContent chip) (t (str "はじめる " done "/" total) (str "Get started " done "/" total)))
+      (set! (.-textContent chip) (fill (copy "setup-progress" "Get started {done}/{total}") {"done" done "total" total}))
       (.setAttribute chip "data-state" (if next "pending" "done"))
-      (set! (.-href chip) (or (:href next) "/account"))
+      (set! (.-href chip) (str (apex) (or (:href next) "/account")))
       (show! "kc-setup-chip"))
     (if next
       (do (when-let [txt (el "kc-setup-banner-text")]
-            (set! (.-textContent txt) (t (str "セットアップを続ける — 次: " (:label next))
-                                         (str "Resume setup — next: " (:label next)))))
-          (when-let [link (el "kc-setup-banner-link")] (set! (.-href link) (:href next)))
+            (set! (.-textContent txt) (fill (copy "resume-next" "Resume setup — next: {step}") {"step" (:label next)})))
+          (when-let [link (el "kc-setup-banner-link")] (set! (.-href link) (str (apex) (:href next))))
           ;; not on the page the step lives on: the banner would repeat the
           ;; panel right under it
-          (when-not (str/starts-with? (.-pathname js/location) "/account")
+          (when-not (or (str/starts-with? (.-pathname js/location) "/account")
+                        ;; the console names itself: its locale variants are
+                        ;; emitted under /<locale>/account/ (served in place
+                        ;; at /account by the Worker; at their own path by a
+                        ;; static harness)
+                        (some? (.getElementById js/document "account-console")))
             (show! "kc-setup-banner")))
       (hide! "kc-setup-banner"))))
 
@@ -83,7 +104,7 @@
       (when (number? micro)
         (when-let [chip (el "kc-credit-chip")]
           (set! (.-textContent chip) (str "$" (.toFixed (/ micro 1000000) 2)))
-          (set! (.-title chip) (t "AI クレジット残高" "AI credit balance"))
+          (set! (.-title chip) (copy "credit-balance" "AI credit balance"))
           (show! "kc-credit-chip"))))))
 
 (defn hydrate-shell!
@@ -99,7 +120,7 @@
                    ;; is on the payload, no second derivation in the browser
                    (let [username (:username s)]
                      (when (and username (el "kc-session-nav-side"))
-                       (account-chip! (el "kc-session-nav-side") username (t "個人" "Personal")))
+                       (account-chip! (el "kc-session-nav-side") username (copy "personal" "Personal")))
                      (-> (js/Promise.all #js [(get-json "/v1/research/ekyc/status")
                                               (get-json "/v1/research/status")
                                               (get-json "/v1/billing/status")])
@@ -151,6 +172,8 @@
                          (set! (.-textContent cell)
                                (case (:availability m)
                                  "upstream-tested-access-gated" (t "提供中（許可されたリクエストのみ）" "Serving (admitted requests only)")
+                                 "route-configured" (t "提供中" "Serving")
+                                 "route-key-not-configured" (t "未接続（接続キー未設定）" "Not connected (route key not configured)")
                                  (str (:availability m))))))
                      (doseq [cell (array-seq (.querySelectorAll js/document "[data-model-availability][data-state=empty]"))]
                        (.setAttribute cell "data-state" "error")

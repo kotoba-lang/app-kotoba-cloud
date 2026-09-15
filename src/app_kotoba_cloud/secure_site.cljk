@@ -7,9 +7,13 @@
   the firewall's observe mode; there are no mutations on this surface
   (rules are pinned policy data, not user settings — secure.cljk).
 
-  Reference IA (OrcaRouter Guardrails / Firewall / Compliance): title +
+  Reference IA (Guardrails / Firewall / Compliance): title +
   one-line meaning, a local view switch, tables with explicit columns, an
-  honest note that coverage is runtime controls, not a certification."
+  honest note that coverage is runtime controls, not a certification.
+
+  Locales: the copy is authored in Japanese and English (`txt`); the
+  document is emitted per public locale by site.cljk (body ja for :ja, en
+  otherwise). The policy data's own descriptions are English and stay so."
   (:require [jp-go-dds.core :as dds]
             [kotoba.lang.text :as str]
             [app-kotoba-cloud.secure :as secure]
@@ -38,70 +42,90 @@
    {:id "firewall" :ja "ファイアウォール" :en "Firewall"}
    {:id "compliance" :ja "コンプライアンス" :en "Compliance"}])
 
-(defn- action-badge [action]
-  (console/badge (case action "block" "ブロック" "redact" "マスク" "flag" "フラグ" action)
+(defn- action-badge [txt action]
+  (console/badge (case action
+                   "block" (txt "ブロック" "Block")
+                   "redact" (txt "マスク" "Redact")
+                   "flag" (txt "フラグ" "Flag")
+                   action)
                  {:state (case action "block" :error "redact" :action "flag" :off :off)}))
 
-(defn- rung-badge [rung]
-  (console/badge (case rung "identity" "本人確認済み" "contracted" "契約済み" "card" "カード認証" rung)
+(defn- rung-badge [txt rung]
+  (console/badge (case rung
+                   "identity" (txt "本人確認済み" "Identity verified")
+                   "contracted" (txt "契約済み" "Contracted")
+                   "card" (txt "カード認証" "Card verified")
+                   rung)
                  {:state (if (= rung "contracted") :action :ok)}))
 
-(defn guardrails-view []
+(defn guardrails-view [txt]
   [:section {:id "guardrails" :class "ck-console__panel"}
    [:div {:class "kc-secure__head"}
-    [:h2 {:class "kc-secure__title"} "ガードレール"]
+    [:h2 {:class "kc-secure__title"} (txt "ガードレール" "Guardrails")]
     [:span {:class "kc-secure__version" :id "secure-guardrails-version"} secure/guardrail-version]]
-   [:p {:class "kc-secure__lead"} "全リクエストの本文に適用されるコンテンツポリシー。判定は決定論的で、ブロックはクォータより先にジョブを拒否します。"]
+   [:p {:class "kc-secure__lead"}
+    (txt "全リクエストの本文に適用されるコンテンツポリシー。判定は決定論的で、ブロックはクォータより先にジョブを拒否します。"
+         "The content policy applied to the body of every request. Decisions are deterministic; a block refuses the job before any quota is spent.")]
    [:div {:class "kc-secure__table"}
     [:table
-     [:thead [:tr [:th "名前"] [:th "動作"] [:th "説明"] [:th "パターン"]]]
+     [:thead [:tr [:th (txt "名前" "Name")] [:th (txt "動作" "Action")] [:th (txt "説明" "Description")] [:th (txt "パターン" "Patterns")]]]
      (into [:tbody]
            (for [{:keys [id action description patterns]} secure/guardrail-templates]
-             [:tr [:td [:code id]] [:td (action-badge action)] [:td description]
-              [:td (str (count patterns) " 件")]]))]]])
+             [:tr [:td [:code id]] [:td (action-badge txt action)] [:td description]
+              [:td (str (count patterns) (txt " 件" ""))]]))]]])
 
-(defn firewall-view []
+(defn firewall-view [txt]
   [:section {:id "firewall" :class "ck-console__panel"}
    [:div {:class "kc-secure__head"}
-    [:h2 {:class "kc-secure__title"} "ファイアウォール"]
+    [:h2 {:class "kc-secure__title"} (txt "ファイアウォール" "Firewall")]
     [:span {:class "kc-secure__version" :id "secure-firewall-version"} secure/firewall-version]]
-   [:p {:class "kc-secure__lead"} "エージェントが使えるタスクツールと、必要な信頼段階。段階に届かない呼び出しは拒否されます（観測モードでは記録のみ）。"]
+   [:p {:class "kc-secure__lead"}
+    (txt "エージェントが使えるタスクツールと、必要な信頼段階。段階に届かない呼び出しは拒否されます（観測モードでは記録のみ）。"
+         "The task tools an agent may use and the trust rung each requires. A call below its rung is refused (observe mode only records it).")]
    ;; observe mode is runtime state, not policy data: hidden until /v1/secure answers
    [:div {:class "kc-secure__chips" :id "secure-observe-mode" :hidden true}]
    [:div {:class "kc-secure__table"}
     [:table
-     [:thead [:tr [:th "ツール"] [:th "必要な段階"] [:th "開いているタスク"]]]
+     [:thead [:tr [:th (txt "ツール" "Tool")] [:th (txt "必要な段階" "Required rung")] [:th (txt "開いているタスク" "Open tasks")]]]
      (into [:tbody]
            (for [[tool {:keys [minRung tasks]}] secure/tool-policy]
-             [:tr [:td [:code (name tool)]] [:td (rung-badge minRung)]
-              [:td (if (seq tasks) (str/join ", " tasks) "—（既定で拒否）")]]))]]])
+             [:tr [:td [:code (name tool)]] [:td (rung-badge txt minRung)]
+              [:td (if (seq tasks) (str/join ", " tasks) (txt "—（既定で拒否）" "— (denied by default)"))]]))]]])
 
-(defn compliance-view []
+(defn compliance-view [txt]
   (let [{:keys [frameworks auditLogRetentionDays dataResidency zeroDataRetention note]} secure/compliance-state]
     [:section {:id "compliance" :class "ck-console__panel"}
      [:div {:class "kc-secure__head"}
-      [:h2 {:class "kc-secure__title"} "コンプライアンス"]
+      [:h2 {:class "kc-secure__title"} (txt "コンプライアンス" "Compliance")]
       [:span {:class "kc-secure__version" :id "secure-compliance-version"} secure/compliance-version]]
      [:p {:class "kc-secure__lead"} note]
      [:div {:class "kc-secure__table"}
       [:table
-       [:thead [:tr [:th "フレームワーク"] [:th "地域"] [:th "自動制御"]]]
+       [:thead [:tr [:th (txt "フレームワーク" "Framework")] [:th (txt "地域" "Region")] [:th (txt "自動制御" "Automated controls")]]]
        (into [:tbody]
              (for [{:keys [label region controls]} frameworks]
                [:tr [:td label] [:td region]
                 [:td (into [:span {:class "kc-secure__chips"}]
                            (map #(console/badge % {:state :ok}) controls))]]))]]
-     (console/cell "監査ログの保持" (str auditLogRetentionDays " 日") {:state :value})
-     (console/cell "データ所在地" (if (= "unspecified" dataResidency) "未指定" dataResidency) {:state :value})
-     (console/cell "ゼロデータ保持" (if (= "designed-for-zdr" zeroDataRetention) "設計上対応（有効化は契約時）" zeroDataRetention) {:state :value})]))
+     (console/cell (txt "監査ログの保持" "Audit log retention") (str auditLogRetentionDays (txt " 日" " days")) {:state :value})
+     (console/cell (txt "データ所在地" "Data residency") (if (= "unspecified" dataResidency) (txt "未指定" "Unspecified") dataResidency) {:state :value})
+     (console/cell (txt "ゼロデータ保持" "Zero data retention") (if (= "designed-for-zdr" zeroDataRetention) (txt "設計上対応（有効化は契約時）" "Designed for ZDR (enabled on contract)") zeroDataRetention) {:state :value})]))
 
-(defn section []
-  [:div {:class "kc-secure"}
-   (dds/heading 1 "セキュリティ管理" {:size "36"})
-   [:p {:class "kc-secure__lead"} "研究環境の実行時制御 — 表示している規則は、リクエストを許可する側が実際に評価している規則そのものです。"]
-   [:p {:id "secure-status" :role "status" :class "ck-console__note"} ""]
-   (into [:ul {:class "kc-secure__views" :aria-label "セキュリティ管理の表示"}]
-         (for [{:keys [id ja]} views] [:li [:a {:href (str "#" id)} ja]]))
-   (guardrails-view)
-   (firewall-view)
-   (compliance-view)])
+(defn section
+  "The SECURE console body for one locale (:ja / :en). Same ids and
+   structure in both; only the copy differs."
+  ([] (section :ja))
+  ([locale]
+   (let [ja? (= :ja locale)
+         txt (fn [ja en] (if ja? ja en))]
+     [:div {:class "kc-secure"}
+      (dds/heading 1 (txt "セキュリティ管理" "Security controls") {:size "36"})
+      [:p {:class "kc-secure__lead"}
+       (txt "研究環境の実行時制御 — 表示している規則は、リクエストを許可する側が実際に評価している規則そのものです。"
+            "Runtime controls of the research environment — the rules shown here are the rules the admitting side actually evaluates.")]
+      [:p {:id "secure-status" :role "status" :class "ck-console__note"} ""]
+      (into [:ul {:class "kc-secure__views" :aria-label (txt "セキュリティ管理の表示" "Security controls views")}]
+            (for [{:keys [id ja en]} views] [:li [:a {:href (str "#" id)} (txt ja en)]]))
+      (guardrails-view txt)
+      (firewall-view txt)
+      (compliance-view txt)])))

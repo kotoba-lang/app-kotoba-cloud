@@ -4,7 +4,7 @@
   state helpers as explicit arguments (no circular dependency).
 
   Layers: 1 document authenticity (icao/verify-chip-evidence), 2 biometric
-  cross-check via pinned Modal face service (staged), 3 screening over the
+  cross-check via the pinned face service (staged), 3 screening over the
   published kotoba.cloud PEP/sanctions snapshot (staged), 4 duplicate-person
   resistance via authority-derived nullifier."
   (:require [app-kotoba-cloud.icao :as icao]))

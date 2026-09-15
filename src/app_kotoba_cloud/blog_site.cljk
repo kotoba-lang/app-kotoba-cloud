@@ -24,12 +24,6 @@
 .kc-blog__back{display:inline-block;margin-bottom:var(--hig-spacing-3);font-weight:600;text-decoration:none;color:var(--hig-color-label)}
 .kc-blog__back:hover{text-decoration:underline}")
 
-(defn locale-prefix
-  "URL prefix for a locale: English is canonical (no prefix), every other
-   locale lives under /<locale>/ (the same convention as the emit dirs)."
-  [locale]
-  (if (= locale :en) "" (str "/" (name locale))))
-
 (defn post-title
   [post locale]
   (or (get-in post [:i18n (keyword (name locale)) :title])
@@ -60,19 +54,19 @@
   "Article URL in the requested locale; posts without a real translation
    link to the canonical English document (the localized index still lists
    them, but never at a 404)."
-  [post locale]
-  (let [pref (locale-prefix locale)]
-    (if (or (= locale :en) (= locale :ja)
-            (contains? (:i18n post) (keyword (name locale))))
-      (str pref "/blog/" (:slug post) "/")
-      (str "/blog/" (:slug post) "/"))))
+  [post _locale]
+  ;; One locale-free URL per article (shinkansen.locale): the Worker serves
+  ;; the negotiated variant from the emit tree and falls back to the English
+  ;; document when a locale has none — a link is never a 404 and never a
+  ;; /ja/ hop (measured 2026-09-15: /ja/blog/ 301'd to /blog/ which then
+  ;; served English because the Worker's variant roots lacked blog).
+  (str "/blog/" (:slug post) "/"))
 
 (defn list-view
   "Index of published articles, newest first (the caller sorts)."
   [locale posts]
   (let [ja? (= locale :ja)
-        t (fn [ja en] (if ja? ja en))
-        pref (locale-prefix locale)]
+        t (fn [ja en] (if ja? ja en))]
     (dds/container
      (dds/heading 1 (t "セキュリティ観測ブログ" "Security Observatory Blog") {:size "36"})
      [:p {:class "kc-blog__lead"}
@@ -94,11 +88,10 @@
   "One article document. Body is a vector of paragraph strings."
   [locale post]
   (let [ja? (= locale :ja)
-        t (fn [ja en] (if ja? ja en))
-        pref (locale-prefix locale)]
+        t (fn [ja en] (if ja? ja en))]
     (dds/container
      [:article {:class "kc-blog__article" :lang (post-lang post locale)}
-      [:a {:class "kc-blog__back" :href (str pref "/blog/")} (t "← ブログ一覧" "← All articles")]
+      [:a {:class "kc-blog__back" :href "/blog/"} (t "← ブログ一覧" "← All articles")]
       [:div {:class "kc-blog__meta"}
        [:time {:datetime (:date post)} (:date post)]
        (map tag-chip (:tags post))]

@@ -8,6 +8,10 @@
             [app-kotoba-cloud.identity-site :as identity-site]
             [app-kotoba-cloud.account-site :as account-site]
             [cloud-kotoba-dds.console :as dds-console]
+            [cloud-kotoba-dds.shell :as shell]
+            [app-kotoba-cloud.console-locales :as cl]
+            [cloud-kotoba-dds.code :as code]
+            [app-kotoba-cloud.code-block :as code-block]
             [cloud-kotoba-dds.catalog :as dds-catalog]
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
@@ -37,6 +41,7 @@
             [jp-go-dds.core :as dds]
             [jp-go-dds.css :as dcss]
             [jp-go-dds.page :as page]
+            [html.core :as html]
             [jp-go-dds.tokens :as tokens]
             #?(:clj [clojure.java.io :as io])
             ;; render runs on the kbb engine (JVM-free): node's fs/path stand in
@@ -76,7 +81,7 @@
 
 (def copy
   {:ja
-   {:html-lang "ja" :og-locale "ja_JP" :path "/ja/"
+   {:html-lang "ja" :og-locale "ja_JP" :path "/"
     :title "Kotoba Cloud — AIが書くソフトウェアを、制御された実行へ。"
     :description "Kotobaの安全なコードとKotobaseのグラフ状態を、identityとdeploy controlで実行環境へつなぎます。Discoveryは公開中。Hosted applyは未提供です。"
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
@@ -86,7 +91,7 @@
     :menu-models "モデル" :menu-register "研究者登録" :menu-billing "料金・決済"
     :menu-account "アカウント" :menu-security "セキュリティ" :menu-apps "アプリ"
     :menu-label "アプリメニュー"
-    ;; orcarouter-style sidebar groups (ja)
+    ;; console sidebar groups (ja)
     :sb-main "MAIN" :sb-manage "MANAGE" :sb-secure "SECURE" :sb-account "ACCOUNT"
     :sb-start "はじめる" :sb-chat "調査チャット" :sb-docs "ドキュメント"
     :sb-keys "接続トークン" :sb-routing "モデル & ルーティング" :sb-insights "利用とインサイト"
@@ -120,7 +125,7 @@
              {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
               :href "/#research-models"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
-              :body "本人確認、審査、承認済みスコープを通した調査を、非公開の Modal 直結バックエンドで実行する。"}
+              :body "本人確認、審査、承認済みスコープを通した調査を、非公開の専用推論基盤で実行する。"}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -154,8 +159,8 @@
     :contact-label "連絡先"
     :legal-link "運営"
     :tokushoho-link "特定商取引法に基づく表記"
-    :legal-path "/ja/legal/"
-    :tokushoho-path "/ja/legal/tokushoho/"
+    :legal-path "/legal/"
+    :tokushoho-path "/legal/tokushoho/"
     :legal-title "運営元 — Kotoba Cloud"
     :legal-heading "運営元"
     :legal-about "Kotoba Cloud は identity と deploy control の公開入口です。storage、compute、agent work は別 origin のまま接続します。"
@@ -202,7 +207,7 @@
     :menu-models "Models" :menu-register "Researchers" :menu-billing "Billing"
     :menu-account "Account" :menu-security "Security" :menu-apps "Apps"
     :menu-label "App menu"
-    ;; orcarouter-style sidebar groups (en)
+    ;; console sidebar groups (en)
     :sb-main "MAIN" :sb-manage "MANAGE" :sb-secure "SECURE" :sb-account "ACCOUNT"
     :sb-start "Get started" :sb-chat "Research chat" :sb-docs "Docs"
     :sb-keys "API tokens" :sb-routing "Models & routing" :sb-insights "Usage & insights"
@@ -236,7 +241,7 @@
              {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
               :href "/#research-models"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
-              :body "Runs identity-verified, reviewed and scope-approved research through a private direct Modal backend."}
+              :body "Runs identity-verified, reviewed and scope-approved research on a private, dedicated inference deployment."}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -351,7 +356,6 @@
    ".kc-plane__kind{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;letter-spacing:.08em;color:var(--hig-color-secondary-label);}"
    ".kc-plane h3{margin-block:var(--hig-spacing-2);}.kc-plane p{color:var(--hig-color-secondary-label);}.kc-plane a{font-family:var(--hig-font-mono);font-weight:700;}.kc-plane__connect{display:inline-block;margin-top:var(--hig-spacing-3);}.kc-plane__connect[hidden]{display:none;}"
    ".kc-steps{counter-reset:step}.kc-step{counter-increment:step}.kc-step::before{content:'0' counter(step);display:block;margin-bottom:var(--hig-spacing-3);font-family:var(--hig-font-mono);font-weight:700;color:var(--hig-color-tint);}"
-   ".kc-command{margin:var(--hig-spacing-6) 0 0;padding:var(--hig-spacing-5);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;}"
    ".kc-publish-approval{margin-top:var(--hig-spacing-7);border-inline-start:.4rem solid var(--hig-color-tint);}.kc-publish-approval[hidden]{display:none}.kc-publish-fields{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--hig-spacing-2) var(--hig-spacing-4);}.kc-publish-fields dt{font-weight:700}.kc-publish-fields dd{margin:0;font-family:var(--hig-font-mono);overflow-wrap:anywhere}"
    ".kc-boundary{border-inline-start:.4rem solid var(--hig-color-separator);}"
    ".kc-footer{padding-block:var(--hig-spacing-8);border-top:1px solid var(--hig-color-separator);color:var(--hig-color-secondary-label);}.kc-footer__inner{display:flex;justify-content:space-between;gap:var(--hig-spacing-5);flex-wrap:wrap;}"
@@ -367,7 +371,7 @@
   (if-let [t (get locales/copy locale)]
     (merge (:en copy)
            {:html-lang (name locale) :og-locale (name locale)
-            :path (str "/" (name locale) "/")
+            :path "/"
             :title (str "Kotoba Cloud — " (:cloud-headline t))
             :description (:cloud-lead t)
             :skip (:skip t) :home-label "Kotoba Cloud"
@@ -398,19 +402,26 @@
 (defn passkey-href [locale]
   (session/passkey-href (if (= locale :ja) :ja :en)))
 
+(defn language-href
+  "The language switch's href: `?lang=<locale>` RELATIVE to the current
+  document, so the route is preserved by construction (a query-only
+  reference resolves against the document's own path). The Worker serves
+  that variant directly and persists the choice as kb_locale
+  (locale/static-decision); no /<locale>/ path is ever linked."
+  [loc]
+  (str "?" locale/query-param "=" (name loc)))
+
 (defn language-links
-  ([locale label]
-   (language-links locale label {}))
-  ([locale label {:keys [en ja] :or {en "/" ja "/ja/"}}]
-   (dds/language-selector
-    {:id-prefix "kotoba-cloud-language"
-     :size "md"
-     :current locale
-     :languages (mapv (fn [loc]
-                        {:code loc :label (get locales/native-names loc)
-                         :href (case loc :en en :ja ja (str "/" (name loc) "/"))})
-                      supported-locales)
-     :attrs {:aria-label label}})))
+  [locale label]
+  (dds/language-selector
+   {:id-prefix "kotoba-cloud-language"
+    :size "md"
+    :current locale
+    :languages (mapv (fn [loc]
+                       {:code loc :label (get locales/native-names loc)
+                        :href (language-href loc)})
+                     supported-locales)
+    :attrs {:aria-label label}}))
 
 (defn operator-lead [locale]
   (if (= locale :en)
@@ -444,19 +455,12 @@
 .kc-sb a[data-current=true]{background:var(--hig-color-system-background);color:var(--hig-color-tint);font-weight:700;box-shadow:inset 3px 0 0 var(--hig-color-tint)}
 .kc-sb__badge{margin-inline-start:auto;padding:0 var(--hig-spacing-2);border-radius:var(--hig-radius-capsule,999px);border:1px solid var(--hig-color-tint);color:var(--hig-color-tint);font-size:var(--hig-text-caption2-font-size);font-weight:700;letter-spacing:.04em;line-height:1.5}
 .kc-sb__foot{flex:none;margin-top:auto;border-top:1px solid var(--hig-color-separator);padding-top:var(--hig-spacing-2);color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}
-.kc-account-chip{display:flex;align-items:center;justify-content:flex-start;gap:var(--hig-spacing-2);inline-size:100%;min-height:2.25rem;padding:var(--hig-spacing-1) var(--hig-spacing-2);border-radius:var(--hig-radius-xs,6px);color:var(--hig-color-label);font:inherit;font-size:var(--hig-text-subheadline-font-size);font-weight:600;line-height:1.25;background:none;border:none;cursor:pointer;text-align:start;list-style:none}
-.kc-account-chip:hover{background:var(--hig-color-system-background)}
-.kc-account-chip::-webkit-details-marker{display:none}
-.kc-account-chip__avatar{flex:none;inline-size:1.5rem;block-size:1.5rem;display:grid;place-items:center;border-radius:var(--hig-radius-capsule,999px);background:var(--hig-color-tint);color:var(--hig-color-system-background);font-size:var(--hig-text-caption1-font-size);font-weight:700}
-.kc-account-chip__name{display:grid;min-inline-size:0}
-.kc-account-chip__name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kc-account-chip__ws{font-size:var(--hig-text-caption2-font-size);font-weight:400;line-height:1.2;color:var(--hig-color-secondary-label)}
-.kc-account-chip__caret{margin-inline-start:auto;color:var(--hig-color-secondary-label)}
-.kc-topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--hig-spacing-3);min-height:3rem;margin:calc(-1 * var(--hig-spacing-6)) calc(-1 * var(--hig-spacing-5)) var(--hig-spacing-5);padding:var(--hig-spacing-2) var(--hig-spacing-5);border-block-end:1px solid var(--hig-color-separator);background:var(--hig-color-system-background)}
-.kc-topbar__section{display:flex;align-items:center;gap:var(--hig-spacing-2);font-weight:700}
-.kc-topbar__group{color:var(--hig-color-secondary-label)}
-.kc-topbar__sep{margin:0 var(--hig-spacing-2);color:var(--hig-color-secondary-label)}
-.kc-topbar__actions{display:flex;align-items:center;gap:var(--hig-spacing-2)}
+.kc-sb__foot .ck-account{color:var(--hig-color-label)}
+.kc-header__tools .ck-account{inline-size:auto}
+.kc-header__tools .ck-account__session{inline-size:auto}
+.kc-header__tools .ck-account__chip{inline-size:auto;max-inline-size:14rem}
+.kc-header__tools .ck-account__menu[data-chrome=float]{inset-inline:auto 0}
+.kc-sb-main>.ck-topbar{margin:calc(-1 * var(--hig-spacing-6)) calc(-1 * var(--hig-spacing-5)) var(--hig-spacing-5)}
 .kc-topbar__link{color:var(--hig-color-label);font-weight:700;text-decoration:none;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px)}
 .kc-topbar__link:hover{background:var(--hig-color-secondary-system-background)}
 .kc-topbar__chip{display:inline-flex;align-items:center;gap:var(--hig-spacing-2);min-height:2.25rem;padding:0 var(--hig-spacing-3);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-capsule,999px);color:var(--hig-color-label);font-family:var(--hig-font-mono);font-weight:700;text-decoration:none;background:var(--hig-color-secondary-system-background)}
@@ -464,16 +468,6 @@
 .kc-topbar__chip--setup[data-state=done]{border-color:var(--hig-palette-green);color:var(--hig-palette-green)}
 .kc-setup-banner{display:flex;flex-wrap:wrap;align-items:center;gap:var(--hig-spacing-3);margin:0 0 var(--hig-spacing-5);padding:var(--hig-spacing-3) var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-inline-start:4px solid var(--hig-color-tint);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-secondary-system-background)}
 .kc-setup-banner a{font-weight:700}
-#kc-session-nav-side{min-height:2.5rem;display:flex;align-items:center;color:var(--hig-color-secondary-label);font-weight:700}
-#kc-session-nav-side .kc-session-menu{inline-size:100%}
-#kc-session-nav-side .kc-session-menu summary{inline-size:100%}
-#kc-session-nav-side .kc-session-menu__panel{position:static;box-shadow:none;border:none;padding:var(--hig-spacing-2) 0;display:grid}
-#kc-session-nav-side .kc-session-menu__item{min-height:2rem;padding:var(--hig-spacing-1) var(--hig-spacing-2);border-radius:var(--hig-radius-xs,6px);color:var(--hig-color-label);font:inherit;font-size:var(--hig-text-subheadline-font-size);font-weight:500;text-decoration:none;background:none;border:none;cursor:pointer;inline-size:100%;text-align:start}
-#kc-session-nav-side .kc-session-menu__item:hover{background:var(--hig-color-system-background)}
-.kc-session-menu__panel{position:absolute;inset-inline-end:0;top:calc(100% + var(--hig-spacing-2));z-index:40;min-inline-size:13rem;display:grid;padding:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-system-background);box-shadow:0 8px 24px rgb(0 0 0 / 12%)}
-.kc-session-menu__panel a,.kc-session-menu__panel button{display:flex;align-items:center;min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;white-space:nowrap;background:none;border:none;font:inherit;cursor:pointer}
-.kc-session-menu__panel a:hover,.kc-session-menu__panel button:hover{background:var(--hig-color-secondary-system-background)}
-.kc-session-menu:not([open]) .kc-session-menu__panel{display:none}
 body:has(.kc-sb){padding-inline-start:15rem}
 .kc-sb-main{min-height:calc(100dvh - 65px);padding:var(--hig-spacing-6) var(--hig-spacing-5)}
 @media(max-width:64rem){body:has(.kc-sb){padding-inline-start:0;padding-block-start:3.25rem}
@@ -485,34 +479,34 @@ body:has(.kc-sb){padding-inline-start:15rem}
 .kc-sb__new{flex:none;min-height:2.25rem;padding-inline:var(--hig-spacing-3)}
 .kc-sb a{flex:none;min-height:2.25rem;font-size:var(--hig-text-footnote-font-size)}
 .kc-sb__foot{position:sticky;inset-inline-end:0;margin-top:0;margin-inline-start:auto;margin-inline-end:calc(-1 * var(--hig-spacing-2));border-top:none;padding:0 var(--hig-spacing-2);flex:none;background:var(--hig-color-secondary-system-background)}
-#kc-session-nav-side{min-height:2.25rem}
-#kc-session-nav-side .kc-session-menu__panel{position:absolute;inset-inline-end:var(--hig-spacing-2);top:3.25rem;border:1px solid var(--hig-color-separator);box-shadow:0 8px 24px rgb(0 0 0 / 12%);background:var(--hig-color-system-background)}
+.kc-sb__foot .ck-account{inline-size:auto}
+.kc-sb__foot .ck-account__chip{min-height:2.25rem;max-inline-size:12rem}
 .kc-sb-main{min-height:0;padding:var(--hig-spacing-5) var(--hig-spacing-4)}
-.kc-topbar{margin:calc(-1 * var(--hig-spacing-5)) calc(-1 * var(--hig-spacing-4)) var(--hig-spacing-4);padding:var(--hig-spacing-2) var(--hig-spacing-4)}
-.kc-topbar__group,.kc-topbar__sep{display:none}}
+.kc-sb-main>.ck-topbar{top:3.25rem;margin:calc(-1 * var(--hig-spacing-5)) calc(-1 * var(--hig-spacing-4)) var(--hig-spacing-4);padding:var(--hig-spacing-2) var(--hig-spacing-4)}
+.ck-topbar__group,.ck-topbar__sep{display:none}}
 @media(max-width:30rem){.kc-sb-main{padding:var(--hig-spacing-4) var(--hig-spacing-3)}
-.kc-topbar{min-height:2.5rem;margin:calc(-1 * var(--hig-spacing-4)) calc(-1 * var(--hig-spacing-3)) var(--hig-spacing-3);padding:var(--hig-spacing-1) var(--hig-spacing-3)}
+.kc-sb-main>.ck-topbar{min-height:2.5rem;margin:calc(-1 * var(--hig-spacing-4)) calc(-1 * var(--hig-spacing-3)) var(--hig-spacing-3);padding:var(--hig-spacing-1) var(--hig-spacing-3)}
 .kc-topbar__link{display:none}
 .kc-topbar__chip{min-height:2rem;font-size:var(--hig-text-caption1-font-size)}}")
 
 (defn app-sidebar
-  "OrcaRouter-style persistent left nav, generated from console/groups —
+  "Persistent left nav, generated from console/groups —
   the ONE table that declares every destination (a view added to the table
   and forgotten in the nav cannot happen). Emitted AFTER <main> (see
   site-layout) so content comes first on every band. Badges are facts from
   the table; the foot is the account entry on every view: a sign-in control
   until the session is known, then the account chip (shell-browser)."
   [locale _t current]
-  (let [txt (fn [ja en] (if (= locale :ja) ja en))]
+  (let [txt (fn [k] (cl/t locale k))]
     (into
-     [:nav {:class "kc-sb" :aria-label (txt "アプリナビゲーション" "App navigation")}
+     [:nav {:class "kc-sb" :aria-label (txt :app-navigation)}
       ;; the brand, top-left of every screen (owner direction 2026-09-15):
       ;; the Kotoba mark from kotoba-lang/kotoba's README header, one home —
       ;; the compact header on the app page drops its wordmark for it
-      [:a {:class "kc-sb__brand" :href "/" :aria-label (txt "Kotoba Cloud ホーム" "Kotoba Cloud home")}
+      [:a {:class "kc-sb__brand" :href "/" :aria-label (txt :home)}
        [:img {:src "/assets/kotoba-logo.png" :alt "Kotoba" :width 208 :height 29 :decoding "async"}]]
       [:a {:class "kc-sb__new" :href (:href console/get-started)}
-       (txt (:ja console/get-started) (:en console/get-started))]]
+       (txt (:key console/get-started))]]
      (concat
       (mapcat (fn [{:keys [group items]}]
                 (cons [:div {:class "kc-sb__group"} group]
@@ -521,32 +515,41 @@ body:has(.kc-sb){padding-inline-start:15rem}
                          label
                          (when badge [:span {:class "kc-sb__badge"} badge])])))
               (console/sidebar-items current locale))
-      [[:div {:id "kc-session-nav-side" :class "kc-sb__foot"
-              :aria-label (txt "アカウント" "Account")}
-        [:a {:class "dads-button" :data-type "outline" :data-size "sm"
-             :href (passkey-href locale)}
-         (txt "サインイン" "Sign in")]]]))))
+      ;; the account entry is cloud-kotoba-dds.shell's: both states in the
+      ;; document (sign-in visible, the chip + FLOATING menu hidden), the
+      ;; browser fills and reveals (shell-browser → cloudKotobaShell)
+      [[:div {:class "kc-sb__foot" :aria-label (txt :menu-account)}
+        (shell/account-entry
+         {:id "kc-session-nav-side" :variant :rail
+          :sign-in {:href (passkey-href locale) :label (txt :sign-in)}
+          :menu-label (txt :account-menu)
+          :items [{:href "/account" :label (txt :menu-account)}
+                  {:href "/billing/" :label (txt :menu-billing)}
+                  {:id "kc-session-signout" :action "sign-out" :label (txt :sign-out)}]})
+        ;; the six strings shell-browser needs at runtime, in the document's
+        ;; locale (the 22-locale map stays out of the bundle)
+        [:span (into {:id "kc-console-copy" :hidden true}
+                     (map (fn [k] [(keyword (str "data-" (name k))) (cl/t locale k)]) cl/browser-keys))]]]))))
 
 (defn console-language-switch
   "The language switch of the console chrome — jp-go-dds's language-selector
    under cloud-kotoba-dds's :language-selector contract: base
    :jp-go-dds/language-selector, preserves the route, selection order
-   explicit URL → saved choice → default. The two implemented console
-   locales (contracts.edn :locales) are offered; each href is the SAME
-   document under a locale prefix, which the Worker canonicalises back to
-   the locale-free route with the choice persisted as kb_locale
-   (locale.cljk) — the click also writes the cookie client-side
+   explicit URL → saved choice → default. Every public locale is offered
+   (the console chrome is in all 22 since 2026-09-15 — console-locales;
+   until then two, and a reader of Bahasa Indonesia got an English
+   console); each href is the SAME document with `?lang=` (language-href),
+   which the Worker serves as that variant with the choice persisted as
+   kb_locale (locale.cljk) — the click also writes the cookie client-side
    (language-cookie-script), so the route never forks."
-  [locale current]
-  (let [path (first (str/split (str (or current "/")) #"#" 2))
-        path (if (str/starts-with? path "/") path (str "/" path))]
-    (dds/language-selector
-     {:id-prefix "kc-console-language"
-      :size "sm"
-      :current locale
-      :languages [{:code :ja :label "日本語" :href (str "/ja" path)}
-                  {:code :en :label "English" :href (str "/en" path)}]
-      :attrs {:aria-label (if (= locale :ja) "表示言語" "Language")}})))
+  [locale _current]
+  (dds/language-selector
+   {:id-prefix "kc-console-language"
+    :size "sm"
+    :current locale
+    :languages (mapv (fn [loc] {:code loc :label (get locales/native-names loc) :href (language-href loc)})
+                     supported-locales)
+    :attrs {:aria-label (cl/t locale :language)}}))
 
 (defn console-topbar
   "The console's top bar: the section this page belongs to (from the IA
@@ -555,36 +558,32 @@ body:has(.kc-sb){padding-inline-start:15rem}
   The two chips are hidden until shell-browser has read the session — a
   chip with no number is not shown (no fabricated state)."
   [locale current]
-  (let [txt (fn [ja en] (if (= locale :ja) ja en))
-        section (console/section-label current locale)]
-    [:header {:class "kc-topbar"}
-     [:div {:class "kc-topbar__section"}
-      (when section
-        (if (= (:group section) (:item section))
-          [:span (:item section)]
-          [:span [:span {:class "kc-topbar__group"} (:group section)]
-           [:span {:class "kc-topbar__sep" :aria-hidden "true"} "›"]
-           [:span (:item section)]]))]
-     [:div {:class "kc-topbar__actions"}
-      [:a {:class "kc-topbar__chip" :id "kc-credit-chip" :href "/billing/" :hidden true} "—"]
-      [:a {:class "kc-topbar__link" :href "/docs/"} (txt "ドキュメント" "Docs")]
-      [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]
-      ;; right edge (reference: … | EN): language, then the λ yin-yang
-      ;; theme switch (jp-go-dds.theme-toggle; hidden until its script runs)
-      (console-language-switch locale current)
-      theme-toggle/control]]))
+  (let [section (console/section-label current locale)]
+    ;; cloud-kotoba-dds.shell's top bar: sticky (data-chrome=top, measured
+    ;; by shinkansen.audit :chrome-layers) — it no longer scrolls away
+    (shell/topbar
+     {:section (when section
+                 (if (= (:group section) (:item section))
+                   [:span (:item section)]
+                   (shell/section-label (:group section) (:item section))))
+      :actions [[:a {:class "kc-topbar__chip" :id "kc-credit-chip" :href "/billing/" :hidden true} "—"]
+                [:a {:class "kc-topbar__link" :href "/docs/"} (cl/t locale :docs)]
+                [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]
+                ;; right edge (reference: … | EN): language, then the λ yin-yang
+                ;; theme switch (jp-go-dds.theme-toggle; hidden until its script runs)
+                (console-language-switch locale current)
+                theme-toggle/control]})))
 
 (defn setup-banner
   "'Resume setup — <next step> · Continue': hidden until the session is
    known; shell-browser fills the next step from console/setup-progress."
   [locale]
-  (let [txt (fn [ja en] (if (= locale :ja) ja en))]
-    [:div {:id "kc-setup-banner" :class "kc-setup-banner" :role "status" :hidden true}
-     [:span {:id "kc-setup-banner-text"} (txt "セットアップを続ける" "Resume setup")]
-     [:a {:id "kc-setup-banner-link" :href "/account"} (txt "続ける" "Continue")]]))
+  [:div {:id "kc-setup-banner" :class "kc-setup-banner" :role "status" :hidden true}
+   [:span {:id "kc-setup-banner-text"} (cl/t locale :resume-setup)]
+   [:a {:id "kc-setup-banner-link" :href "/account"} (cl/t locale :continue)]])
 
 (defn app-menu
-  "OpenRouter-style single dropdown menu over the compact app header.
+  "Single dropdown menu over the compact app header.
    Every destination is a real document (no anchor-only items). Items are
    listed in nav copy order; the app surface owns only the container."
   [locale t]
@@ -604,7 +603,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn site-header
   ([locale t]
    (site-header locale t {}))
-  ([locale t {:keys [language-ja language-en nav] :or {nav true}}]
+  ([locale t {:keys [nav] :or {nav true}}]
    [:header {:class (if nav "kc-header" "kc-header kc-header--compact")}
     (dds/container
      [:div {:class "kc-header__inner"}
@@ -628,8 +627,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
       ;; the right edge: language, theme, app menu (and, on the full
       ;; header, the sign-in entry) — one cluster pushed to the end
       [:div {:class "kc-header__tools"}
-       (language-links locale (:language-label t)
-                       {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
+       (language-links locale (:language-label t))
        theme-toggle/control
       ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
@@ -638,8 +636,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
        ;; beside the sidebar the account entry is the sidebar's chip (one
        ;; home); the full header keeps its own
        (when nav
-         (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
-                                        :href (passkey-href locale)}))]])]))
+         (shell/account-entry
+          {:id "kc-session-entry" :variant :header
+           :sign-in {:href (passkey-href locale) :label (:nav-sign-in t)}
+           :menu-label (if (= locale :ja) "アカウントメニュー" "Account menu")
+           :items [{:href "/account" :label (if (= locale :ja) "アカウント管理" "Account")}
+                   {:id "kc-session-signout" :action "sign-out" :label (if (= locale :ja) "ログアウト" "Sign out")}]}))]])]))
 
 (defn site-footer [t]
   [:footer {:class "kc-footer"}
@@ -654,7 +656,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
      [:span (:operator-label t) ": " operator-name]
      [:span (:contact-label t) ": " (contact-mailto)]
      ;; locale-free hrefs (the Worker serves the negotiated variant at
-     ;; /legal/; :legal-path stays the canonical URL of the ja document)
+     ;; /legal/; the ja document's canonical is /legal/?lang=ja)
      [:a {:href "/legal/"} (:legal-link t)]
      [:a {:href "/legal/tokushoho/"} (:tokushoho-link t)]])])
 
@@ -689,7 +691,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/legal/" :language-en "/legal/"})
+     (site-header locale t)
      [:main {:id "main" :class "kc-legal"}
       (dds/container
        (dds/section {:title (:legal-heading t)}
@@ -707,8 +709,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/legal/tokushoho/"
-                            :language-en "/legal/tokushoho/"})
+     (site-header locale t)
      [:main {:id "main" :class "kc-legal"}
       (dds/container
        (dds/section {:title (:tokushoho-heading t)}
@@ -801,8 +802,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                            (dds/heading 3 title {:size "20"})
                            [:p body]]))
               (:library-steps t)))
-        [:pre {:class "kc-command"}
-         [:code reference-package-command]]
+        (code-block/block locale reference-package-command)
         [:p {:class "kc-live"}
          [:span {:class "kc-live__dot" :aria-hidden "true"}]
          [:span (:library-status t)]]
@@ -844,7 +844,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                            (dds/heading 3 title {:size "20"})
                            [:p body]]))
               (:steps t)))
-        [:pre {:class "kc-command"} [:code "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before direct Modal inference"]])
+        (code-block/block locale "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before inference"))
        (dds/section {:title (:boundary-title t) :id "trust"}
         (dds/card
          [:article {:class "kc-boundary"}
@@ -882,20 +882,34 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (str (resource-read "jp_go_dds/dds.css")
        "\n" (css-for-extras [:language-selector :menu-list-box :menu-list :breadcrumb :step-navigation])))
 
+(defn variant-url
+  "The absolute URL of one locale variant of a locale-free route: English
+  is the route itself (what a cookie-less crawler receives there); every
+  other locale is `<route>?lang=<locale>`, which the Worker serves directly
+  as that variant. Each variant is self-canonical so hreflang alternates
+  stay valid without a /<locale>/ path fork."
+  [path loc]
+  (let [home (console/surface-of path)]
+    (str (get-in console/surfaces [home :origin]) (console/href-for home path)
+         (when-not (= loc :en) (language-href loc)))))
+
 (defn document-head
      [locale path-key title description]
      (let [t (translation locale)
            path (path-key t)
-           ja-href (str "https://kotoba.cloud" (get-in copy [:ja path-key]))
-           en-href (str "https://kotoba.cloud" (get-in copy [:en path-key]))]
+           self (variant-url path locale)
+           ja-href (variant-url path :ja)
+           en-href (variant-url path :en)]
        (into (vec (for [loc supported-locales
                          :when (and (= path-key :path) (not (#{:en :ja} loc)))]
                      [:link {:rel "alternate" :hreflang (name loc)
-                             :href (str "https://kotoba.cloud/" (name loc) "/")}]))
-       [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+                             :href (variant-url path loc)}]))
+       [[:link {:rel "canonical" :href self}]
         [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
         [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
         [:script {:src "/js/language-selector.js" :defer true}]
+        [:script {:src "/js/shell.js" :defer true}]
+        [:script {:src "/js/code.js" :defer true}]
         [:script {:src "/js/session.js" :defer true}]
         [:link {:rel "alternate" :hreflang "ja" :href ja-href}]
         [:link {:rel "alternate" :hreflang "en" :href en-href}]
@@ -913,7 +927,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
         [:meta {:property "og:title" :content title}]
         [:meta {:property "og:description" :content description}]
         [:meta {:property "og:locale" :content (:og-locale t)}]
-        [:meta {:property "og:url" :content (str "https://kotoba.cloud" path)}]])))
+        [:meta {:property "og:url" :content self}]])))
 
 (defn mark-english-fallback
   "Keep assistive technology honest for technical copy awaiting translation."
@@ -938,10 +952,20 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :else x))]
       (walk node))))
 
+(defn- console-body
+  "A console body authored in ja / en, placed in a document of `locale`: the
+   body itself for :ja and :en, wrapped in lang=en for every other public
+   locale so assistive tech reads it in the right language (the shell
+   around it is in the document's locale)."
+  [locale body]
+  (if (contains? #{:ja :en} locale) body [:div {:lang "en"} body]))
+
+(defn- body-locale [locale] (if (= locale :ja) :ja :en))
+
 (defn view [locale]
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :href "#main"} (:skip t)]
-     ;; OrcaRouter-style shell: fixed left nav (Get started first), header
+     ;; console shell: fixed left nav (Get started first), header
      ;; on top, and the research chat as one panel — not the landing hero.
      (site-header locale t {:nav false})
      [:div {:id "kc-app-main"}
@@ -951,11 +975,44 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ;; the landing is the chat, which is not a nav destination: no item is current
      (app-sidebar locale t nil)
      (knowledge-site/view locale)
-     [:div {:id "security-view" :hidden true} (security-site/view true)]
+     [:div {:id "security-view" :hidden true}
+      (console-body locale (security-site/view (body-locale locale) true))]
      [:span {:id "kc-session-labels" :hidden true
              :data-signed-in-action (:signed-in-action t)
              :data-signed-in-status (:signed-in-status t)
              :data-signed-in-href kotobase-connect-href}]]))
+
+(defn- walk-hiccup
+  "postwalk for hiccup: vectors, seqs and attribute maps. clojure.walk is
+   not on every engine this file renders under; the shape here is closed
+   (html.core's input), so a 12-line walk is enough."
+  [f node]
+  (cond
+    (map? node) (f (into {} (map (fn [[k v]] [k (walk-hiccup f v)]) node)))
+    (vector? node) (f (into [] (map #(walk-hiccup f %) node)))
+    (seq? node) (f (doall (map #(walk-hiccup f %) node)))
+    :else (f node)))
+
+(defn surface-hrefs
+  "Resolve every href / src-less link attribute of a document for the
+   surface it is emitted on (console/href-for): on the apex, /docs/… becomes
+   https://docs.kotoba.cloud/…; on the docs host, /docs/… loses its prefix
+   and every other apex path becomes absolute. One walk over the whole page
+   (sidebar, top bar, footer, body) so no link generator needs to know the
+   host. Shared assets (/css/ /js/ /assets/) stay host-relative on both."
+  [surface page]
+  (walk-hiccup (fn [node]
+                 (if (and (map? node) (string? (:href node)))
+                   (update node :href #(console/href-for surface %))
+                   node))
+               page))
+
+(defn ->page
+  "page/->page with the surface walk: every document this file renders
+   directly (apex landing, legal, 404) links the docs host absolutely."
+  [opts & body]
+  (str "<!DOCTYPE html>\n"
+       (html/->html (surface-hrefs :apex (apply page/page opts body)))))
 
 (defn page-html
      ([] (page-html :en))
@@ -963,13 +1020,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ([locale view-fn]
       (let [t (translation locale)]
         (str/replace
-         (apply page/->page
+         (apply ->page
                {:title (:title t)
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
                 :dark? true
-                :app-css (str theme-toggle/css tokens/skin-css app-css app-sidebar-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
+                ;; the landing inlines its CSS (no /css/site.css link): the
+                ;; sidebar's account entry needs shell/css here too — the
+                ;; audit's :chrome-layers named it (24 apex variants at 0)
+                :app-css (str theme-toggle/css tokens/skin-css app-css app-sidebar-css shell/css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
                 :head (into [[:script {:src "/js/theme.js"}]] (document-head locale :path (:title t) (:description t)))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
@@ -1006,7 +1066,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        security-site/css "\n" csf2-site/css "\n"
        crypto-site/css "\n" compliance-site/css "\n"
        blog-site/css "\n"
-       dds-console/css "\n" account-site/css "\n"
+       dds-console/css "\n" shell/css "\n" code/css "\n" account-site/css "\n"
        secure-site/css "\n" models-site/css "\n" billing-site/css "\n"
        apps-site/css "\n" docs-site/css "\n"
        security-services-site/css))
@@ -1022,11 +1082,21 @@ body:has(.kc-sb){padding-inline-start:15rem}
   implementation); shinkansen (CID-published documents) is the planned
   delivery successor — keep emitted documents self-contained (no NEW
   external assets)."
-  [{:keys [title description lang robots extra-css sidebar? current locale]} body]
-  (page/->page
+  [{:keys [title description lang robots extra-css sidebar? current locale surface]
+    :or {surface :apex}} body]
+  ;; page/page is the hiccup; the surface walk runs BEFORE rendering. The
+  ;; document language follows the locale (its catalog html-lang) unless a
+  ;; caller names one; a right-to-left locale gets dir="rtl" on <html>
+  ;; exactly as page-html does for the landing (the shell's inline-start /
+  ;; inline-end rules follow it).
+  (let [lang (or lang (if locale (:html-lang (translation locale)) "ja"))]
+  (cond-> (str "<!DOCTYPE html>\n"
+   (html/->html
+    (surface-hrefs surface
+     (page/page
    {:title title
     :description description
-    :lang (or lang (if (= locale :en) "en" "ja"))
+    :lang lang
     :css ""
     :app-css ""
     ;; dark: the inversion layer lives in /css/site.css (site-css); page
@@ -1035,12 +1105,20 @@ body:has(.kc-sb){padding-inline-start:15rem}
     ;; (jp-go-dds.theme-toggle/script) — external, because script-src is
     ;; 'self' with no 'unsafe-inline' (csp.cljk).
     :dark? true :dark-source (document-css) :dark-inline? false
-    :head (into (if robots [[:meta {:name "robots" :content robots}]] [])
-                (into (into [[:script {:src "/js/theme.js"}]] site-css-link)
-                      [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-                       [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
-                       [:script {:src "/js/language-selector.js" :defer true}]
-                       [:script {:src "/js/session.js" :defer true}]]))}
+    :head (-> (if robots [[:meta {:name "robots" :content robots}]] [])
+              (into [[:script {:src "/js/theme.js"}]])
+              (into site-css-link)
+              (into [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                     [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
+                     [:script {:src "/js/language-selector.js" :defer true}]
+                     [:script {:src "/js/shell.js" :defer true}]
+                     [:script {:src "/js/code.js" :defer true}]
+                     [:script {:src "/js/session.js" :defer true}]])
+              ;; the surface the document is emitted on: shell-browser
+              ;; prefixes the hrefs it sets at runtime (setup chip /
+              ;; banner) with the apex origin on another host
+              (into (when (= surface :docs)
+                      [[:meta {:name "kc-apex" :content (get-in console/surfaces [:apex :origin])}]])))}
    (let [locale (or locale :ja)
          t (translation locale)]
      (if sidebar?
@@ -1060,12 +1138,21 @@ body:has(.kc-sb){padding-inline-start:15rem}
        (list [:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
              (site-header locale t)
              [:main {:id "main"} body])))
-   (site-footer (translation (or locale :ja)))))
+   (site-footer (translation (or locale :ja)))))))
+    (and locale (locales/rtl-locales locale))
+    (str/replace (str "<html lang=\"" lang "\">")
+                 (str "<html lang=\"" lang "\" dir=\"rtl\">")))))
 
-(defn security-html []
-     (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
+(defn security-html
+  "The security public-data hub, one document per public locale (the hub's
+   copy is ja / en; assets/security-data.js answers in <html lang>)."
+  ([] (security-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "セキュリティ公開データ — Kotoba Cloud" "Security public data — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
                    :extra-css (str tokens/bridge-css dds-catalog/css security-site/css)}
-      (security-site/view)))
+      (console-body locale (security-site/view (body-locale locale) false))))))
 
 (defn csf2-html []
      (site-layout {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
@@ -1117,28 +1204,51 @@ body:has(.kc-sb){padding-inline-start:15rem}
                    :extra-css research-site/css}
       (admin-site/section :ja)))
 
-(defn identity-html []
-     ;; Identity route is Stripe-Identity-only. The first-party browser capture
-     ;; console (identity-site / identity-browser / identity-gateway) stays in
-     ;; the repo as a tested component but is not rendered or linked today.
-     (site-layout {:title "本人確認 — Kotoba Cloud" :lang "ja"
+(defn identity-html
+  "Identity route is Stripe-Identity-only. The first-party browser capture
+   console (identity-site / identity-browser / identity-gateway) stays in
+   the repo as a tested component but is not rendered or linked today.
+   One document per public locale (copy ja / en)."
+  ([] (identity-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)
+         txt (fn [ja en] (if ja? ja en))]
+     (site-layout {:title (txt "本人確認 — Kotoba Cloud" "Identity verification — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
                    :robots "noindex"
                    :extra-css research-site/css}
-      (dds/container
-       (dds/heading 1 "本人確認は Stripe Identity 経路のみ" {:size "36"})
-       [:p "kotoba.cloud の本人確認は Stripe Identity（verify.stripe.com）のみを提供しています。書類と顔写真は Stripe にのみ送られ、kotoba.cloud は本人確認の状態・有効期限・証跡参照のみを保持します。"]
-       [:p "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"]
-       (dds/row (dds/button "研究者登録（Stripe Identity）" {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
-                (dds/button "登録ガイド" {:href "https://kotoba.cloud/llms.txt" :type :outline})))))
+      (console-body locale
+       (dds/container
+        (dds/heading 1 (txt "本人確認は Stripe Identity 経路のみ" "Identity verification runs through Stripe Identity only") {:size "36"})
+        [:p (txt "kotoba.cloud の本人確認は Stripe Identity（verify.stripe.com）のみを提供しています。書類と顔写真は Stripe にのみ送られ、kotoba.cloud は本人確認の状態・有効期限・証跡参照のみを保持します。"
+                 "kotoba.cloud verifies identity through Stripe Identity (verify.stripe.com) only. Documents and the face image go to Stripe alone; kotoba.cloud keeps the verification status, its expiry and evidence references.")]
+        [:p (txt "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"
+                 "A first-party console (browser capture, operator review) is maintained as a tested component but is not published or accepting requests today.")]
+        (dds/row (dds/button (txt "研究者登録（Stripe Identity）" "Researcher registration (Stripe Identity)") {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
+                 (dds/button (txt "登録ガイド" "Registration guide") {:href "https://kotoba.cloud/llms.txt" :type :outline}))))))))
 
-(defn account-html []
-  ;; Account console: session, Stripe-only identity verification, research
-  ;; eligibility, scopes and billing. Client logic lives in account-browser.
-  (site-layout {:title "アカウント管理 — Kotoba Cloud" :lang "ja"
-                :robots "noindex"
-                :sidebar? true :current "/account"
-                :extra-css (str account-site/css dds-console/css)}
-   (account-site/section)))
+(defn account-html
+  "Account console: session, identity verification, research eligibility,
+   scopes, organizations and billing; client logic lives in account-browser.
+   One document per public locale: the shell (top bar, sidebar, language
+   selector) in that locale, the console body in Japanese for :ja and in
+   English otherwise (account-site/section). /account is negotiated like
+   every other variant root (locale/variant-roots): cookie, ?lang=,
+   Accept-Language."
+  ([] (account-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "アカウント管理 — Kotoba Cloud" "Account — Kotoba Cloud")
+                   :lang (:html-lang t)
+                   :locale locale
+                   :robots "noindex"
+                   :sidebar? true :current "/account"
+                   :extra-css (str account-site/css dds-console/css)}
+      ;; a non-ja, non-en shell carries an English body: say so on the
+      ;; region so assistive tech reads it in the right language
+      (if (contains? #{:ja :en} locale)
+        (account-site/section locale)
+        [:div {:lang "en"} (account-site/section locale)])))))
 
 (defn billing-html [locale]
   ;; ACCOUNT › 料金・決済: the console shell in the document's locale (the
@@ -1153,66 +1263,62 @@ body:has(.kc-sb){padding-inline-start:15rem}
                   :extra-css (str dds-console/css billing-site/css)}
      (billing-site/section (if ja? :ja :en) (passkey-href (if ja? :ja :en))))))
 
-(defn secure-html []
-  ;; SECURE: guardrails / firewall / compliance — one document, three views,
-  ;; rendered from the policy the authority enforces (secure-site).
-  (site-layout {:title "セキュリティ管理 — Kotoba Cloud" :lang "ja"
-                :description "研究環境の実行時制御 — ガードレール、ファイアウォール、コンプライアンスの規則と版。"
-                :sidebar? true :current "/secure/"
-                :extra-css (str dds-console/css secure-site/css)}
-   (secure-site/section)))
+(defn secure-html
+  "SECURE: guardrails / firewall / compliance — one document, three views,
+   rendered from the policy the authority enforces (secure-site). One
+   document per public locale, negotiated like /account."
+  ([] (secure-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "セキュリティ管理 — Kotoba Cloud" "Security controls — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
+                   :description (if ja? "研究環境の実行時制御 — ガードレール、ファイアウォール、コンプライアンスの規則と版。"
+                                    "Runtime controls of the research environment — guardrail, firewall and compliance rules and their versions.")
+                   :sidebar? true :current "/secure/"
+                   :extra-css (str dds-console/css secure-site/css)}
+      (console-body locale (secure-site/section (body-locale locale)))))))
 
-(defn models-html []
-  ;; MANAGE › モデル: the admitted research models, limits and conditions.
-  (site-layout {:title "モデル — Kotoba Cloud" :lang "ja"
-                :description "研究 API で選べるモデル、無料枠、許可の条件。"
-                :sidebar? true :current "/models/"
-                :extra-css (str dds-console/css models-site/css)}
-   (models-site/section)))
-
-(def docs-css
-  ".kc-docs{padding-block:var(--hig-spacing-6)}.kc-docs h2{margin-block:var(--hig-spacing-6) var(--hig-spacing-3)}.kc-docs__lead{max-width:48rem;color:var(--hig-color-secondary-label)}.kc-docs__list{display:grid;gap:var(--hig-spacing-3);padding:0;list-style:none}.kc-docs__list li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-4)}.kc-docs__list a{font-weight:700}.kc-docs__config{padding:var(--hig-spacing-4);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;white-space:pre;overflow-wrap:normal}.kc-docs__note{padding:var(--hig-spacing-3) var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-tint);background:var(--hig-color-secondary-system-background);border-radius:0 var(--hig-radius-sm) var(--hig-radius-sm) 0}.kc-docs__chip{font-size:var(--hig-text-caption2-font-size);padding:2px var(--hig-spacing-2);border-radius:var(--hig-radius-capsule);border:1px solid var(--hig-color-separator)}.kc-docs__chip--verified{color:var(--hig-palette-green);border-color:var(--hig-palette-green)}.kc-docs__chip--pending{color:var(--hig-color-secondary-label)}.kc-docs__chip--caveat{color:var(--hig-palette-orange,var(--hig-color-label));border-color:var(--hig-palette-orange,var(--hig-color-label))}")
+(defn models-html
+  "MANAGE › Models: the admitted research models, limits and conditions.
+   One document per public locale, negotiated like /account."
+  ([] (models-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "モデル — Kotoba Cloud" "Models — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
+                   :description (if ja? "研究 API で選べるモデル、無料枠、許可の条件。"
+                                    "The research API's models, the free allowance and the conditions of admission.")
+                   :sidebar? true :current "/models/"
+                   :extra-css (str dds-console/css models-site/css)}
+      (console-body locale (models-site/section (body-locale locale)))))))
 
 (defn docs-page
   "Shared chrome for a docs page — the shared site-layout WITH the app
   sidebar (docs are part of the app navigation, orca-style)."
   [locale title-fn path content-fn]
   (site-layout {:title (title-fn (= locale :ja))
+                ;; docs live on docs.kotoba.cloud (owner direction
+                ;; 2026-09-15): every href is resolved for that surface
+                :surface :docs
                 :description "Docs — kotoba.cloud"
                 :lang (if (= locale :ja) "ja" "en")
                 :sidebar? true :current path
-                :extra-css (str tokens/bridge-css docs-css)}
-   (dds/container (content-fn (= locale :ja)))))
+                :extra-css docs-site/css}
+   ;; the docs' own map first (sections → documents, current page marked),
+   ;; then the document
+   (dds/container (docs-site/docs-nav locale path) (content-fn (= locale :ja)))))
 
 (defn docs-index-html
-  "/docs/ — the landing the sidebar's ドキュメント item links. It did not
-   exist until 2026-09-15 (the nav linked a 404 on every page; shinkansen
-   :links-resolve now refuses the build when a same-origin link has no
-   document behind it). One list, three sections, each a real document."
+  "/docs/ (the root of docs.kotoba.cloud) — the introduction (owner
+   direction 2026-09-15, reference IA docs.orcarouter.ai/introduction): what
+   this is in one sentence, why, and where to start. The docs map above it
+   (docs-site/docs-nav) lists every section; each link is a real document —
+   shinkansen :links-resolve refuses the build otherwise."
   [locale]
-  (let [ja? (= locale :ja)]
-    (docs-page locale
-               (fn [ja?] (if ja? "ドキュメント — Kotoba Cloud" "Docs — Kotoba Cloud"))
-               "/docs/"
-               (fn [_]
-                 [:div {:class "kc-docs"}
-                  (dds/heading 1 (if ja? "ドキュメント" "Docs") {:size "36"})
-                  [:p {:class "kc-docs__lead"}
-                   (if ja? "研究 API の使い方、エージェント・IDE からの接続、グラフデータベースの案内。"
-                       "How to use the research API, connect agents and IDEs, and work with the graph database.")]
-                  [:ul {:class "kc-docs__list"}
-                   [:li [:strong (if ja? "API リファレンス" "API reference")]
-                    [:p (if ja? "クイックスタート、ストリーミング、ツール、構造化出力、エラー、レート制限、課金と利用量、BYOK、セキュリティサービス。"
-                            "Quickstart, streaming, tools, structured outputs, errors, rate limits, billing and usage, BYOK, security services.")]
-                    [:a {:href "/docs/reference/"} (if ja? "開く" "Open")]]
-                   [:li [:strong (if ja? "接続ガイド" "Integrations")]
-                    [:p (if ja? "Claude Code、Codex CLI、Cline、Cursor、Aider などから研究 API を呼び出す設定。"
-                            "Configure Claude Code, Codex CLI, Cline, Cursor, Aider and others to call the research API.")]
-                    [:a {:href "/docs/integrations/"} (if ja? "開く" "Open")]]
-                   [:li [:strong (if ja? "グラフ・オントロジーデータベース" "Graph and ontology database")]
-                    [:p (if ja? "Kotobase のグラフデータベース、Datalog クエリ、オントロジーの案内。"
-                            "The Kotobase graph database, Datalog queries and ontology.")]
-                    [:a {:href "/docs/graph/"} (if ja? "開く" "Open")]]]]))))
+  (docs-page locale
+             (fn [ja?] (if ja? "Kotoba Cloud へようこそ — ドキュメント" "Welcome to Kotoba Cloud — Docs"))
+             "/docs/"
+             (fn [_] (into [:div {:class "kc-docs"}] (docs-site/intro-view locale)))))
 
 (defn docs-integrations-html
   ([] (docs-integrations-html :en))
@@ -1242,14 +1348,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
                  (docs-site/client-view id (if ja? :ja :en))))))
 
 (defn security-services-html
+  "One document per public locale (the view's copy is ja / en)."
   ([] (security-services-html :ja))
   ([locale]
-   (site-layout {:title "セキュリティサービス — Kotoba Cloud"
-                 :description "First-party security services: CTEM, DAST, SAST feed the VM vulnerability ledger (wvme)."
-                 :lang "ja"
-                 :sidebar? true :current "/security/services/"
-                  :extra-css security-services-site/css}
-    (security-services-site/view locale))))
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "セキュリティサービス — Kotoba Cloud" "Security services — Kotoba Cloud")
+                   :description "First-party security services: CTEM, DAST, SAST feed the VM vulnerability ledger (wvme)."
+                   :lang (:html-lang t) :locale locale
+                   :sidebar? true :current "/security/services/"
+                   :extra-css security-services-site/css}
+      (console-body locale (security-services-site/view (body-locale locale)))))))
 
 (defn apps-html
   ([] (apps-html :en))
@@ -1262,8 +1370,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
     (apps-site/view locale))))
 
 (defn aup-view [locale]
-  ;; Security Research Acceptable Use Policy + assurance ladder (orcarouter
-  ;; pattern): allowed / strictly prohibited / offensive conditions / privacy
+  ;; Security Research Acceptable Use Policy + assurance ladder: allowed /
+  ;; strictly prohibited / offensive conditions / privacy
   ;; plus the public rung schedule. The data comes from research.cljk so the
   ;; page and the API contract cannot drift apart.
   (let [aup research/acceptable-use-policy
@@ -1314,12 +1422,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ([] (legal-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
+        (apply ->page
                {:title (:legal-title t)
                 :description (operator-lead locale)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css)
+                :app-css (str tokens/skin-css app-css shell/css research-site/css)
                 :head (document-head locale :legal-path (:legal-title t)
                                      (operator-lead locale))}
                (legal-view locale)))))
@@ -1328,12 +1436,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ([] (tokushoho-html :en))
      ([locale]
       (let [t (translation locale)]
-        (apply page/->page
+        (apply ->page
                {:title (:tokushoho-title t)
                 :description (operator-lead locale)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css)
+                :app-css (str tokens/skin-css app-css shell/css research-site/css)
                 :head (document-head locale :tokushoho-path
                                      (:tokushoho-title t)
                                      (operator-lead locale))}
@@ -1342,11 +1450,10 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn graph-docs-view [locale]
   (let [ja? (= locale :ja)
         t (translation locale)
-        txt (fn [ja en] (if ja? ja en))
-        docs-path (if ja? "/ja/docs/graph/" "/docs/graph/")]
+        txt (fn [ja en] (if ja? ja en))]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/ja/docs/graph/" :language-en "/docs/graph/"})
+     (site-header locale t)
      [:main {:id "main" :class "kc-docs"}
       (dds/container
        (dds/section {:title (txt "Graph・Ontologyデータベース — ドキュメント"
@@ -1360,7 +1467,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
               "The Database & Ontology workbench on the kotoba.cloud home page visualizes and analyzes observed attributes and types over immutable IPLD snapshots.")]
         (dds/row
          (dds/button (txt "ワークベンチを開く (トップページ)" "Open the workbench (home page)")
-                     {:type :solid-fill :size "md" :href (if ja? "/ja/#knowledge/overview" "/#knowledge/overview")})
+                     {:type :solid-fill :size "md" :href "/#knowledge/overview"})
          (dds/button (txt "料金・プラン" "Billing & plans")
                      {:type :outline :size "md" :href "/billing/"}))
         (dds/heading 2 (txt "周辺プロジェクト" "Surrounding projects") {:size "28"})
@@ -1391,31 +1498,34 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn graph-docs-html
      ([] (graph-docs-html :en))
      ([locale]
-      (let [ja? (= locale :ja) path (if ja? "/ja/docs/graph/" "/docs/graph/")]
-        (apply page/->page
+      (let [ja? (= locale :ja) path "/docs/graph/"]
+        (str "<!DOCTYPE html>\n"
+         (html/->html
+          (surface-hrefs :docs
+           (page/page
                {:title (if ja? "Graph・Ontologyデータベース — Kotoba Cloud"
                          "Graph & Ontology database — Kotoba Cloud")
                 :description (if ja? "Kotoba Cloud Database の Graph・Ontology ワークベンチの使い方と ayatori・capability-bench などの周辺資料。"
                                "Usage guide for the Kotoba Cloud Database graph & ontology workbench plus ayatori and capability-bench reference material.")
                 :lang (if ja? "ja" "en") :css (document-css)
-                :app-css (str tokens/skin-css tokens/bridge-css
+                :app-css (str tokens/skin-css tokens/bridge-css shell/css
                               ".kc-docs{padding-block:var(--hig-spacing-4)}.kc-docs__list li{padding:var(--hig-spacing-3)}@media(max-width:30rem){.kc-docs h2{font-size:1.25rem}.kc-docs__list li{padding:var(--hig-spacing-2)}}")
-                :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
-                       [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/docs/graph/"}]
-                       [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/docs/graph/"}]
-                       [:link {:rel "alternate" :hreflang "x-default" :href "https://kotoba.cloud/docs/graph/"}]
+                :head [[:link {:rel "canonical" :href (variant-url path locale)}]
+                       [:link {:rel "alternate" :hreflang "ja" :href (variant-url path :ja)}]
+                       [:link {:rel "alternate" :hreflang "en" :href (variant-url path :en)}]
+                       [:link {:rel "alternate" :hreflang "x-default" :href (variant-url path :en)}]
                        [:script {:src "/js/language-selector.js" :defer true}]
                        [:script {:src "/js/session.js" :defer true}]]}
-               (graph-docs-view locale)))))
+               (graph-docs-view locale))))))))
 
 (defn not-found-html
      ([] (not-found-html :en))
      ([locale]
       (let [t (translation locale)
             dds-css (resource-read "jp_go_dds/dds.css")]
-        (page/->page
+        (->page
          {:title (:not-found-title t) :description (:not-found-lead t)
-          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css research-site/css)
+          :lang (:html-lang t) :css dds-css :app-css (str tokens/skin-css app-css shell/css research-site/css)
           :head [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
                  [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]]}
          (dds/container
@@ -1444,6 +1554,19 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn- spit-file [path content]
   (fs/mkdirSync (node-path/dirname path) #js {:recursive true})
   (fs/writeFileSync path content))
+
+(defn- spit-locale-variants!
+  "One console document per public locale at `rel` (e.g. \"secure\"):
+   the locale-free emit is English, /en/ its prefixed address, every other
+   locale under its directory — the shape locale/variant-roots negotiates
+   (cookie, ?lang=, Accept-Language). Measured 2026-09-15 in Chrome:
+   /secure/ /models/ /security/ /security/services/ /identity/ answered in
+   Japanese to an English reader because each was one ja emit."
+  [root rel html-fn]
+  (spit-file (node-path/join root rel "index.html") (html-fn :en))
+  (spit-file (node-path/join root "en" rel "index.html") (html-fn :en))
+  (doseq [locale supported-locales :when (not= locale :en)]
+    (spit-file (node-path/join root (name locale) rel "index.html") (html-fn locale))))
 
 
 (defn- copy-file [src target]
@@ -1505,6 +1628,13 @@ body:has(.kc-sb){padding-inline-start:15rem}
                  (str behavior/language-selector-script "\n" locale/language-cookie-script))
       ;; the theme choice, applied in <head> before paint on every document
       (spit-file (node-path/join js-dir "theme.js") theme-toggle/script)
+      ;; the shell chrome's runtime (cloud-kotoba-dds.shell: the account
+      ;; entry's fill + reveal, Escape / outside close) — external because
+      ;; script-src is 'self'
+      (spit-file (node-path/join js-dir "shell.js") shell/script)
+      ;; the code block's copy control (cloud-kotoba-dds.code): reveals the
+      ;; control where the clipboard is writable, copies the block verbatim
+      (spit-file (node-path/join js-dir "code.js") code/script)
       (doseq [source (fs-walk-files ipfs-source)]
         (copy-file source (node-path/join ipfs-target (node-path/basename source))))
       (copy-file registry-source registry-target)
@@ -1532,10 +1662,15 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (let [headers (node-path/join "assets" "_headers")]
         (when (fs/existsSync headers)
           (copy-file headers (node-path/join root "_headers"))))
-            (let [out (node-path/join root "identity" "index.html")]
-        (spit-file out (identity-html)))
-      (let [out (node-path/join root "account" "index.html")]
-        (spit-file out (account-html)))
+      (spit-locale-variants! root "identity" identity-html)
+      ;; the account console: one variant per public locale (en at the
+      ;; locale-free root, the rest under their locale directory)
+      (spit-file (node-path/join root "account" "index.html") (account-html :en))
+      (spit-file (node-path/join en-dir "account" "index.html") (account-html :en))
+      (doseq [locale supported-locales :when (not= locale :en)]
+        (let [dir (node-path/join root (name locale) "account")]
+          (fs/mkdirSync dir #js {:recursive true})
+          (spit-file (node-path/join dir "index.html") (account-html locale))))
       (let [out (node-path/join root "admin" "index.html")]
         (spit-file out (admin-html)))
       ;; security + csf2 + crypto static pages and their data blocks
@@ -1546,8 +1681,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
                   target (node-path/join root rel)]
               (copy-file source target)))))
       (copy-file (node-path/join "assets" "security-data.js") (node-path/join js-dir "security-data.js"))
-      (doseq [path ["security/index.html" "ja/security/index.html" "security-data/index.html"]]
-        (spit-file (node-path/join root path) (security-html)))
+      (spit-locale-variants! root "security" security-html)
+      (spit-locale-variants! root "security-data" security-html)
       (doseq [path ["csf2/index.html" "security/csf2/index.html" "ja/security/csf2/index.html"]]
         (spit-file (node-path/join root path) (csf2-html)))
       (doseq [source (fs-walk-files (node-path/join "assets" "csf2-catalog"))]
@@ -1565,8 +1700,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (copy-file (node-path/join "assets" "norbert-chat.js") (node-path/join js-dir "norbert-chat.js"))
       (spit-file (node-path/join root "apps" "index.html") (apps-html :en))
       (spit-file (node-path/join root "ja" "apps" "index.html") (apps-html :ja))
-      (spit-file (node-path/join root "security" "services" "index.html") (security-services-html :ja))
-      (spit-file (node-path/join root "ja" "security" "services" "index.html") (security-services-html :ja))
+      (spit-locale-variants! root (node-path/join "security" "services") security-services-html)
       (spit-file (node-path/join root "security" "aup" "index.html") (aup-html :en))
       (spit-file (node-path/join root "ja" "security" "aup" "index.html") (aup-html :ja))
       (spit-file (node-path/join root "crypto" "index.html") (crypto-html))
@@ -1596,10 +1730,10 @@ body:has(.kc-sb){padding-inline-start:15rem}
       ;; graph docs: former kotobase.net content surface
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
-      ;; docs: integrations overview + one page per client (orcarouter pattern)
+      ;; docs: integrations overview + one page per client
       ;; console documents rendered from policy data (2026-09-15 round 3)
-      (spit-file (node-path/join root "secure" "index.html") (secure-html))
-      (spit-file (node-path/join root "models" "index.html") (models-html))
+      (spit-locale-variants! root "secure" secure-html)
+      (spit-locale-variants! root "models" models-html)
       ;; /docs/ landing — the document the sidebar links (2026-09-15)
       (spit-file (node-path/join root "docs" "index.html") (docs-index-html :en))
       (spit-file (node-path/join root "ja" "docs" "index.html") (docs-index-html :ja))
@@ -1612,7 +1746,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                                        [:p (if ja? (:desc-ja r) (:desc-en r))]
                                        [:a {:href (str "/docs/reference/" (:id r) "/")} "Open"]])))))
       (spit-file (node-path/join root "ja" "docs" "reference" "index.html")
-                 (docs-page :ja (fn [_] "API リファレンス — Kotoba Cloud") "/ja/docs/reference/"
+                 (docs-page :ja (fn [_] "API リファレンス — Kotoba Cloud") "/docs/reference/"
                             (fn [ja?]
                               (into [:ul {:class "kc-docs__list"}]
                                     (for [r docs-site/ref-pages]

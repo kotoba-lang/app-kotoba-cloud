@@ -1,0 +1,1 @@
+{"product/category":"Backup","product/csf":["PR.DS-11","RC.RP-03","PR.DS-01"],"product/id":"borgbackup","product/name":"BorgBackup","product/platform":"CLI","product/source":"https://www.borgbackup.org/","product/summary":"Deduplicating backup with compression and authenticated encryption.","product/vendor":"Borg (open source)"}

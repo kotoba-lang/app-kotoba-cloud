@@ -1,0 +1,1 @@
+{"product/category":"SAST","product/csf":["PR.PS-06","ID.RA-01","GV.SC-05","GV.SC-07"],"product/id":"semgrep","product/name":"Semgrep","product/platform":"CLI/CI","product/source":"https://semgrep.dev/","product/summary":"Fast static analysis with custom rules and supply-chain dependency scanning.","product/vendor":"Semgrep"}

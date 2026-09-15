@@ -51,7 +51,7 @@ Self binds selfie↔chip in their proof. In-house:
 
 1. capture bridge captures a **live selfie video** (3 s, device attestation
    via WebAuthn creation on the same device) plus stills.
-2. the stills + DG5 (portrait) hash go to the **Modal face service**
+2. the stills + DG5 (portrait) hash go to the **face service** (a private deployment)
    (cloud-murakumo model-runtime, ArcFace-family ONNX, CPU):
    - `POST /verify` `{portraitDigest, selfieFrames[]}` →
      `{match: bool, score, modelId}` (server keeps nothing but the digest)
@@ -119,7 +119,7 @@ authority, not the client**:
 ## Consequences
 
 - removes the Self Network dependency entirely (edge + their PKI)
-- cost per verification ≈ Modal CPU seconds (fractions of a cent) + zero
+- cost per verification ≈ the face service's CPU seconds (fractions of a cent) + zero
   per-verification vendor fee
 - plaintext disclosure to the authority (documented tradeoff)
 - the mobile capture bridge is the largest single piece of new engineering
@@ -134,6 +134,6 @@ authority, not the client**:
    sample, one tampered SOD → must fail)
 2. authority e2e: chip-evidence fixture → approval chain, then replay with
    same document number / different principal → rejected
-3. Modal face service: same-person fixture pair ≥ threshold, different-person
+3. Face service: same-person fixture pair ≥ threshold, different-person
    pair < threshold, liveness spoof video → fail
 4. staging: one real passport NFC read end-to-end through the mobile shell

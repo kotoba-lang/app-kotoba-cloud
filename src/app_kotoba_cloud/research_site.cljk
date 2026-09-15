@@ -26,7 +26,7 @@
              ["AML / CTF" "制裁・PEP 等の照合、リスク審査、必要な追加確認。保留・期限切れ・停止中は推論できません。"]
              ["無料で調査" "調査権限と対象範囲を確認後、無料枠を利用。確認後も継続的な再審査を行います。"]]
      :fee "本人確認済みの研究者は $0"
-     :quota "提供開始後の無料枠：1 日 50 リクエスト、1 回最大 2,048 出力トークン。上限で停止し、自動課金はしません。"
+     :quota "提供開始後の無料枠：1 日 1,000 リクエスト、1 回最大 32,768 出力トークン。上限で停止し、自動課金はしません。"
      :login "まずログイン" :refresh "利用資格を確認" :new "新しく本人確認" :reuse "確認済みの結果を再利用"
      :purpose "調査目的" :scope "許可された対象と権限の根拠" :issuer "確認結果の発行元（再利用時）" :reference "発行元の参照番号（再利用時）"
      :consent "利用条件・個人情報の取り扱いを確認し、本人確認と審査に必要な処理に同意します。"
@@ -129,7 +129,7 @@
                           [:option {:value "code-review"} (if (= locale :ja) "コードレビュー" "Code review")]
                           [:option {:value "vulnerability-triage"} (if (= locale :ja) "脆弱性の整理" "Vulnerability triage")]
                           [:option {:value "remediation"} (if (= locale :ja) "修正支援" "Remediation")]]]
-        [:label (:input t) [:textarea {:id "research-input" :required true :maxlength 24000}]]
+        [:label (:input t) [:textarea {:id "research-input" :required true :maxlength 524288}]]
         (dds/button (:run t) {:id "research-run" :submit? true :disabled true})]
        [:p {:id "research-output" :class "kc-research-result" :role "status" :aria-live "polite"}])]
      [:section {:class "kc-research-section" :id "research-terms"}

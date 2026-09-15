@@ -1,0 +1,1 @@
+{"product/category":"SCA/container scan","product/csf":["ID.RA-01","ID.RA-09","PR.PS-01","PR.PS-02","PR.PS-06","GV.SC-07"],"product/id":"trivy","product/name":"Trivy","product/platform":"CLI/CI","product/source":"https://trivy.dev/","product/summary":"Comprehensive scanner for containers, IaC, secrets and dependencies.","product/vendor":"Aqua Security (open source)"}
