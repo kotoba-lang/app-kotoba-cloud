@@ -43,6 +43,7 @@
     { "id": "sandbox", "name": "Sandbox / Malware Analysis", "name-ja": "サンドボックス・マルウェア分析", "desc": "Detonation, reverse-engineering, file reputation services." },
     { "id": "vuln-intel", "name": "Vulnerability Intelligence", "name-ja": "脆弱性インテリジェンス", "desc": "CVE enrichment, exploit intel (EPSS/KEV-derived), prioritization feeds." },
     { "id": "password-mgr", "name": "Password Managers", "name-ja": "パスワードマネージャ", "desc": "Personal/team password vaults, secrets sharing for humans." },
-    { "id": "ddil-forensics", "name": "DFIR / Digital Forensics", "name-ja": "フォレンジック・インシデント対応", "desc": "Forensic imaging, memory analysis, IR retainer platforms." }
+    {"id": "ddil-forensics", "name": "DFIR / Digital Forensics", "name-ja": "フォレンジック・インシデント対応", "desc": "Forensic imaging, memory analysis, IR retainer platforms."},
+    {"id": "consumer-av", "name": "Consumer Antivirus", "name-ja": "個人向けアンチウイルス", "desc": "Home/consumer malware protection suites for personal devices."}
   ]
 }

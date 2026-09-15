@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:36:19.689Z",
+ "generatedAt": "2026-09-15T09:39:12.314Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
- "categoryCount": 44,
- "productCount": 364,
+ "categoryCount": 45,
+ "productCount": 366,
  "ontology": {
-  "nodes": 44,
-  "claims": 3965,
+  "nodes": 45,
+  "claims": 3982,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerahuvc6dowcootr372677fy4dlknejhireqttdb233eqqywsltfiaa"
+   "/": "baguqeeras7ofg452d3jzveqkmcx3w6r67dqphlbooqas5qufk55wjoigtxpa"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -881,6 +881,19 @@
     "GV.RM-06"
    ]
   },
+  "consumer-av": {
+   "addresses": [
+    "consumer malware infection",
+    "ransomware on personal devices",
+    "fraud/phishing protection for home users"
+   ],
+   "csf": [
+    "PR.PS-04",
+    "DE.CM-01",
+    "DE.CM-09",
+    "RS.MI-01"
+   ]
+  },
   "password-mgr": {
    "addresses": [
     "password reuse across services",
@@ -1186,6 +1199,12 @@
    "name": "DFIR / Digital Forensics",
    "name-ja": "フォレンジック・インシデント対応",
    "desc": "Forensic imaging, memory analysis, IR retainer platforms."
+  },
+  {
+   "id": "consumer-av",
+   "name": "Consumer Antivirus",
+   "name-ja": "個人向けアンチウイルス",
+   "desc": "Home/consumer malware protection suites for personal devices."
   }
  ],
  "frameworks": [
@@ -4804,9 +4823,9 @@
    "categoryId": "itdr",
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.trendaisecurity.com/ja/platform/identity-security",
-   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here). JP page self-describes as TrendAI Vision One™ Identity Security — エンドツーエンドのIDセキュリティおよび保護ソリューション: シャドウアカウント/人間以外/AIエージェントのID排除、ハイブリッド環境全体のアセット継続検出とIDリスク低減 (title/description verified 2026-09-15). Product-specific compliance certifications not published on the product page; left unverified rather than inferred.",
+   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here)",
    "record": {
-    "/": "baguqeeravyxwt6zdj7u35oa5nzn4emehbsuia4i7x3ne325rbo5ygdudbqra"
+    "/": "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka"
    }
   },
   {
@@ -7310,6 +7329,32 @@
    "record": {
     "/": "baguqeeraphdckj7pxdev2h4mdd6vtdkbvzjwxic373zzqyir5luqx5qk6dha"
    }
+  },
+  {
+   "id": "trend-vb-cloud",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター クラウド",
+   "categoryId": "consumer-av",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vb.html",
+   "pricingNote": "public list; ja_jp product page (verified HTTP 200 on 2026-09-15) shows ダウンロード 1年版 7,480円(税込) and 3年版 17,930円(税込), デバイス保護3台; 30日間無料体験あり",
+   "record": {
+    "/": "baguqeeraei3rvl6xzhajzwsj5gg4karz2yqgoxxkoru3hjawqqjnd7zmde3a"
+   }
+  },
+  {
+   "id": "trend-vb-cloud-premium",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター クラウド ＋ デジタルライフサポート プレミアム",
+   "categoryId": "consumer-av",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbp.html",
+   "pricingNote": "public list; ja_jp product page (verified HTTP 200 on 2026-09-15) shows prices 21,780円 / 18,700円 / 10,780円 (いずれも税込, 期間・デバイス構成別)",
+   "record": {
+    "/": "baguqeeraswwi45r5xvmddkrbvyv5b4uahss4gqairoprjzv6xz2ffksh7ila"
+   }
   }
  ],
  "blocks": {
@@ -8388,9 +8433,9 @@
    "bytes": 455,
    "codec": "dag-json"
   },
-  "baguqeeravyxwt6zdj7u35oa5nzn4emehbsuia4i7x3ne325rbo5ygdudbqra": {
-   "path": "/compliance-data/compliance/blocks/baguqeeravyxwt6zdj7u35oa5nzn4emehbsuia4i7x3ne325rbo5ygdudbqra.json",
-   "bytes": 904,
+  "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka": {
+   "path": "/compliance-data/compliance/blocks/baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka.json",
+   "bytes": 438,
    "codec": "dag-json"
   },
   "baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa": {
@@ -9213,18 +9258,28 @@
    "bytes": 467,
    "codec": "dag-json"
   },
-  "baguqeerahuvc6dowcootr372677fy4dlknejhireqttdb233eqqywsltfiaa": {
-   "path": "/compliance-data/compliance/blocks/baguqeerahuvc6dowcootr372677fy4dlknejhireqttdb233eqqywsltfiaa.json",
+  "baguqeeraei3rvl6xzhajzwsj5gg4karz2yqgoxxkoru3hjawqqjnd7zmde3a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraei3rvl6xzhajzwsj5gg4karz2yqgoxxkoru3hjawqqjnd7zmde3a.json",
+   "bytes": 455,
+   "codec": "dag-json"
+  },
+  "baguqeeraswwi45r5xvmddkrbvyv5b4uahss4gqairoprjzv6xz2ffksh7ila": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraswwi45r5xvmddkrbvyv5b4uahss4gqairoprjzv6xz2ffksh7ila.json",
+   "bytes": 486,
+   "codec": "dag-json"
+  },
+  "baguqeeras7ofg452d3jzveqkmcx3w6r67dqphlbooqas5qufk55wjoigtxpa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeras7ofg452d3jzveqkmcx3w6r67dqphlbooqas5qufk55wjoigtxpa.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerayv4rtxae24x2njpl53xn6dndgvetsvjov5zp4ev3wtbovfmardua": {
-   "path": "/compliance-data/compliance/blocks/baguqeerayv4rtxae24x2njpl53xn6dndgvetsvjov5zp4ev3wtbovfmardua.json",
-   "bytes": 260593,
+  "baguqeerasa42gc6reipuyw5iwmsnpjo4soycqg76xz6lsqmpdko3eg2tg72a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerasa42gc6reipuyw5iwmsnpjo4soycqg76xz6lsqmpdko3eg2tg72a.json",
+   "bytes": 261997,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerayv4rtxae24x2njpl53xn6dndgvetsvjov5zp4ev3wtbovfmardua"
+  "/": "baguqeerasa42gc6reipuyw5iwmsnpjo4soycqg76xz6lsqmpdko3eg2tg72a"
  }
 }

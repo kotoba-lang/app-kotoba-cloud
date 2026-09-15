@@ -4,7 +4,7 @@
   "addresses": "https://kotoba.cloud/vocab/compliance#addresses",
   "csf-subcategories": "https://kotoba.cloud/vocab/csf2#subcategory"
  },
- "generatedAt": "2026-09-15T09:36:19.689Z",
+ "generatedAt": "2026-09-15T09:39:12.314Z",
  "csf2/subcategory-labels": {
   "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
   "GV.OC-02": "Internal and external stakeholders are understood, and their needs and expectations regarding cybersecurity risk management are understood and considered",
@@ -1130,6 +1130,24 @@
     "RS.MI-02",
     "RC.RP-04",
     "ID.IM-01"
+   ]
+  },
+  {
+   "@id": "compliance/category/consumer-av",
+   "@type": "service-category",
+   "name": "Consumer Antivirus",
+   "name-ja": "個人向けアンチウイルス",
+   "description": "Home/consumer malware protection suites for personal devices.",
+   "addresses": [
+    "consumer malware infection",
+    "ransomware on personal devices",
+    "fraud/phishing protection for home users"
+   ],
+   "csf-subcategories": [
+    "PR.PS-04",
+    "DE.CM-01",
+    "DE.CM-09",
+    "RS.MI-01"
    ]
   }
  ]

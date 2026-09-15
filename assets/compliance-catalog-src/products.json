@@ -2713,7 +2713,7 @@
    "categoryId": "itdr",
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.trendaisecurity.com/ja/platform/identity-security",
-   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here). JP page self-describes as TrendAI Vision One™ Identity Security — エンドツーエンドのIDセキュリティおよび保護ソリューション: シャドウアカウント/人間以外/AIエージェントのID排除、ハイブリッド環境全体のアセット継続検出とIDリスク低減 (title/description verified 2026-09-15). Product-specific compliance certifications not published on the product page; left unverified rather than inferred."
+   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here)"
   },
   {
    "id": "trend-threat-intelligence",
@@ -4724,6 +4724,26 @@
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/support-services.html",
    "pricingNote": "quote-based; JP product page (verified HTTP 200 on 2026-09-15) lists expert support services incl. incident-time support (インシデント時の支援) with no public pricing"
+  },
+  {
+   "id": "trend-vb-cloud",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター クラウド",
+   "categoryId": "consumer-av",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vb.html",
+   "pricingNote": "public list; ja_jp product page (verified HTTP 200 on 2026-09-15) shows ダウンロード 1年版 7,480円(税込) and 3年版 17,930円(税込), デバイス保護3台; 30日間無料体験あり"
+  },
+  {
+   "id": "trend-vb-cloud-premium",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター クラウド ＋ デジタルライフサポート プレミアム",
+   "categoryId": "consumer-av",
+   "pricingMode": "public-list",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbp.html",
+   "pricingNote": "public list; ja_jp product page (verified HTTP 200 on 2026-09-15) shows prices 21,780円 / 18,700円 / 10,780円 (いずれも税込, 期間・デバイス構成別)"
   }
  ]
 }
