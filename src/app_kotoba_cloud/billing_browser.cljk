@@ -10,9 +10,9 @@
                        el (.getElementById js/document "billing-balances")]
                    (when el
                      (set! (.-textContent el)
-                           (str "残り利用枠 / Available: AI " (/ (available "ai") 1000000)
-                                " credits · Storage " (/ (available "storage.capacity") 200000)
-                                " GiB · DB " (/ (available "storage") 1000000) " credits")))))))
+                           (str "残り利用枠 / Available: AI $" (/ (available "ai") 1000000)
+                                " · 保存 / Storage " (/ (available "storage.capacity") 200000)
+                                " GiB · 保存超過分 $" (/ (available "storage") 1000000))))))))
       (.catch (fn [_] nil))))
 (defn- connection! []
   (when (= "1" (.get (.-searchParams (js/URL. (.-href js/location))) "connection-check"))

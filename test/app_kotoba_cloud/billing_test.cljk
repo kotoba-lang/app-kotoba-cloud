@@ -21,7 +21,13 @@
     (is (nil? (b/paid-line i l {})))))
 (deftest catalog-separation
   (is (= 5 (count b/plans)))
-  (is (= "ai" (:scope (b/plan "ai-credits-25")))))
+  (is (= "ai" (:scope (b/plan "ai-credits-25"))))
+  ;; 1 credit = $1 across AI and storage top-ups.
+  (is (every? #(= (:cents %) (* 100 (:credits %))) (filter :topup b/plans)))
+  ;; Storage is priced per GiB-month: $0.20/GiB (200000 micro-USD).
+  (is (= 0.2 (/ (:storage-gib-month b/rates) 1000000)))
+  (is (= 0.2 (:storageUSDPerGiBMonth b/catalog)))
+  (is (= 20 (:usd (get-in b/catalog [:platform :pro])))))
 
 (deftest bundled-allowances
   (let [line {:id "invoice:line" :scope "platform" :credits 12 :gib 20 :start 10 :end 20}

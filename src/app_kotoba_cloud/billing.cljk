@@ -1,12 +1,12 @@
 (ns app-kotoba-cloud.billing
   "Versioned prices and measurement contracts. Money is integer micro-USD.")
-(def version "2026-09-14-v2")
+(def version "2026-09-15-v3")
 (def plans
   [{:sku "pro" :name "Pro" :scope "platform" :cents 2000 :credits 12 :gib 20}
    {:sku "max" :name "Max" :scope "platform" :cents 10000 :credits 60 :gib 100}
    {:sku "ultra" :name "Ultra" :scope "platform" :cents 20000 :credits 120 :gib 250}
-   {:sku "ai-credits-25" :name "AI Credits 25" :scope "ai" :cents 2500 :credits 25 :topup true}
-   {:sku "storage-credits-25" :name "Database Credits 25" :scope "storage" :cents 2500 :credits 25 :topup true}])
+   {:sku "ai-credits-25" :name "AI Credits $25" :scope "ai" :cents 2500 :credits 25 :topup true}
+   {:sku "storage-credits-25" :name "Storage Credits $25" :scope "storage" :cents 2500 :credits 25 :topup true}])
 (defn plan [sku] (first (filter #(= sku (:sku %)) plans)))
 (def rates {:input-per-million 600000 :cached-input-per-million 150000
             :output-per-million 2400000 :storage-gib-month 200000
@@ -16,7 +16,14 @@
               :free {:identityRequired true :existingResearchQuotaUnchanged true :storageGiB 1}
               :enterprise {:minimumMonthlyUSD 1000 :quoteRequired true :postpaidDefault false}
               :subscriptionScope "platform" :includedBalances ["ai" "storage.capacity"]
-              :automaticTopup false :taxIncluded false})
+              :automaticTopup false :taxIncluded false
+              ;; Storage is priced in stored GiB-months, not abstract credits:
+              ;; 1 credit = $1 = 5 GiB stored for one month.
+              :storageUSDPerGiBMonth (/ (:storage-gib-month rates) 1000000)
+              :aiTopupCreditsPerUSD 1
+              :platform {:pro {:usd 20 :aiCredits 12 :storageGiB 20}
+                         :max {:usd 100 :aiCredits 60 :storageGiB 100}
+                         :ultra {:usd 200 :aiCredits 120 :storageGiB 250}}})
 (defn natural? [x] (and (integer? x) (<= 0 x 1000000000000)))
 (defn token-event [receipt customer]
   (let [{:keys [requestId model inputTokens cachedInputTokens outputTokens occurredAt]} receipt]
