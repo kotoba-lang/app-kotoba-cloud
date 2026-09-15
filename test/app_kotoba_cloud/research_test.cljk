@@ -157,15 +157,16 @@
   ;; server-side; the model returns text only and tool use stays user-local.
   (is (r/completion-openai-compatible? {:model r/model-id :messages [{:role "user" :content "hi"}]}))
   (is (r/completion-openai-compatible? {:model r/model-id :messages [{:role "user" :content "hi"}] :tools []}))
-  ;; #191: an agent's tool list is accepted on the wire and DROPPED — it is an
-  ;; openai-ignorable key, so the forwarded body never carries it
+  ;; #196: an agent's tool DEFINITIONS go to the origin and its tool_calls
+  ;; come back to the agent (native tool calls); the server still runs
+  ;; nothing — execution is the agent's, on the agent's machine
   (is (r/completion-openai-compatible?
        {:model r/model-id :messages [{:role "user" :content "hi"}]
         :tools [{:type "function" :function {:name "run_shell"}}]}))
-  (is (contains? r/openai-ignorable-keys "tools"))
+  (is (not (contains? r/openai-ignorable-keys "tools")) "tools are forwarded, not dropped")
   (is (not (r/completion? {:model r/model-id :task "code-review" :scopeId "owned" :max_tokens 64
                            :messages [{:role "user" :content "hi"}]
                            :tools [{:type "function" :function {:name "run_shell"}}]}))
-      "the strict shape the authority admits has no tools key at all")
+      "the strict cookie shape still has no tools key")
   (is (some #{:localExecution} (keys r/acceptable-use-policy)))
   (is (some #(re-find #"never executes tools" %) (:points (:localExecution r/acceptable-use-policy)))))
