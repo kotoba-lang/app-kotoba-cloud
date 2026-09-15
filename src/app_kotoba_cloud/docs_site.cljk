@@ -366,32 +366,6 @@
  "# the model catalog (/v1/models) lists what the gateway routes;\n"
                         "# there is no per-workspace upstream key attachment surface"))]))
 
-(defn security-services-view [locale]
-  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
-    [[:h1 (txt "Security services (CTEM / DAST / SAST / VM)" "Security services (CTEM / DAST / SAST / VM)")]
-     [:p {:class "kc-docs__lead"}
-      (txt "kotoba.cloud の第一次セキュリティサービス群。CTEM・DAST・SAST が発する所見は共通スキーマ (finding-id / service / asset / severity / evidence / first-seen / last-seen) で VM 台帳へ集約されます。"
-           "The first-party security services suite. Findings from CTEM, DAST and SAST flow into the VM ledger in one shared schema (finding-id / service / asset / severity / evidence / first-seen / last-seen).")]
-     [:h2 (txt "SAST — 静的アプリケーションセキュリティテスト" "SAST — Static application security testing")]
-     [:p {:class "kc-docs__lead"}
-      (txt "ソースコードを解析して脆弱パターンとサニタイズ漏れを検出し、ファイル・行つきのコード所見を VM 台帳へ出します (現状 gated: 実施は非公開 authority が担います)。"
-           "Analyzes source code for vulnerable patterns and missing sanitization, emitting code findings with file and line to the VM ledger (currently gated: enforcement stays on the private authority).")]
-     (config-block (str "domain:      static-analysis\n"
-                        "capabilities: code-analysis · taint-flow · code-finding\n"
-                        "inputs:      source-code · dependency-manifests\n"
-                        "outputs:     code-findings · taint-paths · dependency-notes\n"
-                        "integration:  feeds vm, emits finding (role: code-findings)\n"
-                        "status:      gated"))
-     (note-block
-      (txt "サービス台帳と各サービスの詳細: "
-           "Service ledger and per-service details: "))
-     [:p [:a {:href "/security/services/"} "/security/services/"]]
-     [:p (txt "機械可読カタログ: " "Machine-readable catalog: ")]
-     [:p [:a {:href "/v1/security/services"} "/v1/security/services"]]
-     [:p {:class "kc-docs__lead"}
-      (txt "このページとカタログは同じ正本定義から描画されるため drift しません。"
-           "This page and the catalog render from the same canonical def, so they cannot drift.")]]))
-
 (defn ref-view [id locale]
   (case id
     "quickstart" (quickstart-view locale)
@@ -404,5 +378,4 @@
     "billing-and-usage" (billing-doc-view locale)
     "zero-data-retention" (zdr-view locale)
     "byok" (byok-view locale)
-    "security-services" (security-services-view locale)
     [[:h1 "Not found"]]))
