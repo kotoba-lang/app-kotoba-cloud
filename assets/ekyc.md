@@ -6,6 +6,20 @@ After one Stripe Identity verification the account is approved automatically (ek
 
 Free allowance after verified identity: 50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
 
+## Card-gated free preview (no identity verification)
+
+Instead of the Stripe Identity check, the account holder can save a
+credit/debit card at https://kotoba.cloud/account
+(「カードで無料枠プレビュー（本人確認なし）」→「カードを登録」). The card is saved
+through Stripe Checkout in setup mode — nothing is charged — and the free
+allowance (same 50 requests/day, 2,048 output tokens) unlocks automatically
+when the setup completes. Agents can drive everything except the card entry:
+POST https://api.kotoba.cloud/v1/billing/checkout with cookie session and
+Origin {"sku":"card-on-file","requestId":"<uuid>"} → redirect the human to the
+returned url. Completion is detected by the first-party webhook; poll
+GET /v1/research/status until eligible. Removing the card (Customer Portal)
+returns the account to the identity-verification requirement.
+
 ## Registration (agent-followable, Stripe Identity only)
 
 1. Sign in at https://auth.kotoba.cloud/sign-in — any method works and yields the

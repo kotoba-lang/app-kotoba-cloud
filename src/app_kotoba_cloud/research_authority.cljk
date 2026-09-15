@@ -246,6 +246,53 @@
                             :status (if (:consumed challenge) "verified" "pending")
                             :expiresAt (:expiresAt challenge)}) 200)))))
 
+;; --- card-gated free-tier preview -------------------------------------------
+;; The edge billing webhook relays a verified Stripe setup-mode checkout
+;; completion (signature verified edge-side); the authority applies the preview
+;; admission chain: card on file + default owned scope + active, without the
+;; Stripe Identity chain. Detach removes the card evidence so eligibility
+;; falls back to the ekyc chain. Idempotent by setup session id.
+(def card-preview-ttl-ms (* 365 86400000))
+(defn- handle-card-attach [storage body]
+  (let [now (.now js/Date)]
+    (when-not (and (text? (:principalId body) 256)
+                   (text? (:sessionId body) 256)
+                   (text? (:evidenceRef body) 512))
+      (throw (ex-info "invalid-card-event" {:status 400})))
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (let [record (or record {:status "none" :principalId (:principalId body)
+                                          :scopes [] :applications []})
+                       card {:status "on-file" :evidenceRef (:evidenceRef body)
+                             :attachedAt now :expiresAt (+ now card-preview-ttl-ms)}
+                       next (-> record
+                                (assoc :policyVersion "whitehat-2026-09-12-v1")
+                                (assoc :card card)
+                                ;; Only the card/ekyc chains grant the default
+                                ;; scope; never overwrite an operator-approved one.
+                                (assoc :scopes
+                                       (conj (filterv #(not= "owned" (:id %)) (:scopes record))
+                                             {:id "owned" :status "approved" :tasks ["code-review"]
+                                              :expiresAt (+ now 86400000)}))
+                                (assoc :status "active"))]
+                   (-> (save-state storage next)
+                       (.then (fn [_]
+                                (response {:principalId (:principalId body)
+                                           :card "on-file" :status (:status next)
+                                           :receiptId (str "card-attach-" (:sessionId body))} 200))))))))))
+(defn- handle-card-detach [storage body]
+  (let [now (.now js/Date)]
+    (when-not (text? (:principalId body) 256) (throw (ex-info "invalid-card-event" {:status 400})))
+    (-> (load-state storage)
+        (.then (fn [record]
+                 (when record
+                   (let [next (assoc-in record [:card] {:status "detached" :evidenceRef nil
+                                                        :attachedAt nil :expiresAt now})]
+                     (-> (save-state storage next)
+                         (.then (fn [_] (response {:principalId (:principalId body)
+                                                   :card "detached" :status (:status next)} 200)))))))))))
+
+
 ;; --- operator authorization -------------------------------------------------
 (defn- canonical [items] (js/JSON.stringify (clj->js items)))
 (defn- hex [buf]
@@ -304,7 +351,9 @@
     true (assoc :continuous (session-projection session-ref action now))
     (trust-valid? (:trust record) now)
     (assoc :trust (assoc (:trust record) :evaluatedAt now :expiresAt (+ now trust-window-ms)
-                         :policyVersion "kotoba-trust-routes-2026-09-v1"))))
+                         :policyVersion "kotoba-trust-routes-2026-09-v1"))
+    (:card record)
+    (assoc :card (select-keys (:card record) [:status :attachedAt :expiresAt]))))
 
 (defn- scope-approved? [record task scope-id now]
   (boolean (some #(and (= scope-id (:id %)) (= "approved" (:status %))
@@ -557,6 +606,8 @@
     "/ekyc/webhook" :ekyc-webhook
     "/ekyc/status" :ekyc-status
     "/ekyc/self/webhook" :ekyc-self-webhook
+    "/card/attach" :card-attach
+    "/card/detach" :card-detach
     nil))
 
 (defn- handle-self-verify-ekyc [env storage body]
@@ -636,6 +687,8 @@
       :ekyc-webhook (handle-ekyc-webhook env storage body)
       :ekyc-self-webhook (handle-self-verify-ekyc env storage body)
       :ekyc-status (handle-ekyc-status storage body)
+      :card-attach (handle-card-attach storage body)
+      :card-detach (handle-card-detach storage body)
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 
 (deftype ResearchAuthority [^js state env]

@@ -45,12 +45,26 @@
     [:span {:class "ck-console__value"} "Stripe Identity (verify.stripe.com)"]]
    (console/note
     "書類と顔写真は Stripe にのみ送られ、kotoba.cloud は状態・有効期限・証跡参照のみを保持します。確認は 365 日で失効します。")
+   (console/note
+    "本人確認の代わりに、下の「カードで無料枠プレビュー」パネルからカードを保存しても無料枠を利用できます。")
    (dds/row
     (dds/button "本人確認を開始" {:id "account-ekyc-start" :type :solid-fill :disabled true})
     (dds/button "状態を更新" {:id "account-refresh" :type :outline}))
    (console/note "" {:id "account-ekyc-note" :role "status"})
    {:id "account-panel-identity"}))
 
+(defn panel-card []
+  (panel "カードで無料枠プレビュー（本人確認なし）"
+   [:div {:class "ck-console__row"}
+    [:span {:class "ck-console__label"} "カード状態"]
+    [:span {:class "ck-console__value" :id "account-card-state"
+            :data-state "loading"} "読み込んでいます…"]]
+   (console/note
+    "クレジット/デビットカードを保存すると、本人確認なしで無料研究枠（1日50リクエスト）をプレビュー利用できます。カードに請求は発生しません（テスト決済モードでは課金なし）。"
+    {:id "account-card-note" :role "status"})
+   (dds/row
+    (dds/button "カードを登録" {:id "account-card-start" :type :solid-fill :disabled true})
+    (dds/button "状態を更新" {:id "account-refresh" :type :outline}))))
 (defn panel-eligibility []
   (panel "研究環境の利用資格"
    [:div {:class "ck-console__row"}
@@ -134,4 +148,4 @@
    (dds/container
     (dds/heading 1 "アカウント管理" {:size "36"})
     (into [:div {:class "kc-account"}]
-          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes) (panel-org) (panel-billing) (panel-cli)]))])
+          [(panel-session) (panel-identity) (panel-card) (panel-eligibility) (panel-scopes) (panel-org) (panel-billing) (panel-cli)]))])

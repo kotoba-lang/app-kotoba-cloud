@@ -1119,6 +1119,54 @@ assert.equal((await webhook(rawEvent,signature(rawEvent))).status,200);
 assert.equal(webhookCalls[1].id,'test:account-b-test:principal_fixture');
 assert.notEqual(webhookCalls[0].id,webhookCalls[1].id);
 console.log('Stripe webhook signature, timestamp and mode checks passed');
+
+// Card-gated free-tier preview: setup-mode checkout creates a no-charge
+// Checkout Session; its completion relays to the research authority, which
+// applies the preview admission chain. Eligibility accepts the card evidence
+// when no ekyc record exists, and denies again after the card detaches.
+const cardSessionEvent=(mode,sku)=>JSON.stringify({id:'evt_card',livemode:false,
+  type:'checkout.session.completed',
+  data:{object:{id:'cs_card',customer:'cus_fixture',mode,setup_intent:'seti_fixture',
+                metadata:{principal:'principal_fixture',sku}}}});
+{
+  const cardAttachCalls=[];
+  const cardEnv={...webhookEnv, RESEARCH_AUTHORITY:{fetch:async(url,init)=>{
+    cardAttachCalls.push({path:new URL(url).pathname,body:JSON.parse(init.body)});
+    return Response.json({principalId:JSON.parse(init.body).principalId,card:'on-file',status:'active',receiptId:'card-attach-cs_card'});}}};
+  const r1=await route(new Request('https://api.kotoba.cloud/v1/billing/webhook',{method:'POST',headers:{'stripe-signature':signature(cardSessionEvent('setup','card-on-file'))},body:cardSessionEvent('setup','card-on-file')}),cardEnv);
+  assert.equal(r1.status,200,await r1.clone().text());
+  assert.deepEqual(cardAttachCalls[0],{path:'/card/attach',body:{principalId:'principal_fixture',sessionId:'cs_card',evidenceRef:'seti_fixture'}});
+  // subscription-mode completions must NOT attach a card.
+  const sub=cardSessionEvent('subscription','pro');
+  assert.equal((await route(new Request('https://api.kotoba.cloud/v1/billing/webhook',{method:'POST',headers:{'stripe-signature':signature(sub)},body:sub}),cardEnv)).status,200);
+  assert.equal(cardAttachCalls.length,1);
+}
+const cardNow=Date.now();
+const cardRecord={principalId:researchPrincipal,policyVersion:researchPolicy,status:'active',
+  continuous:{policyVersion:'kotoba-session-evidence-2026-09-v1',sessionRef:researchSessionRef,action:'code-review',decision:'allow',
+    opinion:{belief:.9,disbelief:0,uncertainty:.1,calibrated:false},evaluatedAt:cardNow,expiresAt:cardNow+15000},
+  card:{status:'on-file',evidenceRef:'seti_fixture',attachedAt:cardNow-1000,expiresAt:cardNow+86400000},
+  scopes:[{id:'owned-code',status:'approved',tasks:['code-review'],expiresAt:cardNow+86400000}]};
+{
+  const saved=structuredClone(researchRecord);
+  researchRecord=cardRecord;
+  // No ekyc/screening/trust: eligibility comes from the card.
+  assert.equal((await route(researchRequest('/v1/research/status'),researchEnv)).status,200);
+  const st=await (await route(researchRequest('/v1/research/status'),researchEnv)).json();
+  assert.equal(st.status,'eligible');
+  const ok=await route(researchRequest('/v1/chat/completions',researchBody),researchEnv);
+  assert.equal(ok.status,200);
+  assert.equal((await ok.json()).billing,'free');
+  // A stale card alone is NOT enough.
+  researchRecord={...cardRecord,card:{...cardRecord.card,expiresAt:cardNow-1}};
+  assert.equal((await route(researchRequest('/v1/chat/completions',researchBody),researchEnv)).status,403);
+  // ekyc chain keeps working independently (card present + verified ekyc).
+  researchRecord={...cardRecord,ekyc:{status:'verified',evidenceRef:'e',verifiedAt:cardNow-1000,expiresAt:cardNow+86400000}};
+  const ok2=await route(researchRequest('/v1/chat/completions',researchBody),researchEnv);
+  assert.equal(ok2.status,200);
+  researchRecord=saved;
+}
+console.log('card-gated free-tier preview admission passed');
 console.log('operator console host isolation checks passed');
 
 // Merchant readiness is authenticated, read-only, cached and projects no secret/PII.

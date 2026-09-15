@@ -52,7 +52,8 @@
         (.then (fn [event]
                  (let [e (js->clj event :keywordize-keys true) obj (get-in e [:data :object])
                        principal (or (get-in obj [:parent :subscription_details :metadata :principal])
-                                     (get-in obj [:metadata :principal]))]
+                                     (get-in obj [:metadata :principal]))
+                       research-binding (aget env "RESEARCH_AUTHORITY")]
                    (cond
                      (not= (:livemode e) (= "live" (aget env "BILLING_MODE")))
                      (respond {:error "mode-mismatch"} 400)
@@ -60,6 +61,22 @@
                                        "customer.subscription.deleted" "customer.subscription.updated"} (:type e)))
                      (respond {:received true :ignored true} 200)
                      (nil? principal) (respond {:received true :ignored true} 200)
+                     (and (= "checkout.session.completed" (:type e)) (= "setup" (:mode obj))
+                          (= "card-on-file" (get-in obj [:metadata :sku])))
+                     (if-not research-binding
+                       (respond {:error "research-service-unavailable"} 503)
+                       (-> (.fetch research-binding "https://research.internal/card/attach"
+                                   #js {:method "POST" :redirect "manual"
+                                        :signal (js/AbortSignal.timeout 60000)
+                                        :headers #js {"content-type" "application/json"}
+                                        :body (js/JSON.stringify
+                                               (clj->js {:principalId principal
+                                                         :sessionId (:id obj)
+                                                         :evidenceRef (or (:setup_intent obj) (:id obj))}))})
+                           (.then (fn [r]
+                                    (if (.-ok r)
+                                      (respond {:received true :card "on-file"} 200)
+                                      (respond {:error "card-attach-rejected"} 503))))))
                      :else (account env principal "/event" {:event e})))))
         (.catch (fn [e] (respond {:error "webhook-not-accepted"} (or (:status (ex-data e)) 400)))))))
 (defn route [request env viewer! respond]

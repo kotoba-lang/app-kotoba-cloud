@@ -41,11 +41,26 @@
          (fresh? (:evaluatedAt trust) (:expiresAt trust) now 60000)
          (<= (- (:expiresAt trust) (:evaluatedAt trust)) 60000))))
 
+(defn- card-current?
+  "Card-gated free-tier preview: a saved payment method attached through the
+  billing account stands in for the identity/review chain. The card record is
+  written only by the private authority from a verified Stripe setup event;
+  the browser never supplies it. Card stays the responsibility anchor: a
+  removed/expired payment method means the record's card evidence expires."
+  [card now]
+  (and (= "on-file" (:status card))
+       (text? (:evidenceRef card) 512)
+       (number? (:attachedAt card))
+       (number? (:expiresAt card))
+       (<= (:attachedAt card) now)
+       (< now (:expiresAt card))))
+
 (defn eligibility [principal record now]
   (cond
     (not= principal (:principalId record)) "identity-mismatch"
     (not= policy-version (:policyVersion record)) "policy-acceptance-required"
     (not= "active" (:status record)) "review-required"
+    (card-current? (:card record) now) nil
     (not= "verified" (get-in record [:ekyc :status])) "verification-required"
     (not (text? (get-in record [:ekyc :evidenceRef]) 512)) "verification-required"
     (not (fresh? (get-in record [:ekyc :verifiedAt]) (get-in record [:ekyc :expiresAt]) now (* 365 86400000))) "verification-expired"

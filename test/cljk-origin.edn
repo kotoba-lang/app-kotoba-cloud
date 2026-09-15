@@ -1,0 +1,27 @@
+{:format :kotoba.cljk-origin/v1
+ :renamed-on "generated-worktree-shim"
+ :rule "generated: split of the worktree manifest for a subdir root."
+ :origins
+ {
+  "app_kotoba_cloud/advisory_panel_test.cljk" ".cljc"
+  "app_kotoba_cloud/attribution_test.cljk" ".cljc"
+  "app_kotoba_cloud/billing_test.cljk" ".cljc"
+  "app_kotoba_cloud/boot_test.cljk" ".cljc"
+  "app_kotoba_cloud/chain_facts_test.cljk" ".cljc"
+  "app_kotoba_cloud/delegation_root_test.cljk" ".cljc"
+  "app_kotoba_cloud/free_sites_claim_test.cljk" ".cljc"
+  "app_kotoba_cloud/free_sites_store_test.cljk" ".cljc"
+  "app_kotoba_cloud/free_sites_test.cljk" ".cljc"
+  "app_kotoba_cloud/funnel_test.cljk" ".cljc"
+  "app_kotoba_cloud/guardian_test.cljk" ".cljc"
+  "app_kotoba_cloud/locale_test.cljk" ".cljc"
+  "app_kotoba_cloud/pq_key_lifecycle_test.cljk" ".cljc"
+  "app_kotoba_cloud/profile_test.cljk" ".cljc"
+  "app_kotoba_cloud/research_jobs_test.cljk" ".cljc"
+  "app_kotoba_cloud/research_test.cljk" ".cljc"
+  "app_kotoba_cloud/rootkey_test.cljk" ".cljc"
+  "app_kotoba_cloud/session_test.cljk" ".cljc"
+  "app_kotoba_cloud/site_test.cljk" ".cljc"
+  "app_kotoba_cloud/test_runner.cljk" ".cljc"
+  "graph-workbench-browser.cljk" ".cljc"
+ }}

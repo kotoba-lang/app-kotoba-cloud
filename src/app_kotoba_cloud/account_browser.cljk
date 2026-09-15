@@ -75,6 +75,41 @@
           (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true))
           (say! "account-ekyc-note" (t "本人確認サービスに接続できません。時間をおいて更新してください。" "Verification service is unavailable. Refresh later."))))))
 
+(defn start-card! []
+  (when-let [b (el "account-card-start")]
+    (set! (.-disabled b) true)
+    (say! "account-card-note" "カード登録ページ（Stripe）へ移動しています…")
+    (-> (api "/v1/billing/checkout" {:sku "card-on-file" :requestId (.randomUUID js/crypto)})
+        (.then (fn [r]
+                 (if (and (:httpOk r) (:url r))
+                   (set! (.-location js/window) (:url r))
+                   (do (say! "account-card-note"
+                             (case (get-in r [:error :code])
+                               "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
+                               (t "カード登録を開始できませんでした。状態を更新してください。" "Could not start. Refresh and retry.")))
+                       (set! (.-disabled b) false))))))))
+
+(defn render-card [r]
+  (let [state (cond
+                (not (:httpOk r)) "unavailable"
+                (= "on-file" (get-in r [:record :card :status])) "on-file"
+                :else "missing")]
+    (case state
+      "on-file" (do (state! "account-card-state" :ok)
+                    (say! "account-card-state" (t "登録済み" "On file"))
+                    (say! "account-card-note"
+                          (t "カードは保存済みです。本人確認なしで無料枠を利用できます。"
+                             "Your card is saved. The free preview is available without identity verification."))
+                    (when-let [b (el "account-card-start")] (set! (.-disabled b) true)))
+      "missing" (do (state! "account-card-state" :action)
+                    (say! "account-card-state" (t "未登録" "Not saved"))
+                    (when-let [b (el "account-card-start")] (set! (.-disabled b) false)))
+      (do (state! "account-card-state" :error)
+          (say! "account-card-state" (t "確認不可" "Unavailable"))
+          (when-let [b (el "account-card-start")] (set! (.-disabled b) false))
+          (say! "account-card-note"
+                (t "カード状態を確認できません。時間をおいて更新してください。" "Could not read the card state. Refresh later."))))))
+
 (defn render-eligibility [r]
   (let [status (:status r) reason (:reason r)]
     (if (and (:httpOk r) (= "eligible" status))
@@ -224,8 +259,7 @@
                      (render-orgs {:httpOk false})
                      (render-billing {:httpOk false}))
                  (do (-> (api "/v1/research/ekyc/status") (.then render-ekyc))
-                     (-> (api "/v1/research/status")
-                         (.then (fn [r] (render-eligibility r) (render-scopes (:scopes r [])))))
+                     (-> (api "/v1/research/status") (.then (fn [r] (render-card r) (render-eligibility r) (render-scopes (:scopes r [])))))
                      (-> (api "/v1/org/status" {}) (.then render-orgs))
                      (-> (api "/v1/billing/status") (.then render-billing))))))))
 
@@ -233,6 +267,7 @@
   (when (el "account-console")
     (when-let [b (el "account-refresh")] (.addEventListener b "click" refresh!))
     (when-let [b (el "account-ekyc-start")] (.addEventListener b "click" start-ekyc!))
+    (when-let [b (el "account-card-start")] (.addEventListener b "click" start-card!))
     (when-let [b (el "account-org-create")] (.addEventListener b "click" create-org!))
     (when-let [b (el "account-pat-create")] (.addEventListener b "click" create-pat!))
     (refresh!)))

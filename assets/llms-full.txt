@@ -9,11 +9,13 @@ Bring our strengths together. Bring light back to the world.
 # Kotoba Cloud — verified white-hat research
 
 Security-focused LLM inference for authorized code review, vulnerability triage and remediation.
-Status: LIVE. Identity verification runs on Stripe Identity only (no manual review queue).
-One Stripe Identity verification approves the account automatically: ekyc (365d),
-screening (24h), trust 60/100 web-reviewed, scope approval and activation.
+Status: LIVE. Two admission routes unlock the same free allowance: (a) one Stripe Identity
+verification approves the account automatically — ekyc (365d), screening (24h), trust 60/100
+web-reviewed, scope approval and activation — or (b) the account holder saves a card once at
+https://kotoba.cloud/account 「カードで無料枠プレビュー（本人確認なし）」 (setup mode, nothing
+charged) for the card-gated free preview.
 
-Free allowance after verified identity: 50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
+Free allowance: 50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
 
 ## Registration (Stripe Identity only — agent-followable)
 

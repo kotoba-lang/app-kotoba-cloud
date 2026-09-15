@@ -34,6 +34,7 @@
      ["CLI/IDE agents: sign in at https://kotoba.cloud/account and issue a personal API token once (接続トークンを発行), then use Authorization: Bearer kc_pat_... with no Origin header"
       "Browser agents: sign in at https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
       "POST /v1/research/ekyc/start {\"scopeId\":\"owned\",\"tasks\":[\"code-review\"]} then the account holder completes https://verify.stripe.com (agents never do)"
+      "OR card route: POST /v1/billing/checkout {\"sku\":\"card-on-file\",\"requestId\":\"<uuid>\"} and the account holder saves a card (setup mode, nothing charged)"
       "Approval is automatic on the Stripe webhook; poll /v1/research/status until eligible"]}}
    :tools
    [{:name "kotoba_knowledge_search" :description "Search published security evidence (ATT&CK etc). GET /v1/knowledge/search?q=" :inputSchema {:type "object" :properties {:q {:type "string" :maxLength 200}} :required ["q"]}}

@@ -23,6 +23,7 @@
      :register "本人確認から、無料の研究環境へ。"
      :steps [["アカウント" "既存のアカウントでログイン。ウォレット接続だけでは本人確認済みになりません。"]
              ["eKYC" "本人確認は Stripe Identity 経路のみです。verify.stripe.com で書類・顔の確認が完了すると自動承認されます（ekyc 365日、screening 24時間、trust 60点）。"]
+             ["カード（無料プレビュー）" "本人確認の代わりに、クレジット/デビットカードを保存すると無料枠（1日50リクエスト）をプレビュー利用できます。カードへの請求はありません。"]
              ["AML / CTF" "制裁・PEP 等の照合、リスク審査、必要な追加確認。保留・期限切れ・停止中は推論できません。"]
              ["無料で調査" "調査権限と対象範囲を確認後、無料枠を利用。確認後も継続的な再審査を行います。"]]
      :fee "本人確認済みの研究者は $0"
@@ -57,6 +58,7 @@
      :register "One verified identity. A free research workspace."
      :steps [["Account" "Sign in with your existing account. A connected wallet alone is not verified identity."]
              ["eKYC" "Identity verification runs on Stripe Identity only. Completing the document and selfie check at verify.stripe.com approves the account automatically (ekyc 365d, screening 24h, trust 60 points)."]
+             ["Card (free preview)" "Instead of identity verification, save a credit/debit card to preview the free allowance (50 requests/day) with no charge."]
              ["AML / CTF" "Sanctions and PEP screening, risk review and additional checks where needed. Pending, expired or suspended records cannot infer."]
              ["Free research" "Confirm authorization and research scope, then use the free allowance. Ongoing review keeps eligibility current."]]
      :fee "$0 for verified researchers"
