@@ -271,10 +271,14 @@
                                                               :scopeId (:scopeId body)
                                                               :tasks (vec (:tasks body))} 200)))))))))
                      ;; No card on file: hand the human the hosted setup URL.
+                     ;; The setup-session id is indexed so the checkout
+                     ;; completion webhook can resolve the challenge even if a
+                     ;; later /ekyc/start overwrote the principal's slot.
                      :else
                      (let [challenge (assoc challenge :stripeSessionId (:setupSessionId result)
                                             :cardRequired true)]
                        (-> (save-challenge! storage (:principalId body) challenge)
+                           (.then (fn [_] (save-session-challenge! storage (:setupSessionId result) challenge)))
                            (.then (fn [_]
                                     (response {:sessionId (:sessionId challenge)
                                                :externalId (:externalId challenge)
@@ -297,34 +301,54 @@
         ;; /ekyc/start overwrites the principal slot, but the human may have
         ;; completed an earlier session.
         (.then (fn [_]
-                 (let [ev (stripe-event! raw)]
-                   (-> (ekyc-session-challenge! storage (:session-id ev))
+                 (let [ev (stripe-event! raw)
+                       ;; Card-setup completions arrive as
+                       ;; checkout.session.completed (mode=setup). They carry
+                       ;; the SETUP session id in :session-id and the principal
+                       ;; in metadata — resolve the challenge through the
+                       ;; setup-session index written by /ekyc/start.
+                       setup? (and (= "checkout.session.completed" (:type ev))
+                                   (= "complete" (:status ev)))
+                       lookup-id (:session-id ev)]
+                   (-> (ekyc-session-challenge! storage lookup-id)
                        (.then (fn [ch] (if (map? ch)
                                          [ch ev]
                                          (-> (ekyc-challenge! storage (:principalId body))
                                              (.then (fn [c] [c ev]))))))))))
         (.then (fn [[challenge event]]
-                 (let [event (if event event (stripe-event! raw))]
+                 (let [event (if event event (stripe-event! raw))
+                       setup? (= "checkout.session.completed" (:type event))]
                  (when-not (map? challenge) (throw (ex-info "stripe-challenge-unknown" {:status 403})))
                  (if (:consumed challenge)
                    ;; Idempotent replay: return the prior receipt, never re-apply.
                    (response {:principalId (:principalId body) :status "verified"
-                              :receiptId (:receiptId challenge) :approvedBy "stripe-identity"} 200)
+                              :receiptId (:receiptId challenge) :approvedBy (if setup? "stripe-card" "stripe-identity")} 200)
                    (let [event event]
-                     (when-not (and (= "identity.verification_session.verified" (:type event))
-                                    (= "verified" (:status event))
-                                    (= (:sessionId challenge) (:session-id event))
-                                    (= (:externalId challenge) (:external-id event))
-                                    (= (:principal challenge) (:principal event))
-                                    (number? (:created event))
-                                    (<= (- now (* 1000 (:created event))) 900000)
-                                    (< now (:expiresAt challenge)))
+                     (when-not (and (or setup?
+                                        (and (= "identity.verification_session.verified" (:type event))
+                                             (= "verified" (:status event))))
+                                    (= (:stripeSessionId challenge) (:session-id event))
+                                    (if setup?
+                                      ;; checkout metadata carries the principal; the
+                                      ;; challenge's own externalId never appears in
+                                      ;; the checkout event, so only the principal and
+                                      ;; freshness bind it.
+                                      (and (= (:principal challenge) (:principalId body))
+                                           (number? (:created event))
+                                           (<= (- now (* 1000 (:created event))) 900000)
+                                           (< now (:expiresAt challenge)))
+                                      (and (= (:externalId challenge) (:external-id event))
+                                           (= (:principal challenge) (:principal event))
+                                           (number? (:created event))
+                                           (<= (- now (* 1000 (:created event))) 900000)
+                                           (< now (:expiresAt challenge)))))
                        (throw (ex-info "stripe-evidence-not-admissible" {:status 403})))
                      ;; One transaction (blockConcurrencyWhile): consume the
                      ;; challenge and apply the full approval chain.
-                     (let [receipt-id (str "op-stripe-identity-" now)
+                     (let [receipt-id (str (if setup? "op-card-setup-" "op-stripe-identity-") now)
                            evidence (:session-id event)
-                           audit {:op "stripe-identity-approve" :actor "stripe-identity"
+                           audit {:op (if setup? "card-setup-approve" "stripe-identity-approve")
+                                  :actor (if setup? "stripe-card" "stripe-identity")
                                   :caseId (:sessionId challenge) :at now :receiptId receipt-id}]
                        (-> (load-state storage)
                            (.then (fn [record]
@@ -356,7 +380,7 @@
                                                    (response {:principalId (:principalId body)
                                                               :status (:status next)
                                                               :receiptId receipt-id
-                                                              :approvedBy "stripe-identity"} 200)))))))))))))))))
+                                                              :approvedBy (if setup? "stripe-card" "stripe-identity")} 200)))))))))))))))))
 
 (defn- handle-ekyc-status [storage body]
   (-> (load-state storage)
