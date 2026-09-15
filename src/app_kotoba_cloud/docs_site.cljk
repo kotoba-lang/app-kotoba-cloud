@@ -224,6 +224,17 @@
                         "# inputs:  source-code, dependency-manifests\n"
                         "# outputs: code-findings, taint-paths, dependency-notes\n"
                         "# integration: feeds vm, emits :finding (role: code-findings)"))
+     [:h2 "DAST — dynamic application security testing"]
+     [:p {:class "kc-docs__lead"}
+      (txt "DAST は稼働中のアプリを実行して脆弱性を検出し、再現性のあるランタイム所見 (リクエスト・レスポンスのエビデンス) を VM 台帳へ出します (status: gated)。"
+           "DAST probes running applications and reports reproducible runtime findings (request/response evidence) to the VM ledger (status: gated).")]
+     (config-block (str "# DAST capabilities (from the catalog entry)\n"
+                        "runtime-probe    # dynamic probing of running applications\n"
+                        "auth-scenarios   # probing with authenticated scenarios\n"
+                        "runtime-finding  # runtime vulnerability detection as findings\n\n"
+                        "# inputs:  running-apps, scan-scopes, auth-scenarios\n"
+                        "# outputs: runtime-findings, request-response-evidence\n"
+                        "# integration: feeds vm, emits :finding (role: runtime-findings)"))
      (note-block
       (txt "DAST / SAST は gated (非公開の authority の後方でゲート中)。3 つの上流サービスは共通 finding-schema で所見を出し、VM が重複排除・スコアリング (到達可能性 × 悪用可能性)・修正ライフサイクルを CPE/CVE キーで管理します。"
            "DAST / SAST are gated (behind the private authority). The three upstream services emit findings in the shared finding-schema; VM dedups, scores (reachability × exploitability) and tracks remediation keyed by CPE/CVE."))
