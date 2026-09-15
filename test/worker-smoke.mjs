@@ -577,14 +577,14 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
-      model: researchModel, record: researchRecord });
+      model: body.request ? body.request.model : researchModel, record: researchRecord });
   }
   if (path === "/jobs/status") {
     const job = jobs.get(body.jobId);
     if (!job) return new Response(JSON.stringify({ error: "not-found" }), { status: 404 });
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
-      model: researchModel, record: researchRecord });
+      model: body.request ? body.request.model : researchModel, record: researchRecord });
   }
   assert.equal(path, "/complete");
   assert.equal(body.principalId, researchPrincipal);
@@ -631,7 +631,10 @@ assert.equal(researchCalls.length, 0);
     body: JSON.stringify({ handle: 'com-x.kotoba.cloud', role: 'owner' }) }), env)).status, 401);
 }
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
-assert.equal((await modelCatalog.json()).data[0].availability, "upstream-tested-access-gated");
+const modelCatalogBody = await modelCatalog.json();
+assert.equal(modelCatalogBody.data[0].availability, "upstream-tested-access-gated");
+assert.deepEqual(modelCatalogBody.data.map(m => m.id).sort(),
+  ["glm5.3-flash", "qwen3.8-flash-next-whitehacker"]);
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 const eligibleStatusBody = await eligibleStatus.json();
 assert.equal(eligibleStatusBody.status, "eligible");
@@ -800,6 +803,28 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
   // Cookie path stays strict: OpenAI-only body without task/scopeId → 400.
   assert.equal((await route(researchRequest("/v1/chat/completions", { model: researchModel,
     messages: [{ role: "user", content: "x" }] }), researchEnv)).status, 400);
+  // Multi-model: glm5.3-flash admitted end-to-end on the bearer path; the
+  // completion echoes the requested model and the authority request keeps it.
+  const glmBody = { model: "glm5.3-flash", messages: [{ role: "user", content: "Review my auth checks." }] };
+  const savedForGlm = structuredClone(researchRecord);
+  researchRecord.continuous.sessionRef = agentSessionRef;
+  researchRecord.continuous.action = "code-review";
+  researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+  const okGlm = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+    method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+    body: JSON.stringify(glmBody)
+  }), bearerPatEnv);
+  researchRecord = savedForGlm;
+  assert.equal(okGlm.status, 200);
+  const glmJson = await okGlm.json();
+  assert.equal(glmJson.model, "glm5.3-flash");
+  const lastGlmCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(lastGlmCreate.body.request.model, "glm5.3-flash");
+  // Unknown models remain rejected on the bearer path.
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+    method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: "gpt-4o", messages: [{ role: "user", content: "x" }] })
+  }), bearerPatEnv)).status, 400);
 }
 
 // Token must never leak into logged calls (only sessionRef/policy payloads go
@@ -1147,7 +1172,7 @@ try {
  r=await doBill('/usage',{kind:'inference',receipt:{...receipt,outputTokens:20}});assert.equal(r.status,503,'conflicting receipt rejected');
 
  r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200,await r.clone().text());
- assert.equal((await r.json()).amountMicroUSD,66);
+ assert.equal((await r.json()).amountMicroUSD,108);
  const settledSnapshot=memory.get('limits');
  r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200);
  assert.equal(memory.get('limits'),settledSnapshot,'retry cannot charge twice');

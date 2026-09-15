@@ -20,7 +20,7 @@
     (is (nil? (b/paid-line i (assoc l :quantity 2) prices)))
     (is (nil? (b/paid-line i l {})))))
 (deftest catalog-separation
-  (is (= 6 (count b/plans)))
+  (is (= 10 (count b/plans)))
   (is (= "ai" (:scope (b/plan "ai-credits-25"))))
   ;; 1 credit = $1 across AI and storage top-ups.
   (is (every? #(= (:cents %) (* 100 (:credits %))) (filter :topup b/plans)))
@@ -53,7 +53,10 @@
     (is (= [10 20] [(:start ai) (:end storage)]))
     (is (= [ai storage] (b/allowance-grants line))))
   (is (nil? (b/plan "ai-builder")))
-  (is (every? #(and (:gib %) (:credits %) (= "platform" (:scope %))) (remove :topup b/plans))))
+  ;; Bundled platform plans (gib+credits) vs scoped credits-monthly plans.
+  (is (every? #(and (:gib %) (:credits %) (= "platform" (:scope %)))
+              (filter #(= "platform" (:scope %)) b/plans)))
+  (is (every? #(and (:monthly %) (not (:gib %))) (filter #(= "credits" (:scope %)) b/plans))))
 
 (deftest admission-reservations
   (let [g {:id "included" :scope "ai" :amount 100 :start 10 :end 20 :topup false}
@@ -85,7 +88,7 @@
 (deftest authoritative-rating
   (let [r {:requestId "rating-test" :model "fixture" :inputTokens 1000000
            :cachedInputTokens 200000 :outputTokens 100000 :occurredAt "2026-09-14T00:00:00Z"}]
-    (is (= 750000 (:amount (b/receipt-charge "inference" r))))
+    (is (= 1215000 (:amount (b/receipt-charge "inference" r))))
     (is (= 1 (:amount (b/receipt-charge "inference" (assoc r :inputTokens 1 :cachedInputTokens 0 :outputTokens 0)))))
     (is (thrown? #?(:clj Exception :cljs js/Error) (b/receipt-charge "inference" (assoc r :cachedInputTokens 1000001)))))
   (is (= 278 (:amount (b/receipt-charge "storage" {:sampleId "hour" :databaseId "db" :bytes 1073741824 :seconds 3600 :occurredAt "2026-09-14T00:00:00Z"})))))
