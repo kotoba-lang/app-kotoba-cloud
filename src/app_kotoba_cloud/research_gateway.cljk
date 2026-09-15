@@ -122,10 +122,25 @@
                                                              (.-status r) 503)
                                                    :eventId (str (:id event))}))))))))))))
 
+(defn- note-projection-refusal!
+  "Name a refusal that hinges on the authority's projection clocks. Only the
+  stamps and this machine's `now` are logged (numbers, no principal, no
+  prompt): `lead` > 0 means the authority stamped the projection later than
+  the edge's clock reads now — two clocks, not stale evidence."
+  [reason record now]
+  (when (contains? #{"trust-route-required" "session-reverification-required"} reason)
+    (let [p (if (= reason "trust-route-required") (:trust record) (:continuous record))]
+      (js/console.warn "projection-refused" reason
+                       (js/JSON.stringify #js {:evaluatedAt (:evaluatedAt p) :expiresAt (:expiresAt p)
+                                               :now now
+                                               :lead (when (number? (:evaluatedAt p)) (- (:evaluatedAt p) now))
+                                               :projected (boolean (:policyVersion p))})))))
+
 (defn- status-response [record principal reference respond]
   (let [now (js/Date.now) reason (or (policy/eligibility principal record now)
                                    (when-not (policy/session-current? reference "code-review" (:continuous record) now) "session-reverification-required"))
         same-principal? (= principal (:principalId record))]
+    (when reason (note-projection-refusal! reason record now))
     (respond {:status (if reason "pending" "eligible") :reason reason
               :freeTier policy/free-limits :policyVersion policy/policy-version
               :trust (when (and same-principal? (policy/trust-current? (:trust record) now))
@@ -279,7 +294,8 @@
            (let [now (js/Date.now) reason (or (policy/eligibility principal record now)
                                             (when-not (policy/session-current? reference (:task body) (:continuous record) now) "session-reverification-required"))]
              (cond
-               reason (respond {:error {:code reason}} 403)
+               reason (do (note-projection-refusal! reason record now)
+                          (respond {:error {:code reason}} 403))
                (not (policy/scope-approved? record body now))
                (respond {:error {:code "research-scope-required"}} 403)
                :else (complete-via-job binding principal reference body respond opts))))))))
