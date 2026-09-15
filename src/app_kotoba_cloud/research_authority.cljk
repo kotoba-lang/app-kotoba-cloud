@@ -15,7 +15,8 @@
   suspension) require an HMAC-SHA256 signature over the canonical operation
   tuple with the RESEARCH_OPERATOR_SECRET. The secret never leaves the Worker;
   operator calls arrive over the same private binding."
-  (:require [app-kotoba-cloud.research-providers :as providers]))
+  (:require [app-kotoba-cloud.research-providers :as providers]
+            [app-kotoba-cloud.research :as research-policy]))
 
 (def version "kotoba-research-authority-2026-09-v1")
 
@@ -425,7 +426,7 @@
    :decision "allow" :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}
    :evaluatedAt now :expiresAt (+ now session-window-ms)})
 (defn- public-record [record session-ref action now]
-  (cond-> record
+  (cond-> (assoc record :assurance (research-policy/rung-allowance record now))
     true (assoc :continuous (session-projection session-ref action now))
     (trust-valid? (:trust record) now)
     (assoc :trust (assoc (:trust record) :evaluatedAt now :expiresAt (+ now trust-window-ms)

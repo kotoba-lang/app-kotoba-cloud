@@ -31,14 +31,22 @@
   (-> (js-invoke storage "get" (str "org:" handle)) (.then decode)))
 
 (defn- save-org! [storage handle org]
-  (js-invoke storage "put" (str "org:" handle) (js/JSON.stringify (clj->js org))))
+  (-> (js-invoke storage "put" (str "org:" handle) (js/JSON.stringify (clj->js org)))
+      (.then (fn [_] (js-invoke storage "get" "org-index")))
+      (.then (fn [raw]
+               (let [index (js->clj (js/JSON.parse (or raw "{}")) :keywordize-keys true)
+                     next-index (assoc index handle (:createdAt org))]
+                 (js-invoke storage "put" "org-index" (js/JSON.stringify (clj->js next-index))))))))
 
 (defn- all-orgs! [storage]
-  (-> (js-invoke storage "list" #js {:prefix "org:"})
-      (.then (fn [listing]
-               (js/Promise.all
-                (map (fn [k] (-> (js-invoke storage "get" k) (.then decode)))
-                     (array-seq (or (.-keys listing) []))))))))
+  ;; Index-based scan: save-org! maintains "org-index" (handle -> createdAt), so
+  ;; enumeration never depends on the DO list() response shape.
+  (-> (js-invoke storage "get" "org-index")
+      (.then (fn [raw]
+               (let [index (js->clj (js/JSON.parse (or raw "{}")) :keywordize-keys true)]
+                 (js/Promise.all
+                  (map (fn [handle] (-> (js-invoke storage "get" (str "org:" (name handle))) (.then decode)))
+                       (keys index))))))))
 
 (defn- org-for-member [orgs principal-id]
   (some (fn [org]
@@ -327,7 +335,7 @@
                                                  :role (:role member) :tenantId (:tenantId body)
                                                  :bound (nil? bound)} 200)))))))))))))
 
-(defn- handle-didlog [storage body]
+(def handle-didlog (fn [storage body]
   ;; Public: a did:webvh log is published for anyone to resolve (ADR layer 1).
   (let [handle (:handle body)]
     (if-not (and (string? handle) (re-find handle-pattern handle))
@@ -339,7 +347,7 @@
                      :else (response {:did (:did org) :scid (:scid org)
                                       :log (:webvhLog org)
                                       :publishedAt (:createdAt org)}
-                                     200))))))))
+                                     200)))))))))
 
 (defn- handle-verify [storage body]
   ;; Third-party presentation path: anyone holding a membership VC can have it
