@@ -78,6 +78,12 @@ Qualification note (8 September 2026): the installed native CLI reference-packag
 - Security data hub: https://kotoba.cloud/csf2/ (the former /ja/security/ page is
   currently unreachable in production: it redirects to /security/, which returns 404)
 
+## Legal
+- Terms / policies: https://kotoba.cloud/legal/
+- Specified Commercial Transactions notice (特定商取引法に基づく表記):
+  https://kotoba.cloud/legal/tokushoho/
+- Japanese: https://kotoba.cloud/legal/?lang=ja and https://kotoba.cloud/legal/tokushoho/?lang=ja
+
 ## Read-only evidence retrieval for LLMs
 - Search: https://kotoba.cloud/v1/knowledge/search?q=T1018
 - Context: https://kotoba.cloud/v1/knowledge/context?id=security%2Fattack%2FT1018
