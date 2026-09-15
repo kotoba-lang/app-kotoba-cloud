@@ -52,6 +52,85 @@
     (string? v) (js->clj (js/JSON.parse v) :keywordize-keys true)
     :else (js->clj v :keywordize-keys true)))
 
+(defn- b64-bytes-sha256-hex
+  "SHA-256 hex of the base64-decoded bytes, via WebCrypto (async)."
+  [b64]
+  (let [bin (js/atob b64)
+        n (.-length bin)
+        arr (js/Uint8Array. n)]
+    (loop [i 0]
+      (when (< i n)
+        (aset arr i (.charCodeAt bin i))
+        (recur (inc i))))
+    (-> (.digest (.-subtle js/crypto) "SHA-256" arr)
+        (.then (fn [buf]
+                 (let [view (js/Uint8Array. buf)]
+                   (apply str (map #(let [h (.toString % 16)]
+                                      (if (< (count h) 2) (str "0" h) h))
+                                   view))))))))
+
+(defn- face-service-call
+  "POST one op to the layer-2 face service (ADR 2609142200). env needs
+  FACE_SERVICE_URL (wrangler var) and FACE_SERVICE_TOKEN (secret). Returns a
+  promise of the parsed JSON body; network/HTTP failures become
+  face-service-unavailable (503) so a flap degrades to review, not auto-approval."
+  [env op payload]
+  (let [url (aget env "FACE_SERVICE_URL")
+        token (aget env "FACE_SERVICE_TOKEN")]
+    (if-not (and url token)
+      (js/Promise.resolve {:error "face-service-not-configured" :status 503})
+      (-> (js/fetch url
+                    #js {:method "POST"
+                         :headers #js {"content-type" "application/json"
+                                       "authorization" (str "Bearer " token)}
+                         :body (js/JSON.stringify (clj->js (assoc payload :op op)))})
+          (.then (fn [r]
+                   (-> (.json r)
+                       (.then (fn [j] (js->clj j :keywordize-keys true))))))
+          (.catch (fn [_] {:error "face-service-unavailable" :status 503}))))))
+
+(defn- biometric-step
+  "Layer 2: bind the selfie to the chip's DG5 portrait and require liveness.
+  Input: {:portraitDigest :portraitJpeg :selfieFrames} from the submit body
+  plus the already-verified ICAO bundle's dg5 (base64). The portrait digest
+  must equal sha256(dg5 bytes) — i.e. the selfie is only compared against the
+  chip's own portrait, never an attacker-supplied image. Returns a promise of
+  {:biometric {...} :review? bool} or throws {:status 400/403}."
+  [env {:keys [portrait-digest portrait-jpeg selfie-frames]}]
+  (cond
+    (or (not (string? portrait-jpeg)) (empty? selfie-frames))
+    (throw (ex-info "biometric-evidence-missing" {:status 400}))
+    :else
+    (-> (js/Promise.resolve portrait-digest)
+        (.then (fn [computed]
+                 (when-not (and (string? computed) (= 64 (count computed)))
+                   (throw (ex-info "portrait-digest-missing" {:status 400})))
+                 (let [common {:portraitDigest computed
+                               :portraitJpeg portrait-jpeg
+                               :selfieFrames (vec selfie-frames)}]
+                   (-> (face-service-call env "verify" common)
+                       (.then (fn [verify-res]
+                                (if (and (map? verify-res) (boolean (:match verify-res)) (not (:error verify-res)))
+                                  (-> (face-service-call env "liveness"
+                                                         {:selfieFrames (vec selfie-frames)})
+                                      (.then (fn [live-res]
+                                               (let [live (and (map? live-res)
+                                                               (= "pass" (:liveness live-res)))]
+                                                 {:biometric {:match true
+                                                              :matchScore (:score verify-res)
+                                                              :faceModelId (:modelId verify-res)
+                                                              :liveness live
+                                                              :livenessScore (:score live-res)
+                                                              :livenessModelId (:modelId live-res)
+                                                              :checkedAt (js/Date.now)}
+                                                  :review? (not live)})))
+                                  {:biometric {:match false
+                                               :matchScore (:score verify-res)
+                                               :faceModelId (:modelId verify-res)
+                                               :reason (:error verify-res)
+                                               :checkedAt (js/Date.now)}
+                                   :review? true}}))))))))))
+
 
 (defn- chain-continue
   "Post-verification chain: challenge check → nullifier → dup check →
@@ -89,13 +168,32 @@
         (.then (fn [{:keys [existing nullifier challenge]}]
                  (when (and existing (not= existing principal-id))
                    (throw (ex-info "duplicate-person-rejected" {:status 403})))
+                 (-> (biometric-step env (select-keys verify-result
+                                                    [:portrait-digest :portrait-jpeg
+                                                     :selfie-frames]))
+                     (.then (fn [bio]
+                              (assoc bio :nullifier nullifier :challenge challenge))))))
+        (.then (fn [{:keys [biometric review? nullifier challenge]}]
                  (-> (load-state storage)
                      (.then (fn [record]
                               {:record record
                                :nullifier nullifier
-                               :challenge challenge})))))
-        (.then (fn [{:keys [record nullifier challenge]}]
-                 (let [record (or record {:status "none"
+                               :challenge challenge
+                               :biometric biometric
+                               :review? review?})))))
+        (.then (fn [{:keys [record nullifier challenge biometric review?]}]
+                 (if review?
+                   ;; ADR 2609142200: a biometric mismatch or liveness fail
+                   ;; NEVER auto-clears — stage it for operator review.
+                   (do
+                     (js-invoke storage "put" challenge-key
+                                (js/JSON.stringify
+                                 (clj->js (assoc challenge :consumed true))))
+                     (response {:principalId principal-id
+                                :status "operator-review-pending"
+                                :provider "kotoba-proof"
+                                :biometric biometric} 202))
+                   (let [record (or record {:status "none"
                                           :principalId principal-id
                                           :scopes [] :applications []})
                        next (-> record
@@ -130,7 +228,7 @@
                                            :status (:status next)
                                            :provider "kotoba-proof"
                                            :trust 80
-                                           :approvedBy "icao-passive-auth"} 200))))))))))
+                                           :approvedBy "icao-passive-auth"} 200)))))))))))
 
 
 (def run-proof-submit
@@ -160,7 +258,10 @@
                   (assoc verify-result
                          :principalId (:principalId body)
                          :scopeId (:scopeId body)
-                         :tasks (:tasks body)))))))))
+                         :tasks (:tasks body)
+                         :portrait-digest (:portraitDigest body)
+                         :portrait-jpeg (:portraitJpeg body)
+                         :selfie-frames (:selfieFrames body)))))))))
 
 
 (def version "kotoba-research-authority-2026-09-v2-DEBUG")
