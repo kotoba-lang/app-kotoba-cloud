@@ -19,6 +19,10 @@
       {
         "name": "ORG_RECORDS",
         "class_name": "OrgAuthority2"
+      },
+      {
+        "name": "FAKE_REPORT_RECORDS",
+        "class_name": "FakeReportAuthority"
       }
     ]
   },
@@ -39,6 +43,12 @@
       "tag": "v3a-org-records2-add",
       "new_sqlite_classes": [
         "OrgAuthority2"
+      ]
+    },
+    {
+      "tag": "v3b-fake-report-records",
+      "new_sqlite_classes": [
+        "FakeReportAuthority"
       ]
     }
   ],
