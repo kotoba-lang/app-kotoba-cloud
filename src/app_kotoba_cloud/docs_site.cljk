@@ -185,7 +185,10 @@
     :desc-en "ZDR design: only minimal state is retained."}
    {:id "byok" :name "BYOK"
     :desc-ja "上流プロバイダキーの持ち込みは現在提供していません (first-party 推論)。"
-    :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}])
+    :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}
+   {:id "security-services" :name "Security services (CTEM / DAST / SAST / VM)"
+    :desc-ja "第一次セキュリティサービス群の API surface。DAST など上流 3 サービスの所見は VM 台帳へ集約されます。"
+    :desc-en "The API surface of the first-party security-services suite. Findings from the three upstream services (including DAST) flow into the VM ledger."}])
 
 (defn quickstart-view [locale]
   (let [txt (fn [ja en] (if (= :ja locale) ja en))]

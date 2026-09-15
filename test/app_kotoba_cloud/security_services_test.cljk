@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.security-services-test
   (:require [app-kotoba-cloud.security-services :as sec]
+            [app-kotoba-cloud.security-services-site :as sec-site]
             [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]))
 
@@ -43,3 +44,9 @@
 
 (deftest page-and-api-cannot-drift
   (is (= "/security/services/" sec/ledger-page)))
+
+(deftest docs-reference-page-renders-dast-from-the-canonical-def
+  (let [html (pr-str (sec-site/docs-ref-view :ja))]
+    (is (str/includes? html "DAST"))
+    (doseq [cap (:capabilities (sec/service-by-id :dast))]
+      (is (str/includes? html (name (first cap)))))))

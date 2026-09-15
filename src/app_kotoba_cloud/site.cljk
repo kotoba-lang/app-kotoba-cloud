@@ -1007,13 +1007,21 @@ body:has(.kc-sb){padding-inline-start:15rem}
 
 (defn docs-ref-html [id]
   (fn [locale]
-    (let [entry (first (filter #(= (:id %) id) docs-site/ref-pages))
+    (if (= id "security-services")
+      ;; The security-services suite docs page renders from the canonical
+      ;; catalog def (security-services-site), not from docs-site, which
+      ;; cannot carry cross-page requires in the render engine.
+      (docs-page locale
+                 (fn [_] "Security services — Kotoba Cloud")
+                 "/docs/reference/security-services/"
+                 (fn [_] (security-services-site/docs-ref-view locale)))
+      (let [entry (first (filter #(= (:id %) id) docs-site/ref-pages))
           title (if (and entry (fn? (:title entry))) ((:title entry) (= locale :ja))
                   (str (:name entry " ") "— Kotoba Cloud"))]
       (docs-page locale
                  (fn [_] title)
                  (str "/docs/reference/" id "/")
-                 (fn [_] (docs-site/ref-view id locale))))))
+                 (fn [_] (docs-site/ref-view id locale)))))))
 
 (defn docs-integration-html [id]
   (fn [locale]

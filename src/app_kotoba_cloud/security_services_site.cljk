@@ -25,6 +25,35 @@
 .kc-secsvc__status::before{content:'';inline-size:.6rem;block-size:.6rem;border-radius:var(--hig-radius-capsule);background:var(--hig-palette-green)}
 .kc-secsvc__status[data-state=gated]::before{background:var(--hig-color-tint)}")
 
+(defn docs-ref-view
+  "The /docs/reference/security-services/ page: the suite's API surface and
+  each service's capabilities render from the same ONE canonical def the
+  edge catalog and the /security/services/ document use, so the docs page
+  cannot drift from the catalog. Rendered by site.cljk (docs-page chrome)."
+  [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    (into
+     [[:h1 (txt "Security services (CTEM / DAST / SAST / VM)"
+                "Security services (CTEM / DAST / SAST / VM)")]
+      [:p {:class "kc-docs__lead"}
+       (txt "第一次セキュリティサービス群の API surface。カタログは GET /v1/security/services で取得でき、ドキュメントは /security/services/ にあります。各サービス (DAST を含む) の機能 (capability) はカタログ定義からそのまま示します。"
+            "The API surface of the first-party security-services suite. The catalog is served at GET /v1/security/services and the document at /security/services/. Each service's capabilities (including DAST) below render straight from the canonical catalog def.")]
+      [:pre {:class "kc-docs__config"}
+       (str "# the edge catalog describes the suite (GET only)\ncurl "
+            "https://api.kotoba.cloud/v1/security/services\n\n"
+            "# the human-readable document\nhttps://kotoba.cloud/security/services/")]]
+     (mapcat
+      (fn [{:keys [name status capabilities integration]}]
+        [[:h2 (str name " — " (if (= status "component-shipped")
+                                (txt "コンポーネント提供中" "component shipped")
+                                (txt "ゲート中" "gated")))]
+         (into [:ul {:class "kc-docs__list"}]
+               (map (fn [[k label]] [:li [:strong (clojure.core/name k)] [:p label]])
+                    capabilities))
+         [:p {:class "kc-docs__note"} (str (txt "VM 統合: " "VM integration: ") (:note integration))]])
+      security-services/security-services))))
+
 (defn view [locale]
   (let [ja? (= locale :ja)]
     (catalog/page
