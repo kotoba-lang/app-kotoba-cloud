@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:13:38.001Z",
+ "generatedAt": "2026-09-15T09:14:28.288Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 353,
+ "productCount": 355,
  "ontology": {
   "nodes": 44,
-  "claims": 3860,
+  "claims": 3880,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeraahkfaa2f6y3l7z3t6ou4tajhhzakmz3agqvbutn5i6g46zo7jila"
+   "/": "baguqeera7j22bj6zydyrvlneagt3a5zm5gzy2yqnjmjelroizy3eeisd2nea"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -3352,6 +3352,32 @@
    ],
    "record": {
     "/": "baguqeeralysjhg5rd5h5sflcvppm4bgerxlh4oqikhemv5cuistdn5j66vda"
+   }
+  },
+  {
+   "id": "trend-zero-trust-secure-access",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Zero Trust Secure Access (ZTSA)",
+   "categoryId": "ztna",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m769-web-pricelist.html",
+   "pricingNote": "quote-based; ja_jp 製品ページの「価格を見る」は価格表/見積フォームへの誘導 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access.html も 200。",
+   "record": {
+    "/": "baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a"
+   }
+  },
+  {
+   "id": "trend-ai-secure-access",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro AI Secure Access",
+   "categoryId": "ztna",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m646-web-vision-one-price-infomation.html",
+   "pricingNote": "quote-based; ja_jp 製品ページの価格案内は Vision One 価格情報フォーム経由 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access/ai.html も 200。",
+   "record": {
+    "/": "baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a"
    }
   },
   {
@@ -7793,6 +7819,16 @@
    "bytes": 386,
    "codec": "dag-json"
   },
+  "baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a.json",
+   "bytes": 557,
+   "codec": "dag-json"
+  },
+  "baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a.json",
+   "bytes": 548,
+   "codec": "dag-json"
+  },
   "baguqeerak5hpyhilpuelggxhoknbeialv2emg47l54mzx5enz57xwlb4rsla": {
    "path": "/compliance-data/compliance/blocks/baguqeerak5hpyhilpuelggxhoknbeialv2emg47l54mzx5enz57xwlb4rsla.json",
    "bytes": 354,
@@ -9003,18 +9039,18 @@
    "bytes": 377,
    "codec": "dag-json"
   },
-  "baguqeeraahkfaa2f6y3l7z3t6ou4tajhhzakmz3agqvbutn5i6g46zo7jila": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraahkfaa2f6y3l7z3t6ou4tajhhzakmz3agqvbutn5i6g46zo7jila.json",
+  "baguqeera7j22bj6zydyrvlneagt3a5zm5gzy2yqnjmjelroizy3eeisd2nea": {
+   "path": "/compliance-data/compliance/blocks/baguqeera7j22bj6zydyrvlneagt3a5zm5gzy2yqnjmjelroizy3eeisd2nea.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerapj2jc5mu7ilkjgz6it5zcgn25pm5dhohqg4dbqin4lpeuaslijua": {
-   "path": "/compliance-data/compliance/blocks/baguqeerapj2jc5mu7ilkjgz6it5zcgn25pm5dhohqg4dbqin4lpeuaslijua.json",
-   "bytes": 251470,
+  "baguqeerao6i6tasmhtorw3xgrosxwnashabjam74lvhlspc3ust4icid4nma": {
+   "path": "/compliance-data/compliance/blocks/baguqeerao6i6tasmhtorw3xgrosxwnashabjam74lvhlspc3ust4icid4nma.json",
+   "bytes": 253151,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerapj2jc5mu7ilkjgz6it5zcgn25pm5dhohqg4dbqin4lpeuaslijua"
+  "/": "baguqeerao6i6tasmhtorw3xgrosxwnashabjam74lvhlspc3ust4icid4nma"
  }
 }
