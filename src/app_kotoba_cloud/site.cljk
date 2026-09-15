@@ -393,7 +393,7 @@
       [:nav {:class "kc-nav" :aria-label (:nav-label t)}
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-models")} (if (= locale :ja) "モデル" "Models")]
        [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (if (= locale :ja) "研究者登録" "Researchers")]
-       [:a {:class "kc-nav__secondary" :href (if (= locale :ja) "/ja/billing/" "/billing/")} (if (= locale :ja) "料金・決済" "Billing")]
+       [:a {:class "kc-nav__secondary" :href "/billing/"} (if (= locale :ja) "料金・決済" "Billing")]
        [:a {:class "kc-nav__secondary" :href "/account"} (:nav-account t)]
        [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]
        (language-links locale (:language-label t)
@@ -422,7 +422,7 @@
 (defn billing-view [locale]
   (let [t (translation locale) ja? (= locale :ja) txt (fn [ja en] (if ja? ja en))]
     [[:a {:class "kc-skip" :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/ja/billing/" :language-en "/billing/"})
+     (site-header locale t {:language-ja "/billing/" :language-en "/billing/"})
      [:main {:id "main"}
       (dds/container
        (dds/section {:title (txt "推論・データベースの料金" "Inference and database plans")}
@@ -478,7 +478,7 @@
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/ja/legal/" :language-en "/legal/"})
+     (site-header locale t {:language-ja "/legal/" :language-en "/legal/"})
      [:main {:id "main" :class "kc-legal"}
       (dds/container
        (dds/section {:title (:legal-heading t)}
@@ -496,7 +496,7 @@
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm"
           :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/ja/legal/tokushoho/"
+     (site-header locale t {:language-ja "/legal/tokushoho/"
                             :language-en "/legal/tokushoho/"})
      [:main {:id "main" :class "kc-legal"}
       (dds/container
@@ -889,7 +889,7 @@
          (dds/button (txt "ワークベンチを開く (トップページ)" "Open the workbench (home page)")
                      {:type :solid-fill :size "md" :href (if ja? "/ja/#knowledge/overview" "/#knowledge/overview")})
          (dds/button (txt "料金・プラン" "Billing & plans")
-                     {:type :outline :size "md" :href (if ja? "/ja/billing/" "/billing/")}))
+                     {:type :outline :size "md" :href "/billing/"}))
         (dds/heading 2 (txt "周辺プロジェクト" "Surrounding projects") {:size "28"})
         [:ul {:class "kc-docs__list"}
          [:li
