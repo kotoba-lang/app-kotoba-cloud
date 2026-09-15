@@ -702,8 +702,8 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
       jobs.set(body.jobId, job);
       setTimeout(() => { if (job.status === "queued") {
         // upstreamOutcome: "ok" (default) | "failed" | "empty" — the last two
-        // are what a refused Modal origin used to look like on the edge
-        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "modal-inference-unavailable"; }
+        // are what a refused dedicated origin used to look like on the edge
+        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "red-route-unavailable"; }
         else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; } } }, 5);
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
@@ -763,26 +763,28 @@ assert.equal(researchCalls.length, 0);
 }
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
 const modelCatalogBody = await modelCatalog.json();
-// Two teams (owner direction 2026-09-15): red = Modal, the identity ladder;
-// blue = OpenRouter, sign-in + free quota. The blue rows' availability is the
-// edge's OPENROUTER_CONFIGURED flag, never the key.
+// Two teams (owner direction 2026-09-15): red = the dedicated research
+// deployment, the identity ladder; blue = the shared route, sign-in + free
+// quota. The blue rows' availability is the edge's BLUE_ROUTE_CONFIGURED
+// flag, never the key. No provider is named anywhere in the catalog.
 assert.deepEqual(modelCatalogBody.data.map(m => m.id).sort(),
   ["glm5.3-flash", "qwen/qwen3.8-flash", "qwen3.8-flash-next-whitehacker", "z-ai/glm-5.3-flash"]);
 const catalogRow = id => modelCatalogBody.data.find(m => m.id === id);
 assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").team, "red");
-assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").route, "modal");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").route, "dedicated");
 assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").availability, "upstream-tested-access-gated");
 assert.equal(catalogRow("z-ai/glm-5.3-flash").team, "blue");
-assert.equal(catalogRow("z-ai/glm-5.3-flash").route, "openrouter");
-assert.equal(catalogRow("z-ai/glm-5.3-flash").availability, "openrouter-key-not-configured");
-assert.equal(catalogRow("qwen/qwen3.8-flash").upstream, "https://openrouter.ai/api/v1/chat/completions");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").route, "shared");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").availability, "route-key-not-configured");
+assert.equal(catalogRow("qwen/qwen3.8-flash").upstream, undefined, "no upstream endpoint in the public catalog");
+assert.doesNotMatch(JSON.stringify(modelCatalogBody), /openrouter|modal|orcarouter/i, "no provider is named in the public catalog");
 assert.deepEqual(modelCatalogBody.teams.red.requirements.slice(0, 3),
   ["authenticated-principal", "verified-ekyc-card", "aup-consent"]);
 assert.deepEqual(modelCatalogBody.teams.blue.requirements,
   ["authenticated-principal", "available-free-quota", "guardrails"]);
 {
-  const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, OPENROUTER_CONFIGURED: "true" })).json();
-  assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "openrouter-configured");
+  const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, BLUE_ROUTE_CONFIGURED: "true" })).json();
+  assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "route-configured");
   assert.equal(configured.data.find(m => m.id === "glm5.3-flash").availability, "upstream-tested-access-gated");
 }
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);

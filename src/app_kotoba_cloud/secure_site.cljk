@@ -7,7 +7,7 @@
   the firewall's observe mode; there are no mutations on this surface
   (rules are pinned policy data, not user settings — secure.cljk).
 
-  Reference IA (OrcaRouter Guardrails / Firewall / Compliance): title +
+  Reference IA (Guardrails / Firewall / Compliance): title +
   one-line meaning, a local view switch, tables with explicit columns, an
   honest note that coverage is runtime controls, not a certification."
   (:require [jp-go-dds.core :as dds]

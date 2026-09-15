@@ -6,23 +6,24 @@
 (def model-id "qwen3.8-flash-next-whitehacker")
 (def teams
   "Two teams, two routes, two admission bars (owner direction 2026-09-15).
-   :red  — the security-research models served through Modal; admitted only
-           with card-based identity verification and consent to the
-           Acceptable Use Policy (/security/aup/), plus trust / screening /
-           scope as before.
-   :blue — general models served through OpenRouter; admitted with a
-           signed-in principal and free quota. Guardrails run on every
-           request for both teams."
-  {:blue {:label "ブルーチーム" :label-en "Blue team" :route :openrouter
+   :red  — the security-research models on Kotoba's dedicated research
+           deployment; admitted only with card-based identity verification
+           and consent to the Acceptable Use Policy (/security/aup/), plus
+           trust / screening / scope as before.
+   :blue — general models on Kotoba's shared inference route; admitted
+           with a signed-in principal and free quota. Guardrails run on
+           every request for both teams. Which providers stand behind each
+           route is operator configuration, not public policy."
+  {:blue {:label "ブルーチーム" :label-en "Blue team" :route :shared
           :requirements ["authenticated-principal" "available-free-quota" "guardrails"]}
-   :red {:label "レッドチーム" :label-en "Red team" :route :modal
+   :red {:label "レッドチーム" :label-en "Red team" :route :dedicated
          :requirements ["authenticated-principal" "verified-ekyc-card" "aup-consent"
                         "current-aml-ctf-clearance" "current-trust-route"
                         "approved-research-scope" "available-free-quota" "guardrails"]}})
 (def models
   "Selectable research models. `:upstream` is the model id forwarded to the
   team's route; `:strictAttribution` requires the upstream to echo its own
-  model id. Blue-team public ids ARE the OpenRouter ids (an OpenAI-
+  model id. Blue-team public ids are the publishers' ids (an OpenAI-
   compatible client uses them unchanged); red-team ids are Kotoba's."
   {"qwen3.8-flash-next-whitehacker"
    {:team :red :upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
@@ -32,10 +33,10 @@
     :source "https://huggingface.co/zai-org/GLM"}
    "qwen/qwen3.8-flash"
    {:team :blue :upstream "qwen/qwen3.8-flash" :strictAttribution true
-    :source "https://openrouter.ai/qwen/qwen3.8-flash"}
+    :source "https://huggingface.co/Qwen"}
    "z-ai/glm-5.3-flash"
    {:team :blue :upstream "z-ai/glm-5.3-flash" :strictAttribution true
-    :source "https://openrouter.ai/z-ai/glm-5.3-flash"}})
+    :source "https://huggingface.co/zai-org"}})
 (defn model-team [id] (get-in models [id :team]))
 (defn blue? [id] (= :blue (model-team id)))
 (def model-ids (set (keys models)))
@@ -63,11 +64,8 @@
                  {:id id :object "model" :owned_by "kotoba"
                   :team (name (:team spec))
                   :route (name (get-in teams [(:team spec) :route]))
-                  :upstream (case (:team spec)
-                              :blue "https://openrouter.ai/api/v1/chat/completions"
-                              "https://api.murakumo.cloud/v1/chat/completions")
                   ;; the edge overrides :availability from its environment
-                  ;; (blue: whether the OpenRouter key is configured)
+                  ;; (blue: whether the shared route's key is configured)
                   :availability (case (:team spec) :blue "route-not-configured" "upstream-tested-access-gated")
                   :source (:source spec)})
                (seq models))
@@ -213,7 +211,7 @@
               (some #{(:task body)} (:tasks %))) (:scopes record)))
 
 
-;; --- Assurance ladder (OrcaRouter-style rungs) ------------------------------
+;; --- Assurance ladder (rungs) ------------------------------------------------
 ;; Each rung names the evidence that puts a workspace at that level and the
 ;; daily token allowance it unlocks. The bottom rung (a chargeable card is not
 ;; an identity) unlocks only the free research allowance — 50 requests/day with
@@ -306,7 +304,7 @@
      :grantsBand (:grantsBand rung)}
     {:rungId :none :level 0 :tokensPerDay 0 :ceilingTokensPerDay 0 :grantsBand nil}))
 
-;; --- SECURE public metadata (orcarouter pattern) ----------------------------
+;; --- SECURE public metadata --------------------------------------------------
 ;; What the edge tells the browser/API about the runtime controls. Coverage
 ;; is automated runtime controls only — never a certification claim.
 (def secure-profile

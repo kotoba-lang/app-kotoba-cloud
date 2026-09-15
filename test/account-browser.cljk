@@ -246,10 +246,10 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   await fixture(false)(page);
   await page.route('**/v1/models',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({object:'list',policyVersion:'whitehat-2026-09-12-v1',data:[
-    {id:'qwen3.8-flash-next-whitehacker',team:'red',route:'modal',availability:'upstream-tested-access-gated'},
-    {id:'glm5.3-flash',team:'red',route:'modal',availability:'upstream-tested-access-gated'},
-    {id:'qwen/qwen3.8-flash',team:'blue',route:'openrouter',availability:'openrouter-configured'},
-    {id:'z-ai/glm-5.3-flash',team:'blue',route:'openrouter',availability:'openrouter-key-not-configured'}]})}));
+    {id:'qwen3.8-flash-next-whitehacker',team:'red',route:'dedicated',availability:'upstream-tested-access-gated'},
+    {id:'glm5.3-flash',team:'red',route:'dedicated',availability:'upstream-tested-access-gated'},
+    {id:'qwen/qwen3.8-flash',team:'blue',route:'shared',availability:'route-configured'},
+    {id:'z-ai/glm-5.3-flash',team:'blue',route:'shared',availability:'route-key-not-configured'}]})}));
   await page.goto(base+'/models/');
   await page.waitForFunction(()=>/ポリシー版/.test(document.getElementById('models-status').textContent),null,{timeout:5000});
   const s=await page.evaluate(()=>({
@@ -261,7 +261,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     blueReqs:[...document.querySelectorAll('#team-blue .kc-models__reqs code')].map(c=>c.textContent)}));
   if(s.blueRows!==2||s.redRows!==2)throw Error('team tables '+JSON.stringify(s));
   if(s.empty!==0)throw Error('unhydrated availability cells '+JSON.stringify(s));
-  if(!/OpenRouter/.test(s.cells['qwen/qwen3.8-flash'])||!/キー未設定/.test(s.cells['z-ai/glm-5.3-flash']))throw Error('blue availability copy '+JSON.stringify(s.cells));
+  if(!/^提供中$/.test(s.cells['qwen/qwen3.8-flash'].trim())||!/接続キー未設定/.test(s.cells['z-ai/glm-5.3-flash']))throw Error('blue availability copy '+JSON.stringify(s.cells));
   if(!/許可されたリクエスト/.test(s.cells['glm5.3-flash']))throw Error('red availability copy '+JSON.stringify(s.cells));
   if(!s.redReqs.includes('/security/aup/')||!s.redReqs.includes('/account#account-panel-identity'))throw Error('red requirements must link the AUP and card identity '+JSON.stringify(s.redReqs));
   if(JSON.stringify(s.blueReqs)!==JSON.stringify(['authenticated-principal','available-free-quota','guardrails']))throw Error('blue requirements '+JSON.stringify(s.blueReqs));

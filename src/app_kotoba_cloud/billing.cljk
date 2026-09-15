@@ -6,7 +6,7 @@
    {:sku "team" :name "Team" :scope "platform" :cents 15000 :credits 60 :gib 50 :seats 6}
    {:sku "max" :name "Max" :scope "platform" :cents 10000 :credits 60 :gib 100}
    {:sku "ultra" :name "Ultra" :scope "platform" :cents 20000 :credits 120 :gib 250}
-   ;; OrcaRouter-style credits-monthly tiers: the monthly plan purchases a
+   ;; credits-monthly tiers: the monthly plan purchases a
    ;; credits balance with a bonus that rises with commitment. Credits never
    ;; expire, the plan renews each period, cancel any time (terms surfaced on
    ;; the billing page). scope credits = fungible across ai+storage meters.

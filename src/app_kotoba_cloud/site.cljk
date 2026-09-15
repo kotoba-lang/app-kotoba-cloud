@@ -88,7 +88,7 @@
     :menu-models "モデル" :menu-register "研究者登録" :menu-billing "料金・決済"
     :menu-account "アカウント" :menu-security "セキュリティ" :menu-apps "アプリ"
     :menu-label "アプリメニュー"
-    ;; orcarouter-style sidebar groups (ja)
+    ;; console sidebar groups (ja)
     :sb-main "MAIN" :sb-manage "MANAGE" :sb-secure "SECURE" :sb-account "ACCOUNT"
     :sb-start "はじめる" :sb-chat "調査チャット" :sb-docs "ドキュメント"
     :sb-keys "接続トークン" :sb-routing "モデル & ルーティング" :sb-insights "利用とインサイト"
@@ -122,7 +122,7 @@
              {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
               :href "/#research-models"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
-              :body "本人確認、審査、承認済みスコープを通した調査を、非公開の Modal 直結バックエンドで実行する。"}
+              :body "本人確認、審査、承認済みスコープを通した調査を、非公開の専用推論基盤で実行する。"}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -204,7 +204,7 @@
     :menu-models "Models" :menu-register "Researchers" :menu-billing "Billing"
     :menu-account "Account" :menu-security "Security" :menu-apps "Apps"
     :menu-label "App menu"
-    ;; orcarouter-style sidebar groups (en)
+    ;; console sidebar groups (en)
     :sb-main "MAIN" :sb-manage "MANAGE" :sb-secure "SECURE" :sb-account "ACCOUNT"
     :sb-start "Get started" :sb-chat "Research chat" :sb-docs "Docs"
     :sb-keys "API tokens" :sb-routing "Models & routing" :sb-insights "Usage & insights"
@@ -238,7 +238,7 @@
              {:kind "COMPUTE" :name "Kotoba Cloud AI" :origin "api.kotoba.cloud"
               :href "/#research-models"
               :connect-href "https://auth.kotoba.cloud/connect?target=kotoba-cloud"
-              :body "Runs identity-verified, reviewed and scope-approved research through a private direct Modal backend."}
+              :body "Runs identity-verified, reviewed and scope-approved research on a private, dedicated inference deployment."}
              {:kind "AGENT WORK" :name "Itonami" :origin "itonami.cloud"
               :href "https://itonami.cloud"
               :connect-href "https://auth.kotoba.cloud/connect?target=itonami"
@@ -488,7 +488,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
 .kc-topbar__chip{min-height:2rem;font-size:var(--hig-text-caption1-font-size)}}")
 
 (defn app-sidebar
-  "OrcaRouter-style persistent left nav, generated from console/groups —
+  "Persistent left nav, generated from console/groups —
   the ONE table that declares every destination (a view added to the table
   and forgotten in the nav cannot happen). Emitted AFTER <main> (see
   site-layout) so content comes first on every band. Badges are facts from
@@ -578,7 +578,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
      [:a {:id "kc-setup-banner-link" :href "/account"} (txt "続ける" "Continue")]]))
 
 (defn app-menu
-  "OpenRouter-style single dropdown menu over the compact app header.
+  "Single dropdown menu over the compact app header.
    Every destination is a real document (no anchor-only items). Items are
    listed in nav copy order; the app surface owns only the container."
   [locale t]
@@ -840,7 +840,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                            (dds/heading 3 title {:size "20"})
                            [:p body]]))
               (:steps t)))
-        [:pre {:class "kc-command"} [:code "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before direct Modal inference"]])
+        [:pre {:class "kc-command"} [:code "kotoba research --scope <approved-scope> --task code-review\n# requests are admitted by Kotoba Cloud before inference"]])
        (dds/section {:title (:boundary-title t) :id "trust"}
         (dds/card
          [:article {:class "kc-boundary"}
@@ -950,7 +950,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn view [locale]
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :href "#main"} (:skip t)]
-     ;; OrcaRouter-style shell: fixed left nav (Get started first), header
+     ;; console shell: fixed left nav (Get started first), header
      ;; on top, and the research chat as one panel — not the landing hero.
      (site-header locale t {:nav false})
      [:div {:id "kc-app-main"}
@@ -1321,8 +1321,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
     (apps-site/view locale))))
 
 (defn aup-view [locale]
-  ;; Security Research Acceptable Use Policy + assurance ladder (orcarouter
-  ;; pattern): allowed / strictly prohibited / offensive conditions / privacy
+  ;; Security Research Acceptable Use Policy + assurance ladder: allowed /
+  ;; strictly prohibited / offensive conditions / privacy
   ;; plus the public rung schedule. The data comes from research.cljk so the
   ;; page and the API contract cannot drift apart.
   (let [aup research/acceptable-use-policy
@@ -1661,7 +1661,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
       ;; graph docs: former kotobase.net content surface
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
-      ;; docs: integrations overview + one page per client (orcarouter pattern)
+      ;; docs: integrations overview + one page per client
       ;; console documents rendered from policy data (2026-09-15 round 3)
       (spit-file (node-path/join root "secure" "index.html") (secure-html))
       (spit-file (node-path/join root "models" "index.html") (models-html))

@@ -4,7 +4,7 @@
   destination — its group, label, href, badge — and everything else derives
   from it: the sidebar, the top bar's section label, the setup steps.
 
-  Reference IA (owner-supplied, 2026-09-15): an OrcaRouter-style console —
+  Reference IA (owner-supplied, 2026-09-15): a console —
   MAIN / MANAGE / SECURE / ACCOUNT groups, a top bar with the section name,
   a credit chip, a docs link and a 'Get started n/N' progress chip, a
   'Resume setup' banner naming the next step, and an account chip at the

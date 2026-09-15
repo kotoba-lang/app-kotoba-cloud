@@ -61,7 +61,7 @@ scope/tasks mismatch between step 2 and step 6.
 
 Not a drop-in API-key service. No tools, arbitrary models or system-message overrides.
 
-Access order (OrcaRouter-style assurance ladder): the saved card unlocks the free
+Access order (the assurance ladder): the saved card unlocks the free
 research allowance (50 requests/day) immediately; identity verification and the
 governance checks (business verified, contracted researcher) come after and raise
 the token ceiling. Tool calls, command execution and automation are NEVER performed
