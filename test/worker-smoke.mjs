@@ -797,7 +797,10 @@ assert.deepEqual(modelCatalogBody.teams.blue.requirements,
 {
   const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, BLUE_ROUTE_CONFIGURED: "true" })).json();
   assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "route-configured");
-  assert.equal(configured.data.find(m => m.id === "glm5.3-flash").availability, "upstream-tested-access-gated");
+  // a red model whose origin is not up is listed as route-not-configured
+  // (the one origin answered 404 for it, after a quota unit — 2026-09-15)
+  assert.equal(configured.data.find(m => m.id === "glm5.3-flash").availability, "route-not-configured");
+  assert.equal(configured.data.find(m => m.id === "qwen3.8-flash-next-whitehacker").availability, "upstream-tested-access-gated");
 }
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 const eligibleStatusBody = await eligibleStatus.json();
@@ -1224,23 +1227,25 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
   // Cookie path stays strict: OpenAI-only body without task/scopeId → 400.
   assert.equal((await route(researchRequest("/v1/chat/completions", { model: researchModel,
     messages: [{ role: "user", content: "x" }] }), researchEnv)).status, 400);
-  // Multi-model: glm5.3-flash admitted end-to-end on the bearer path; the
-  // completion echoes the requested model and the authority request keeps it.
+  // Multi-model: a listed red model with no origin (glm5.3-flash) is refused
+  // by name at admission — no job reserved, no quota unit spent — until an
+  // origin serves it; the request is otherwise well-formed.
   const glmBody = { model: "glm5.3-flash", messages: [{ role: "user", content: "Review my auth checks." }] };
   const savedForGlm = structuredClone(researchRecord);
   researchRecord.continuous.sessionRef = agentSessionRef;
   researchRecord.continuous.action = "code-review";
   researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
-  const okGlm = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+  const createsBeforeGlm = researchCalls.filter(c => c.path === "/jobs/create").length;
+  const noGlm = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
     method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
     body: JSON.stringify(glmBody)
   }), bearerPatEnv);
   researchRecord = savedForGlm;
-  assert.equal(okGlm.status, 200);
-  const glmJson = await okGlm.json();
-  assert.equal(glmJson.model, "glm5.3-flash");
-  const lastGlmCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
-  assert.equal(lastGlmCreate.body.request.model, "glm5.3-flash");
+  assert.equal(noGlm.status, 503);
+  const noGlmJson = await noGlm.json();
+  assert.equal(noGlmJson.error.code, "model-route-not-configured");
+  assert.match(noGlmJson.error.message, /glm5\.3-flash/);
+  assert.equal(researchCalls.filter(c => c.path === "/jobs/create").length, createsBeforeGlm, "no reservation for an unserved model");
   // Unknown models remain rejected on the bearer path.
   assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
     method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
