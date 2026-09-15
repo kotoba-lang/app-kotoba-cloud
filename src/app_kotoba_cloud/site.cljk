@@ -449,6 +449,7 @@
                        (str (:credits p) (txt (str " AI credits / 月（$" (:credits p) "相当）")
                                               (str " AI credits / month (worth $" (:credits p) ")"))))]
                  (when (:gib p) [:p (str (:gib p) (txt " GiB の保存容量（超過分は $0.20/GiB・月）" " GiB storage (excess at $0.20/GiB per month)"))])
+                 (when (:seats p) [:p (str (:seats p) (txt " 席（AI・保存枠を共有）" " seats (shared AI and storage allowance)"))])
                  [:button {:type "button" :data-billing-sku (:sku p) :disabled true}
                   (txt "接続状況を確認中" "Checking availability")])) )
         [:p (txt "Proのtoken枠を基準にMaxは5倍、Ultraは10倍。Proの12 creditsは、通常入力1,000万＋出力250万tokensに相当します（混合例）。入力・キャッシュ・出力の構成により利用可能なtoken数は変わります。" "Max includes 5× and Ultra 10× the Pro token allowance. Pro's 12 credits cover, for example, 10 million uncached input plus 2.5 million output tokens. Actual token capacity varies with the input, cache and output mix.")]
@@ -457,6 +458,7 @@
         [:button {:id "billing-portal" :type "button" :disabled true} (txt "請求・解約の管理" "Manage billing and cancellation")]
         (dds/heading 2 "Enterprise" {:size "28"})
         [:p (txt "月額$1,000からの個別見積。年間コミット、用途別予算、組織の権限管理、監査ログ、専用推論・保管構成を契約に応じて設計します。SLAと専用容量は個別合意後に適用します。" "Custom quotes from $1,000/month: annual commitments, scoped budgets, organization permissions, audit logs, and dedicated inference/storage options. SLA and dedicated capacity require an agreed contract.")]
+        [:p (txt "専用GPU容量（reserved capacity）: B200級GPUを専有する契約です。月額$6,000以上・12か月コミットで、利用量に関係なく専有分の枠を保証します。見積は別途お問い合わせください。" "Reserved capacity: a dedicated B200-class GPU pool quoted per contract. From $6,000/month with a 12-month commitment; your reserved capacity is guaranteed regardless of usage. Contact us for a quote.")]
         [:p (txt "月額枠は各請求期間末に失効し、追加クレジットは購入から12か月有効です。残高不足で新しい有料処理を停止します。保存済みデータは自動削除しません。" "Monthly allowances expire at the end of their billing period; top-up credits last 12 months. New paid work stops when funds run out. Stored data is not automatically deleted.")]))]
      (site-footer t)]))
 

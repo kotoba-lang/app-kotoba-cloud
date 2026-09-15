@@ -1,8 +1,9 @@
 (ns app-kotoba-cloud.billing
   "Versioned prices and measurement contracts. Money is integer micro-USD.")
-(def version "2026-09-15-v3")
+(def version "2026-09-15-v4")
 (def plans
   [{:sku "pro" :name "Pro" :scope "platform" :cents 2000 :credits 12 :gib 20}
+   {:sku "team" :name "Team" :scope "platform" :cents 15000 :credits 60 :gib 50 :seats 6}
    {:sku "max" :name "Max" :scope "platform" :cents 10000 :credits 60 :gib 100}
    {:sku "ultra" :name "Ultra" :scope "platform" :cents 20000 :credits 120 :gib 250}
    {:sku "ai-credits-25" :name "AI Credits $25" :scope "ai" :cents 2500 :credits 25 :topup true}
@@ -14,7 +15,13 @@
 (def catalog {:version version :currency "usd" :status "sandbox-proposal"
               :creditValueUSD 1 :plans plans :ratesMicroUSD rates
               :free {:identityRequired true :existingResearchQuotaUnchanged true :storageGiB 1}
-              :enterprise {:minimumMonthlyUSD 1000 :quoteRequired true :postpaidDefault false}
+              :enterprise {:minimumMonthlyUSD 1000 :quoteRequired true :postpaidDefault false
+                           ;; Reserved capacity: a dedicated B200-class GPU pool quoted per
+                           ;; contract. Requires an annual commitment; minimum monthly covers
+                           ;; the always-on cost floor so an unused reservation cannot
+                           ;; strand us with idle GPU spend.
+                           :reservedCapacity {:gpuClass "b200" :minimumMonthlyUSD 6000
+                                              :commitmentMonths 12 :quoteRequired true}}
               :subscriptionScope "platform" :includedBalances ["ai" "storage.capacity"]
               :automaticTopup false :taxIncluded false
               ;; Storage is priced in stored GiB-months, not abstract credits:
@@ -22,6 +29,7 @@
               :storageUSDPerGiBMonth (/ (:storage-gib-month rates) 1000000)
               :aiTopupCreditsPerUSD 1
               :platform {:pro {:usd 20 :aiCredits 12 :storageGiB 20}
+                         :team {:usd 150 :aiCredits 60 :storageGiB 50 :seats 6}
                          :max {:usd 100 :aiCredits 60 :storageGiB 100}
                          :ultra {:usd 200 :aiCredits 120 :storageGiB 250}}})
 (defn natural? [x] (and (integer? x) (<= 0 x 1000000000000)))
