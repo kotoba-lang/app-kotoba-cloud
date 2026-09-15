@@ -9,7 +9,9 @@
   control, wrap by default) — owner observation 2026-09-15: the bare <pre>
   was one colour, inverted against the dark theme, and clipped its long
   lines."
-  (:require [app-kotoba-cloud.code-block :as code-block]))
+  (:require [app-kotoba-cloud.code-block :as code-block]
+            [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.research :as research]))
 
 (def css
   ".kc-docs{padding-block:var(--hig-spacing-6)}
@@ -19,11 +21,116 @@
 .kc-docs__list li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-4)}
 .kc-docs__list a{font-weight:700}
 .kc-docs__note{padding:var(--hig-spacing-3) var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-tint);background:var(--hig-color-secondary-system-background);border-radius:0 var(--hig-radius-sm) var(--hig-radius-sm) 0}
-.kc-docs__note--warn{border-inline-start-color:var(--hig-palette-orange,var(--hig-color-label))}")
+.kc-docs__note--warn{border-inline-start-color:var(--hig-palette-orange,var(--hig-color-label))}
+.kc-docs__tagline{font-size:var(--hig-text-title2-font-size);font-weight:700;margin-block:var(--hig-spacing-2) var(--hig-spacing-4)}
+.kc-docs__tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:var(--hig-spacing-3);padding:0;margin:0;list-style:none}
+.kc-docs__tiles li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);padding:var(--hig-spacing-4)}
+.kc-docs__tiles h3{margin:0 0 var(--hig-spacing-2);font-size:var(--hig-text-headline-font-size)}
+.kc-docs__tiles p{margin:0;color:var(--hig-color-secondary-label);font-size:var(--hig-text-footnote-font-size)}
+.kc-docs__nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));gap:var(--hig-spacing-3) var(--hig-spacing-5);margin:0 0 var(--hig-spacing-5);padding:var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-secondary-system-background)}
+.kc-docs__nav h2{margin:0 0 var(--hig-spacing-2);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);letter-spacing:.06em;text-transform:uppercase;color:var(--hig-color-secondary-label)}
+.kc-docs__nav ul{margin:0;padding:0;list-style:none;display:grid;gap:var(--hig-spacing-1)}
+.kc-docs__nav a{text-decoration:none;color:var(--hig-color-label)}
+.kc-docs__nav a[aria-current=page]{font-weight:700;color:var(--hig-color-tint)}")
 
 (def base-origin "https://api.kotoba.cloud")
 (def openai-base "https://api.kotoba.cloud/v1")
-(def model-id "qwen3.8-flash-next-whitehacker")
+(def model-id research/model-id)
+
+(defn- usd-per-million [micro] (str "$" (/ micro 1000000)))
+
+;; --- the documentation's own map (OrcaRouter-style sections) ----------------
+;; Every entry is a document that exists in the emit; the nav on each page is
+;; rendered from this table and the reference index from ref-pages below.
+(def sections
+  [{:id :start :ja "はじめる" :en "Get started"
+    :pages [{:href "/docs/" :ja "はじめに" :en "Introduction"}
+            {:href "/docs/reference/quickstart/" :ja "クイックスタート" :en "Quickstart"}
+            {:href "/docs/reference/get-api-token/" :ja "API トークンを取得" :en "Get an API token"}
+            {:href "/docs/reference/models/" :ja "モデル" :en "Models"}]}
+   {:id :compat :ja "互換性" :en "Compatibility"
+    :pages [{:href "/docs/integrations/" :ja "エージェントと IDE" :en "Agents & IDEs"}
+            {:href "/docs/integrations/generic-openai/" :ja "OpenAI SDK" :en "OpenAI SDK"}
+            {:href "/docs/integrations/claude-code/" :ja "Anthropic プロトコル" :en "Anthropic protocol"}]}
+   {:id :advanced :ja "応用" :en "Advanced"
+    :pages [{:href "/docs/reference/streaming/" :ja "ストリーミング" :en "Streaming"}
+            {:href "/docs/reference/tools/" :ja "ツール呼び出し" :en "Tool calling"}
+            {:href "/docs/reference/structured-outputs/" :ja "構造化出力" :en "Structured outputs"}
+            {:href "/docs/reference/reasoning/" :ja "推論（reasoning）" :en "Reasoning"}]}
+   {:id :features :ja "機能" :en "Features"
+    :pages [{:href "/docs/reference/guardrails-firewall/" :ja "ガードレール・ファイアウォール" :en "Guardrails & firewall"}
+            {:href "/docs/reference/security-services/" :ja "セキュリティサービス" :en "Security services"}
+            {:href "/docs/graph/" :ja "グラフ・オントロジー DB" :en "Graph & ontology DB"}]}
+   {:id :operations :ja "運用" :en "Operations"
+    :pages [{:href "/docs/reference/rate-limits/" :ja "レート制限" :en "Rate limits"}
+            {:href "/docs/reference/errors/" :ja "エラー" :en "Errors"}
+            {:href "/docs/reference/billing-and-usage/" :ja "課金と利用量" :en "Billing & usage"}
+            {:href "/docs/reference/per-request-cost/" :ja "リクエストごとの費用" :en "Per-request cost"}
+            {:href "/docs/reference/byok/" :ja "BYOK" :en "BYOK"}
+            {:href "/docs/reference/zero-data-retention/" :ja "データの取り扱い" :en "Data handling"}]}])
+
+(defn docs-nav
+  "The site map on every docs page, the current page marked. Grouped the
+   way a reader looks for things (get started / compatibility / advanced /
+   features / operations), each link a document that exists."
+  [locale current]
+  (let [ja? (= :ja locale)]
+    (into [:nav {:class "kc-docs__nav" :aria-label (if ja? "ドキュメント" "Docs")}]
+          (for [sec sections]
+            [:div
+             [:h2 (if ja? (:ja sec) (:en sec))]
+             (into [:ul]
+                   (for [pg (:pages sec)]
+                     [:li [:a (cond-> {:href (:href pg)}
+                                (= (:href pg) current) (assoc :aria-current "page"))
+                           (if ja? (:ja pg) (:en pg))]]))]))))
+
+(defn intro-view
+  "docs.kotoba.cloud/ — the introduction (reference IA: docs.orcarouter.ai/
+   introduction): one sentence on what this is, why, and where to start."
+  [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "Kotoba Cloud へようこそ" "Welcome to Kotoba Cloud")]
+     [:p {:class "kc-docs__tagline"}
+      (txt "1 つの API。本人確認済みの研究者向け。ツール呼び出しもストリーミングも、OpenAI 互換のまま。"
+           "One API. Verified researchers. OpenAI-compatible — tool calls and streaming included.")]
+     [:p {:class "kc-docs__lead"}
+      (txt (str "Kotoba Cloud は OpenAI 互換の推論 API です。既存の OpenAI SDK の base_url を " openai-base
+                " に向けるだけで、セキュリティ研究向けに調整されたモデルを、ガードレール・ファイアウォール・監査レシート付きで呼び出せます。"
+                "無料枠（本人確認済み）はそのまま、必要な分だけプリペイドの credits を足します。")
+           (str "Kotoba Cloud is an OpenAI-compatible inference API. Point an existing OpenAI SDK at " openai-base
+                " and call security-research-tuned models behind guardrails, a firewall and audit receipts. "
+                "The verified free allowance stays; add prepaid credits only as you need them."))]
+     [:h2 (txt "なぜ Kotoba Cloud か" "Why Kotoba Cloud")]
+     [:ul {:class "kc-docs__tiles"}
+      [:li [:h3 (txt "OpenAI 互換のまま" "OpenAI-compatible by design")]
+       [:p (txt "リクエストもレスポンスも OpenAI の JSON。base_url を 1 行変えるだけで、ストリーミング・ツール呼び出し・reasoning がそのまま動きます。Anthropic プロトコルのツールはベース URL から /v1 を外すだけ。"
+                "Every request and response is in the OpenAI JSON shape. Change one line (base_url) and streaming, tool calling and reasoning keep working. Anthropic-protocol tools drop the /v1 from the base URL.")]]
+      [:li [:h3 (txt "研究者向けの admission" "Admission for researchers")]
+       [:p (txt "レッドチームのモデルは本人確認（カード）・利用ポリシー同意・承認スコープの上でだけ動きます。ブルーチームはサインインだけ。どちらもガードレールは毎回。"
+                "Red-team models run only behind card-based identity verification, AUP consent and an approved scope; blue-team models need a sign-in. Guardrails run on every request either way.")]]
+      [:li [:h3 (txt "上乗せなしの prepaid" "Prepaid, no markup on the meter")]
+       [:p (txt (str "1 credit = $1。入力 " (usd-per-million (:input-per-million billing/rates)) "/1M・出力 " (usd-per-million (:output-per-million billing/rates))
+                     "/1M tokens をレシートで精算。自動チャージなし、残高がなければ無料枠に戻るだけ。")
+                (str "1 credit = $1. Input " (usd-per-million (:input-per-million billing/rates)) "/M and output " (usd-per-million (:output-per-million billing/rates))
+                     "/M tokens, settled from the provider receipt. No automatic top-up; with no balance you are simply on the free allowance."))]]
+      [:li [:h3 (txt "何も残さない" "Zero data retention")]
+       [:p (txt "プロンプトと出力はメモリで処理し、推論ログを持ちません。残るのは確認状態・証跡参照・監査レシートだけ。"
+                "Prompts and outputs are processed in memory; no inference logs. What remains is verification status, evidence references and audit receipts.")]]]
+     [:h2 (txt "どこから始めるか" "Where to start")]
+     [:ul {:class "kc-docs__tiles"}
+      [:li [:h3 [:a {:href "/docs/reference/quickstart/"} (txt "クイックスタート" "Quickstart")]]
+       [:p (txt "5 分で最初の呼び出し。" "Make your first call in five minutes.")]]
+      [:li [:h3 [:a {:href "/docs/integrations/"} (txt "互換性" "Compatibility")]]
+       [:p (txt "Claude Code、Codex CLI、Cursor、Cline、Aider、hermes など、OpenAI / Anthropic 互換ツールの設定。"
+                "Point Claude Code, Codex CLI, Cursor, Cline, Aider, hermes and any OpenAI / Anthropic SDK at Kotoba Cloud.")]]
+      [:li [:h3 [:a {:href "/docs/reference/tools/"} (txt "応用" "Advanced")]]
+       [:p (txt "ストリーミング、ツール呼び出し、構造化出力、reasoning。" "Streaming, tool calling, structured outputs, reasoning.")]]
+      [:li [:h3 [:a {:href "/docs/reference/"} (txt "API リファレンス" "API reference")]]
+       [:p (txt "エンドポイント、エラー、レート制限、課金。" "Every endpoint, error, limit and charge.")]]
+      [:li [:h3 [:a {:href "/docs/graph/"} (txt "グラフ・オントロジー DB" "Graph & ontology database")]]
+       [:p (txt "Kotobase: コンテンツアドレスのグラフ状態と Datalog。" "Kotobase: content-addressed graph state and Datalog.")]]]]))
 
 (defn- config-block
   "A code block (app-kotoba-cloud.code-block, the site's labels).
@@ -171,12 +278,24 @@
   [{:id "quickstart" :name "Quickstart"
     :desc-ja "サインイン → カード認証 → トークン発行 → 最初のリクエスト。"
     :desc-en "Sign in, verify with a card, issue a token, first request."}
+   {:id "get-api-token" :name "Get an API token"
+    :desc-ja "アカウントコンソールで接続トークンを発行し、環境変数に置く。"
+    :desc-en "Issue a connection token in the account console and put it in the environment."}
+   {:id "models" :name "Models"
+    :desc-ja "カタログ /v1/models: レッドチーム（専用経路）とブルーチーム（共有経路）、各モデルの admission。"
+    :desc-en "The catalog at /v1/models: red-team (dedicated route) and blue-team (shared route) models and what admits each."}
    {:id "streaming" :name "Streaming"
-    :desc-ja "研究面は SSE を提供しません — 非同期ジョブ (submit → poll)。"
-    :desc-en "The research surface serves no SSE — async jobs (submit, poll)."}
+    :desc-ja "stream: true は 1 チャンクの SSE として配信。裏はジョブ（submit → poll）。"
+    :desc-en "stream: true is served as a one-chunk SSE; underneath, a job (submit, poll)."}
    {:id "tools" :name "Tool calling"
-    :desc-ja "モデルはツール呼び出しを生成しません。Firewall はホスト側ツールを rung でゲート。"
-    :desc-en "The model never emits tool calls. The firewall gates host tools by rung."}
+    :desc-ja "ネイティブなツール呼び出し: 定義を送ると tool_calls が返る。実行はエージェント側。"
+    :desc-en "Native tool calling: send definitions, get tool_calls back. Execution stays on the agent."}
+   {:id "reasoning" :name "Reasoning"
+    :desc-ja "モデルは答える前に推論する。reasoning tokens は max_tokens の内側。"
+    :desc-en "The model reasons before it answers; reasoning tokens count inside max_tokens."}
+   {:id "guardrails-firewall" :name "Guardrails & firewall"
+    :desc-ja "毎回のガードレール、rung ごとのファイアウォール、/secure/ で公開される版。"
+    :desc-en "Guardrails on every request, the firewall by assurance rung, versions published at /secure/."}
    {:id "structured-outputs" :name "Structured outputs"
     :desc-ja "response_format は受理され上流へ転送されません。プロンプトで JSON を要求。"
     :desc-en "response_format is accepted and dropped. Ask for JSON in the prompt."}
@@ -187,8 +306,11 @@
     :desc-ja "無料枠 50 req/day と assurance rung ごとの tokens/day。"
     :desc-en "The free 50 req/day allowance and tokens/day by assurance rung."}
    {:id "billing-and-usage" :name "Billing & usage"
-    :desc-ja "1 credit = $1。token 別の micro-USD 計上と Credits Monthly。"
-    :desc-en "1 credit = $1; per-token micro-USD rating and Credits Monthly."}
+    :desc-ja "1 credit = $1。プラン、残高、token 別の micro-USD 計上、レシートによる精算。"
+    :desc-en "1 credit = $1; plans, balances, per-token micro-USD rating, settlement from receipts."}
+   {:id "per-request-cost" :name "Per-request cost"
+    :desc-ja "応答の billing / usage / chargedMicroUSD の読み方と、無料か有料かの決まり方。"
+    :desc-en "Reading billing / usage / chargedMicroUSD on a response, and how free vs paid is decided."}
    {:id "zero-data-retention" :name "Zero data retention"
     :desc-ja "ZDR 設計: 保持するのは最小限の状態だけ。"
     :desc-en "ZDR design: only minimal state is retained."}
@@ -289,27 +411,37 @@
         txt (fn [ja en] (if ja? ja en))]
     [[:h1 (txt "Streaming" "Streaming")]
      [:p {:class "kc-docs__lead"}
-      (txt "kotoba.cloud の研究面は SSE を提供しません。推論は非同期ジョブ (submit → poll) で行います。stream: true は拒否されます。"
-           "The research surface does not serve SSE. Inference runs as async jobs (submit, then poll). stream: true is rejected.")]
-     (config-block {:ja? ja? :lang :json} (str "\"stream\": true  → 400 invalid-research-request\n\n"
-                        "# instead: POST /v1/research/jobs, then poll\n"
-                        "# GET /v1/research/job?jobId=<uuid> every 5s until 200"))
-     (note-block
-      (txt "ジョブの cold start には最大約 35 分かかる場合があります (モデル起動)。pollAfterMs を守ってください。"
-           "Job cold start can take up to about 35 minutes (model startup). Respect pollAfterMs."))]))
+      (txt "stream: true は受理され、完成した応答を OpenAI の chat.completion.chunk 形式（内容 1 チャンク → finish チャンク → [DONE]）で配信します。裏側は非同期ジョブなので、最初のバイトは応答が出来上がってから届きます。SDK のストリーミング処理はそのまま動きます。"
+           "stream: true is accepted and the finished answer is served as OpenAI chat.completion.chunk events (one content chunk, one finish chunk, [DONE]). Underneath is an async job, so the first byte arrives when the answer is complete; an SDK's streaming code path works unchanged.")]
+     (config-block {:ja? ja? :lang :http} (str "POST " openai-base "/chat/completions   {\"stream\": true, ...}\n"
+                        "content-type: text/event-stream\n\n"
+                        "data: {\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"...\"},\"finish_reason\":null}]}\n"
+                        "data: {\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"billing\":\"free\",\"receiptId\":\"receipt-...\"}\n"
+                        "data: [DONE]"))
+     [:h2 (txt "ジョブとして待つ" "Waiting as a job")]
+     [:p (txt "長い応答（32k tokens までの出力）は数分かかることがあります。同期呼び出しはサーバ側で最大 14 分待ちます。それを超えると 504 inference-timeout が返りますが、ジョブは続いており、同じリクエストを再送すると同じジョブに再接続します（決定的な job id）。"
+              "Long answers (up to 32k output tokens) can take minutes. The synchronous call waits server-side for up to 14 minutes; past that it answers 504 inference-timeout while the job continues — resend the identical request and you re-attach to the same job (deterministic job id).")]
+     (config-block {:ja? ja?} (str "# the job API, when you want to poll yourself\n"
+                        "curl -s -X POST " openai-base "/research/jobs -H \"idempotency-key: <uuid v4>\" ...\n"
+                        "curl -s \"" openai-base "/research/job?jobId=<uuid>\"   # 202 queued/running · 200 succeeded"))]))
 
 (defn tools-view [locale]
   (let [ja? (= :ja locale)
         txt (fn [ja en] (if ja? ja en))]
     [[:h1 (txt "Tool calling" "Tool calling")]
      [:p {:class "kc-docs__lead"}
-      (txt "モデルはツール呼び出しを生成しません。tools は空または省略のみ受理され、それ以外は拒否されます。Firewall はホスト側ツール (タスク種別) を assurance rung でゲートします。"
-           "The model never emits tool calls. tools is accepted only empty-or-absent. The host-side firewall gates task tools by assurance rung.")]
-     (config-block {:ja? ja? :lang :json} (str "\"tools\": []          // accepted\n"
-                        "\"tools\": [{...}]    // rejected\n\n"
-                        "# host-side tool gates (firewall):\n"
-                        "#   code-review / vulnerability-triage / remediation → identity rung+\n"
-                        "#   payload-crafting / c2-tooling → denied until the contracted rung"))]))
+      (txt (str "OpenAI 形式のネイティブなツール呼び出しです。tools（最大 " research/max-tools " 個の function 定義）と tool_choice を送ると、モデルの tool_calls が finish_reason: tool_calls で返ります。ツールを実行するのは常にエージェント側（あなたのマシン）で、サーバは何も実行しません。結果は role: tool の turn で送り返します。")
+           (str "Native tool calling in the OpenAI shape: send tools (up to " research/max-tools " function definitions) and tool_choice, and the model's tool_calls come back with finish_reason: tool_calls. Execution is always the agent's, on the agent's machine — the server runs nothing. Send results back as role: tool turns."))]
+     (config-block {:ja? ja? :lang :json} (str "{\"model\": \"" model-id "\",\n"
+                        " \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"read_file\", \"parameters\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\"}}}}}],\n"
+                        " \"tool_choice\": \"auto\",\n"
+                        " \"messages\": [{\"role\": \"user\", \"content\": \"Review src/auth.ts\"}]}\n\n"
+                        "→ \"choices\": [{\"finish_reason\": \"tool_calls\", \"message\": {\"role\": \"assistant\", \"content\": null,\n"
+                        "     \"tool_calls\": [{\"id\": \"call_1\", \"type\": \"function\", \"function\": {\"name\": \"read_file\", \"arguments\": \"{\\\"path\\\":\\\"src/auth.ts\\\"}\"}}]}}]\n\n"
+                        "# then: {\"role\": \"tool\", \"tool_call_id\": \"call_1\", \"content\": \"<file contents>\"}"))
+     (note-block
+      (txt "ツール定義の文字数は入力上限（524,288 文字）に含まれます。ホスト側の firewall は タスク種別 を assurance rung でゲートします: code-review / vulnerability-triage / remediation は identity rung から、payload-crafting / c2-tooling は契約 rung まで拒否。"
+           "Tool-definition characters count toward the input ceiling (524,288). The host-side firewall gates task kinds by assurance rung: code-review / vulnerability-triage / remediation from the identity rung; payload-crafting / c2-tooling refused until the contracted rung."))]))
 
 (defn structured-view [locale]
   (let [ja? (= :ja locale)
@@ -362,16 +494,28 @@
         txt (fn [ja en] (if ja? ja en))]
     [[:h1 (txt "Billing & usage" "Billing & usage")]
      [:p {:class "kc-docs__lead"}
-      (txt "1 credit = $1 相当。入力 / キャッシュ入力 / 出力の tokens が producer receipt ごとに micro-USD で計上されます。保存は byte-秒 (30 日月) 単位。"
-           "1 credit = $1 of usage. Input / cached-input / output tokens are rated to micro-USD per authenticated producer receipt. Storage is rated byte-seconds over a 30-day billing month.")]
-     (config-block {:ja? ja? :lang :http} (str "GET " openai-base "/billing/status\n"
-                        "  → {\"balances\": [{\"scope\": \"ai\", \"availableMicroUSD\": ...},\n"
-                        "                    {\"scope\": \"storage.capacity\", ...}]}\n\n"
-                        "# credits monthly (never expire, cancel anytime):\n"
-                        "#   $50 +2% | $100 +3% | $500 +5% | $1000 +10%\n\n"
-                        "# rates (micro-USD per million tokens):\n"
-                        "#   input 600,000 · cached-input 150,000 · output 2,400,000\n"
-                        "#   storage 200,000 per GiB-month · egress 90,000/GiB"))]))
+      (txt "1 credit = $1 相当。プラン（Pro / Team / Max / Ultra）は毎月の AI credits と保存容量を含み、$25 の都度購入で足せます。入力 / キャッシュ入力 / 出力の tokens が provider receipt ごとに micro-USD で計上され、同じ書き込みで残高から引かれます。自動チャージはありません。"
+           "1 credit = $1 of usage. A plan (Pro / Team / Max / Ultra) includes monthly AI credits and storage; $25 top-ups add to it. Input / cached-input / output tokens are rated to micro-USD per provider receipt and debited in the same durable write. There is no automatic top-up.")]
+     (config-block {:ja? ja? :lang :http :title (txt "残高を読む（PAT でも可）" "Read the balance (a PAT works too)")}
+                   (str "GET " openai-base "/billing/status\n"
+                        "Authorization: Bearer $KOTOBA_API_TOKEN\n\n"
+                        "→ {\"status\": \"connected\", \"plan\": \"pro\",\n"
+                        "   \"balances\": [{\"scope\": \"ai\", \"grantedMicroUSD\": 12000000, \"spentMicroUSD\": 243,\n"
+                        "                  \"reservedMicroUSD\": 0, \"availableMicroUSD\": 11999757}, ...]}"))
+     (config-block {:ja? ja? :lang :text :title (txt "単価" "Rates")}
+                   (str "per million tokens: input " (usd-per-million (:input-per-million billing/rates))
+                        " · cached input " (usd-per-million (:cached-input-per-million billing/rates))
+                        " · output " (usd-per-million (:output-per-million billing/rates)) "\n"
+                        "storage " (usd-per-million (:storage-gib-month billing/rates)) " per GiB-month · egress "
+                        (usd-per-million (:egress-gib billing/rates)) " per GiB\n\n"
+                        "plans (USD / month): "
+                        (apply str (interpose " · " (for [p (filter #(= "platform" (:scope %)) billing/plans)]
+                                                       (str (:name p) " $" (/ (:cents p) 100) " = " (:credits p) " credits + " (:gib p) " GiB"))))
+                        "\ntop-ups: AI Credits $25 · Storage Credits $25 (12 months)\n"
+                        "Credits 50 / 100 / 500 / 1000 monthly tiers are listed, not yet purchasable"))
+     (note-block
+      (txt "購入は kotoba.cloud/billing/ から（Stripe Checkout、USD、税別）。付与は支払い済み invoice の webhook からのみ行われ、成功 URL への戻りでは何も付与されません。"
+           "Buy at kotoba.cloud/billing/ (Stripe Checkout, USD, tax excluded). Allowances are granted only from the paid invoice's webhook; returning to the success URL grants nothing."))]))
 
 (defn zdr-view [locale]
   (let [ja? (= :ja locale)
@@ -390,14 +534,141 @@
         txt (fn [ja en] (if ja? ja en))]
     [[:h1 (txt "BYOK" "BYOK")]
      [:p {:class "kc-docs__lead"}
-      (txt "kotoba.cloud は first-party 推論を提供します (Murakumo 上の自前モデル)。上流プロバイダのキーを持ち込む BYOK は現在提供していません。"
-           "kotoba.cloud serves first-party inference (its own models on Murakumo). Bring-your-own provider keys are not offered today.")]
+      (txt "kotoba.cloud は first-party 推論を提供します（専用経路と共有経路。どのプロバイダが背後にあるかは運用設定であり、公開ポリシーではありません）。上流プロバイダのキーを持ち込む BYOK は現在提供していません。"
+           "kotoba.cloud serves first-party inference (a dedicated route and a shared route; which providers stand behind them is operator configuration, not public policy). Bring-your-own provider keys are not offered today.")]
      (config-block {:ja? ja? :lang :text :title (txt "提供状況" "Status")} (str "status: not-offered\n\n"
  "# the model catalog (/v1/models) lists what the gateway routes;\n"
                         "# there is no per-workspace upstream key attachment surface"))]))
 
+(defn token-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "API トークンを取得" "Get an API token")]
+     [:p {:class "kc-docs__lead"}
+      (txt "接続トークン（kc_pat_…）は、ローカルの CLI / IDE エージェントがあなたとして API を呼ぶための bearer です。アカウントコンソールで発行し、一度だけ表示されます。"
+           "A connection token (kc_pat_…) is the bearer a local CLI / IDE agent uses to call the API as you. Issue it in the account console; it is shown once.")]
+     [:h2 (txt "発行" "Issue")]
+     [:ol
+      [:li (txt "kotoba.cloud/account にパスキーまたはウォレットでサインインします。" "Sign in at kotoba.cloud/account with a passkey or a wallet.")]
+      [:li (txt "「CLI / IDE から使う」→「接続トークンを発行」。" "Open “Use from a CLI / IDE” and press “Issue a connection token”.")]
+      [:li (txt "表示された値を環境変数に置きます（コンソールの「コピー」は環境変数の形でもコピーできます）。" "Put the value in your environment (the console's Copy buttons also give you the export lines).")]]
+     (config-block {:ja? ja?} (str "export KOTOBA_API_BASE=\"" base-origin "\"     # Anthropic-protocol tools\n"
+                        "export OPENAI_BASE_URL=\"" openai-base "\"    # OpenAI-protocol tools\n"
+                        "export KOTOBA_API_TOKEN=\"kc_pat_<your-token>\"\n\n"
+                        "curl -s " openai-base "/models -H \"Authorization: Bearer $KOTOBA_API_TOKEN\""))
+     [:h2 (txt "トークンでできること・できないこと" "What the token can and cannot do")]
+     [:ul
+      [:li (txt "研究 API（/v1/chat/completions, /v1/research/*）と残高の読み取り（GET /v1/billing/status）。" "The research API (/v1/chat/completions, /v1/research/*) and reading the balance (GET /v1/billing/status).")]
+      [:li (txt "本人確認・スコープ・無料枠・ガードレールの判定はブラウザのセッションと同一で、トークンは origin ゲートを外すだけです。" "Verification, scope, quota and guardrails are exactly the browser session's; the token only removes the origin gate.")]
+      [:li (txt "購入・解約・組織の操作はできません（ブラウザのセッションのみ）。" "It cannot buy, cancel or manage organizations (browser session only).")]]
+     (note-block
+      (txt "取り消しは署名鍵の交換で行われ、発行済みのトークンはすべて無効になります: support@kotoba.cloud。トークンをログやリポジトリに置かないでください。"
+           "Revocation rotates the signing key and invalidates every issued token: support@kotoba.cloud. Never put a token in a log or a repository."))]))
+
+(defn models-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))
+        team-label (fn [team] (if ja? (get-in research/teams [team :label]) (get-in research/teams [team :label-en])))]
+    [[:h1 (txt "モデル" "Models")]
+     [:p {:class "kc-docs__lead"}
+      (txt "カタログは GET /v1/models が正です。モデルは 2 つのチームに分かれ、チームごとに経路と admission が違います。ID はそのまま model に渡します。"
+           "The catalog at GET /v1/models is the truth. Models belong to one of two teams; the team decides the route and the admission bar. Pass the id as model unchanged.")]
+     (config-block {:ja? ja?} (str "curl -s " openai-base "/models -H \"Authorization: Bearer $KOTOBA_API_TOKEN\"\n"
+                        "# → data[].id · team · route · availability"))
+     [:h2 (txt "チームと admission" "Teams and admission")]
+     (into [:ul {:class "kc-docs__list"}]
+           (for [[team spec] research/teams]
+             [:li [:strong (team-label team)]
+              [:p (txt (if (= team :red)
+                         "セキュリティ研究向けに調整されたモデル。専用経路。カード本人確認・利用ポリシー同意・信頼経路・承認スコープ・無料枠、そして毎回のガードレール。"
+                         "一般モデル。共有経路。サインイン済みの principal と無料枠、そして毎回のガードレール。")
+                       (if (= team :red)
+                         "Security-research-tuned models on the dedicated route. Card-based identity verification, AUP consent, trust route, approved scope, free quota — and guardrails on every request."
+                         "General models on the shared route. A signed-in principal and free quota — and guardrails on every request."))]
+              [:p {:class "kc-docs__note"} (str "requirements: " (apply str (interpose " · " (:requirements spec))))]]))
+     [:h2 (txt "現在のカタログ" "Current catalog")]
+     (into [:ul {:class "kc-docs__list"}]
+           (for [[id spec] (sort-by (comp name :team val) research/models)]
+             [:li [:strong id] " " [:span {:class "ck-chip" :data-state (if (false? (:served spec)) "pending" "ok")}
+                                    (if (false? (:served spec)) (txt "経路未設定" "route not configured") (txt "提供中" "served"))]
+              [:p (str (team-label (:team spec)) " · " (txt "経路: " "route: ") (name (get-in research/teams [(:team spec) :route])))
+               (when (:source spec) [:span " · " [:a {:href (:source spec) :rel "noopener"} (txt "出典" "source")]])]]))
+     (note-block
+      (txt "「経路未設定」のモデルは admission で名指しで拒否され、無料枠を消費しません。どのプロバイダが各経路の背後にあるかは運用設定で、ここには書きません。"
+           "A model whose route is not configured is refused by name at admission and spends no quota. Which providers stand behind each route is operator configuration and is not stated here."))]))
+
+(defn reasoning-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "推論（reasoning）" "Reasoning")]
+     [:p {:class "kc-docs__lead"}
+      (txt "レッドチームのモデルは答える前に推論します。推論に使った tokens は completion_tokens に含まれ、max_tokens の内側で数えられます。max_tokens が小さいと推論だけで使い切り、content が空のまま finish_reason: length になります。"
+           "Red-team models reason before they answer. Reasoning tokens are part of completion_tokens and count inside max_tokens. A small max_tokens can be spent on reasoning alone — the content comes back empty with finish_reason: length.")]
+     (config-block {:ja? ja? :lang :json} (str "// too small: 32 tokens of reasoning, no answer\n"
+                        "{\"max_tokens\": 32}   → \"finish_reason\": \"length\", \"content\": null\n\n"
+                        "// give the answer room (the free tier allows up to 32768)\n"
+                        "{\"max_tokens\": 2048}"))
+     [:h2 (txt "パラメータ" "Parameters")]
+     [:ul
+      [:li (txt "reasoning_effort / reasoning は受理され、転送されません（openai-ignorable-keys）。推論の深さはモデルが決めます。"
+                "reasoning_effort / reasoning are accepted and dropped (openai-ignorable-keys); the model decides how deeply it reasons.")]
+      [:li (txt "応答には推論本文は含まれません。usage.completion_tokens で量だけ分かります。"
+                "The reasoning text is not returned; usage.completion_tokens shows how much there was.")]
+      [:li (txt "有料の場合、推論 tokens も出力単価で精算されます（レシートの completion_tokens）。"
+                "On the paid path, reasoning tokens are settled at the output rate (the receipt's completion_tokens).")]]]))
+
+(defn cost-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "リクエストごとの費用" "Per-request cost")]
+     [:p {:class "kc-docs__lead"}
+      (txt "すべての応答に billing が付きます: \"free\"（無料研究枠）か \"paid\"（プリペイド残高）。有料の応答は OpenAI 形式の usage と、台帳が実際に引いた chargedMicroUSD を持ちます。見積もりではなく、provider receipt の数字です。"
+           "Every answer carries billing: \"free\" (the research allowance) or \"paid\" (the prepaid balance). A paid answer carries OpenAI-shaped usage and chargedMicroUSD — the amount the ledger actually debited, from the provider receipt, never an estimate.")]
+     (config-block {:ja? ja? :lang :json} (str "{\"id\": \"...\", \"object\": \"chat.completion\", \"model\": \"" model-id "\",\n"
+                        " \"choices\": [...],\n"
+                        " \"billing\": \"paid\",\n"
+                        " \"usage\": {\"prompt_tokens\": 120, \"completion_tokens\": 30, \"total_tokens\": 150},\n"
+                        " \"chargedMicroUSD\": 243,          // 120 × $0.90/M + 30 × $4.50/M\n"
+                        " \"receiptId\": \"receipt-...\"}"))
+     [:h2 (txt "無料か有料かの決まり方" "How free vs paid is decided")]
+     [:ol
+      [:li (txt "残高（AI credits）があれば、リクエストの上限費用が先に予約されます（bytes を tokens の上限として、出力は max_tokens、単価で換算、+25%）。"
+                "With an AI balance, the request's maximum cost is reserved first (bytes as the token upper bound, max_tokens for output, at the rates, +25 %).")]
+      [:li (txt "予約できた場合だけ paid で走り、無料枠は消費しません。残高がなければ（402）、従来通り無料枠です。"
+                "Only a successful reservation runs paid, and it spends no free quota. No balance (402) means the free allowance, exactly as before.")]
+      [:li (txt "完了後、レシートの token 数で精算し、差額は解放されます。失敗したジョブは 0 で精算され、何も引かれません。"
+                "After completion the receipt's token counts settle the hold and the rest is released; a failed job settles at zero and nothing is charged.")]
+      [:li (txt "同じリクエストの再送は同じジョブと同じ予約に再接続します（決定的な job id）。二重課金はありません。"
+                "Resending the identical request re-attaches to the same job and reservation (deterministic job id) — never charged twice.")]]
+     (note-block
+      (txt "settlement: \"pending\" が付いた応答は、答えは届いたが台帳が精算を拒否した（要照合）状態です。予約は保持され、残高は照合まで動きません。"
+           "An answer with settlement: \"pending\" was served but the ledger refused the settlement (reconciliation required); the hold stays until it is reconciled."))]))
+
+(defn features-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "ガードレールとファイアウォール" "Guardrails & firewall")]
+     [:p {:class "kc-docs__lead"}
+      (txt "ガードレールは毎回、両チームで走ります。ブロック判定は 403 guardrail-blocked として耐久レシートに残り、ジョブは作られません。ファイアウォールはタスク種別を assurance rung でゲートし、閉じている場合は 403 firewall-denied です。"
+           "Guardrails run on every request, both teams. A block is answered 403 guardrail-blocked, recorded as a durable receipt, and no job is created. The firewall gates task kinds by assurance rung; a closed tool answers 403 firewall-denied.")]
+     (config-block {:ja? ja? :lang :http} (str "403 {\"error\": {\"code\": \"guardrail-blocked\"}}   // content policy (CSAM, CBRN, fraud)\n"
+                        "403 {\"error\": {\"code\": \"firewall-denied\"}}     // task kind closed at your rung\n\n"
+                        "GET " openai-base "/secure   // the enforced versions: guardrails · firewall · compliance"))
+     [:h2 (txt "rung と タスク" "Rungs and tasks")]
+     [:ul
+      [:li (txt "code-review / vulnerability-triage / remediation — identity rung（カード本人確認）から。" "code-review / vulnerability-triage / remediation — from the identity rung (card verification).")]
+      [:li (txt "payload-crafting / c2-tooling — 契約 rung まで拒否。" "payload-crafting / c2-tooling — refused until the contracted rung.")]
+      [:li (txt "ブルーチームは標準の 3 タスクのみ。offensive band は常に閉。" "Blue team: the three standard tasks only; the offensive band is always closed.")]]
+     [:p [:a {:href "/secure/"} (txt "セキュリティ管理（規則と版）を開く" "Open the security controls (rules and versions)")]
+      " · " [:a {:href "/security/aup/"} (txt "利用ポリシー" "Acceptable Use Policy")]]]))
+
 (defn ref-view [id locale]
   (case id
+    "get-api-token" (token-view locale)
+    "models" (models-view locale)
+    "reasoning" (reasoning-view locale)
+    "per-request-cost" (cost-view locale)
+    "guardrails-firewall" (features-view locale)
     "quickstart" (quickstart-view locale)
     "security-services" (security-services-view locale)
     "streaming" (streaming-view locale)
