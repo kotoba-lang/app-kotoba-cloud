@@ -7,6 +7,7 @@
             [cloud-kotoba-dds.graph-workbench :as graph-workbench]
             [app-kotoba-cloud.identity-site :as identity-site]
             [app-kotoba-cloud.account-site :as account-site]
+            [cloud-kotoba-dds.console :as dds-console]
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
             [app-kotoba-cloud.crypto-site :as crypto-site]
@@ -820,7 +821,7 @@
   ;; eligibility, scopes and billing. Client logic lives in account-browser.
   (site-layout {:title "アカウント管理 — Kotoba Cloud" :lang "ja"
                 :robots "noindex"
-                :extra-css account-site/css}
+                :extra-css (str account-site/css dds-console/css)}
    (account-site/section)))
 
 (defn billing-html [locale]

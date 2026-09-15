@@ -7,7 +7,17 @@
 (defn ja? [] (= "ja" (.-lang (.-documentElement js/document))))
 (defn t [ja en] (if (ja?) ja en))
 (defn say! [id s] (when-let [x (el id)] (set! (.-textContent x) s)))
-(defn state! [id kind] (when-let [x (el id)] (.setAttribute x "data-state" kind)))
+(defn state! [id kind]
+  (when-let [x (el id)]
+    (.setAttribute x "data-state" (name kind))
+    ;; loading/error/empty get their default text from the console pattern;
+    ;; only :value/:ok callers pass explicit text afterwards via say!.
+    (set! (.-textContent x)
+          (case kind
+            :loading "読み込んでいます…"
+            :error "読み込めませんでした。更新してください。"
+            :empty "—"
+            (.-textContent x)))))
 (defn abbreviate [v]
   (if (and (string? v) (> (count v) 24)) (str (subs v 0 12) "…" (subs v (- (count v) 8))) (or v "—")))
 
@@ -48,19 +58,19 @@
                  (= "missing" (:status r)) "missing"
                  :else "pending")]
     (case status
-      "verified" (do (state! "account-ekyc-state" "ok")
+      "verified" (do (state! "account-ekyc-state" :ok)
                      (say! "account-ekyc-state" (t "確認済み" "Verified"))
                      (say! "account-ekyc-note" (t "本人確認は完了しています。" "Verification is complete."))
                      (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true)))
-      "pending" (do (state! "account-ekyc-state" "action")
+      "pending" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "確認中" "Pending"))
                     (say! "account-ekyc-note" (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。" "Approval happens automatically when Stripe completes. Refresh this page to see the change."))
                     (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true)))
-      "missing" (do (state! "account-ekyc-state" "action")
+      "missing" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "未確認" "Not verified"))
                     (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) false))
                     (say! "account-ekyc-note" (t "開始すると Stripe の確認画面（verify.stripe.com）へ移動します。" "Starting moves you to the Stripe check at verify.stripe.com.")))
-      (do (state! "account-ekyc-state" "off")
+      (do (state! "account-ekyc-state" :error)
           (say! "account-ekyc-state" (t "確認不可" "Unavailable"))
           (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true))
           (say! "account-ekyc-note" (t "本人確認サービスに接続できません。時間をおいて更新してください。" "Verification service is unavailable. Refresh later."))))))
@@ -68,13 +78,14 @@
 (defn render-eligibility [r]
   (let [status (:status r) reason (:reason r)]
     (if (and (:httpOk r) (= "eligible" status))
-      (do (state! "account-eligibility-state" "ok")
+      (do (state! "account-eligibility-state" :ok)
           (say! "account-eligibility-state" (t "利用可能" "Eligible"))
           (say! "account-eligibility-note" (get reason-label "eligible")))
-      (do (state! "account-eligibility-state" "action")
+      (do (state! "account-eligibility-state" :action)
           (say! "account-eligibility-state" (t "保留" "Pending"))
           (say! "account-eligibility-note" (get reason-label (or reason "review-required")))))
     (when-let [ft (:freeTier r)]
+      (state! "account-free-tier" :value)
       (say! "account-free-tier"
             (t (str (:requestsPerDay ft) " 件/日 · 出力最大 " (:maxOutputTokens ft) " tokens")
                (str (:requestsPerDay ft) " req/day · up to " (:maxOutputTokens ft) " output tokens"))))))
@@ -90,7 +101,7 @@
           (.append host p))
         (doseq [s scopes]
           (let [row (.createElement js/document "div")]
-            (set! (.-className row) "kc-account-row")
+            (set! (.-className row) "ck-console__row")
             (set! (.-textContent row)
                   (str (:id s) " · " (:status s) " · " (str/join ", " (:tasks s))))
             (.append host row)))))))
@@ -109,7 +120,7 @@
       (if (and (:httpOk r) (seq (:organizations r)))
         (doseq [o (:organizations r)]
           (let [row (.createElement js/document "div")]
-            (set! (.-className row) "kc-account-row")
+            (set! (.-className row) "ck-console__row")
             (set! (.-textContent row)
                   (str (:handle o) " · " (:role o) " · " (:status o) " · " (:orgDid o)))
             (.append host row)))
