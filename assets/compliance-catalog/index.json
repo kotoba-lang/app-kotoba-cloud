@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:17:34.728Z",
+ "generatedAt": "2026-09-15T09:19:15.215Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 358,
+ "productCount": 359,
  "ontology": {
   "nodes": 44,
-  "claims": 3906,
+  "claims": 3914,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za"
+   "/": "baguqeeraostoyjztue5c7654pw4g37j7ph5qkg5cl3ypvoyapfmhsr7wqcna"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -4767,6 +4767,19 @@
    }
   },
   {
+   "id": "trend-threat-intelligence",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Threat Intelligence (TrendAI Vision One)",
+   "categoryId": "ti",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/threat-intelligence",
+   "pricingNote": "quote-based; no public list pricing — sales contact via the product page. https://www.trendmicro.com/ja_jp/business/products/threat-intelligence.html 301-redirects to this TrendAI (JP) product page (verified 200, 2026-09-15).",
+   "record": {
+    "/": "baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa"
+   }
+  },
+  {
    "id": "checkpoint-harmony-endpoint",
    "provider": "Check Point",
    "providerHq": "IL",
@@ -8296,6 +8309,11 @@
    "bytes": 279,
    "codec": "dag-json"
   },
+  "baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa.json",
+   "bytes": 508,
+   "codec": "dag-json"
+  },
   "baguqeera6wtfni7ufszgug5tmrwcbrt4izco77tyqwgcbopa77j7lufcoq5a": {
    "path": "/compliance-data/compliance/blocks/baguqeera6wtfni7ufszgug5tmrwcbrt4izco77tyqwgcbopa77j7lufcoq5a.json",
    "bytes": 295,
@@ -9101,18 +9119,18 @@
    "bytes": 493,
    "codec": "dag-json"
   },
-  "baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za.json",
+  "baguqeeraostoyjztue5c7654pw4g37j7ph5qkg5cl3ypvoyapfmhsr7wqcna": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraostoyjztue5c7654pw4g37j7ph5qkg5cl3ypvoyapfmhsr7wqcna.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza": {
-   "path": "/compliance-data/compliance/blocks/baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza.json",
-   "bytes": 255482,
+  "baguqeera62wkgcdoeewswzcqmocnjjyyijv7k2a56z6ua73vrt66rc32w6na": {
+   "path": "/compliance-data/compliance/blocks/baguqeera62wkgcdoeewswzcqmocnjjyyijv7k2a56z6ua73vrt66rc32w6na.json",
+   "bytes": 256278,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza"
+  "/": "baguqeera62wkgcdoeewswzcqmocnjjyyijv7k2a56z6ua73vrt66rc32w6na"
  }
 }
