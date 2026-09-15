@@ -430,7 +430,15 @@
 .kc-session-menu__panel a:hover,.kc-session-menu__panel button:hover{background:var(--hig-color-secondary-system-background)}
 .kc-session-menu:not([open]) .kc-session-menu__panel{display:none}
 body:has(.kc-sb){padding-inline-start:15rem}
-@media(max-width:64rem){body:has(.kc-sb){padding-inline-start:0}.kc-sb{position:static;inline-size:auto;inset-block:auto;border-inline-end:none;border-block-end:1px solid var(--hig-color-separator)}}")
+.kc-sb-main{margin-inline-start:15rem;min-height:calc(100dvh - 65px);padding:0 var(--hig-spacing-4)}
+@media(max-width:64rem){.kc-sb-main{margin-inline-start:0;min-height:0}
+.kc-sb{position:static;inline-size:auto;inset-block:auto;border-inline-end:none;border-block-end:1px solid var(--hig-color-separator)}
+.kc-sb__new{inline-size:100%}
+.kc-sb a{min-height:2.75rem}}
+@media(max-width:30rem){.kc-sb{padding:var(--hig-spacing-2)}
+.kc-sb a{font-size:var(--hig-text-footnote1-font-size)}
+.kc-sb-main{padding:0 var(--hig-spacing-2)}}
+@media(max-width:64rem){body:has(.kc-sb){padding-inline-start:0}}")
 
 (defn app-sidebar
   "OrcaRouter-style persistent left nav, grouped by category. Landing item
@@ -845,9 +853,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ;; on top, and the research chat as one panel — not the landing hero.
      (site-header locale t {:nav false})
      (app-sidebar locale t "/docs/reference/quickstart/")
-     [:div {:id "kc-app-main" :style {:padding "0"
-                                       :margin-inline-start "15rem"
-                                       :min-height "calc(100dvh - 65px)"}}
+     [:div {:id "kc-app-main"}
       (chat-site/view locale (passkey-href locale))]
      (knowledge-site/view locale)
      [:div {:id "security-view" :hidden true} (security-site/view true)]
@@ -902,10 +908,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
      (if sidebar?
        (app-sidebar :ja t (or current "/docs/reference/quickstart/"))
        (site-header :ja t)))
-   [:main {:id "main" :style (when sidebar?
-                               {:margin-inline-start "15rem"
-                                :min-height "calc(100dvh - 65px)"
-                                :padding "0 var(--hig-spacing-4)"})}
+   [:main {:id "main" :class (when sidebar? "kc-sb-main")}
     body]
    (site-footer (translation :ja))))
 
@@ -1158,7 +1161,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :description (if ja? "Kotoba Cloud Database の Graph・Ontology ワークベンチの使い方と ayatori・capability-bench などの周辺資料。"
                                "Usage guide for the Kotoba Cloud Database graph & ontology workbench plus ayatori and capability-bench reference material.")
                 :lang (if ja? "ja" "en") :css (document-css)
-                :app-css (str tokens/skin-css tokens/bridge-css)
+                :app-css (str tokens/skin-css tokens/bridge-css
+                              ".kc-docs{padding-block:var(--hig-spacing-4)}.kc-docs__list li{padding:var(--hig-spacing-3)}@media(max-width:30rem){.kc-docs h2{font-size:1.25rem}.kc-docs__list li{padding:var(--hig-spacing-2)}}")
                 :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
                        [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/docs/graph/"}]
                        [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/docs/graph/"}]
