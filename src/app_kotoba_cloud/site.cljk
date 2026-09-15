@@ -884,6 +884,18 @@ body:has(.kc-sb){padding-inline-start:15rem}
          (str "<html lang=\"" (:html-lang t) "\">")
          (str "<html lang=\"" (:html-lang t) "\" dir=\"" (locales/direction locale) "\">")))))
 
+(def site-css-cache
+  ;; One cacheable stylesheet per render: the union of every stylesheet the
+  ;; site pages can inline. Pages reference it via <link> instead of carrying
+  ;; ~110KB of inline CSS per document — the browser fetches it once and
+  ;; reuses it across pages, and first paint/hydration no longer waits on a
+  ;; 110KB style parse.
+  (atom nil))
+
+(def site-css-link
+  "Shared <link> head entries for the emitted site stylesheet."
+  [[:link {:rel "stylesheet" :href "/css/site.css"}]])
+
 (defn site-layout
   "ONE shared page shell for every kotoba.cloud document: header/nav +
   <main id=\"main\"> + footer. With :sidebar? the orca-style left nav
@@ -900,13 +912,14 @@ body:has(.kc-sb){padding-inline-start:15rem}
    {:title title
     :description description
     :lang (or lang "ja")
-    :css (document-css)
-    :app-css (str tokens/skin-css app-css app-sidebar-css extra-css)
+    :css ""
+    :app-css ""
     :head (into (if robots [[:meta {:name "robots" :content robots}]] [])
-                [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-                 [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
-                 [:script {:src "/js/language-selector.js" :defer true}]
-                 [:script {:src "/js/session.js" :defer true}]])}
+                (into site-css-link
+                      [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
+                       [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
+                       [:script {:src "/js/language-selector.js" :defer true}]
+                       [:script {:src "/js/session.js" :defer true}]]))}
    (let [t (translation :ja)]
      (if sidebar?
        (app-sidebar :ja t (or current "/docs/reference/quickstart/"))
@@ -1227,6 +1240,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (fs/mkdirSync (node-path/dirname path) #js {:recursive true})
   (fs/writeFileSync path content))
 
+
 (defn- copy-file [src target]
   (fs/mkdirSync (node-path/dirname target) #js {:recursive true})
   (fs/copyFileSync src target))
@@ -1244,6 +1258,19 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (fs/mkdirSync ja-dir #js {:recursive true})
       (fs/mkdirSync en-dir #js {:recursive true})
       (fs/mkdirSync js-dir #js {:recursive true})
+      ;; Shared stylesheet (referenced by site-css-link): the union of
+      ;; document-css + every stylesheet a site-layout page can carry. Emitted
+      ;; once so documents ship ~110KB lighter and the browser caches it.
+      (spit-file (node-path/join root "css" "site.css")
+                 (str (document-css) "\n"
+                      tokens/skin-css "\n" app-css "\n" app-sidebar-css "\n"
+                      research-site/css "\n" chat-site/css "\n"
+                      knowledge-site/css "\n" tokens/bridge-css "\n"
+                      security-site/css "\n" csf2-site/css "\n"
+                      crypto-site/css "\n" compliance-site/css "\n"
+                      dds-console/css "\n" account-site/css "\n"
+                      apps-site/css "\n" docs-site/css "\n"
+                      security-services-site/css))
       (doseq [dir [(node-path/join root "legal")
                    (node-path/join root "legal" "tokushoho")
                    (node-path/join ja-dir "legal")
