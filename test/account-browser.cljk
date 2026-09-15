@@ -35,14 +35,14 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'missing'})}));
   await page.route('**/v1/research/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ineligible',reason:'verification-required',freeTier:{requestsPerDay:50,maxOutputTokens:4096},scopes:[]})}));
   await page.route('**/v1/org/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({organizations:[]})}));
-  await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:false})}));
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'connected',plan:'pro',balances:[{scope:'ai',grantedMicroUSD:12000000,spentMicroUSD:243,reservedMicroUSD:0,availableMicroUSD:11999757}]})}));
  };
  const dupIds=()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)};
  // --- signed out -------------------------------------------------------
  {
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   await fixture(false)(page);
-  await page.goto(base+'/account/');
+  await page.goto(base+'/ja/account/');
   await page.waitForFunction(()=>document.getElementById('account-session-status').dataset.state!=='loading');
   const s=await page.evaluate(()=>({status:document.getElementById('account-session-status').textContent,
     signedOutVisible:!document.getElementById('account-signed-out').hidden,
@@ -50,6 +50,16 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     signIn:document.getElementById('account-sign-in').getAttribute('href'),
     pending:document.querySelectorAll('[data-state=loading]').length}));
   if(s.status!=='サインインしていません。')throw Error('signed-out status: '+s.status);
+  // one document per locale (2026-09-15): the locale-free root is English,
+  // a non-ja/en locale carries the shell in its language and an English body
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:5000});
+  const en=await page.evaluate(()=>({lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,h1:document.querySelector('h1').textContent}));
+  if(en.lang!=='en'||en.status!=='Not signed in.'||en.h1!=='Account')throw Error('english root document: '+JSON.stringify(en));
+  await page.goto(base+'/de/account/');
+  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:5000});
+  const de=await page.evaluate(()=>({lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,bodyLang:document.getElementById('account-console').closest('[lang]').getAttribute('lang')}));
+  if(de.lang!=='de'||de.status!=='Not signed in.'||de.bodyLang!=='en')throw Error('german shell, english body: '+JSON.stringify(de));
   if(!s.signedOutVisible||!s.bodyHidden)throw Error('signed-out reveal wrong '+JSON.stringify(s));
   if(!/auth\\.kotoba\\.cloud\\/sign-in/.test(s.signIn))throw Error('sign-in href '+s.signIn);
   if(s.pending!==0)throw Error('pending cells after session known: '+s.pending);
@@ -60,7 +70,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
  for(const width of [390,768,1440]){
   const page=await browser.newPage({viewport:{width,height:width<800?844:900}});
   await fixture(true)(page);
-  await page.goto(base+'/account/');
+  await page.goto(base+'/ja/account/');
   await page.waitForFunction(()=>document.getElementById('account-session-status').dataset.state==='ok');
   await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
   const s=await page.evaluate(()=>{
@@ -74,6 +84,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
       username:document.getElementById('account-username').textContent,
       ekyc:document.getElementById('account-ekyc-state').textContent,
       billing:document.getElementById('account-billing-state').dataset.state,
+      billingText:document.getElementById('account-billing-state').textContent,
       cells, dup:(()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)})(),
       disabled:[...document.querySelectorAll('button[disabled]')].filter(b=>b.offsetParent!==null).map(b=>b.id),
       iw:innerWidth, scrollW:document.documentElement.scrollWidth,
@@ -86,6 +97,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(s.username!=='@hanako')throw Error('username '+s.username);
   if(s.ekyc!=='未確認')throw Error('ekyc '+s.ekyc);
   if(s.billing!=='value')throw Error('billing cell state '+s.billing);
+  if(!/pro/.test(s.billingText)||!/[$]12[.]00/.test(s.billingText))throw Error('billing cell should name the plan and the AI balance: '+s.billingText);
   const bad=s.cells.filter(([,st])=>st==='loading'||st==='empty');
   if(bad.length)throw Error('cells not mapped: '+JSON.stringify(bad));
   if(s.dup.length)throw Error('duplicate ids '+JSON.stringify(s.dup));
@@ -97,7 +109,11 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   else { if(s.sbH>60)throw Error('phone nav is '+s.sbH+'px tall');
     if(s.sbW>s.iw)throw Error('phone nav is wider than the viewport ('+s.sbW+'px): the chip row must scroll inside it, not overflow it');
     if(s.brandH<16||s.brandH>28)throw Error('brand mark on the chip row is '+s.brandH+'px tall');
-    if(s.h1Top>220)throw Error('content starts at '+s.h1Top+'px on '+width+' (chip row + top bar + padding must leave the heading well inside the first screen)'); }
+    // 240: a paying account carries the AI-credit chip in the top bar and on
+    // 390 the actions row wraps once (cloud-kotoba-dds .ck-topbar__actions
+    // flex-wrap) — 227 px measured 2026-09-15 with the pro fixture, 197 px
+    // without the chip; both are well inside the 844 px first screen
+    if(s.h1Top>240)throw Error('content starts at '+s.h1Top+'px on '+width+' (chip row + top bar + padding must leave the heading well inside the first screen)'); }
   if(shots)await page.screenshot({path:shots+'/account-signed-in-'+width+'.png',fullPage:true});
   await page.close();
  }
@@ -112,13 +128,13 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   const starts=[]; let answer={status:200,body:{verificationUrl:'https://checkout.stripe.com/c/pay/cs_test_x'}};
   await page.route('**/v1/research/ekyc/start',r=>{starts.push({method:r.request().method(),body:r.request().postDataJSON()});r.fulfill({status:answer.status,contentType:'application/json',body:JSON.stringify(answer.body)})});
   await page.route('https://checkout.stripe.com/**',r=>r.fulfill({status:200,contentType:'text/html',body:'<title>checkout</title>'}));
-  await page.goto(base+'/account/');
+  await page.goto(base+'/ja/account/');
   await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
   await Promise.all([page.waitForURL('https://checkout.stripe.com/**',{timeout:5000}),page.click('#account-ekyc-start')]);
   if(starts.length!==1)throw Error('start posted '+starts.length+' times');
   if(starts[0].method!=='POST')throw Error('start method '+starts[0].method);
   if(JSON.stringify(starts[0].body)!==JSON.stringify({scopeId:'owned',tasks:['code-review']}))throw Error('start body '+JSON.stringify(starts[0].body));
-  await page.goto(base+'/account/');
+  await page.goto(base+'/ja/account/');
   await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
   for(const [code,status,expect] of [['prepaid-card-not-accepted',403,/プリペイドカード/],['card-verification-not-configured',503,/一時的に利用できません/],['stripe-unavailable',503,/Stripe に接続できませんでした/],['something-else',503,/開始できませんでした/]]){
     answer={status,body:{error:{code}}};
@@ -128,7 +144,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     if(!expect.test(note))throw Error('note for '+code+': '+note);
   }
   await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'pending',sessionId:'s1',expiresAt:Date.now()+600000})}));
-  await page.goto(base+'/account/?card=done#account-panel-identity');
+  await page.goto(base+'/ja/account/?card=done#account-panel-identity');
   await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
   const back=await page.evaluate(()=>({state:document.getElementById('account-ekyc-state').textContent,note:document.getElementById('account-ekyc-note').textContent,button:document.getElementById('account-ekyc-start').textContent}));
   if(back.state!=='確認中')throw Error('back state '+back.state);
@@ -141,7 +157,10 @@ const shots=process.env.ACCOUNT_SHOTS||'';
  {
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   await fixture(true)(page);
-  await page.goto(base+'/account/');
+  // this block measures the shell of an account WITHOUT a balance (billing
+  // still pending); the signed-in block above carries the pro fixture
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'pending-configuration',checkoutEnabled:false})}));
+  await page.goto(base+'/ja/account/');
   await page.waitForFunction(()=>!document.getElementById('kc-setup-chip').hidden,null,{timeout:5000});
   const s=await page.evaluate(()=>({chip:document.getElementById('kc-setup-chip').textContent,state:document.getElementById('kc-setup-chip').dataset.state,
     chipHref:document.getElementById('kc-setup-chip').getAttribute('href'),
