@@ -12,7 +12,7 @@ Security-focused LLM inference for authorized code review, vulnerability triage 
 Status: LIVE. Identity verification runs on Stripe Identity only (no manual review queue).
 One Stripe Identity verification approves the account automatically: ekyc, screening, trust, scope and activation.
 
-Free allowance: 50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
+Free allowance: 1,000 requests per day, up to 32,768 output tokens per request (524,288 input characters, about 128k tokens). No automatic paid fallback.
 Access order: a card on file unlocks the free allowance immediately; identity verification
 and governance checks come after and raise the ceiling. Tool calls are never executed
 server-side — the model returns text only; run tools locally.
