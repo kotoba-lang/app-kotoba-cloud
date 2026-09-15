@@ -877,26 +877,36 @@ body:has(.kc-sb){padding-inline-start:15rem}
 
 (defn site-layout
   "ONE shared page shell for every kotoba.cloud document: header/nav +
-  <main id=\"main\"> + footer. Layering: jp-go-dds owns tokens/parts;
-  cloud-kotoba-dds owns the app-shell/navigation/account-entry PATTERNS
-  (structure here follows them, kc-* classes are this repo's implementation);
-  shinkansen (CID-published documents) is the planned delivery successor —
-  keep emitted documents self-contained (no NEW external assets)."
-  [{:keys [title description lang robots extra-css]} body]
+  <main id=\"main\"> + footer. With :sidebar? the orca-style left nav
+  (app-sidebar) replaces the marketing nav and the body is offset into the
+  remaining column — the same shell the app surface uses, so /account,
+  /apps, /docs, /security/aup all share one navigation. Layering:
+  jp-go-dds owns tokens/parts; cloud-kotoba-dds owns the app-shell /
+  navigation / account-entry PATTERNS (kc-* classes are this repo's
+  implementation); shinkansen (CID-published documents) is the planned
+  delivery successor — keep emitted documents self-contained (no NEW
+  external assets)."
+  [{:keys [title description lang robots extra-css sidebar? current]} body]
   (page/->page
    {:title title
     :description description
     :lang (or lang "ja")
     :css (document-css)
-    :app-css (str tokens/skin-css app-css extra-css)
+    :app-css (str tokens/skin-css app-css app-sidebar-css extra-css)
     :head (into (if robots [[:meta {:name "robots" :content robots}]] [])
                 [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
                  [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
                  [:script {:src "/js/language-selector.js" :defer true}]
                  [:script {:src "/js/session.js" :defer true}]])}
    (let [t (translation :ja)]
-     (site-header :ja t))
-   [:main {:id "main"} body]
+     (if sidebar?
+       (app-sidebar :ja t (or current "/docs/reference/quickstart/"))
+       (site-header :ja t)))
+   [:main {:id "main" :style (when sidebar?
+                               {:margin-inline-start "15rem"
+                                :min-height "calc(100dvh - 65px)"
+                                :padding "0 var(--hig-spacing-4)"})}
+    body]
    (site-footer (translation :ja))))
 
 (defn security-html []
@@ -941,6 +951,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   ;; eligibility, scopes and billing. Client logic lives in account-browser.
   (site-layout {:title "アカウント管理 — Kotoba Cloud" :lang "ja"
                 :robots "noindex"
+                :sidebar? true :current "/account"
                 :extra-css (str account-site/css dds-console/css)}
    (account-site/section)))
 
@@ -963,24 +974,15 @@ body:has(.kc-sb){padding-inline-start:15rem}
   ".kc-docs{padding-block:var(--hig-spacing-6)}.kc-docs h2{margin-block:var(--hig-spacing-6) var(--hig-spacing-3)}.kc-docs__lead{max-width:48rem;color:var(--hig-color-secondary-label)}.kc-docs__list{display:grid;gap:var(--hig-spacing-3);padding:0;list-style:none}.kc-docs__list li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-4)}.kc-docs__list a{font-weight:700}.kc-docs__config{padding:var(--hig-spacing-4);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;white-space:pre;overflow-wrap:normal}.kc-docs__note{padding:var(--hig-spacing-3) var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-tint);background:var(--hig-color-secondary-system-background);border-radius:0 var(--hig-radius-sm) var(--hig-radius-sm) 0}.kc-docs__chip{font-size:var(--hig-text-caption2-font-size);padding:2px var(--hig-spacing-2);border-radius:var(--hig-radius-capsule);border:1px solid var(--hig-color-separator)}.kc-docs__chip--verified{color:var(--hig-palette-green);border-color:var(--hig-palette-green)}.kc-docs__chip--pending{color:var(--hig-color-secondary-label)}.kc-docs__chip--caveat{color:var(--hig-palette-orange,var(--hig-color-label));border-color:var(--hig-palette-orange,var(--hig-color-label))}")
 
 (defn docs-page
-  "Shared chrome for a docs page; content-fn receives locale and returns the
-  main children."
+  "Shared chrome for a docs page — the shared site-layout WITH the app
+  sidebar (docs are part of the app navigation, orca-style)."
   [locale title-fn path content-fn]
-  (let [ja? (= locale :ja) t (translation :ja)
-        lang (if ja? "ja" "en")]
-    (apply page/->page
-           {:title (title-fn ja?)
-            :description "Docs — kotoba.cloud"
-            :lang lang :css (document-css)
-            :app-css (str tokens/skin-css tokens/bridge-css docs-css)
-            :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
-                   [:script {:src "/js/language-selector.js" :defer true}]
-                   [:script {:src "/js/session.js" :defer true}]]}
-           [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
-            (site-header locale t {:language-ja path :language-en path})
-            [:main {:id "main" :class "kc-docs"}
-             (dds/container (content-fn ja?))]
-            (site-footer t)])))
+  (site-layout {:title (title-fn (= locale :ja))
+                :description "Docs — kotoba.cloud"
+                :lang (if (= locale :ja) "ja" "en")
+                :sidebar? true :current path
+                :extra-css (str tokens/bridge-css docs-css)}
+   (dds/container (content-fn (= locale :ja)))))
 
 (defn docs-integrations-html
   ([] (docs-integrations-html :en))
@@ -1015,6 +1017,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
    (site-layout {:title "Apps — Kotoba Cloud"
                  :description "Public apps on the kotoba.cloud gateway: PEP registry, eKYC guide, security data, AUP, APIs."
                  :lang (if (= locale :ja) "ja" "en")
+                 :sidebar? true :current "/apps/"
                  :extra-css apps-site/css}
     (apps-site/view locale))))
 
@@ -1063,7 +1066,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
                             "Security Research AUP - Kotoba Cloud"
                             "Acceptable Use Policy - Security Research - Kotoba Cloud")
                    :description "Assurance ladder, allowed and prohibited uses for the Security Research tier."
-                   :lang (if ja? "ja" "en")}
+                   :lang (if ja? "ja" "en")
+                   :sidebar? true :current "/security/aup/"}
       (aup-view locale)))))
 
 (defn legal-html

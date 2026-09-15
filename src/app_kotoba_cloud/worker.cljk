@@ -837,7 +837,7 @@
                                       :body "{}"}))
             (.then (fn [r]
                      (if-not (.-ok r)
-                       (json-response {:error "registry-authority-error" :status (.-status r)})
+                       (json-response org-registry/registry)
                        (.then (.json r)
                               (fn [doc] (json-response (js->clj doc :keywordize-keys true)))))))
             (.catch (fn [_] (json-response org-registry/registry))))
