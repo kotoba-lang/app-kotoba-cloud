@@ -87,6 +87,33 @@
   (is (true? (locale/apex-path? "/")))
   (is (false? (locale/apex-path? "/id/"))))
 
+(deftest language-switch-is-a-query-on-the-same-route
+  ;; ?lang=<locale> is the language switch: served directly as that variant
+  ;; (no redirect), the choice persisted; path > query > cookie.
+  (is (= {:locale :ja :source :query :set-cookie? true :serve "/ja/billing/"}
+         (locale/static-decision {:path "/billing/" :query "ja" :cookie "he"})))
+  (is (= {:locale :en :source :query :set-cookie? true :serve nil}
+         (locale/static-decision {:path "/docs/" :query "en" :cookie "ja"})))
+  (is (= {:locale :ja :source :query :set-cookie? true :serve "/ja/"}
+         (locale/static-decision {:path "/" :query "ja"})))
+  ;; a value outside the catalog is ignored, not persisted (fail-closed):
+  ;; the saved choice still decides, and nothing is written
+  (is (= {:locale :he :set-cookie? false :serve "/he/docs/"}
+         (select-keys (locale/static-decision {:path "/docs/" :query "klingon" :cookie "he"})
+                      [:locale :set-cookie? :serve])))
+  (is (nil? (locale/query-locale "klingon")))
+  (is (nil? (locale/query-locale nil)))
+  ;; an explicit prefix still wins over the query (compat 301)
+  (is (= {:locale :su :canonical "/billing/"}
+         (select-keys (locale/static-decision {:path "/su/billing/" :query "ja"}) [:locale :canonical])))
+  ;; every root that site.cljk emits under /<locale>/ is a variant root —
+  ;; /blog/ and /apps/ were emitted but not served (measured live 2026-09-15)
+  (is (= "/ja/blog/" (locale/serve-path "/blog/" :ja)))
+  (is (= "/ja/blog/observatory-launch/" (locale/serve-path "/blog/observatory-launch/" :ja)))
+  (is (= "/ja/apps/" (locale/serve-path "/apps/" :ja)))
+  ;; the client script reads the href's lang query
+  (is (re-find #"searchParams\.get\('lang'\)" locale/language-cookie-script)))
+
 (deftest cookie-header-is-host-scoped
   (is (= "kb_locale" locale/cookie-name))
   (is (re-find #"^kb_locale=he; Path=/; Max-Age=31536000; SameSite=Lax; Secure$"

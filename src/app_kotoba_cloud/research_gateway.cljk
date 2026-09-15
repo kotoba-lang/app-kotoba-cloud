@@ -38,7 +38,9 @@
                    :body (js/JSON.stringify (clj->js payload))})
       (.then (fn [r]
                (if (.-ok r)
-                 (bounded-json r 131072)
+                 ;; 2 MiB: a /jobs/status answer carries the whole request and
+                 ;; completion (128k-token prompts, 32k-token answers, UTF-8)
+                 (bounded-json r 2097152)
                  ;; Surface the authority's own error body so operator-visible
                  ;; codes (e.g. card-verification-not-configured) survive the hop.
                  (-> (.text r)
@@ -154,6 +156,29 @@
               :message {:role "assistant" :content content}}]
    :receiptId receipt-id :billing "free"})
 
+(defn- sse-line [value] (str "data: " (js/JSON.stringify (clj->js value)) "\n\n"))
+
+(defn sse-emulation
+  "The whole completion as an OpenAI `chat.completion.chunk` stream: one
+  content chunk, one finish chunk, `[DONE]`. Nothing is streamed early — the
+  job model has no partial output — but every OpenAI SDK client that asked
+  for `stream: true` reads this as a normal stream instead of failing on a
+  JSON body (hermes 2026-09-15). Same headers family as the JSON answers."
+  [envelope]
+  (let [base {:id (:id envelope) :object "chat.completion.chunk"
+              :created (:created envelope) :model (:model envelope)}
+        content (get-in envelope [:choices 0 :message :content])
+        body (str (sse-line (assoc base :choices [{:index 0 :delta {:role "assistant" :content content}
+                                                   :finish_reason nil}]))
+                  (sse-line (assoc base :choices [{:index 0 :delta {} :finish_reason "stop"}]
+                                   :receiptId (:receiptId envelope) :billing (:billing envelope)))
+                  "data: [DONE]\n\n")]
+    (js/Response. body #js {:status 200
+                            :headers #js {"content-type" "text/event-stream; charset=utf-8"
+                                          "cache-control" "no-store, private"
+                                          "x-content-type-options" "nosniff"
+                                          "x-accel-buffering" "no"}})))
+
 (defn- bounded-delay [ms]
   (js/Promise. (fn [resolve] (js/setTimeout resolve ms))))
 
@@ -161,7 +186,10 @@
 ;; the edge waits for the terminal state on the client's behalf. Budget covers
 ;; observed worst case; the job itself survives an edge timeout and a client
 ;; retry re-attaches to the same reservation via the deterministic job id.
-(def job-wait-budget-ms 285000)
+;; 14 minutes: 32k output tokens at the origin's observed 40-60 tok/s is
+;; ~10-13 min; hermes' request_timeout_seconds is 900. Each poll hop still has
+;; its own 60 s AbortSignal.
+(def job-wait-budget-ms 840000)
 
 (defn- completion-job-id [principal body]
   ;; Deterministic job identity: SHA-256 over the admission-relevant request,
@@ -187,7 +215,7 @@
                  (cond
                    ;; a succeeded job with no text is a broken receipt, not an
                    ;; answer — never a 200 with content null (8 問 #1)
-                   (and (= "succeeded" status) (not (policy/text? (:content result) 65536)))
+                   (and (= "succeeded" status) (not (policy/text? (:content result) 1048576)))
                    (throw (ex-info "invalid-job-receipt" {:status 502}))
                    (= "succeeded" status)
                    (completion-envelope job-id (:content result) (:receiptId result) model)
@@ -201,7 +229,7 @@
                          (.then #(poll-completion-job binding principal reference job-id model (inc attempt) started))))
                    :else (throw (ex-info "invalid-job-receipt" {:status 502}))))))))
 
-(defn- complete-via-job [binding principal reference body respond]
+(defn- complete-via-job [binding principal reference body respond & [{:keys [stream?]}]]
   ;; The synchronous /complete path is retired at 501; an OpenAI transport has
   ;; no job API, so the edge reserves atomically via /jobs/create (the
   ;; authority re-checks eligibility/scope/quota inside that write, and a repeat
@@ -219,7 +247,7 @@
                          :sessionPolicyVersion (:version policy/session-policy)
                          :request body :limits policy/free-limits})
                (.then (fn [_] (poll-completion-job binding principal reference job-id (:model body) 0 started)))
-               (.then #(respond % 200))))))
+               (.then #(if stream? (sse-emulation %) (respond % 200)))))))
       (.catch
        (fn [e]
          ;; the authority code is the ex-info MESSAGE (see `service`); ex-data
@@ -233,7 +261,7 @@
                                      "research-service-unavailable")}}
                     (or (:status (ex-data e)) 503)))))))
 
-(defn- complete [binding principal reference body respond]
+(defn- complete [binding principal reference body respond & [opts]]
   (if (policy/blue? (:model body))
     ;; Blue team: the edge has authenticated the principal (cookie session or
     ;; PAT); the authority admits on guardrails + task + free quota and routes
@@ -249,7 +277,7 @@
                           (respond {:error {:code reason}} 403))
                (not (policy/scope-approved? record body now))
                (respond {:error {:code "research-scope-required"}} 403)
-               :else (complete-via-job binding principal reference body respond))))))))
+               :else (complete-via-job binding principal reference body respond opts))))))))
 
 (defn- session-reference [request principal]
   (let [token (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)]
@@ -281,7 +309,7 @@
                (not (policy/session-current? reference task (:continuous record) now))
                (not (policy/scope-approved? record {:task task :scopeId scope} now))))
       (respond {:error {:code "job-reverification-required"}} 403)
-      (and (= "succeeded" status) (not (policy/text? (:content result) 65536)))
+      (and (= "succeeded" status) (not (policy/text? (:content result) 1048576)))
       (respond {:error {:code "invalid-job-receipt"}} 502)
       :else
       (respond (cond-> {:jobId id :status status :billing "free" :model policy/model-id
@@ -326,7 +354,9 @@
   {:model (or (:model body) policy/model-id)
    :task (or (:task body) "code-review")
    :scopeId (or (:scopeId body) "owned")
-   :max_tokens (or (:max_tokens body) 2048)
+   ;; OpenAI clients may send max_completion_tokens instead; absent both, a
+   ;; modest default rather than the ceiling
+   :max_tokens (or (:max_tokens body) (:max_completion_tokens body) 2048)
    :messages (vec (:messages body))})
 
 (defn- authorized-route [request path binding principal reference respond]
@@ -348,7 +378,8 @@
     (if (= path "/v1/research/status")
     (-> (service binding "/status" {:principalId principal :sessionRef reference :action "code-review"})
         (.then #(status-response % principal reference respond)))
-    (-> (bounded-json request 98304)
+    ;; 2 MiB: 524,288 input characters JSON-escaped and UTF-8 encoded
+    (-> (bounded-json request 2097152)
         (.then
          (fn [body]
            (if (= path "/v1/research/applications")
@@ -371,7 +402,8 @@
                             (policy/completion? body))]
                (if-not valid?
                  (respond {:error {:code "invalid-research-request"}} 400)
-                 (complete binding principal reference normalized respond)))))))))))
+                 (complete binding principal reference normalized respond
+                           {:stream? (and (bearer? request) (true? (:stream body)))})))))))))))
 
 
 

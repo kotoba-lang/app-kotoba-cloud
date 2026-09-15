@@ -329,6 +329,89 @@
                                     (response {:orgDid (:did org) :handle (:handle org)
                                                :revoked (:memberPrincipalId body)} 200))))))))))))
 
+(def sso-roles
+  "Roles an organization's IdP may grant through SSO provisioning
+  (ADR-2609151900). Never `owner`: the owner holds the signing key."
+  #{"admin" "member" "billing"})
+
+(defn- handle-sso-policy
+  "Record what the org's SSO connection enforces, so `authorize` and
+  `delegate` can gate on a fresh IdP assertion. Written by the apex Worker
+  after auth.kotoba.cloud accepted (or dropped) the connection; the caller
+  must be an active owner/admin."
+  [storage body now]
+  (cond
+    (not (and (text? (:principalId body) 256) (text? (:handle body) 80)
+              (map? (:policy body))))
+    (js/Promise.resolve (response {:error "invalid-org-sso-policy"} 400))
+
+    :else
+    (-> (load-org! storage (:handle body))
+        (.then (fn [org]
+                 (let [member (when org (active-member org (:principalId body)))]
+                   (cond
+                     (nil? org) (response {:error "org-unknown"} 404)
+                     (not (contains? #{"owner" "admin"} (:role member)))
+                     (response {:error "org-role-insufficient"} 403)
+                     :else
+                     (let [policy {:configured (boolean (get-in body [:policy :configured]))
+                                   :enforce (boolean (get-in body [:policy :enforce]))
+                                   :issuer (when (text? (get-in body [:policy :issuer]) 512) (get-in body [:policy :issuer]))
+                                   :maxAgeHours (get-in body [:policy :maxAgeHours])
+                                   :updatedAt now :updatedBy (:principalId body)}
+                           org (assoc org :ssoPolicy policy)]
+                       (-> (save-org! storage (:handle org) org)
+                           (.then (fn [_] (response {:handle (:handle org) :ssoPolicy policy} 200))))))))))))
+
+(defn- handle-sso-provision
+  "Membership from an IdP assertion (ADR-2609151900): the apex Worker has read
+  the member's fresh assertion from auth.kotoba.cloud and asks for the
+  membership it implies. A new member is added with the asserted role; an
+  existing SSO-provisioned member's role follows the assertion; a member the
+  owner delegated by hand keeps the hand-given role (the IdP may add, never
+  demote what a human granted). Never grants `owner`."
+  [storage body now]
+  (cond
+    (not (and (text? (:handle body) 80) (text? (:memberPrincipalId body) 256)
+              (contains? sso-roles (:role body)) (text? (:subject body) 512)))
+    (js/Promise.resolve (response {:error "invalid-org-sso-provision"} 400))
+
+    :else
+    (-> (load-org! storage (:handle body))
+        (.then (fn [org]
+                 (cond
+                   (nil? org) (response {:error "org-unknown"} 404)
+                   (not (get-in org [:ssoPolicy :configured]))
+                   (response {:error "org-sso-not-configured"} 409)
+                   :else
+                   (let [existing (some #(when (= (:memberPrincipalId body) (:principalId %)) %) (:members org))
+                         member (cond
+                                  (nil? existing)
+                                  {:principalId (:memberPrincipalId body) :role (:role body)
+                                   :status "active" :issuedAt now
+                                   :provisionedBy "sso" :ssoSubject (:subject body) :assertedAt now}
+                                  (= "sso" (:provisionedBy existing))
+                                  (assoc existing :role (:role body) :status "active"
+                                         :ssoSubject (:subject body) :assertedAt now
+                                         :revokedAt nil)
+                                  :else
+                                  (assoc existing :ssoSubject (:subject body) :assertedAt now))
+                         org (update org :members
+                                     (fn [ms]
+                                       (if existing
+                                         (mapv #(if (= (:memberPrincipalId body) (:principalId %)) member %) ms)
+                                         (conj ms member))))]
+                     (-> (save-org! storage (:handle org) org)
+                         (.then (fn [_]
+                                  (if (and existing (not= "sso" (:provisionedBy existing)))
+                                    (response {:orgDid (:did org) :handle (:handle org) :member member
+                                               :provisioned false} 200)
+                                    (-> (sign-vc! org (membership-vc org (:principalId member) (:role member)))
+                                        (.then (fn [vc]
+                                                 (response {:orgDid (:did org) :handle (:handle org)
+                                                            :member member :membership vc
+                                                            :provisioned true} 200))))))))))))))
+
 (defn- handle-authorize [storage body now]
   ;; Org-scoped database access (ADR-2609141633 step 4): the caller must hold an
   ;; active membership, and the tenant must be bound to the caller's organization.
@@ -363,7 +446,9 @@
                              (.then (fn [_]
                                       (response {:ok true :orgDid (:did org) :handle (:handle org)
                                                  :role (:role member) :tenantId (:tenantId body)
-                                                 :bound (nil? bound)} 200)))))))))))))
+                                                 :bound (nil? bound)
+                                                 ;; The apex gates on this (ADR-2609151900).
+                                                 :ssoPolicy (or (:ssoPolicy org) {})} 200))))))))))))))
 
 (def handle-didlog (fn [storage body]
   ;; Public: a did:webvh log is published for anyone to resolve (ADR layer 1).
@@ -445,7 +530,14 @@
                               :when m]
                           {:orgDid (:did org) :handle (:handle org)
                            :role (:role m) :status (:status m)
-                           :members (count (:members org))}))}
+                           :members (count (:members org))
+                           ;; The org's founding owner: the principal whose
+                           ;; billing account is the org's plan until org
+                           ;; billing (ADR-2609141633 §5) lands.
+                           :owner (:principalId (first (filter #(and (= "owner" (:role %)) (= "active" (:status %)))
+                                                               (:members org))))
+                           :ssoPolicy (or (:ssoPolicy org) {})
+                           :provisionedBy (:provisionedBy m)}))}
                   200))))))
 
 (defn- route-op [path]
@@ -455,6 +547,8 @@
     "/revoke" handle-revoke
     "/status" handle-status
     "/authorize" handle-authorize
+    "/sso-policy" handle-sso-policy
+    "/sso-provision" handle-sso-provision
     "/verify" handle-verify
     "/didlog" handle-didlog
     "/registry" handle-registry
@@ -465,7 +559,8 @@
     (if-let [op (route-op path)]
       (cond
         ;; arity-3 handlers take (storage body now)
-        (contains? #{handle-create handle-delegate handle-revoke handle-authorize handle-registry} op)
+        (contains? #{handle-create handle-delegate handle-revoke handle-authorize handle-registry
+                     handle-sso-policy handle-sso-provision} op)
         (op storage body now)
         (contains? #{handle-didlog handle-verify handle-status} op)
         (op storage body)

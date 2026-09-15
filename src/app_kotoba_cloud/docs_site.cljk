@@ -329,12 +329,12 @@
   (let [txt (fn [ja en] (if (= :ja locale) ja en))]
     [[:h1 (txt "Rate limits" "Rate limits")]
      [:p {:class "kc-docs__lead"}
-      (txt "無料研究枠は principal ごとに 1 日 50 リクエスト、出力最大 2,048 tokens/リクエスト、入力合計 24,000 文字。有料枠 (Credits) を使う場合も 1 リクエストの上限は同じです。"
-           "The free research allowance is 50 requests/day per principal, up to 2,048 output tokens per request, 24,000 input characters total. Paid (Credits) usage shares the same per-request ceilings.")]
+      (txt "無料研究枠は principal ごとに 1 日 50 リクエスト、出力最大 32,768 tokens/リクエスト、入力合計 524,288 文字（約 128k tokens）。有料枠 (Credits) を使う場合も 1 リクエストの上限は同じです。"
+           "The free research allowance is 50 requests/day per principal, up to 32,768 output tokens per request, 524,288 input characters (about 128k tokens) total. Paid (Credits) usage shares the same per-request ceilings.")]
      (config-block (str "free-limits: {\n"
                         "  \"requestsPerDay\": 50,\n"
-                        "  \"maxOutputTokens\": 2048,\n"
-                        "  \"maxInputCharacters\": 24000\n"
+                        "  \"maxOutputTokens\": 32768,\n"
+                        "  \"maxInputCharacters\": 524288\n"
                         "}\n\n"
                         "# assurance ladder (tokens/day by rung) at /v1/secure\n"
                         "#   L2 identity:    50,000 / ceiling 200,000\n"

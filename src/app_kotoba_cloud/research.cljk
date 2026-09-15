@@ -41,7 +41,18 @@
 (def model-ids (set (keys models)))
 (def upstream-model-id (get-in models [model-id :upstream]))
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
-(def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
+;; Per-request ceilings (owner direction 2026-09-15: a 128k-TOKEN context and
+;; 32k output tokens). The gateway counts characters, not tokens: 524,288
+;; characters is ~128k tokens of English, the origin's 131,072-token window.
+;; hermes refuses any model window under 64k tokens and packs its context to
+;; that window while sending max_tokens 2048, so the window must be declared
+;; at the origin's size, not at a character-derived fraction of it. The origin
+;; enforces the true token window (prompt + max_tokens <= 131,072); a prompt
+;; that only fits in characters fails there as inference-failed. The daily
+;; request count is unchanged.
+(def max-input-characters 524288)
+(def max-output-tokens 32768)
+(def free-limits {:requestsPerDay 50 :maxOutputTokens max-output-tokens :maxInputCharacters max-input-characters})
 (def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
                    :threshold 60 :ceiling 100 :defaultRoute "web-reviewed" :provisional true})
 (def session-policy {:version "kotoba-session-evidence-2026-09-v1" :calibrated false :maxProjectionAgeMs 15000
@@ -142,36 +153,45 @@
        (every? #{:verificationMode :policyVersion :consent :authorizedResearch
                  :purpose :scope :issuer :reference} (keys body))))
 
+(defn output-tokens? [n] (and (integer? n) (<= 1 n max-output-tokens)))
+
 (defn completion? [body]
   (and (contains? model-ids (:model body))
        (contains? tasks (:task body))
        (text? (:scopeId body) 256)
        (vector? (:messages body)) (<= 1 (count (:messages body)) 12)
        (every? #(and (map? %) (#{"user" "assistant"} (:role %))
-                      (text? (:content %) 24000)
+                      (text? (:content %) max-input-characters)
                       (every? #{:role :content} (keys %))) (:messages body))
        (= "user" (:role (last (:messages body))))
-       (<= (reduce + (map #(count (:content %)) (:messages body))) 24000)
-       (integer? (:max_tokens body)) (<= 1 (:max_tokens body) 2048)
+       (<= (reduce + (map #(count (:content %)) (:messages body))) max-input-characters)
+       (output-tokens? (:max_tokens body))
        (every? #{:model :task :scopeId :messages :max_tokens} (keys body))))
 
 (def openai-ignorable-keys
   "Standard OpenAI parameters a text-completion gateway may accept and then
   drop: they never reach the authority or the upstream (the forwarded body is
   rebuilt from the strict admission shape). Accepting-and-ignoring is what an
-  OpenAI SDK client needs; unknown keys remain rejected."
+  OpenAI SDK client needs; unknown keys remain rejected. `tools` is here too:
+  an agent client (hermes, 2026-09-15) always sends its tool list; the model
+  never emits native tool calls, so the list is dropped and the client falls
+  back to its text-tag tool protocol."
   #{"temperature" "top_p" "presence_penalty" "frequency_penalty" "stop"
-    "response_format" "tool_choice" "parallel_tool_calls"})
+    "response_format" "tool_choice" "parallel_tool_calls" "tools"
+    "stream_options" "user" "seed" "logit_bias" "logprobs" "top_logprobs"
+    "metadata" "store" "service_tier" "reasoning_effort" "reasoning"
+    "prompt_cache_key" "safety_identifier" "modalities"})
 
 (defn completion-openai-compatible?
   "OpenAI-compatible shape for local CLI/IDE agents on the bearer (PAT) path.
   The admission fields the transport cannot send are server-derived by the
   gateway (task defaults to code-review, scopeId resolves to the caller's own
   approved scope). Core message rules are identical to completion? (system
-  turns allowed only as the first message, 24k total input, non-empty,
-  user-terminated); openai-ignorable-keys are accepted and dropped; stream is
-  rejected (SSE is not served here), n must be 1, tools are accepted only
-  empty-or-absent because the model never emits tool calls."
+  turns allowed only as the first message, max-input-characters total,
+  non-empty, user-terminated); openai-ignorable-keys are accepted and dropped;
+  `stream: true` is accepted and served as a one-chunk SSE emulation by the
+  gateway; `max_completion_tokens` is the OpenAI alias of max_tokens; n must
+  be 1."
   [body]
   (let [ms (:messages body)
         sys-only (and (vector? ms) (pos? (count ms))
@@ -184,19 +204,19 @@
          (vector? ms) (<= 1 (count ms) 64)
          (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))
          (every? #(and (map? %) (#{"user" "assistant"} (:role %))
-                        (text? (:content %) 24000)
+                        (text? (:content %) max-input-characters)
                         (every? #{:role :content} (keys %))) chat)
          (or (not sys-only)
              (and (every? #{:role :content} (keys (first ms)))
-                  (text? (:content (first ms)) 24000)))
+                  (text? (:content (first ms)) max-input-characters)))
          (= "user" (:role (last ms)))
-         (<= (reduce + (map #(count (:content %)) ms)) 24000)
-         (or (nil? (:max_tokens body))
-             (and (integer? (:max_tokens body)) (<= 1 (:max_tokens body) 2048)))
-         (not (true? (:stream body)))
+         (<= (reduce + (map #(count (:content %)) ms)) max-input-characters)
+         (or (nil? (:max_tokens body)) (output-tokens? (:max_tokens body)))
+         (or (nil? (:max_completion_tokens body)) (output-tokens? (:max_completion_tokens body)))
+         (or (nil? (:stream body)) (boolean? (:stream body)))
          (or (nil? (:n body)) (= 1 (:n body)))
-         (or (nil? (:tools body)) (empty? (:tools body)))
-         (every? #(or (#{"model" "messages" "max_tokens" "task" "scopeId" "stream" "n" "tools"} %)
+         (or (nil? (:tools body)) (vector? (:tools body)))
+         (every? #(or (#{"model" "messages" "max_tokens" "max_completion_tokens" "task" "scopeId" "stream" "n"} %)
                       (contains? openai-ignorable-keys %)) ks))))
 
 (defn scope-approved? [record body now]

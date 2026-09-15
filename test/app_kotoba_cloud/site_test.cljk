@@ -32,7 +32,10 @@
                     "kotoba library inspect" "耐量子署名は任意ではありません"]]
       (is (str/includes? html needle) needle))
     (is (str/includes? html "hreflang=\"en\""))
-    (is (str/includes? html "href=\"/ja/\""))
+    ;; the language switch is ?lang= on the same route; no /<locale>/ path
+    ;; is linked (owner direction 2026-09-15)
+    (is (str/includes? html "href=\"?lang=ja\""))
+    (is (not (str/includes? html "href=\"/ja/\"")))
     (is (str/includes? html "data-language-selector"))
     (is (str/includes? html "src=\"/js/language-selector.js\""))
     (is (= 1 (count (re-seq #"<nav" html))))
@@ -114,13 +117,14 @@
     (is (= "Kotoba Labs Inc" site/operator-name))
     (is (= "support@kotoba.cloud" site/public-contact-email))
     (is (= "請求があった場合、法令に従い遅滞なく開示します" site/legal-disclosure)))
-  (testing "legal routes follow English-first apex paths"
+  (testing "legal routes are locale-free; the ja variant is self-canonical at ?lang=ja"
     (is (= "/legal/" (get-in site/copy [:en :legal-path])))
     (is (= "/legal/tokushoho/" (get-in site/copy [:en :tokushoho-path])))
-    (is (= "/ja/legal/" (get-in site/copy [:ja :legal-path])))
-    (is (= "/ja/legal/tokushoho/" (get-in site/copy [:ja :tokushoho-path])))
-    (is (str/includes? (site/legal-html :en) "https://kotoba.cloud/legal/"))
-    (is (str/includes? (site/legal-html :ja) "https://kotoba.cloud/ja/legal/")))
+    (is (= "/legal/" (get-in site/copy [:ja :legal-path])))
+    (is (= "/legal/tokushoho/" (get-in site/copy [:ja :tokushoho-path])))
+    (is (str/includes? (site/legal-html :en) "rel=\"canonical\" href=\"https://kotoba.cloud/legal/\""))
+    (is (str/includes? (site/legal-html :ja) "rel=\"canonical\" href=\"https://kotoba.cloud/legal/?lang=ja\""))
+    (is (str/includes? (site/legal-html :ja) "hreflang=\"en\" href=\"https://kotoba.cloud/legal/\"")))
   (testing "every public HTML document names the operator and the support inbox"
     (doseq [html public-html-pages]
       (is (str/includes? html "Kotoba Labs Inc"))
@@ -179,7 +183,9 @@
                    :identity-waiting :identity-done :signed-in-action
                    :boundary-heading :boundary-body :note]]
         (is (str/includes? html (get t key)) (str locale " " key)))
-      (is (str/includes? html (str "rel=\"canonical\" href=\"https://kotoba.cloud/" (name locale) "/\"")))
+      ;; one locale-free route; a non-English variant is self-canonical at
+      ;; ?lang=<locale> (no /<locale>/ path fork, owner direction 2026-09-15)
+      (is (str/includes? html (str "rel=\"canonical\" href=\"https://kotoba.cloud/?lang=" (name locale) "\"")))
       (is (str/includes? html "lang=\"en\" dir=\"ltr\""))
       (doseq [loc site/supported-locales]
         (is (str/includes? html (str "hreflang=\"" (name loc) "\""))))

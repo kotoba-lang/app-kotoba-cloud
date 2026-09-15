@@ -129,7 +129,7 @@
                           [:option {:value "code-review"} (if (= locale :ja) "コードレビュー" "Code review")]
                           [:option {:value "vulnerability-triage"} (if (= locale :ja) "脆弱性の整理" "Vulnerability triage")]
                           [:option {:value "remediation"} (if (= locale :ja) "修正支援" "Remediation")]]]
-        [:label (:input t) [:textarea {:id "research-input" :required true :maxlength 24000}]]
+        [:label (:input t) [:textarea {:id "research-input" :required true :maxlength 524288}]]
         (dds/button (:run t) {:id "research-run" :submit? true :disabled true})]
        [:p {:id "research-output" :class "kc-research-result" :role "status" :aria-live "polite"}])]
      [:section {:class "kc-research-section" :id "research-terms"}

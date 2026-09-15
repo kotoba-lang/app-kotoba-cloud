@@ -12,6 +12,7 @@
             [app-kotoba-cloud.security-fit :as security-fit]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
+            [app-kotoba-cloud.org-sso-gateway :as org-sso-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
@@ -611,6 +612,7 @@
   (let [url (js/URL. (.-url request))
         decision (locale/static-decision
                   {:path path
+                   :query (.get (.-searchParams url) locale/query-param)
                    :cookie (session/cookie-value (.get (.-headers request) "cookie")
                                                  locale/cookie-name)
                    :accept-language (.get (.-headers request) "accept-language")
@@ -849,6 +851,28 @@
       (contains? org-gateway/paths path)
       (org-gateway/route request env fetch-viewer private-json-response)
 
+      ;; Linked identities and organization SSO (ADR-2609151900): the apex
+      ;; owns plan + org role and mints the entitlement; auth.kotoba.cloud
+      ;; owns the IdP round trip. No session is minted on either side.
+      (contains? org-sso-gateway/paths path)
+      (org-sso-gateway/route request env fetch-viewer private-json-response)
+
+      ;; "Continue with Google / GitHub" — a link-start on auth.kotoba.cloud,
+      ;; not a sign-in: the provider names the account, the passkey proves it.
+      (and (= method "GET") (re-matches #"^/sign-in/(google|github)$" path))
+      (redirect (org-sso-gateway/link-start-location
+                 (second (re-matches #"^/sign-in/(google|github)$" path))
+                 ;; return to the locale-free apex; a catalog locale rides
+                 ;; along as ?lang= (served in place, no /ja/ hop)
+                 (let [l (locale/query-locale (.get (.-searchParams url) locale/query-param))]
+                   (str "https://kotoba.cloud/"
+                        (when (and l (not= l :en)) (str "?" locale/query-param "=" (name l))))))
+                (emit-signup-intent! request))
+      (and (= method "GET") (re-matches #"^/account/link/(google|github)$" path))
+      (redirect (org-sso-gateway/link-start-location
+                 (second (re-matches #"^/account/link/(google|github)$" path))
+                 "https://kotoba.cloud/account/"))
+
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
           (.then #(with-security-headers % {"cache-control" "no-store, private"
@@ -872,16 +896,10 @@
       ;; Former kotobase.net surfaces. Operations resolve to the graph
       ;; workbench on the apex document; documentation is a static page.
       ;; graph.kotoba.cloud stays unprovisioned (one canonical origin).
+      ;; Locale-free target: the apex negotiates the variant from the same
+      ;; cookie / Accept-Language this request carried (no /ja/ hop).
       (and (= path "/graph") (= method "GET"))
-      (redirect (if (= (locale/negotiate
-                        {:path path
-                         :cookie (session/cookie-value (.get (.-headers request) "cookie")
-                                                       locale/cookie-name)
-                         :accept-language (.get (.-headers request) "accept-language")
-                         :country (request-country request)})
-                       :ja)
-                 "/ja/#knowledge/overview"
-                 "/#knowledge/overview"))
+      (redirect "/#knowledge/overview")
 
       (and (= path "/v1/logout") (= method "POST"))
       (route-logout request)

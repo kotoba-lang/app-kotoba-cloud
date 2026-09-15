@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { route, resetFunnelStore } from "../build/worker.js";
+import { readdirSync, existsSync } from "node:fs";
 
 const calls = [];
 let upstreamStatus = 200;
@@ -520,6 +521,68 @@ const sharedUntouched = await route(new Request("https://kotoba.cloud/account", 
 assert.equal(sharedUntouched.status, 200);
 assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
 
+// The language switch is ?lang=<locale> on the SAME route (owner direction
+// 2026-09-15: the /ja, /en paths are no longer needed): served directly as
+// that variant — 200, no Location, the choice persisted — and it beats a
+// saved cookie in both directions. A value outside the catalog is ignored
+// and never persisted.
+{
+  const jaQuery = await route(new Request("https://kotoba.cloud/docs/?lang=ja", {
+    headers: { cookie: "kb_locale=he" }
+  }), env);
+  assert.equal(jaQuery.status, 200);
+  assert.equal(jaQuery.headers.get("location"), null);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/ja/docs/?lang=ja");
+  assert.match(jaQuery.headers.get("set-cookie") || "", /^kb_locale=ja;/);
+  assert.match(jaQuery.headers.get("vary") || "", /Cookie/);
+  const enQuery = await route(new Request("https://kotoba.cloud/billing/?lang=en", {
+    headers: { cookie: "kb_locale=ja" }
+  }), env);
+  assert.equal(enQuery.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/billing/?lang=en");
+  assert.match(enQuery.headers.get("set-cookie") || "", /^kb_locale=en;/);
+  const badQuery = await route(new Request("https://kotoba.cloud/billing/?lang=klingon", {
+    headers: { cookie: "kb_locale=he" }
+  }), env);
+  assert.equal(badQuery.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/he/billing/?lang=klingon", "an unknown lang neither redirects nor overrides the saved choice");
+  assert.equal(badQuery.headers.get("set-cookie"), null, "an unknown lang is never persisted");
+  // an explicit prefix is compatibility only: 301 to the locale-free route
+  const prefixed = await route(new Request("https://kotoba.cloud/ja/blog/"), env);
+  assert.equal(prefixed.status, 301);
+  assert.equal(prefixed.headers.get("location"), "/blog/");
+  // the emit tree is the truth of which roots have variants: every
+  // directory site.cljk writes under public/ja/ must be served at its
+  // locale-free route for a ja reader (blog and apps were not, measured
+  // live 2026-09-15). Refuse — not pass — when the tree is not there.
+  const jaRoot = new URL("../public/ja/", import.meta.url);
+  assert(existsSync(jaRoot), "public/ja/ missing — run npm run render before the smoke");
+  const jaDirs = readdirSync(jaRoot, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
+  assert(jaDirs.length >= 5, "public/ja/ has " + jaDirs.length + " directories — the emit tree looks empty");
+  for (const dir of jaDirs) {
+    await route(new Request(`https://kotoba.cloud/${dir}/`, { headers: { cookie: "kb_locale=ja" } }), env);
+    assert.equal(assetReads[assetReads.length - 1], `https://kotoba.cloud/ja/${dir}/`,
+      `/${dir}/ is emitted under /ja/ but the Worker did not serve the variant (locale/variant-roots)`);
+  }
+  console.log("locale switch: ?lang= served in place for " + jaDirs.length + " variant roots (" + jaDirs.join(", ") + "), prefix 301 kept");
+}
+// /graph resolves to the locale-free apex; the apex negotiates the variant.
+{
+  const graph = await route(new Request("https://kotoba.cloud/graph", { headers: { cookie: "kb_locale=ja" } }), env);
+  assert.equal(graph.status, 302);
+  assert.equal(graph.headers.get("location"), "/#knowledge/overview");
+  // Continue with Google (ADR-2609151900) returns to the locale-free apex;
+  // a catalog locale rides along as ?lang=, an unknown one is dropped.
+  const returnTo = async (q) => {
+    const r = await route(new Request("https://kotoba.cloud/sign-in/google" + q), env);
+    assert.equal(r.status, 302);
+    return decodeURIComponent(new URL(r.headers.get("location")).searchParams.get("return_to"));
+  };
+  assert.equal(await returnTo("?lang=ja"), "https://kotoba.cloud/?lang=ja");
+  assert.equal(await returnTo(""), "https://kotoba.cloud/");
+  assert.equal(await returnTo("?lang=klingon"), "https://kotoba.cloud/");
+}
+
 assert(idFromHeader.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 
@@ -694,7 +757,7 @@ assert.equal(eligibleStatusBody.trust.score, 60);
 assert.deepEqual(eligibleStatusBody.trust.routes, ['web-reviewed']);
 assert.equal(eligibleStatusBody.trust.evidenceRef, undefined);
 assert.match(eligibleStatus.headers.get("cache-control"), /no-store/);
-for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 9999 }]) {
+for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 40000 }]) {
   assert.equal((await route(researchRequest("/v1/chat/completions", { ...researchBody, ...extra }), researchEnv)).status, 400);
 }
 const beforeDenials = researchCalls.filter(c => c.path === "/complete").length;
@@ -766,8 +829,10 @@ assert.equal((await route(researchRequest("/v1/research/applications", applicati
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verified: true }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse" }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse", issuer: "trusted", reference: "existing-record" }), researchEnv)).status, 202);
+// The completion body cap is 2 MiB (524,288 input characters, JSON-escaped and
+// UTF-8 encoded); a streamed body past it is cut off at 413, never buffered.
 const overLimitStream = new ReadableStream({ start(controller) {
-  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(100000) + '"')); controller.close();
+  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(2097200) + '"')); controller.close();
 } });
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", duplex: "half", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" },
@@ -972,12 +1037,61 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
   assert.equal(lastCreate.body.request.scopeId, "owned");
   assert.equal(lastCreate.body.request.messages[0].role, "system");
   assert.equal(lastCreate.body.request.temperature, undefined);
-  // tools/stream/n rejections and unknown keys stay closed on the bearer path.
-  for (const bad of [{ tools: [{ type: "function" }] }, { stream: true }, { n: 2 }, { unknown_key: 1 }]) {
+  // n and unknown keys stay closed on the bearer path; the ceilings are
+  // 524,288 input characters (~128k tokens) and 32,768 output tokens (owner
+  // 2026-09-15), and the boundary itself passes.
+  for (const bad of [{ n: 2 }, { unknown_key: 1 }, { max_tokens: 32769 }, { max_completion_tokens: 32769 },
+    { messages: [{ role: "user", content: "x".repeat(524289) }] }]) {
     assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
       method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
       body: JSON.stringify({ ...openaiBody, ...bad })
-    }), bearerPatEnv)).status, 400);
+    }), bearerPatEnv)).status, 400, JSON.stringify(Object.keys(bad)));
+  }
+  // An agent client's body: tools list, stream: true, max_completion_tokens,
+  // stream_options, a 100k-character system prompt. Tools are dropped, the
+  // alias becomes max_tokens, and the answer is a one-chunk SSE emulation.
+  {
+    const savedForAgent = structuredClone(researchRecord);
+    researchRecord.continuous.sessionRef = agentSessionRef;
+    researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+    const agentBody = { model: researchModel, stream: true, stream_options: { include_usage: true },
+      max_completion_tokens: 32768, tools: [{ type: "function", function: { name: "read_file", parameters: {} } }],
+      tool_choice: "auto", parallel_tool_calls: true, user: "hermes",
+      messages: [{ role: "system", content: "s".repeat(100000) }, { role: "user", content: "Say OK." }] };
+    const sse = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+      method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+      body: JSON.stringify(agentBody)
+    }), bearerPatEnv);
+    researchRecord = savedForAgent;
+    const sseText = await sse.text();
+    assert.equal(sse.status, 200, sseText);
+    assert.match(sse.headers.get("content-type"), /^text\/event-stream/);
+    const frames = sseText.split("\n\n").filter(Boolean);
+    assert.equal(frames.length, 3, sseText);
+    const chunk1 = JSON.parse(frames[0].replace(/^data: /, ""));
+    const chunk2 = JSON.parse(frames[1].replace(/^data: /, ""));
+    assert.equal(chunk1.object, "chat.completion.chunk");
+    assert.equal(chunk1.choices[0].delta.content, "Check ownership before returning the record.");
+    assert.equal(chunk1.choices[0].finish_reason, null);
+    assert.equal(chunk2.choices[0].finish_reason, "stop");
+    assert.equal(frames[2], "data: [DONE]");
+    const agentCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+    assert.equal(agentCreate.body.request.max_tokens, 32768);
+    assert.equal(agentCreate.body.request.tools, undefined);
+    assert.equal(agentCreate.body.request.stream, undefined);
+    assert.equal(agentCreate.body.request.messages[0].content.length, 100000);
+    // stream: false stays a JSON body
+    const savedForJson = structuredClone(researchRecord);
+    researchRecord.continuous.sessionRef = agentSessionRef;
+    researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+    const plain = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+      method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ ...agentBody, stream: false, messages: [{ role: "user", content: "Say OK again." }] })
+    }), bearerPatEnv);
+    researchRecord = savedForJson;
+    assert.equal(plain.status, 200);
+    assert.match(plain.headers.get("content-type"), /^application\/json/);
+    assert.equal((await plain.json()).object, "chat.completion");
   }
   // Cookie path stays strict: OpenAI-only body without task/scopeId → 400.
   assert.equal((await route(researchRequest("/v1/chat/completions", { model: researchModel,

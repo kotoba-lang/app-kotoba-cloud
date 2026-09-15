@@ -178,7 +178,13 @@
     (string? value) (js->clj (js/JSON.parse value) :keywordize-keys true)
     :else (js->clj value :keywordize-keys true)))
 
-(def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
+;; Mirror of app-kotoba-cloud.research/free-limits (owner direction 2026-09-15:
+;; 524,288 input characters ≈ a 128k-token context, 32k output tokens; the
+;; daily count is unchanged).
+(def free-limits {:requestsPerDay 50 :maxOutputTokens 32768 :maxInputCharacters 524288})
+;; Longest answer the job store accepts: 32k tokens of CJK text can approach
+;; 200k characters; SQLite-backed DO storage takes values up to 2 MB.
+(def max-content-characters 1048576)
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
 (def weights {"web-reviewed" 60 "app-passport" 80})
 (def threshold 60)
@@ -798,7 +804,7 @@
                                                   :upstreamStatus (:status data)
                                                   :finishedAt (js/Date.now)))))
               succeed (fn [{:keys [content usage-receipt]}]
-                        (when-not (text? content 65536)
+                        (when-not (text? content max-content-characters)
                           (throw (ex-info "inference-result-empty" {})))
                         (store-job! storage (assoc job :status "succeeded"
                                                    :content content
@@ -824,12 +830,12 @@
                          (let [decoded (decode raw)
                                content (get-in decoded [:choices 0 :message :content])
                                reasoning (get-in decoded [:choices 0 :message :reasoning])
-                               fallback (if (text? content 65536) content reasoning)
+                               fallback (if (text? content max-content-characters) content reasoning)
                                expected (upstream-model-for (get-in job [:request :model]))]
                            (if-not (and (or (not expected)
                                             (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
-                                        (text? fallback 65536))
+                                        (text? fallback max-content-characters))
                              (throw (ex-info "unexpected-modal-model-or-response"
                                              {:upstream {:model (:model decoded) :object (:object decoded)}}))
                              {:content fallback
