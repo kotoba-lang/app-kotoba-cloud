@@ -9,6 +9,7 @@
             [app-kotoba-cloud.account-site :as account-site]
             [cloud-kotoba-dds.console :as dds-console]
             [cloud-kotoba-dds.shell :as shell]
+            [app-kotoba-cloud.console-locales :as cl]
             [cloud-kotoba-dds.code :as code]
             [app-kotoba-cloud.code-block :as code-block]
             [cloud-kotoba-dds.catalog :as dds-catalog]
@@ -496,16 +497,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
   the table; the foot is the account entry on every view: a sign-in control
   until the session is known, then the account chip (shell-browser)."
   [locale _t current]
-  (let [txt (fn [ja en] (if (= locale :ja) ja en))]
+  (let [txt (fn [k] (cl/t locale k))]
     (into
-     [:nav {:class "kc-sb" :aria-label (txt "アプリナビゲーション" "App navigation")}
+     [:nav {:class "kc-sb" :aria-label (txt :app-navigation)}
       ;; the brand, top-left of every screen (owner direction 2026-09-15):
       ;; the Kotoba mark from kotoba-lang/kotoba's README header, one home —
       ;; the compact header on the app page drops its wordmark for it
-      [:a {:class "kc-sb__brand" :href "/" :aria-label (txt "Kotoba Cloud ホーム" "Kotoba Cloud home")}
+      [:a {:class "kc-sb__brand" :href "/" :aria-label (txt :home)}
        [:img {:src "/assets/kotoba-logo.png" :alt "Kotoba" :width 208 :height 29 :decoding "async"}]]
       [:a {:class "kc-sb__new" :href (:href console/get-started)}
-       (txt (:ja console/get-started) (:en console/get-started))]]
+       (txt (:key console/get-started))]]
      (concat
       (mapcat (fn [{:keys [group items]}]
                 (cons [:div {:class "kc-sb__group"} group]
@@ -517,33 +518,38 @@ body:has(.kc-sb){padding-inline-start:15rem}
       ;; the account entry is cloud-kotoba-dds.shell's: both states in the
       ;; document (sign-in visible, the chip + FLOATING menu hidden), the
       ;; browser fills and reveals (shell-browser → cloudKotobaShell)
-      [[:div {:class "kc-sb__foot" :aria-label (txt "アカウント" "Account")}
+      [[:div {:class "kc-sb__foot" :aria-label (txt :menu-account)}
         (shell/account-entry
          {:id "kc-session-nav-side" :variant :rail
-          :sign-in {:href (passkey-href locale) :label (txt "サインイン" "Sign in")}
-          :menu-label (txt "アカウントメニュー" "Account menu")
-          :items [{:href "/account" :label (txt "アカウント" "Account")}
-                  {:href "/billing/" :label (txt "料金・決済" "Billing")}
-                  {:id "kc-session-signout" :action "sign-out" :label (txt "ログアウト" "Sign out")}]})]]))))
+          :sign-in {:href (passkey-href locale) :label (txt :sign-in)}
+          :menu-label (txt :account-menu)
+          :items [{:href "/account" :label (txt :menu-account)}
+                  {:href "/billing/" :label (txt :menu-billing)}
+                  {:id "kc-session-signout" :action "sign-out" :label (txt :sign-out)}]})
+        ;; the six strings shell-browser needs at runtime, in the document's
+        ;; locale (the 22-locale map stays out of the bundle)
+        [:span (into {:id "kc-console-copy" :hidden true}
+                     (map (fn [k] [(keyword (str "data-" (name k))) (cl/t locale k)]) cl/browser-keys))]]]))))
 
 (defn console-language-switch
   "The language switch of the console chrome — jp-go-dds's language-selector
    under cloud-kotoba-dds's :language-selector contract: base
    :jp-go-dds/language-selector, preserves the route, selection order
-   explicit URL → saved choice → default. The two implemented console
-   locales (contracts.edn :locales) are offered; each href is the SAME
-   document with `?lang=` (language-href), which the Worker serves as that
-   variant with the choice persisted as kb_locale (locale.cljk) — the
-   click also writes the cookie client-side (language-cookie-script), so
-   the route never forks."
+   explicit URL → saved choice → default. Every public locale is offered
+   (the console chrome is in all 22 since 2026-09-15 — console-locales;
+   until then two, and a reader of Bahasa Indonesia got an English
+   console); each href is the SAME document with `?lang=` (language-href),
+   which the Worker serves as that variant with the choice persisted as
+   kb_locale (locale.cljk) — the click also writes the cookie client-side
+   (language-cookie-script), so the route never forks."
   [locale _current]
   (dds/language-selector
    {:id-prefix "kc-console-language"
     :size "sm"
     :current locale
-    :languages [{:code :ja :label "日本語" :href (language-href :ja)}
-                {:code :en :label "English" :href (language-href :en)}]
-    :attrs {:aria-label (if (= locale :ja) "表示言語" "Language")}}))
+    :languages (mapv (fn [loc] {:code loc :label (get locales/native-names loc) :href (language-href loc)})
+                     supported-locales)
+    :attrs {:aria-label (cl/t locale :language)}}))
 
 (defn console-topbar
   "The console's top bar: the section this page belongs to (from the IA
@@ -552,8 +558,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   The two chips are hidden until shell-browser has read the session — a
   chip with no number is not shown (no fabricated state)."
   [locale current]
-  (let [txt (fn [ja en] (if (= locale :ja) ja en))
-        section (console/section-label current locale)]
+  (let [section (console/section-label current locale)]
     ;; cloud-kotoba-dds.shell's top bar: sticky (data-chrome=top, measured
     ;; by shinkansen.audit :chrome-layers) — it no longer scrolls away
     (shell/topbar
@@ -562,7 +567,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                    [:span (:item section)]
                    (shell/section-label (:group section) (:item section))))
       :actions [[:a {:class "kc-topbar__chip" :id "kc-credit-chip" :href "/billing/" :hidden true} "—"]
-                [:a {:class "kc-topbar__link" :href "/docs/"} (txt "ドキュメント" "Docs")]
+                [:a {:class "kc-topbar__link" :href "/docs/"} (cl/t locale :docs)]
                 [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]
                 ;; right edge (reference: … | EN): language, then the λ yin-yang
                 ;; theme switch (jp-go-dds.theme-toggle; hidden until its script runs)
@@ -573,10 +578,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
   "'Resume setup — <next step> · Continue': hidden until the session is
    known; shell-browser fills the next step from console/setup-progress."
   [locale]
-  (let [txt (fn [ja en] (if (= locale :ja) ja en))]
-    [:div {:id "kc-setup-banner" :class "kc-setup-banner" :role "status" :hidden true}
-     [:span {:id "kc-setup-banner-text"} (txt "セットアップを続ける" "Resume setup")]
-     [:a {:id "kc-setup-banner-link" :href "/account"} (txt "続ける" "Continue")]]))
+  [:div {:id "kc-setup-banner" :class "kc-setup-banner" :role "status" :hidden true}
+   [:span {:id "kc-setup-banner-text"} (cl/t locale :resume-setup)]
+   [:a {:id "kc-setup-banner-link" :href "/account"} (cl/t locale :continue)]])
 
 (defn app-menu
   "Single dropdown menu over the compact app header.

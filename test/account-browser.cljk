@@ -25,6 +25,11 @@
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/junkawasaki/github/com-junkawasaki/node_modules/playwright');
 const base='http://127.0.0.1:" port "';
 const shots=process.env.ACCOUNT_SHOTS||'';
+// how long a hydration step may take: this desktop runs many agents at once
+// (load average 190 measured 2026-09-16, a signed-out reveal took 5.7 s) and a
+// 5 s ceiling turned a passing arm into a flake; the contract is 'it reveals',
+// not 'within 5 s on an idle machine'
+const WAIT=Number(process.env.ACCOUNT_WAIT_MS||20000);
 (async()=>{
  const browser=await chromium.launch({headless:true,channel:'chrome'});
  const errors=[];
@@ -54,11 +59,11 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   // one document per locale (2026-09-15): the locale-free root is English,
   // a non-ja/en locale carries the shell in its language and an English body
   await page.goto(base+'/account/');
-  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:5000});
+  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:WAIT});
   const en=await page.evaluate(()=>({lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,h1:document.querySelector('h1').textContent}));
   if(en.lang!=='en'||en.status!=='Not signed in.'||en.h1!=='Account')throw Error('english root document: '+JSON.stringify(en));
   await page.goto(base+'/de/account/');
-  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:5000});
+  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:WAIT});
   const de=await page.evaluate(()=>({lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,bodyLang:document.getElementById('account-console').closest('[lang]').getAttribute('lang')}));
   if(de.lang!=='de'||de.status!=='Not signed in.'||de.bodyLang!=='en')throw Error('german shell, english body: '+JSON.stringify(de));
   if(!s.signedOutVisible||!s.bodyHidden)throw Error('signed-out reveal wrong '+JSON.stringify(s));
@@ -73,7 +78,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await fixture(true)(page);
   await page.goto(base+'/ja/account/');
   await page.waitForFunction(()=>document.getElementById('account-session-status').dataset.state==='ok');
-  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:WAIT});
   const s=await page.evaluate(()=>{
     const cells=[...document.querySelectorAll('#account-console-body .ck-console__value[data-state]')].map(e=>[e.id||e.textContent.trim(),e.dataset.state]);
     const sb=document.querySelector('.kc-sb'); const r=sb.getBoundingClientRect();
@@ -130,23 +135,23 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/research/ekyc/start',r=>{starts.push({method:r.request().method(),body:r.request().postDataJSON()});r.fulfill({status:answer.status,contentType:'application/json',body:JSON.stringify(answer.body)})});
   await page.route('https://checkout.stripe.com/**',r=>r.fulfill({status:200,contentType:'text/html',body:'<title>checkout</title>'}));
   await page.goto(base+'/ja/account/');
-  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
-  await Promise.all([page.waitForURL('https://checkout.stripe.com/**',{timeout:5000}),page.click('#account-ekyc-start')]);
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:WAIT});
+  await Promise.all([page.waitForURL('https://checkout.stripe.com/**',{timeout:WAIT}),page.click('#account-ekyc-start')]);
   if(starts.length!==1)throw Error('start posted '+starts.length+' times');
   if(starts[0].method!=='POST')throw Error('start method '+starts[0].method);
   if(JSON.stringify(starts[0].body)!==JSON.stringify({scopeId:'owned',tasks:['code-review']}))throw Error('start body '+JSON.stringify(starts[0].body));
   await page.goto(base+'/ja/account/');
-  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:WAIT});
   for(const [code,status,expect] of [['prepaid-card-not-accepted',403,/プリペイドカード/],['card-verification-not-configured',503,/一時的に利用できません/],['stripe-unavailable',503,/Stripe に接続できませんでした/],['something-else',503,/開始できませんでした/]]){
     answer={status,body:{error:{code}}};
     await page.click('#account-ekyc-start');
-    await page.waitForFunction(()=>!document.getElementById('account-ekyc-start').disabled,null,{timeout:5000});
+    await page.waitForFunction(()=>!document.getElementById('account-ekyc-start').disabled,null,{timeout:WAIT});
     const note=await page.evaluate(()=>document.getElementById('account-ekyc-note').textContent);
     if(!expect.test(note))throw Error('note for '+code+': '+note);
   }
   await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'pending',sessionId:'s1',expiresAt:Date.now()+600000})}));
   await page.goto(base+'/ja/account/?card=done#account-panel-identity');
-  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:WAIT});
   const back=await page.evaluate(()=>({state:document.getElementById('account-ekyc-state').textContent,note:document.getElementById('account-ekyc-note').textContent,button:document.getElementById('account-ekyc-start').textContent}));
   if(back.state!=='確認中')throw Error('back state '+back.state);
   if(!/カード登録を受け付けました/.test(back.note))throw Error('back note '+back.note);
@@ -166,7 +171,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/account/api-token/revoke',r=>{const b=r.request().postDataJSON();revokes.push(b);const t=registry.tokens.find(t=>t.id===b.tokenId);t.revokedAt=Date.now();r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:t})})});
   await page.route('**/v1/account/api-token',r=>{registry.tokens.push({id:'0123456789ad',label:'cli',issuedAt:Date.now()});r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:'kc_pat_x.0123456789ad.0123456789abcdef',tokenId:'0123456789ad',label:'cli'})})});
   await page.goto(base+'/ja/account/');
-  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').dataset.state==='value',null,{timeout:5000});
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').dataset.state==='value',null,{timeout:WAIT});
   const s=await page.evaluate(()=>({state:document.getElementById('account-pat-list-state').textContent,
     rows:[...document.querySelectorAll('#account-pat-list [data-token-row]')].map(r=>({id:r.dataset.tokenRow,buttons:r.querySelectorAll('button').length})),
     legacyVisible:!document.getElementById('account-pat-revoke-legacy').hidden}));
@@ -174,7 +179,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(s.rows.length!==2||s.rows.some(r=>r.buttons!==1))throw Error('rows '+JSON.stringify(s.rows));
   if(!s.legacyVisible)throw Error('legacy revoke action must show while legacy tokens are not revoked');
   await page.click('#account-pat-list [data-token-row=\\'0123456789ac\\'] button');
-  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='1 本が有効 / 2 本',null,{timeout:5000});
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='1 本が有効 / 2 本',null,{timeout:WAIT});
   if(JSON.stringify(revokes)!==JSON.stringify([{tokenId:'0123456789ac'}]))throw Error('revoke posted '+JSON.stringify(revokes));
   const after=await page.evaluate(()=>({note:document.getElementById('account-pat-list-note').textContent,
     revokedRow:document.querySelector('#account-pat-list [data-token-row=\\'0123456789ac\\']').textContent,
@@ -182,7 +187,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(!/0123456789ac を取り消しました/.test(after.note))throw Error('note '+after.note);
   if(!/取り消し済み/.test(after.revokedRow)||after.revokedButtons!==0)throw Error('revoked row '+JSON.stringify(after));
   await page.click('#account-pat-create');
-  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='2 本が有効 / 3 本',null,{timeout:5000});
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='2 本が有効 / 3 本',null,{timeout:WAIT});
   const issued=await page.evaluate(()=>document.getElementById('account-pat-token').textContent);
   if(!/^kc_pat_/.test(issued))throw Error('issued token not shown once: '+issued);
   await page.close();
@@ -196,7 +201,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   // still pending); the signed-in block above carries the pro fixture
   await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'pending-configuration',checkoutEnabled:false})}));
   await page.goto(base+'/ja/account/');
-  await page.waitForFunction(()=>!document.getElementById('kc-setup-chip').hidden,null,{timeout:5000});
+  await page.waitForFunction(()=>!document.getElementById('kc-setup-chip').hidden,null,{timeout:WAIT});
   const s=await page.evaluate(()=>({chip:document.getElementById('kc-setup-chip').textContent,state:document.getElementById('kc-setup-chip').dataset.state,
     chipHref:document.getElementById('kc-setup-chip').getAttribute('href'),
     bannerHidden:document.getElementById('kc-setup-banner').hidden,
@@ -244,7 +249,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   await fixture(false)(page);
   await page.goto(base+'/secure/');
-  await page.waitForFunction(()=>!document.getElementById('kot-theme').hidden,null,{timeout:5000});
+  await page.waitForFunction(()=>!document.getElementById('kot-theme').hidden,null,{timeout:WAIT});
   const light=await page.evaluate(()=>({bg:getComputedStyle(document.body).backgroundColor,theme:document.documentElement.getAttribute('data-theme'),
     toggleRight:innerWidth-document.getElementById('kot-theme').getBoundingClientRect().right,
     langRight:innerWidth-document.getElementById('kc-console-language-opener').getBoundingClientRect().right,
@@ -263,13 +268,17 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.click('#kc-console-language-opener'); await page.waitForTimeout(200);
   const lang=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,
     items:[...document.querySelectorAll('#kc-console-language-popup a')].map(a=>[a.getAttribute('href'),a.getAttribute('hreflang'),a.getAttribute('aria-current')])}));
-  if(lang.hidden||lang.items.length!==2)throw Error('language popup '+JSON.stringify(lang));
-  // ?lang= relative to the document: the route is preserved by construction
-  // and no /<locale>/ path is linked (owner direction 2026-09-15)
+  // every public locale is offered (22, the landing page's catalog — the
+  // console chrome is in all of them since 2026-09-15), each as ?lang=
+  // relative to the document: the route is preserved by construction and
+  // no /<locale>/ path is linked (owner direction 2026-09-15)
+  if(lang.hidden||lang.items.length!==22)throw Error('language popup '+JSON.stringify(lang));
+  if(!lang.items.every(([href,hl])=>href==='?lang='+hl))throw Error('language switch must be ?lang= on the same route '+JSON.stringify(lang));
   // the static emit tree hands out the locale-free (English) document, so English is the current item
-  if(lang.items[0][0]!=='?lang=ja'||lang.items[1][0]!=='?lang=en'||lang.items[1][2]!=='true')throw Error('language switch must be ?lang= on the same route '+JSON.stringify(lang));
+  const current=lang.items.filter(i=>i[2]==='true');
+  if(current.length!==1||current[0][0]!=='?lang=en')throw Error('exactly one current entry, English on the locale-free emit '+JSON.stringify(current));
   const resolved=await page.evaluate(()=>[...document.querySelectorAll('#kc-console-language-popup a')].map(a=>a.href));
-  if(!resolved.every(h=>/\\/models\\/\\?lang=(ja|en)$/.test(h)))throw Error('switch hrefs must resolve on /models/ '+JSON.stringify(resolved));
+  if(!resolved.every(h=>/\\/models\\/\\?lang=[A-Za-z-]+$/.test(h)))throw Error('switch hrefs must resolve on /models/ '+JSON.stringify(resolved));
   await page.keyboard.press('Escape'); await page.waitForTimeout(100);
   const closed=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,focus:document.activeElement&&document.activeElement.id}));
   if(!closed.hidden||closed.focus!=='kc-console-language-opener')throw Error('Escape must close and return focus to the opener '+JSON.stringify(closed));
@@ -282,7 +291,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await fixture(true)(page);
   await page.route('**/v1/secure',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({guardrails:{version:'kotoba-guardrails-2026-09-v1'},firewall:{version:'kotoba-firewall-2026-09-v1',observeMode:false},compliance:{version:'kotoba-compliance-2026-09-v1'}})}));
   await page.goto(base+'/ja/secure/');
-  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:5000});
+  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:WAIT});
   const s=await page.evaluate(()=>({status:document.getElementById('secure-status').textContent,
     observe:document.getElementById('secure-observe-mode').textContent,
     rows:document.querySelectorAll('#guardrails tbody tr').length,
@@ -297,7 +306,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   // hydration answers in English — /secure/ answered in Japanese to an
   // English reader until 2026-09-15
   await page.goto(base+'/secure/');
-  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:5000});
+  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:WAIT});
   const en=await page.evaluate(()=>({lang:document.documentElement.lang,h1:document.querySelector('main h1').textContent.trim(),status:document.getElementById('secure-status').textContent,
     observe:document.getElementById('secure-observe-mode').textContent,rows:document.querySelectorAll('#guardrails tbody tr').length,
     ja:(document.querySelector('.kc-secure').textContent.match(/[\u3040-\u30ff\u4e00-\u9fff]/g)||[]).length}));
@@ -317,7 +326,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     {id:'qwen/qwen3.8-flash',team:'blue',route:'shared',availability:'route-configured'},
     {id:'z-ai/glm-5.3-flash',team:'blue',route:'shared',availability:'route-key-not-configured'}]})}));
   await page.goto(base+'/ja/models/');
-  await page.waitForFunction(()=>/ポリシー版/.test(document.getElementById('models-status').textContent),null,{timeout:5000});
+  await page.waitForFunction(()=>/ポリシー版/.test(document.getElementById('models-status').textContent),null,{timeout:WAIT});
   const s=await page.evaluate(()=>({
     blueRows:document.querySelectorAll('#team-blue tbody tr').length,
     redRows:document.querySelectorAll('#team-red tbody tr').length,
@@ -334,7 +343,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   for(const href of s.redReqs){const r=await page.request.get(base+href.replace(/#.*$/,''));if(r.status()!==200)throw Error('requirement link '+href+' → '+r.status());}
   // the English document: same tables, English availability copy
   await page.goto(base+'/models/');
-  await page.waitForFunction(()=>/Policy version/.test(document.getElementById('models-status').textContent),null,{timeout:5000});
+  await page.waitForFunction(()=>/Policy version/.test(document.getElementById('models-status').textContent),null,{timeout:WAIT});
   const en=await page.evaluate(()=>({lang:document.documentElement.lang,h1:document.querySelector('main h1').textContent.trim(),
     cells:Object.fromEntries([...document.querySelectorAll('[data-model-availability]')].map(c=>[c.getAttribute('data-model-availability'),c.textContent])),
     reqs:[...document.querySelectorAll('#team-red .kc-models__reqs a')].map(a=>a.textContent),
@@ -353,7 +362,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/billing/status',r=>r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'sign-in-required'})}));
   await page.route('**/v1/billing/catalog',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:false,mode:'test'})}));
   await page.goto(base+'/billing/');
-  await page.waitForFunction(()=>!document.getElementById('billing-signed-out').hidden,null,{timeout:5000});
+  await page.waitForFunction(()=>!document.getElementById('billing-signed-out').hidden,null,{timeout:WAIT});
   const s=await page.evaluate(()=>({disabled:document.querySelectorAll('button[disabled]').length,
     visibleButtons:[...document.querySelectorAll('[data-billing-sku]')].filter(b=>!b.hidden).length,
     balancesHidden:document.getElementById('billing-balances').hidden,
@@ -372,7 +381,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({balances:[{scope:'ai',availableMicroUSD:0}]})}));
   await page.route('**/v1/billing/catalog',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:true,mode:'live',purchasable:['pro','ai-credits-25']})}));
   await page.goto(base+'/billing/');
-  await page.waitForFunction(()=>[...document.querySelectorAll('[data-billing-sku]')].some(b=>!b.hidden),null,{timeout:5000});
+  await page.waitForFunction(()=>[...document.querySelectorAll('[data-billing-sku]')].some(b=>!b.hidden),null,{timeout:WAIT});
   const s=await page.evaluate(()=>({visible:[...document.querySelectorAll('[data-billing-sku]')].filter(b=>!b.hidden).map(b=>b.dataset.billingSku).sort(),
     notes:[...document.querySelectorAll('[data-billing-unavailable]')].filter(p=>!p.hidden).length,
     total:document.querySelectorAll('[data-billing-sku]').length,
