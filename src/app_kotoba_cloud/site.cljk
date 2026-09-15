@@ -14,6 +14,7 @@
             [app-kotoba-cloud.crypto-site :as crypto-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.apps-site :as apps-site]
+            [app-kotoba-cloud.docs-site :as docs-site]
             [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.research :as research]
             [app-kotoba-cloud.profile :as profile]
@@ -858,6 +859,46 @@
                       [:script {:src "/js/session.js" :defer true}]]}
               (billing-view locale))))
 
+(def docs-css
+  ".kc-docs{padding-block:var(--hig-spacing-6)}.kc-docs h2{margin-block:var(--hig-spacing-6) var(--hig-spacing-3)}.kc-docs__lead{max-width:48rem;color:var(--hig-color-secondary-label)}.kc-docs__list{display:grid;gap:var(--hig-spacing-3);padding:0;list-style:none}.kc-docs__list li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-4)}.kc-docs__list a{font-weight:700}.kc-docs__config{padding:var(--hig-spacing-4);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;white-space:pre;overflow-wrap:normal}.kc-docs__note{padding:var(--hig-spacing-3) var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-tint);background:var(--hig-color-secondary-system-background);border-radius:0 var(--hig-radius-sm) var(--hig-radius-sm) 0}.kc-docs__chip{font-size:var(--hig-text-caption2-font-size);padding:2px var(--hig-spacing-2);border-radius:var(--hig-radius-capsule);border:1px solid var(--hig-color-separator)}.kc-docs__chip--verified{color:var(--hig-palette-green);border-color:var(--hig-palette-green)}.kc-docs__chip--pending{color:var(--hig-color-secondary-label)}.kc-docs__chip--caveat{color:var(--hig-palette-orange,var(--hig-color-label));border-color:var(--hig-palette-orange,var(--hig-color-label))}")
+
+(defn docs-page
+  "Shared chrome for a docs page; content-fn receives locale and returns the
+  main children."
+  [locale title-fn path content-fn]
+  (let [ja? (= locale :ja) t (translation :ja)
+        lang (if ja? "ja" "en")]
+    (apply page/->page
+           {:title (title-fn ja?)
+            :description "Docs — kotoba.cloud"
+            :lang lang :css (document-css)
+            :app-css (str tokens/skin-css tokens/bridge-css docs-css)
+            :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
+                   [:script {:src "/js/language-selector.js" :defer true}]
+                   [:script {:src "/js/session.js" :defer true}]]}
+           [[:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
+            (site-header locale t {:language-ja path :language-en path})
+            [:main {:id "main" :class "kc-docs"}
+             (dds/container (content-fn ja?))]
+            (site-footer t)])))
+
+(defn docs-integrations-html
+  ([] (docs-integrations-html :en))
+  ([locale]
+   (docs-page locale
+              (fn [ja?] (if ja? "接続ガイド — Agents & Harnesses — Kotoba Cloud"
+                          "Connect Agents & Harnesses — Kotoba Cloud"))
+              "/docs/integrations/"
+              (fn [_ja?] (docs-site/overview-view locale)))))
+
+(defn docs-integration-html [id]
+  (fn [locale]
+    (docs-page locale
+               (fn [ja?] (str (:name (docs-site/client-page id)) " — Kotoba Cloud"))
+               (str "/docs/integrations/" id "/")
+               (fn [ja?]
+                 (docs-site/client-view id (if ja? :ja :en))))))
+
 (defn apps-html
   ([] (apps-html :en))
   ([locale]
@@ -1168,6 +1209,14 @@
       ;; graph docs: former kotobase.net content surface
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
+      ;; docs: integrations overview + one page per client (orcarouter pattern)
+      (spit-file (node-path/join root "docs" "integrations" "index.html") (docs-integrations-html :en))
+      (spit-file (node-path/join root "ja" "docs" "integrations" "index.html") (docs-integrations-html :ja))
+      (doseq [c docs-site/clients]
+        (let [dir (node-path/join root "docs" "integrations" (:id c))]
+          (spit-file (node-path/join dir "index.html") ((docs-integration-html (:id c)) :en))
+          (spit-file (node-path/join root "ja" "docs" "integrations" (:id c) "index.html")
+                     ((docs-integration-html (:id c)) :ja))))
       ;; crypto catalog data blocks + browser script (data at /crypto-data/crypto/)
       (doseq [source (fs-walk-files (node-path/join "assets" "crypto-catalog"))]
         (let [rel (node-path/relative (node-path/join "assets" "crypto-catalog") source)
