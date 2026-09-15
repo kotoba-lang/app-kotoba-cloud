@@ -56,6 +56,17 @@
 (defn- tag-chip [tag]
   [:span {:class "kc-blog__tag"} (name tag)])
 
+(defn post-href
+  "Article URL in the requested locale; posts without a real translation
+   link to the canonical English document (the localized index still lists
+   them, but never at a 404)."
+  [post locale]
+  (let [pref (locale-prefix locale)]
+    (if (or (= locale :en) (= locale :ja)
+            (contains? (:i18n post) (keyword (name locale))))
+      (str pref "/blog/" (:slug post) "/")
+      (str "/blog/" (:slug post) "/"))))
+
 (defn list-view
   "Index of published articles, newest first (the caller sorts)."
   [locale posts]
@@ -76,7 +87,7 @@
                  [:time {:datetime (:date p)} (:date p)]
                  (map tag-chip (:tags p))]
                 [:div {:class "kc-blog__title"}
-                 [:a {:href (str pref "/blog/" (:slug p) "/")} (post-title p locale)]]
+                 [:a {:href (post-href p locale)} (post-title p locale)]]
                 [:p {:class "kc-blog__summary"} (post-summary p locale)]]))))))
 
 (defn article-view
