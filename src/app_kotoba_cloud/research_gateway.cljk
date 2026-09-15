@@ -110,10 +110,10 @@
               :scopes (if same-principal? (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record)) [])}
              200)))
 
-(defn- completion-envelope [request-id content receipt-id]
+(defn- completion-envelope [request-id content receipt-id model]
   {:id request-id :object "chat.completion"
    :created (js/Math.floor (/ (js/Date.now) 1000))
-   :model policy/model-id
+   :model (or model policy/model-id)
    :choices [{:index 0 :finish_reason "stop"
               :message {:role "assistant" :content content}}]
    :receiptId receipt-id :billing "free"})
@@ -144,13 +144,13 @@
                       (nth "89ab" (bit-and 3 (js/parseInt (subs h 16 17) 16)))
                       (subs h 17 20) "-" (subs h 20 32)))))))
 
-(defn- poll-completion-job [binding principal reference job-id attempt started]
+(defn- poll-completion-job [binding principal reference job-id model attempt started]
   (-> (service binding "/jobs/status" {:principalId principal :sessionRef reference :jobId job-id})
       (.then (fn [result]
                (let [status (:status result)]
                  (cond
                    (= "succeeded" status)
-                   (completion-envelope job-id (:content result) (:receiptId result))
+                   (completion-envelope job-id (:content result) (:receiptId result) model)
                    (contains? #{"failed" "cancelled" "unknown"} status)
                    (throw (ex-info (if (= "unknown" status) "inference-job-timeout" "inference-run-failed")
                                    {:status (if (= "unknown" status) 504 502)}))
@@ -158,7 +158,7 @@
                    (if (> (- (js/Date.now) started) job-wait-budget-ms)
                      (throw (ex-info "inference-job-timeout" {:status 504}))
                      (-> (bounded-delay (if (zero? attempt) 1000 3000))
-                         (.then #(poll-completion-job binding principal reference job-id (inc attempt) started))))
+                         (.then #(poll-completion-job binding principal reference job-id model (inc attempt) started))))
                    :else (throw (ex-info "invalid-job-receipt" {:status 502}))))))))
 
 (defn- complete-via-job [binding principal reference body respond]
@@ -178,7 +178,7 @@
                          :trustPolicyVersion (:version policy/trust-policy)
                          :sessionPolicyVersion (:version policy/session-policy)
                          :request body :limits policy/free-limits})
-               (.then (fn [_] (poll-completion-job binding principal reference job-id 0 started)))
+               (.then (fn [_] (poll-completion-job binding principal reference job-id (:model body) 0 started)))
                (.then #(respond % 200))))))
       (.catch
        (fn [e]
@@ -222,7 +222,7 @@
                  (= policy/policy-version (:policyVersion result))
                  (= (:version policy/trust-policy) (:trustPolicyVersion result))
                  (= (:version policy/session-policy) (:sessionPolicyVersion result))
-                 (= policy/model-id (:model result)) (= "free" (:billing result)) (= "allowed" (:policyDecision result))
+                 (contains? policy/model-ids (:model result)) (= "free" (:billing result)) (= "allowed" (:policyDecision result))
                  (contains? #{"queued" "running" "succeeded" "cancelled" "unknown"} status)
                  (policy/text? (:receiptId result) 512)))
       (respond {:error {:code "invalid-job-receipt"}} 502)
@@ -272,7 +272,7 @@
   forwarded body is rebuilt from the strict admission shape only — ignorable
   OpenAI parameters never reach the authority or the upstream."
   [body]
-  {:model policy/model-id
+  {:model (or (:model body) policy/model-id)
    :task (or (:task body) "code-review")
    :scopeId (or (:scopeId body) "owned")
    :max_tokens (or (:max_tokens body) 2048)

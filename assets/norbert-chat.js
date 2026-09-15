@@ -7,6 +7,9 @@
   let chats = [], active, busy = false;
   window.addEventListener('kotoba:research-context',event=>{if(busy){status(t('生成の完了後に根拠を変更できます。','Change evidence after generation finishes.'));return;}active.evidenceId=event.detail.id;active.evidenceLabel=event.detail.label;delete active.evidence;drawEvidence();location.hash='#chat';status('');$('prompt').focus();});
   const status = text => $('status').textContent = text;
+  const MODEL = 'qwen3.8-flash-next-whitehacker';
+  const MODELS = new Set(['qwen3.8-flash-next-whitehacker', 'glm5.3-flash']);
+  const model = () => { const el = $('model'); return el && MODELS.has(el.value) ? el.value : MODEL; };
   const evidenceBox=document.createElement('div');evidenceBox.id='norbert-evidence';
   $('form').prepend(evidenceBox);
   function drawEvidence(){
@@ -26,7 +29,7 @@
     for (let i=0;i<active.messages.length;i++) {
       const message=active.messages[i];
       if (message.role !== 'user') continue;
-      const node=cloudKotobaChat.createMessage({container:$('messages'),input:message.content,role:'qwen3.8-flash-next-whitehacker',userLabel:t('あなた','You'),stages:[]});
+      const node=cloudKotobaChat.createMessage({container:$('messages'),input:message.content,role:model(),userLabel:t('あなた','You'),stages:[]});
       const answer=active.messages[i+1];
       if(answer?.role==='assistant') node.output.textContent=answer.content;
     }
@@ -91,11 +94,11 @@
         if(requestMessages.reduce((n,m)=>n+m.content.length,0)>24000)throw new Error(t('根拠を含めると会話が長すぎます。新しいチャットでお試しください。','Start a new chat to fit the evidence within the context limit.'));
       }
       status(t('応答を待っています…','Waiting for a response…'));
-      const response=await fetch('/v1/chat/completions',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({model:'qwen3.8-flash-next-whitehacker',scopeId:active.scope,task:active.task,messages:requestMessages,max_tokens:2048})});
+      const response=await fetch('/v1/chat/completions',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({model:model(),scopeId:active.scope,task:active.task,messages:requestMessages,max_tokens:2048})});
       const result=await response.json();
       if(!response.ok)throw new Error(errors[result.error?.code]||t('現在利用できません。本人確認と研究スコープを確認してください。','Currently unavailable. Check your identity verification and research scope.'));
       const content=result.choices?.[0]?.message?.content;
-      if(result.model!=='qwen3.8-flash-next-whitehacker'||typeof content!=='string')throw new Error(t('応答を確認できませんでした。','Could not validate the response.'));
+      if(result.model!==model()||typeof content!=='string')throw new Error(t('応答を確認できませんでした。','Could not validate the response.'));
       active.messages.push({role:'assistant',content});active.completed++;$('prompt').value='';status('');
     }catch(error){active.messages.pop();status(error.message || t('接続できませんでした。再度お試しください。','Connection failed. Please try again.'));}
     finally{busy=false;$('send').disabled=false;$('new').disabled=false;$('delete').disabled=false;draw();$('messages').scrollTop=$('messages').scrollHeight;}

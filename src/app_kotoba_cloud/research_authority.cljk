@@ -42,8 +42,11 @@
 (def ekyc-ttl-ms (* 365 86400000))
 (def trust-window-ms 60000)
 (def session-window-ms 15000)
-(def upstream-model "qwen3.8-flash-next-cybersecurity-nvfp4")
+(def upstream-models
+  {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-cybersecurity-nvfp4"
+   "glm5.3-flash" "glm5.3-flash"})
 (def public-model "qwen3.8-flash-next-whitehacker")
+(defn- upstream-model-for [public-id] (get upstream-models public-id public-model))
 
 ;; --- Card-based identity verification (sole verification/approval path) -----
 ;; OrcaRouter-style assurance rung 1: a live payment method on file is the
@@ -444,7 +447,7 @@
 (defn- quota-used [record day]
   (let [u (:usage record)] (if (and (= day (:day u)) (number? (:count u))) (:count u) 0)))
 (defn- completion-shape? [body]
-  (and (= public-model (get-in body [:request :model]))
+  (and (contains? upstream-models (get-in body [:request :model]))
        (or (contains? tasks (get-in body [:request :task]))
            (contains? #{"payload-crafting" "c2-tooling"} (get-in body [:request :task])))
        (text? (get-in body [:request :scopeId]) 256)
@@ -456,7 +459,7 @@
    :policyVersion "whitehat-2026-09-12-v1"
    :trustPolicyVersion "kotoba-trust-routes-2026-09-v1"
    :sessionPolicyVersion "kotoba-session-evidence-2026-09-v1"
-   :model public-model :billing "free" :policyDecision "allowed"
+   :model (get-in job [:request :model]) :billing "free" :policyDecision "allowed"
    :receiptId (:receiptId job) :status (:status job)
    :task (get-in job [:request :task]) :scopeId (get-in job [:request :scopeId])
    :content (:content job)
@@ -472,7 +475,7 @@
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
 (defn- upstream-body [request]
-  #js {:model upstream-model :stream false
+  #js {:model (upstream-model-for (:model request)) :stream false
        :messages (clj->js (:messages request))
        :max_tokens (:max_tokens request)})
 
@@ -507,8 +510,8 @@
      :source "modal-openai-compatible"
      :requestId (:jobId job)
      :receiptId (:receiptId job)
-     :model public-model
-     :upstreamModel upstream-model
+     :model (get-in job [:request :model])
+     :upstreamModel (upstream-model-for (get-in job [:request :model]))
      :inputTokens input
      :cachedInputTokens 0
      :outputTokens output
@@ -547,8 +550,10 @@
                          (let [decoded (decode raw)
                                content (get-in decoded [:choices 0 :message :content])
                                reasoning (get-in decoded [:choices 0 :message :reasoning])
-                               fallback (if (text? content 65536) content reasoning)]
-                           (if-not (and (= upstream-model (:model decoded))
+                               fallback (if (text? content 65536) content reasoning)
+                               expected (upstream-model-for (get-in job [:request :model]))]
+                           (if-not (and (or (not expected)
+                                            (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
                                         (text? fallback 65536))
                              (throw (ex-info "unexpected-modal-model-or-response" {}))
