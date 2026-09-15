@@ -6,7 +6,7 @@
 
 (def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"
              "/v1/research/jobs" "/v1/research/job"
-             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook" "/v1/research/review"})
+             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook" "/v1/research/ekyc/submit" "/v1/research/review"})
 (def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"
                "https://admin.kotoba.cloud"})
 
@@ -58,9 +58,30 @@
     "invalid-stripe-session"})
 
 (defn- ekyc-route [request path binding principal reference respond]
-  (if (= path "/v1/research/ekyc/status")
+  (cond
+    (= path "/v1/research/ekyc/status")
     (-> (service binding "/ekyc/status" {:principalId principal :sessionRef reference})
         (.then #(respond % 200)))
+    ;; layer-2 ICAO submit: the whole chip + selfie bundle rides through to the
+    ;; authority verbatim except principalId, which is always the authenticated
+    ;; session's. Status is passed through (200 verified vs 202
+    ;; operator-review-pending is part of the contract; `service` would flatten
+    ;; both to 200).
+    (= path "/v1/research/ekyc/submit")
+    (-> (bounded-json request 524288)
+        (.then (fn [body]
+                 (-> (.fetch binding "https://research.internal/ekyc/kotoba-proof/submit"
+                             #js {:method "POST" :redirect "manual"
+                                  :signal (js/AbortSignal.timeout 60000)
+                                  :headers #js {"content-type" "application/json"}
+                                  :body (js/JSON.stringify
+                                         (clj->js (assoc body :principalId principal)))})
+                     (.then (fn [r]
+                              (-> (.json r)
+                                  (.then (fn [j]
+                                           (respond (js->clj j :keywordize-keys true)
+                                                    (.-status r))))))))))))
+    :else
     (-> (bounded-json request 32768)
         (.then
          (fn [body]
@@ -388,7 +409,7 @@
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
         post? (= method "POST") binding (.-RESEARCH_AUTHORITY env)
         public-webhook? (= path "/v1/research/ekyc/webhook")
-        ekyc? (contains? #{"/v1/research/ekyc/start" "/v1/research/ekyc/status"} path)
+        ekyc? (contains? #{"/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/submit"} path)
         auth-header (or (.get (.-headers request) "authorization") "")
         pat-prefix (str "Bearer " pat/prefix)
         required-method (cond
@@ -396,7 +417,8 @@
                           (= path "/v1/chat/completions") "POST"
                           (= path "/v1/research/jobs") "POST"
                           (= path "/v1/research/review") "POST"
-                          (or public-webhook? (= path "/v1/research/ekyc/start")) "POST"
+                          (or public-webhook? (= path "/v1/research/ekyc/start")
+                              (= path "/v1/research/ekyc/submit")) "POST"
                           :else "GET")]
     (cond
       (not= method required-method)
