@@ -6,10 +6,13 @@
   Every CSF id here was validated against the committed CSF 2.0 catalog
   (assets/csf2-catalog/subcategories.json) at authoring time; a test keeps
   the id space bounded. The fit view is transitive: framework controls are
-  satisfied via (service -> category -> control). Main's compliance catalog
-  is the 12-category / 29-product committed version (no ontology/relations
-  claims file has landed yet) — this def is the committed fit mapping and
-  is extended when the catalog grows.")
+  satisfied via (service -> category -> control). The :catalog counts below
+  mirror the committed compliance catalog
+  (assets/compliance-catalog/index.json, 2026-09-16: 45 categories / 373
+  products; ontology relations landed — measured live against
+  kotoba.cloud/compliance-data/compliance/index.json on 2026-09-16) and are
+  kept in sync when the catalog grows; the committed control-level mapping
+  itself still covers the 12 security categories below.")
 
 (def framework
   "The framework the control-level mapping is committed for."
@@ -27,8 +30,8 @@
    "cis-controls" "fedramp" "hipaa-security-rule" "dora" "cra" "iso-27701"
    "cloud-ccm" "apra-cps-234" "jp-appi" "uk-gdpr-dpa"])
 
-(def catalog-category-count 12)
-(def catalog-product-count 29)
+(def catalog-category-count 45)
+(def catalog-product-count 373)
 
 (def services-categories
   "Which committed catalog categories each first-party service covers."
