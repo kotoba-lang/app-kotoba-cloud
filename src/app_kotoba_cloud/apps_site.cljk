@@ -132,7 +132,7 @@
               "Public products on the kotoba.cloud gateway — data, APIs and docs you can open directly.")
       :nav (catalog/breadcrumb
             "Apps"
-            [["ホーム" "/ja/"]
+            [["ホーム" "/"]
              ["Apps" nil]])}
      (into [:div {:class "kc-apps-grid"}]
            (map app-card apps))

@@ -81,17 +81,25 @@ The public webpage is generated from pure CLJC using the workspace DADS
 (`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
 control/identity entrance feeding three separately governed planes rather than
 presenting the four domains as interchangeable products. `public/` is a build
-artifact: `npm run render` produces English `/`, Japanese `/ja/`, and one
-emit directory per catalog locale, then Wrangler ships them as Static Assets
-beside the discovery Worker. Locale catalogs share one key contract and the
-page publishes canonical, `hreflang`, and JSON-LD `inLanguage` links, so
-another locale is an explicit catalog-and-route addition rather than a
-second handwritten page.
+artifact: `npm run render` produces the English root and one emit directory
+per catalog locale (`public/ja/…`, `public/id/…`) — **emit directories, not
+public URLs**. Every document has ONE locale-free URL (shinkansen.locale;
+owner direction 2026-09-15: the `/ja`, `/en` paths are no longer needed):
+the Worker negotiates the variant before the Static Assets HIT and serves
+it in place. The language switch is `?lang=<locale>` on the same route,
+served directly (200) with the choice persisted as `kb_locale` — no
+redirect hop, no client script needed. A non-English variant is
+self-canonical at `<route>?lang=<locale>`; `hreflang` alternates and
+`og:url` use the same form, `x-default` is the locale-free route. An
+explicit prefix (`/ja/billing/`) is compatibility only: 301 to the
+locale-free route with the cookie set.
 
-Origin language switching runs in the Worker **before** the Static Assets
-HIT and follows the kotobase.net detection contract:
+`path (301 compat) > ?lang= > kb_locale cookie > Accept-Language > request.cf.country > en`
 
-`path > kb_locale cookie > Accept-Language > request.cf.country > en`
+`locale/variant-roots` names the content roots that have per-locale emits;
+`test/worker-smoke.mjs` derives the list from `public/ja/` and fails when a
+root is emitted but not served (measured live 2026-09-15: `/blog/` and
+`/apps/` were emitted under `/ja/` and served in English).
 
 Country map: `ID→id`, `IL→he`, `KR→ko`, `ES→es`, `IT→it`, `DE→de`,
 `MA→ar-MA` (else `ar`), `EG→arz`. Country never selects `jv` or `su`;
@@ -114,12 +122,11 @@ compiler, verifier, host enforcement, or service-specific authority.
   ML-DSA-65 approval relay for a bounded, locally signed Kotobase head record
 - `GET /schemas/library-publication-request/v3` — single-use, epoch-bound
   publication request contract
-- `GET /` — English public architecture and CLI entrance; 302 to a catalog
-  locale when cookie, `Accept-Language`, or `request.cf.country` negotiate
-  one
-- `GET /ja/`, `/id/`, `/jv/`, `/su/`, `/he/`, `/it/`, `/ar-MA/`, and the
-  rest of the catalog — finite localized entry documents
-- `GET /en/` — English alias of the apex document
+- `GET /` — the public architecture and CLI entrance; the variant is
+  negotiated (`?lang=`, cookie, `Accept-Language`, `request.cf.country`)
+  and served in place, never redirected
+- `GET /?lang=ja` (any catalog locale) — that variant, choice persisted
+- `GET /ja/`, `/id/`, …, `/en/` — compatibility: 301 to `/` with the cookie
 
 The control-plane document also includes the library catalog, storage,
 commands, current publication mode, default dry-run behavior, and hosted
@@ -187,14 +194,14 @@ a prediction, the delta is the proof). `uiux_audit_test.cljk` pins the
 
 Locale smoke after render + Worker:
 
-- `GET /id/` is `200` with `lang=id`; `/jv/`, `/su/`, `/he/`, `/it/`,
-  `/ar-MA/` are the same shape (no 404)
-- `GET /` with `Accept-Language: id` is `302` `/id/`
-- `GET /` with `CF-IPCountry: ID` and no language header is `302` `/id/`
-  (never `/jv/` or `/su/`)
+- `GET /` with `Accept-Language: id` is `200` serving the `id` emit in
+  place (no `Location`)
+- `GET /` with `CF-IPCountry: ID` and no language header serves `id`
+  (never `jv` or `su`)
 - `GET /` with `Accept-Language: en` and `CF-IPCountry: ID` stays English
-- `GET /su/` with `kb_locale=he` stays Sundanese (path wins) and refreshes
-  the cookie
+- `GET /docs/?lang=ja` with `kb_locale=he` is `200` serving `/ja/docs/`,
+  `Set-Cookie: kb_locale=ja`; `?lang=klingon` is ignored and persists nothing
+- `GET /su/` with `kb_locale=he` is `301` `/` with `Set-Cookie: kb_locale=su`
 - `GET /health`, `/v1/session`, and `/api/funnel` are not locale-redirected
 
 ## Nearest-repository boundary

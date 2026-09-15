@@ -611,6 +611,7 @@
   (let [url (js/URL. (.-url request))
         decision (locale/static-decision
                   {:path path
+                   :query (.get (.-searchParams url) locale/query-param)
                    :cookie (session/cookie-value (.get (.-headers request) "cookie")
                                                  locale/cookie-name)
                    :accept-language (.get (.-headers request) "accept-language")
@@ -872,16 +873,10 @@
       ;; Former kotobase.net surfaces. Operations resolve to the graph
       ;; workbench on the apex document; documentation is a static page.
       ;; graph.kotoba.cloud stays unprovisioned (one canonical origin).
+      ;; Locale-free target: the apex negotiates the variant from the same
+      ;; cookie / Accept-Language this request carried (no /ja/ hop).
       (and (= path "/graph") (= method "GET"))
-      (redirect (if (= (locale/negotiate
-                        {:path path
-                         :cookie (session/cookie-value (.get (.-headers request) "cookie")
-                                                       locale/cookie-name)
-                         :accept-language (.get (.-headers request) "accept-language")
-                         :country (request-country request)})
-                       :ja)
-                 "/ja/#knowledge/overview"
-                 "/#knowledge/overview"))
+      (redirect "/#knowledge/overview")
 
       (and (= path "/v1/logout") (= method "POST"))
       (route-logout request)

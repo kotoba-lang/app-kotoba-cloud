@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { route, resetFunnelStore } from "../build/worker.js";
+import { readdirSync, existsSync } from "node:fs";
 
 const calls = [];
 let upstreamStatus = 200;
@@ -519,6 +520,58 @@ const sharedUntouched = await route(new Request("https://kotoba.cloud/account", 
 }), env);
 assert.equal(sharedUntouched.status, 200);
 assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
+
+// The language switch is ?lang=<locale> on the SAME route (owner direction
+// 2026-09-15: the /ja, /en paths are no longer needed): served directly as
+// that variant — 200, no Location, the choice persisted — and it beats a
+// saved cookie in both directions. A value outside the catalog is ignored
+// and never persisted.
+{
+  const jaQuery = await route(new Request("https://kotoba.cloud/docs/?lang=ja", {
+    headers: { cookie: "kb_locale=he" }
+  }), env);
+  assert.equal(jaQuery.status, 200);
+  assert.equal(jaQuery.headers.get("location"), null);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/ja/docs/?lang=ja");
+  assert.match(jaQuery.headers.get("set-cookie") || "", /^kb_locale=ja;/);
+  assert.match(jaQuery.headers.get("vary") || "", /Cookie/);
+  const enQuery = await route(new Request("https://kotoba.cloud/billing/?lang=en", {
+    headers: { cookie: "kb_locale=ja" }
+  }), env);
+  assert.equal(enQuery.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/billing/?lang=en");
+  assert.match(enQuery.headers.get("set-cookie") || "", /^kb_locale=en;/);
+  const badQuery = await route(new Request("https://kotoba.cloud/billing/?lang=klingon", {
+    headers: { cookie: "kb_locale=he" }
+  }), env);
+  assert.equal(badQuery.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/he/billing/?lang=klingon", "an unknown lang neither redirects nor overrides the saved choice");
+  assert.equal(badQuery.headers.get("set-cookie"), null, "an unknown lang is never persisted");
+  // an explicit prefix is compatibility only: 301 to the locale-free route
+  const prefixed = await route(new Request("https://kotoba.cloud/ja/blog/"), env);
+  assert.equal(prefixed.status, 301);
+  assert.equal(prefixed.headers.get("location"), "/blog/");
+  // the emit tree is the truth of which roots have variants: every
+  // directory site.cljk writes under public/ja/ must be served at its
+  // locale-free route for a ja reader (blog and apps were not, measured
+  // live 2026-09-15). Refuse — not pass — when the tree is not there.
+  const jaRoot = new URL("../public/ja/", import.meta.url);
+  assert(existsSync(jaRoot), "public/ja/ missing — run npm run render before the smoke");
+  const jaDirs = readdirSync(jaRoot, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
+  assert(jaDirs.length >= 5, "public/ja/ has " + jaDirs.length + " directories — the emit tree looks empty");
+  for (const dir of jaDirs) {
+    await route(new Request(`https://kotoba.cloud/${dir}/`, { headers: { cookie: "kb_locale=ja" } }), env);
+    assert.equal(assetReads[assetReads.length - 1], `https://kotoba.cloud/ja/${dir}/`,
+      `/${dir}/ is emitted under /ja/ but the Worker did not serve the variant (locale/variant-roots)`);
+  }
+  console.log("locale switch: ?lang= served in place for " + jaDirs.length + " variant roots (" + jaDirs.join(", ") + "), prefix 301 kept");
+}
+// /graph resolves to the locale-free apex; the apex negotiates the variant.
+{
+  const graph = await route(new Request("https://kotoba.cloud/graph", { headers: { cookie: "kb_locale=ja" } }), env);
+  assert.equal(graph.status, 302);
+  assert.equal(graph.headers.get("location"), "/#knowledge/overview");
+}
 
 assert(idFromHeader.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
