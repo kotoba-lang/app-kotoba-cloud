@@ -103,14 +103,15 @@
   "vars": {
     // Billing runs against the AWAI live Stripe account (docs/billing/
     // stripe-live-catalog.json, verified 2026-09-15). The two launch flags
-    // below are the ONLY switch left: while either is "false",
-    // billing-gateway/configured? is false, /v1/billing/catalog answers
-    // checkoutEnabled:false and no Checkout session can be created.
-    // Flip both to "true" to accept live payments (owner decision — see
-    // docs/billing/configuration.md: paid usage is not yet metered, so a
-    // purchased balance is a ledger entry, not consumed capacity).
-    "BILLING_ENABLED": "false",
-    "BILLING_METERING_READY": "false",
+    // are the switch: while either is "false", billing-gateway/configured?
+    // is false, /v1/billing/catalog answers checkoutEnabled:false and no
+    // Checkout session can be created; research-gateway/paid-admission
+    // never reserves, so every completion stays on the free quota.
+    // Both "true" since 2026-09-15 (owner direction): checkout is open and
+    // the inference producer reserves on the prepaid ledger and settles from
+    // the provider receipt (docs/billing/configuration.md, "Paid inference").
+    "BILLING_ENABLED": "true",
+    "BILLING_METERING_READY": "true",
     "BILLING_MODE": "live",
     "BILLING_SANDBOX_ENABLED": "false",
     "BILLING_ENVIRONMENT_ID": "acct_1TuxvPIzvFrqWhXK-live",

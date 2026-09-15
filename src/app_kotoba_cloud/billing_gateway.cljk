@@ -1,7 +1,9 @@
 (ns app-kotoba-cloud.billing-gateway
   (:require [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.billing-binding :as binding]
             [app-kotoba-cloud.research-gateway :as shared]
             [app-kotoba-cloud.billing-readiness :as readiness]
+            [app-kotoba-cloud.pat :as pat]
             ["stripe" :as Stripe]))
 (def paths #{"/v1/billing/readiness" "/v1/billing/catalog" "/v1/billing/status" "/v1/billing/checkout" "/v1/billing/portal" "/v1/billing/webhook"})
 (defn stripe-key [env]
@@ -35,11 +37,8 @@
       (throw (ex-info "stripe-live-environment-mismatch" {})))
     (Stripe. key #js {:apiVersion "2026-07-29.dahlia" :maxNetworkRetries 1 :timeout 15000 :httpClient (.createFetchHttpClient Stripe)})))
 (defn account [env principal path payload]
-  (let [^js binding (aget env "BILLING_ACCOUNTS")
-        stub (.get binding (.idFromName binding (str (aget env "BILLING_MODE") ":" (aget env "BILLING_ENVIRONMENT_ID") ":" principal)))]
-    (.fetch stub (str "https://billing.internal" path)
-            #js {:method "POST" :headers #js {"content-type" "application/json"}
-                 :body (js/JSON.stringify (clj->js (assoc payload :principal principal)))})))
+  ;; one derivation of the object name for purchases and for the producer
+  (binding/account env principal path payload))
 (defn- signed-body [request]
   (let [reader (.getReader (.-body request)) chunks (array)]
     (letfn [(step [size]
@@ -73,6 +72,19 @@
                      (nil? principal) (respond {:received true :ignored true} 200)
                      :else (account env principal "/event" {:event e})))))
         (.catch (fn [e] (respond {:error "webhook-not-accepted"} (or (:status (ex-data e)) 400)))))))
+(defn- principal!
+  "Who is asking. The browser session as before; on the read-only status
+  route a personal API token (the same bearer the research routes accept)
+  names the principal too, so an agent can read the balance its own
+  completions debit. Writes (checkout, portal) stay cookie + origin only."
+  [request env viewer! path]
+  (let [auth (or (.get (.-headers request) "authorization") "")
+        secret (aget env pat/secret-name)]
+    (if (and (= path "/v1/billing/status") (.startsWith auth (str "Bearer " pat/prefix)) (string? secret))
+      (-> (pat/verify (subs auth 7) secret)
+          (.then (fn [auth] (if auth {:valid true :principalId (:principalId auth)} {:valid false}))))
+      (viewer! request))))
+
 (defn route [request env viewer! respond]
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
         read? (contains? #{"/v1/billing/readiness" "/v1/billing/catalog" "/v1/billing/status"} path)]
@@ -88,7 +100,7 @@
       (and (not read?) (not= "application/json" (.get (.-headers request) "content-type")))
       (respond {:error "json-required"} 415)
       :else
-      (-> (viewer! request)
+      (-> (principal! request env viewer! path)
           (.then (fn [viewer]
                    (cond
                      (not (true? (:valid viewer))) (respond {:error "sign-in-required"} 401)
