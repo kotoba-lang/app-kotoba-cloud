@@ -47,7 +47,7 @@
                               (let [code (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
                                               (catch :default _ nil))]
                                 (throw (ex-info (or code "research-service-unavailable")
-                                                {:status (if (contains? #{403 404 409 429 503} (.-status r))
+                                                {:status (if (contains? #{402 403 404 409 429 502 503} (.-status r))
                                                            (.-status r) 503)})))))))))))
 
 (defn- ekyc-route [request path binding principal reference respond]
@@ -110,6 +110,87 @@
               :scopes (if same-principal? (mapv #(select-keys % [:id :status :tasks :expiresAt]) (:scopes record)) [])}
              200)))
 
+(defn- completion-envelope [request-id content receipt-id]
+  {:id request-id :object "chat.completion"
+   :created (js/Math.floor (/ (js/Date.now) 1000))
+   :model policy/model-id
+   :choices [{:index 0 :finish_reason "stop"
+              :message {:role "assistant" :content content}}]
+   :receiptId receipt-id :billing "free"})
+
+(defn- bounded-delay [ms]
+  (js/Promise. (fn [resolve] (js/setTimeout resolve ms))))
+
+;; Upstream inference measures 90–250 s; the OpenAI transport cannot poll, so
+;; the edge waits for the terminal state on the client's behalf. Budget covers
+;; observed worst case; the job itself survives an edge timeout and a client
+;; retry re-attaches to the same reservation via the deterministic job id.
+(def job-wait-budget-ms 285000)
+
+(defn- completion-job-id [principal body]
+  ;; Deterministic job identity: SHA-256 over the admission-relevant request,
+  ;; shaped as a v4 UUID to satisfy the job-id contract. A retry of an
+  ;; identical completion re-attaches to the same reservation (receipt
+  ;; recovery, no double-charged quota) instead of minting a new job.
+  (-> (.digest (.-subtle js/crypto) "SHA-256"
+               (.encode (js/TextEncoder.)
+                        (js/JSON.stringify #js ["kotoba-research-completion-v1" principal
+                                                (:model body) (:task body) (:scopeId body)
+                                                (:max_tokens body) (clj->js (:messages body))])))
+      (.then (fn [d]
+               (let [h (apply str (map (fn [b] (.padStart (.toString b 16) 2 "0"))
+                                        (array-seq (js/Uint8Array. d))))]
+                 (str (subs h 0 8) "-" (subs h 8 12) "-4" (subs h 13 16) "-"
+                      (nth "89ab" (bit-and 3 (js/parseInt (subs h 16 17) 16)))
+                      (subs h 17 20) "-" (subs h 20 32)))))))
+
+(defn- poll-completion-job [binding principal reference job-id attempt started]
+  (-> (service binding "/jobs/status" {:principalId principal :sessionRef reference :jobId job-id})
+      (.then (fn [result]
+               (let [status (:status result)]
+                 (cond
+                   (= "succeeded" status)
+                   (completion-envelope job-id (:content result) (:receiptId result))
+                   (contains? #{"failed" "cancelled" "unknown"} status)
+                   (throw (ex-info (if (= "unknown" status) "inference-job-timeout" "inference-run-failed")
+                                   {:status (if (= "unknown" status) 504 502)}))
+                   (contains? #{"queued" "running"} status)
+                   (if (> (- (js/Date.now) started) job-wait-budget-ms)
+                     (throw (ex-info "inference-job-timeout" {:status 504}))
+                     (-> (bounded-delay (if (zero? attempt) 1000 3000))
+                         (.then #(poll-completion-job binding principal reference job-id (inc attempt) started))))
+                   :else (throw (ex-info "invalid-job-receipt" {:status 502}))))))))
+
+(defn- complete-via-job [binding principal reference body respond]
+  ;; The synchronous /complete path is retired at 501; an OpenAI transport has
+  ;; no job API, so the edge reserves atomically via /jobs/create (the
+  ;; authority re-checks eligibility/scope/quota inside that write, and a repeat
+  ;; with the same deterministic id returns the existing reservation) and polls
+  ;; the terminal state. Same admission, same free-only accounting, one audit
+  ;; receipt, ~20 service hops (well under the subrequest limit).
+  (-> (completion-job-id principal body)
+      (.then
+       (fn [job-id]
+         (let [started (js/Date.now)]
+           (-> (service binding "/jobs/create"
+                        {:principalId principal :sessionRef reference :jobId job-id
+                         :policyVersion policy/policy-version :billing "free-only"
+                         :trustPolicyVersion (:version policy/trust-policy)
+                         :sessionPolicyVersion (:version policy/session-policy)
+                         :request body :limits policy/free-limits})
+               (.then (fn [_] (poll-completion-job binding principal reference job-id 0 started)))
+               (.then #(respond % 200))))))
+      (.catch
+       (fn [e]
+         (let [code (or (:message (ex-data e)) (str e))]
+           (respond {:error {:code (case code
+                                     "inference-run-failed" "inference-failed"
+                                     "inference-job-timeout" "inference-timeout"
+                                     "invalid-job-receipt" "invalid-inference-receipt"
+                                     "job-input-conflict" "invalid-research-request"
+                                     "research-service-unavailable")}}
+                    (or (:status (ex-data e)) 503)))))))
+
 (defn- complete [binding principal reference body respond]
   (-> (service binding "/status" {:principalId principal :sessionRef reference :action (:task body)})
       (.then
@@ -120,36 +201,7 @@
              reason (respond {:error {:code reason}} 403)
              (not (policy/scope-approved? record body now))
              (respond {:error {:code "research-scope-required"}} 403)
-             :else
-             ;; The private authority MUST atomically recheck status/scope, reserve
-             ;; free quota, apply input/output policy and persist an audit receipt
-             ;; before replying. A read-only /status result never grants execution.
-             (let [request-id (str (random-uuid))]
-               (-> (service binding "/complete"
-                            {:principalId principal :requestId request-id
-                             :policyVersion policy/policy-version :billing "free-only"
-                             :trustPolicyVersion (:version policy/trust-policy)
-                             :sessionRef reference :sessionPolicyVersion (:version policy/session-policy)
-                             :limits policy/free-limits :request body})
-                   (.then
-                    (fn [result]
-                      (if (and (= request-id (:requestId result))
-                               (= principal (:principalId result))
-                               (= policy/policy-version (:policyVersion result))
-                               (= (:version policy/trust-policy) (:trustPolicyVersion result))
-                               (= reference (:sessionRef result)) (= (:version policy/session-policy) (:sessionPolicyVersion result))
-                               (= "free" (:billing result))
-                               (= "allowed" (:policyDecision result))
-                               (policy/text? (:receiptId result) 512)
-                               (= policy/model-id (:model result))
-                               (policy/text? (:content result) 65536))
-                        (respond {:id request-id :object "chat.completion"
-                                  :created (js/Math.floor (/ (js/Date.now) 1000))
-                                  :model policy/model-id
-                                  :choices [{:index 0 :finish_reason "stop"
-                                             :message {:role "assistant" :content (:content result)}}]
-                                  :receiptId (:receiptId result) :billing "free"} 200)
-                        (respond {:error {:code "invalid-inference-receipt"}} 502))))))))))))
+             :else (complete-via-job binding principal reference body respond)))))))
 
 (defn- session-reference [request principal]
   (let [token (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)]
@@ -206,6 +258,26 @@
                               create? (assoc :request body :limits policy/free-limits)))
                    (.then #(job-response % principal reference id respond))))))))))
 
+(defn- bearer?
+  "True when the request authenticated via a personal API token (no browser
+  session). Only the bearer path gets the OpenAI-compatible shape: cookie
+  browser clients keep the strict site shape."
+  [request]
+  (.startsWith (or (.get (.-headers request) "authorization") "") (str "Bearer " pat/prefix)))
+
+(defn- normalize-completion
+  "Server-derive the admission fields an OpenAI transport cannot send: task
+  defaults to code-review (the always-approved task) and scopeId to `owned`
+  (the scope the ekyc chain approves for the caller's own material). The
+  forwarded body is rebuilt from the strict admission shape only — ignorable
+  OpenAI parameters never reach the authority or the upstream."
+  [body]
+  {:model policy/model-id
+   :task (or (:task body) "code-review")
+   :scopeId (or (:scopeId body) "owned")
+   :max_tokens (or (:max_tokens body) 2048)
+   :messages (vec (:messages body))})
+
 (defn- authorized-route [request path binding principal reference respond]
   (if (= path "/v1/research/review")
     ;; Operator decisions are HMAC-verified by the authority; the edge only
@@ -237,9 +309,18 @@
                             (if (and (= principal (:principalId result)) (policy/text? (:applicationId result) 256))
                               (respond {:status "pending-review" :applicationId (:applicationId result)} 202)
                               (respond {:error {:code "invalid-application-receipt"}} 502))))))
-             (if-not (policy/completion? body)
-               (respond {:error {:code "invalid-research-request"}} 400)
-               (complete binding principal reference body respond))))))))))
+             ;; The browser (cookie) path keeps the strict site shape; the
+             ;; bearer path accepts the OpenAI-compatible shape and
+             ;; server-derives task/scopeId before forwarding the strict body.
+             ;; Validation runs on the RAW body (unknown keys rejected), the
+             ;; normalized body is what the authority sees.
+             (let [normalized (if (bearer? request) (normalize-completion body) body)
+                   valid? (if (bearer? request)
+                            (policy/completion-openai-compatible? body)
+                            (policy/completion? body))]
+               (if-not valid?
+                 (respond {:error {:code "invalid-research-request"}} 400)
+                 (complete binding principal reference normalized respond)))))))))))
 
 
 

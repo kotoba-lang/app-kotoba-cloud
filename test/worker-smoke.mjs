@@ -541,6 +541,7 @@ const researchPolicy = "whitehat-2026-09-12-v1";
 const researchBody = { model: researchModel, task: "code-review", scopeId: "owned-code",
   max_tokens: 512, messages: [{ role: "user", content: "Review my authorization checks." }] };
 const researchCalls = [];
+const jobs = new Map();
 const researchNow = Date.now();
 const researchSessionRef = createHash('sha256').update(JSON.stringify(['kotoba-research-session-v1', 'https://kotoba.cloud', researchPrincipal, 'research-session'])).digest('hex');
 let researchRecord = { principalId: researchPrincipal, policyVersion: researchPolicy, status: "active",
@@ -563,6 +564,28 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     externalId: "ext-1", verificationUrl: "https://verify.stripe.com/test",
     expiresAt: Date.now() + 900000, scopeId: body.scopeId, tasks: body.tasks });
   if (path === "/applications") return Response.json({ principalId: body.principalId, applicationId: "application-1" });
+  if (path === "/jobs/create") {
+    if (exhausted) return new Response("limit", { status: 429 });
+    if (corruptReceipt) return new Response("authority-write-failed", { status: 502 });
+    let job = jobs.get(body.jobId);
+    if (!job) {
+      job = { jobId: body.jobId, principalId: body.principalId, sessionRef: body.sessionRef,
+        status: "queued", receiptId: "receipt-" + body.jobId, request: body.request, createdAt: Date.now() };
+      jobs.set(body.jobId, job);
+      setTimeout(() => { if (job.status === "queued") { job.status = "succeeded";
+        job.content = "Check ownership before returning the record."; } }, 5);
+    }
+    return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
+      sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
+      model: researchModel, record: researchRecord });
+  }
+  if (path === "/jobs/status") {
+    const job = jobs.get(body.jobId);
+    if (!job) return new Response(JSON.stringify({ error: "not-found" }), { status: 404 });
+    return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
+      sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
+      model: researchModel, record: researchRecord });
+  }
   assert.equal(path, "/complete");
   assert.equal(body.principalId, researchPrincipal);
   assert.equal(body.billing, "free-only");
@@ -637,7 +660,11 @@ assert.equal((await researchOk.json()).billing, "free");
 corruptReceipt = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
 corruptReceipt = false; oldTrustReceipt = true;
-assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
+// In the jobs flow the authority owns receipt validation at the terminal
+// write; the edge no longer re-verifies trust receipts (the /complete hop it
+// validated is retired at 501), so an "old receipt" no longer yields a
+// distinct edge-visible 502.
+assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 200);
 oldTrustReceipt = false; exhausted = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 429);
 exhausted = false;
@@ -739,6 +766,41 @@ assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status",
 // Cookie path unchanged: browser origin gate still applies to cookie POSTs.
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, {
   origin: "https://evil.example" }), researchEnv)).status, 403);
+
+// OpenAI-compatible shape on the bearer path: no task/scopeId/max_tokens
+// (server-derived), ignorable OpenAI parameters accepted; the authority sees
+// the normalized strict body.
+{
+  const openaiBody = { model: researchModel, messages: [{ role: "system", content: "You are a code reviewer." }, { role: "user", content: "Review my auth checks." }], temperature: 0.2 };
+  const bearerPatEnv = { ...patEnv, PAT_SIGNING_SECRET: patSecret };
+  const savedForOpenai = structuredClone(researchRecord);
+  researchRecord.continuous.sessionRef = agentSessionRef;
+  researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+  const okOpenai = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+    method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+    body: JSON.stringify(openaiBody)
+  }), bearerPatEnv);
+  researchRecord = savedForOpenai;
+  assert.equal(okOpenai.status, 200);
+  const completionJson = await okOpenai.json();
+  assert.equal(completionJson.object, "chat.completion");
+  assert.equal(completionJson.model, researchModel);
+  const lastCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(lastCreate.body.request.task, "code-review");
+  assert.equal(lastCreate.body.request.scopeId, "owned");
+  assert.equal(lastCreate.body.request.messages[0].role, "system");
+  assert.equal(lastCreate.body.request.temperature, undefined);
+  // tools/stream/n rejections and unknown keys stay closed on the bearer path.
+  for (const bad of [{ tools: [{ type: "function" }] }, { stream: true }, { n: 2 }, { unknown_key: 1 }]) {
+    assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+      method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ ...openaiBody, ...bad })
+    }), bearerPatEnv)).status, 400);
+  }
+  // Cookie path stays strict: OpenAI-only body without task/scopeId → 400.
+  assert.equal((await route(researchRequest("/v1/chat/completions", { model: researchModel,
+    messages: [{ role: "user", content: "x" }] }), researchEnv)).status, 400);
+}
 
 // Token must never leak into logged calls (only sessionRef/policy payloads go
 // to the authority; the bearer token itself is never part of any payload).
