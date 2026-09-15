@@ -119,20 +119,76 @@
       (country-locale country)
       default-locale))
 
-(defn static-decision
-  "Worker decision before Static Assets HIT.
+(def shared-prefixes
+  "URL namespaces that are locale-independent infrastructure (never rewritten
+  and never canonicalized): the account console, admin, JS, MCP descriptors,
+  the asset planes, and the API/versioned prefixes."
+  #{"account" "admin" "js" "css" "assets" "ipfs" "ipns" "v1" ".well-known"
+    ".well-known-templated" "identity" "mcp.json" "favicon.ico" "robots.txt"
+    "sitemap.xml" "og.png" "llms.txt" "llms-full.txt" "agent-quickstart.md"
+    "ekyc.md" "public-locale-coverage.json"})
 
-  An explicit locale path is served in place. The English apex stays at `/`
-  unless a weaker signal selects another catalog locale, in which case the
-  Worker 302s to that emit directory."
+(defn- shared-path? [path]
+  (boolean
+   (some (fn [pfx]
+           (or (= path (str "/" pfx))
+               (str/starts-with? path (str "/" pfx "/"))
+               (str/starts-with? path (str "/" pfx))))
+         shared-prefixes)))
+
+(defn canonical-path
+  "Strip an explicit locale prefix off a path (nil when none). /ja/billing/ →
+  /billing/; /ja/ → /; shared namespaces pass through untouched (nil)."
+  [path]
+  (when (string? path)
+    (when-let [loc (path-locale path)]
+      (let [prefix (str "/" (name loc))
+            tail (subs path (count prefix))
+            tail (if (str/blank? tail) "/" tail)]
+        (when-not (shared-path? tail) tail)))))
+
+(defn- forkable-path?
+  "Content paths that have per-locale emit variants: the landing apex and the
+  shared chrome pages (billing, legal, security, csf2, docs, 404). Shared
+  infrastructure namespaces are never forked."
+  [path]
+  (and (not (shared-path? path))
+       (or (apex-path? path)
+           (some (fn [seg]
+                   (str/starts-with? path (str "/" seg)))
+                 ["billing" "legal" "security" "csf2" "docs"]))))
+
+(defn serve-path
+  "The emit-directory asset path to serve for a locale-free URL. /billing/ with
+  locale ja → /ja/billing/ (when a variant emit exists — the caller falls back
+  to the original path on a miss). Root stays at its own emit: apex variants
+  live in the locale directory itself."
+  [path locale]
+  (when (and (forkable-path? path)
+             (not= locale :en)
+             (contains? supported-set locale))
+    (if (apex-path? path)
+      (locale-path locale)
+      (str (locale-path locale)
+           (subs path 1)))))
+
+(defn static-decision
+  "Worker decision before Static Assets HIT. Cookie-negotiated, path-independent
+  serving (shinkansen.locale contract): one locale-free URL per document. A
+  weaker signal than the path never redirects — the Worker rewrites the asset
+  path to the negotiated emit directory in place (variant fallback: root doc).
+  An explicit locale prefix is canonicalized away with a 301 (its variant is
+  reachable at the locale-free path); the choice is persisted as kb_locale."
   [{:keys [path] :as opts}]
   (let [from-path (path-locale path)
         locale (negotiate opts)]
     (cond
-      from-path {:locale from-path :set-cookie? true}
-      (and (apex-path? path) (not= locale :en))
-      {:locale locale :redirect (locale-path locale)}
-      :else {:locale locale})))
+      from-path {:locale from-path
+                 :set-cookie? true
+                 :canonical (canonical-path path)}
+      :else {:locale locale
+             :set-cookie? (and (apex-path? path) (not= locale :en))
+             :serve (serve-path path locale)})))
 
 (defn cookie-header [locale]
   (str cookie-name "=" (name locale)
