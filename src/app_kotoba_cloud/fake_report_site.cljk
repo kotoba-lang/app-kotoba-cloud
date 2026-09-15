@@ -1,0 +1,169 @@
+(ns app-kotoba-cloud.fake-report-site
+  "ADR-2609141800 Phase 3: the toC view for the SNS fake-account
+   (impersonation) report surface. One fragment (`#fake-report`) on the
+   apex single-page document, authored in Japanese and English like
+   identity-site; fake-report-browser reveals and wires it.
+
+   Charter gates the MARKUP itself must hold (ADR D1):
+   - C1 non-adjudicating: the copy states that nothing here decides
+     whether an account is fake; platforms run their own review.
+   - C2 evidence-first: the form carries >=1 evidence row and the
+     server-side validator (fake-report-kit) makes a zero-evidence case
+     structurally impossible; the waiting copy says so.
+   - C3 person-boundary: reporting is for yourself or accounts you manage
+     with consent; on-behalf requires a consent record (fields below).
+   - C4 manual submission: the copy states no auto-send rail exists;
+     drafts, a step guide and copy/export are all the surface offers.
+   The section is emitted hidden; sign-in reveals it (the session enforces
+   C3's eKYC boundary at the gateway with 403 ekyc-required, which the
+   browser answers with the verification guidance)."
+  (:require [jp-go-dds.core :as dds]
+            [app-kotoba-cloud.fake-report-kit :as kit]))
+
+(def css
+  "Local rules only: the form reuses the research form pattern; this adds
+   the draft readback, evidence rows and the caveat callout. Concatenated
+   by site.cljk (site-css union + page-html :app-css)."
+  (str ".kc-fr__fields{display:grid;gap:var(--hig-spacing-4)}"
+       ".kc-fr__field{margin-block:0}"
+       ".kc-fr__caveat{border:1px solid var(--hig-color-separator);"
+       "border-radius:var(--hig-radius-md,12px);padding:var(--hig-spacing-3);"
+       "background:var(--hig-color-secondary-system-background)}"
+       ".kc-fr__draft{white-space:pre-wrap;overflow-wrap:anywhere;"
+       "font:var(--hig-text-caption1-font-size)/1.7 var(--font-family-sans);}"
+       ".kc-fr__evidence{display:grid;gap:var(--hig-spacing-2);"
+       "padding:var(--hig-spacing-3);border:1px solid var(--hig-color-separator);"
+       "border-radius:var(--hig-radius-sm,8px)}"))
+
+(defn- t-fn [locale]
+  (let [ja? (= locale :ja)]
+    (fn [ja en] (if ja? ja en))))
+
+;; pure helper: the browser turns the form fields into the authority's
+;; create payload with this; kept here (site ns stays js-free) so the kbb
+;; test engine can pin the C2 shape (schema version, >=1 evidence).
+(defn case-payload
+  "Form values (strings, keyword names as strings) -> {:case …} with the
+   fixed :case/schema. Evidence rows without a url/cid + taken-at are
+   dropped; zero evidence stays possible at this layer ON PURPOSE — the
+   authority's validator (C2) rejects it and the browser shows the
+   refusal. Returns {:case case}."
+  [{:keys [platform suspect-handle suspect-url suspect-taken-at
+           impostered-name impostered-url impostered-kind
+           evidence on-behalf consent-statement consent-proof-url]}]
+  {:case {:case/schema kit/schema-version
+          :case/platform (keyword platform)
+          :case/suspect {:handle suspect-handle
+                         :url suspect-url
+                         :taken-at suspect-taken-at}
+          :case/impostered {:display-name impostered-name
+                            :official-url impostered-url
+                            :kind (keyword impostered-kind)}
+          :case/evidence (vec
+                          (keep (fn [{:keys [kind ref taken-at]}]
+                                  (when (and (string? ref) (re-find #"\S" ref)
+                                             (string? taken-at) (re-find #"\S" taken-at))
+                                    (cond-> {:kind (keyword (or kind "other"))
+                                             :taken-at taken-at}
+                                      (.startsWith ref "http") (assoc :url ref)
+                                      (not (.startsWith ref "http")) (assoc :cid ref))))
+                                evidence))}
+   :case/on-behalf (boolean on-behalf)
+   :case/consent (when on-behalf
+                   {:statement consent-statement
+                    :proof-url consent-proof-url})})
+
+(defn- evidence-row [t n]
+  (let [prefix (str "fake-report-evidence-" n "-")]
+    [:fieldset {:class "kc-fr__evidence" :id (str "fake-report-evidence-" n) :hidden (> n 1)}
+     [:legend (t "証拠 " "Evidence ") n]
+     [:label (t "種類" "Kind")
+      [:select {:id (str prefix "kind")}
+       [:option {:value "screenshot"} (t "スクリーンショット (blob 参照)" "Screenshot (blob reference)")]
+       [:option {:value "url"} (t "URL" "URL")]
+       [:option {:value "other"} (t "その他" "Other")]]]
+     [:label (t "URL または CID" "URL or CID")
+      [:input {:id (str prefix "ref") :maxlength 2000
+               :placeholder (t "https://… または blob の CID" "https://… or the blob CID")}]]
+     [:label (t "取得日時" "Taken at")
+      [:input {:id (str prefix "taken-at") :type "datetime-local"}]]]))
+
+(defn section [locale]
+  (let [t (t-fn locale)]
+    [:section {:id "fake-report" :class "kc-research-section" :hidden true
+               :aria-label (t "偽アカウント報告" "Fake-account reporting")}
+     (dds/container
+      (dds/heading 2 (t "偽アカウント (なりすまし) 報告"
+                        "Fake-account (impersonation) reporting") {:size "36"})
+      (dds/heading 3 (t "この面が決めること・決めないこと"
+                        "What this surface decides and does not") {:size "24"})
+      [:p (t "ここで作る報告ドラフトは参考表示です。アカウントが偽物であることの確定ではありません。判定は Facebook・LinkedIn・LINE 各社の審査が行います。"
+             "The report draft built here is reference material. It is not a determination that an account is fake; Facebook, LinkedIn and LINE run their own review.")]
+      [:p (t "自動送信はありません。ドラフトの生成・手順の案内・コピーと EML エクスポートまでをこの面が提供し、各プラットフォームの公式フォームへの提出はあなた自身が自分のブラウザで行います。"
+             "Nothing is sent automatically. This surface offers draft generation, a step guide, copying and an EML export; you submit through each platform's official form in your own browser.")]
+      [:p (t "通報できるのは自分自身、または自分が管理する実在人物・事業の承認済みアカウントだけです。代理で通報するときは被偽装者の同意記録 (同意文と確認用 URL) が必須です。証拠 (スクリーンショット・URL と取得日時) が 1 つもない報告は提出できません。"
+             "You can report only impersonation of yourself, or of a real person/business whose account you manage with their consent. On-behalf reports require a consent record (statement + a verification URL). A report with zero evidence cannot be submitted.")]
+      [:div {:id "fake-report-waiting"}
+       (dds/heading 3 (t "開始条件" "Before you start") {:size "24"})
+       [:p {:id "fake-report-status" :role "status" :aria-live "polite"}
+        (t "ログイン済みで、本人確認 (Stripe Identity) が有効な session が必要です。ログインするとフォームが出ます。"
+           "A signed-in session with a current Stripe Identity verification is required. Sign in and the form appears.")]
+       (dds/button (t "ログイン" "Sign in") {:id "fake-report-sign-in" :type :outline
+                                             :href "/#identity"})]
+      [:div {:id "fake-report-console" :hidden true}
+       [:form {:id "fake-report-form" :class "kc-research-form"}
+        [:label (t "プラットフォーム" "Platform")
+         [:select {:id "fake-report-platform"}
+          (for [[k label] [[:facebook "Facebook"] [:linkedin "LinkedIn"] [:line "LINE"]]]
+            [:option {:value (name k)} label])]]
+        (dds/heading 3 (t "偽アカウント (通報対象)" "The impersonating account") {:size "24"})
+        [:div {:class "kc-fr__fields"}
+         [:label (t "ハンドル名・表示名" "Handle / display name")
+          [:input {:id "fake-report-suspect-handle" :maxlength 200 :required true}]]
+         [:label (t "URL (または LINE ID)" "URL (or LINE ID)")
+          [:input {:id "fake-report-suspect-url" :maxlength 2000 :required true}]]
+         [:label (t "確認した日時" "Checked at")
+          [:input {:id "fake-report-suspect-taken-at" :type "datetime-local" :required true}]]]
+        (dds/heading 3 (t "なりすまされた側" "The impersonated person / business") {:size "24"})
+        [:div {:class "kc-fr__fields"}
+         [:label (t "正式な表示名" "Official display name")
+          [:input {:id "fake-report-impostered-name" :maxlength 200 :required true}]]
+         [:label (t "正規アカウントの URL" "Authentic account URL")
+          [:input {:id "fake-report-impostered-url" :maxlength 2000 :required true}]]
+         [:label (t "区分" "Kind")
+          [:select {:id "fake-report-impostered-kind"}
+           [:option {:value "person"} (t "個人" "Person")]
+           [:option {:value "business"} (t "事業" "Business")]]]]
+        (dds/heading 3 (t "証拠 (1 件以上)" "Evidence (at least one)") {:size "24"})
+        (into [:div {:id "fake-report-evidence"}] (map (fn [n] (evidence-row t n)) (range 1 4)))
+        (dds/row (dds/button (t "証拠を追加（最大3件）" "Add evidence (up to 3)")
+                             {:id "fake-report-evidence-add" :type :outline})
+                 (dds/button (t "最後の証拠を取り除く" "Remove last evidence")
+                             {:id "fake-report-evidence-remove" :type :outline}))
+        [:label {:class "kc-check"}
+         [:input {:id "fake-report-on-behalf" :type "checkbox"}]
+         (t "自分以外 (自分が管理する実在人物・事業) の代理で通報する"
+            "Report on behalf of someone else (a real person/business I manage)")]
+        [:div {:id "fake-report-consent" :hidden true}
+         [:label (t "同意文 (被偽装者の同意の記録)" "Consent statement (the impersonated party's consent)")
+          [:textarea {:id "fake-report-consent-statement" :maxlength 2000}]]
+         [:label (t "同意を確認できる公開 URL (その人のアカウントからの自己言及など)"
+                    "Public URL that shows the consent (e.g. self-reference from their account)")
+          [:input {:id "fake-report-consent-proof-url" :maxlength 2000 :type "url"}]]]
+        (dds/row (dds/button (t "ドラフトを生成" "Generate draft") {:id "fake-report-generate" :submit? true})
+                 (dds/button (t "提出を記録" "Record my submission") {:id "fake-report-submit" :type :outline})
+                 (dds/button (t "状態を確認" "Check status") {:id "fake-report-status-check" :type :outline}))]
+       [:p {:id "fake-report-result" :role "status" :aria-live "polite"}]
+       [:div {:id "fake-report-draft" :hidden true}
+        [:p {:class "kc-fr__caveat" :id "fake-report-draft-caveat"}]
+        (dds/heading 3 "" {:size "20" :id "fake-report-draft-form-name"})
+        [:p [:a {:id "fake-report-draft-form-url" :rel "noopener noreferrer" :target "_blank"}
+             (t "公式フォームを自分のブラウザで開く (送信はあなたの手で)"
+                "Open the official form in your own browser (you submit it)")]]
+        [:ol {:id "fake-report-draft-steps"}]
+        [:pre {:class "kc-fr__draft" :id "fake-report-draft-body"}]
+        (dds/row (dds/button (t "ドラフト本文をコピー" "Copy draft text")
+                             {:id "fake-report-draft-copy" :type :outline})
+                 (dds/button (t "EML をコピー (LINE fallback)" "Copy EML (LINE fallback)")
+                             {:id "fake-report-draft-eml" :type :outline}))]
+       [:p {:id "fake-report-case-ledger"}]])]))

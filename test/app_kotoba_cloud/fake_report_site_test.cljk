@@ -1,0 +1,87 @@
+(ns app-kotoba-cloud.fake-report-site-test
+  "ADR-2609141800 Phase 3: the #fake-report view's charter-gate tests.
+   The markup itself is measured here; the gateway (403 ekyc-required) and
+   the authority (C2/C4/C5) are pinned by fake-report-authority-test and
+   the kit tests."
+  (:require [app-kotoba-cloud.fake-report-kit :as kit]
+            [app-kotoba-cloud.fake-report-site :as frs]
+            [app-kotoba-cloud.site :as site]
+            [clojure.test :refer [deftest is testing]]
+            [html.core :as html]
+            [kotoba.lang.text :as str]))
+
+(defn- rendered [locale]
+  (html/->html (frs/section locale)))
+
+(deftest c1-the-view-never-adjudicates
+  (is (str/includes? (rendered :ja) "確定ではありません"))
+  (is (str/includes? (rendered :en) "not a determination"))
+  ;; the C1 banned phrases from the kit must not appear in the copy either
+  (doseq [locale [:ja :en]
+          phrase kit/forbidden-adjudication-phrases]
+    (is (not (str/includes? (rendered locale) phrase)) phrase)))
+
+(deftest c4-the-view-promises-no-auto-send
+  (let [html (rendered :ja)]
+    (is (str/includes? html "自動送信はありません"))
+    (is (str/includes? html "自分のブラウザ"))))
+
+(deftest c2-the-form-carries-evidence-rows-and-says-minimum
+  (let [html (rendered :ja)]
+    (is (str/includes? html "証拠 (1 件以上)"))
+    (is (= 3 (count (re-seq #"id=\"fake-report-evidence-\d+\"" html))))
+    (is (str/includes? html "提出できません"))))
+
+(deftest c3-the-form-carries-consent-fields
+  (let [html (rendered :en)]
+    (is (str/includes? html "fake-report-consent-statement"))
+    (is (str/includes? html "fake-report-consent-proof-url"))
+    (is (str/includes? html "with their consent"))))
+
+(deftest the-section-is-a-hidden-fragment
+  (let [html (rendered :ja)]
+    (is (str/includes? html "id=\"fake-report\""))
+    (is (str/includes? html "kc-research-section"))
+    ;; hidden until signed-in: the browser reveals it, never the markup
+    (is (str/includes? html "id=\"fake-report-console\" hidden"))
+    (is (str/includes? html "id=\"fake-report-waiting\""))))
+
+(deftest case-payload-shape-is-pinned
+  (let [p (frs/case-payload
+           {:platform "facebook" :suspect-handle "@sus" :suspect-url "https://sus.example"
+            :suspect-taken-at "2026-09-16T10:00" :impostered-name "Fixture"
+            :impostered-url "https://real.example" :impostered-kind "business"
+            :evidence [{:kind "screenshot" :ref "bafkqfixture" :taken-at "2026-09-16T10:00"}
+                       {:kind "url" :ref "https://x.example/shot" :taken-at "2026-09-16T10:01"}
+                       {:kind "url" :ref "   " :taken-at ""}]
+            :on-behalf false})]
+    (is (= "kotoba-fake-report-case-2026-09-v1" (get-in p [:case :case/schema])))
+    (is (= :facebook (get-in p [:case :case/platform])))
+    (is (= 2 (count (get-in p [:case :case/evidence]))))
+    (is (contains? (get-in p [:case :case/evidence 0]) :cid))
+    (is (some? (:url (get-in p [:case :case/evidence 1]))))
+    ;; C3: no consent record without on-behalf
+    (is (nil? (:case/consent p)))
+    ;; the payload the browser sends satisfies the authority's validator
+    (is (:ok (kit/validate-case (assoc (:case p)
+                                       :case/schema (get-in p [:case :case/schema])))))))
+
+(deftest zero-evidence-payload-is-rejected-by-the-authority-validator
+  ;; C2 holds end to end even at this layer: the payload the browser sends
+  ;; with no evidence rows is structurally refused by the kit validator
+  (let [p (frs/case-payload {:platform "line" :suspect-handle "@s" :suspect-url "https://s"
+                             :suspect-taken-at "2026-09-16" :impostered-name "F"
+                             :impostered-url "https://r" :impostered-kind "person"
+                             :evidence [] :on-behalf false})]
+    (is (:errors (kit/validate-case (:case p))))))
+
+(deftest the-document-carries-the-fragment-once
+  (doseq [locale [:ja :en]]
+    (let [html (site/fake-report-html locale)]
+      (is (str/includes? html "id=\"fake-report\""))
+      (is (= 1 (count (re-seq #"id=\"fake-report\"" html))))
+      ;; the console body uses h2/h3 (DDS heading contract); no stray h1
+      (is (<= (count (re-seq #"<h1" html)) 1))
+      (is (str/includes? html (if (= locale :ja)
+                                "偽アカウント (なりすまし) 報告"
+                                "Fake-account (impersonation) reporting"))))))
