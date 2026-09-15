@@ -673,6 +673,7 @@ console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negot
 // Research gateway: these tests qualify edge admission only, not a real provider.
 upstreamStatus = 200;
 const researchPrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111";
+const tokenRegistry = { tokens: [], legacyRevokedAt: null };
 const researchModel = "qwen3.8-flash-next-whitehacker";
 const researchPolicy = "whitehat-2026-09-12-v1";
 const researchBody = { model: researchModel, task: "code-review", scopeId: "owned-code",
@@ -710,6 +711,29 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     throw new TypeError("Invalid redirect mode: " + init.redirect);
   }
   if (path === "/status") return Response.json(researchRecord);
+  // personal API token registry (per principal): what the real authority keeps
+  if (path.startsWith("/tokens/")) {
+    const op = path.slice("/tokens/".length);
+    const reg = tokenRegistry;
+    if (op === "register") {
+      if (reg.tokens.some(t => t.id === body.tokenId)) return Response.json({ error: "token-id-taken" }, { status: 409 });
+      const entry = { id: body.tokenId, label: body.label ?? null, issuedAt: Date.now() };
+      reg.tokens.push(entry); return Response.json({ principalId: body.principalId, token: entry });
+    }
+    if (op === "list") return Response.json({ principalId: body.principalId, tokens: reg.tokens, legacyRevokedAt: reg.legacyRevokedAt });
+    if (op === "revoke") {
+      const entry = reg.tokens.find(t => t.id === body.tokenId);
+      if (!entry) return Response.json({ error: "token-not-found" }, { status: 404 });
+      entry.revokedAt = entry.revokedAt ?? Date.now(); return Response.json({ principalId: body.principalId, token: entry });
+    }
+    if (op === "revoke-legacy") { reg.legacyRevokedAt = Date.now(); return Response.json({ principalId: body.principalId, legacyRevokedAt: reg.legacyRevokedAt }); }
+    if (op === "check") {
+      const entry = body.tokenId ? reg.tokens.find(t => t.id === body.tokenId) : null;
+      const allowed = body.tokenId ? (entry && !entry.revokedAt) : !reg.legacyRevokedAt;
+      if (allowed) return Response.json({ principalId: body.principalId, ok: true, tokenId: body.tokenId ?? null });
+      return Response.json({ error: !body.tokenId ? "legacy-token-revoked" : (!entry ? "token-unknown" : "token-revoked") }, { status: 403 });
+    }
+  }
   if (path === "/ekyc/webhook") {
     if (webhookAuthorityAnswer) return Response.json({ error: webhookAuthorityAnswer.error }, { status: webhookAuthorityAnswer.status });
     return Response.json({ principalId: body.principalId, status: "active", receiptId: "op-card-setup-1", approvedBy: "stripe-card" });
@@ -1034,7 +1058,20 @@ const patIssue = await route(new Request("https://kotoba.cloud/v1/account/api-to
 }), patEnv);
 assert.equal(patIssue.status, 200);
 const patBody = await patIssue.json();
-assert.match(patBody.token, /^kc_pat_[A-Za-z0-9_-]+\.[0-9a-f]{16}$/);
+// v2: principal . tokenId (12 hex) . mac; the id is registered with the
+// authority at issuance (label kept), and two issues are two different tokens
+assert.match(patBody.token, /^kc_pat_[A-Za-z0-9_-]+\.[0-9a-f]{12}\.[0-9a-f]{16}$/);
+assert.match(patBody.tokenId, /^[0-9a-f]{12}$/);
+assert.equal(tokenRegistry.tokens.length, 1);
+assert.equal(tokenRegistry.tokens[0].id, patBody.tokenId);
+assert.equal(tokenRegistry.tokens[0].label, "cli");
+assert.equal(patBody.label, "cli");
+assert.doesNotMatch(patBody.note, /rotating the signing secret/);
+const secondPat = await (await route(new Request("https://kotoba.cloud/v1/account/api-token", {
+  method: "POST", headers: { cookie: "gftd_session=research-session", origin: "https://kotoba.cloud",
+    "content-type": "application/json" }, body: JSON.stringify({ label: "laptop" }) }), patEnv)).json();
+assert.notEqual(secondPat.token, patBody.token, "each issue is its own token");
+assert.equal(tokenRegistry.tokens.length, 2);
 
 // Issue must fail closed without the secret.
 assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token", {
@@ -1055,6 +1092,67 @@ assert.equal(agentCalls.length >= 2, true);
 assert.equal(agentCalls[agentCalls.length - 1].body.principalId, researchPrincipal);
 // Stable agent-domain sessionRef, distinct from the cookie-domain one.
 const agentSessionRef = agentCalls[agentCalls.length - 1].body.sessionRef;
+// Every bearer request asks the registry first (tokenId travels, never the token).
+{
+  const checks = researchCalls.filter(c => c.path === "/tokens/check");
+  assert.equal(checks.length >= 1, true, "bearer path consults /tokens/check");
+  assert.equal(checks[checks.length - 1].body.tokenId, patBody.tokenId);
+  assert.equal(checks[checks.length - 1].body.token, undefined);
+}
+// Token registry from the account console: list, revoke one, the revoked
+// token answers 401 token-revoked on the very next bearer call, the other
+// token still works; legacy (v1) tokens work until revoke-legacy.
+{
+  const cookieHeaders = { cookie: "gftd_session=research-session", origin: "https://kotoba.cloud", "content-type": "application/json" };
+  const list1 = await (await route(new Request("https://kotoba.cloud/v1/account/api-tokens", { headers: { cookie: "gftd_session=research-session" } }), patEnv)).json();
+  assert.equal(list1.ok, true);
+  assert.equal(list1.tokens.length, 2);
+  assert.equal(list1.tokens[0].id, patBody.tokenId);
+  assert.equal(list1.tokens[0].revokedAt, undefined);
+  // revoke needs a valid id and the same-origin gate
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: { ...cookieHeaders, origin: "https://evil.example" }, body: JSON.stringify({ tokenId: patBody.tokenId }) }), patEnv)).status, 403);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: cookieHeaders, body: JSON.stringify({ tokenId: "nope" }) }), patEnv)).status, 400);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: cookieHeaders, body: JSON.stringify({ tokenId: "0123456789ab" }) }), patEnv)).status, 404);
+  // the second token works before, answers 401 by name right after its revocation
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", {
+    headers: { authorization: `Bearer ${secondPat.token}` } }), patEnv)).status, 200);
+  const revoked = await (await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: cookieHeaders, body: JSON.stringify({ tokenId: secondPat.tokenId }) }), patEnv)).json();
+  assert.equal(revoked.ok, true);
+  assert.equal(typeof revoked.token.revokedAt, "number");
+  const afterRevoke = await route(new Request("https://kotoba.cloud/v1/research/status", {
+    headers: { authorization: `Bearer ${secondPat.token}` } }), patEnv);
+  const afterRevokeBody = await afterRevoke.json();
+  assert.equal(afterRevoke.status, 401, JSON.stringify(afterRevokeBody));
+  assert.equal(afterRevokeBody.error.code, "token-revoked");
+  assert.match(afterRevokeBody.error.message, /token-revoked/);
+  const list2 = await (await route(new Request("https://kotoba.cloud/v1/account/api-tokens", { headers: { cookie: "gftd_session=research-session" } }), patEnv)).json();
+  assert.equal(typeof list2.tokens[1].revokedAt, "number");
+  assert.equal(list2.tokens[0].revokedAt, undefined);
+  // the first token is untouched by the other's revocation
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", {
+    headers: { authorization: `Bearer ${patBody.token}` } }), patEnv)).status, 200);
+  // a v2 token with a valid MAC but no registry entry is refused too
+  const b64url = Buffer.from(researchPrincipal).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const unregisteredId = "ffffffffffff";
+  const unregistered = "kc_pat_" + b64url + "." + unregisteredId + "." + createHmac("sha256", patSecret).update("kotoba-agent-pat-v2:" + researchPrincipal + ":" + unregisteredId).digest("hex").slice(0, 16);
+  const unknown = await route(new Request("https://kotoba.cloud/v1/research/status", { headers: { authorization: `Bearer ${unregistered}` } }), patEnv);
+  assert.equal(unknown.status, 401);
+  assert.equal((await unknown.json()).error.code, "token-revoked");
+  // legacy v1 (no id): still admitted, until legacy tokens are revoked
+  const legacy = "kc_pat_" + b64url + "." + createHmac("sha256", patSecret).update("kotoba-agent-pat-v1:" + researchPrincipal).digest("hex").slice(0, 16);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", { headers: { authorization: `Bearer ${legacy}` } }), patEnv)).status, 200);
+  const legacyRevoke = await (await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke-legacy", { method: "POST",
+    headers: cookieHeaders, body: "{}" }), patEnv)).json();
+  assert.equal(typeof legacyRevoke.legacyRevokedAt, "number");
+  const legacyAfter = await route(new Request("https://kotoba.cloud/v1/research/status", { headers: { authorization: `Bearer ${legacy}` } }), patEnv);
+  assert.equal(legacyAfter.status, 401);
+  assert.match((await legacyAfter.json()).error.message, /legacy-token-revoked/);
+  console.log("personal API token registry: issue registers, list, revoke → 401 by name, legacy revoke");
+}
 assert.match(agentSessionRef, /^[0-9a-f]{64}$/);
 assert.notEqual(agentSessionRef, researchSessionRef);
 

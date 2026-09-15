@@ -239,13 +239,22 @@
      [:span {:class "ck-console__label"} "curl"]
      [:span {:class "ck-console__value" :id "account-pat-curl"} "—"]
      (dds/button (txt "コピー" "Copy") {:id "account-pat-copy-curl" :type :outline :size "sm"})]]
+   ;; issued tokens: one row per token (label · issued · id), each with its own
+   ;; 取り消し; filled by account-browser from /v1/account/api-tokens. Legacy
+   ;; tokens (issued before the registry) have no row; one action revokes them all.
+   [:div {:id "account-pat-list"}
+    (row (txt "発行済みトークン" "Issued tokens") "account-pat-list-state")]
+   (dds/row
+    (dds/button (txt "登録前に発行したトークンをすべて失効" "Revoke every token issued before the registry")
+                {:id "account-pat-revoke-legacy" :type :outline :size "sm"}))
+   (console/note "" {:id "account-pat-list-note" :role "status"})
    (details (txt "エージェントからの利用" "Use from an agent")
             [:span (txt "Claude Code など MCP 対応エージェントは " "MCP-capable agents such as Claude Code read ")
              [:a {:href "/mcp.json"} "/mcp.json"]
              (txt " を参照してください。完全なガイドは " ". The full guide is at ")
              [:a {:href "/llms.txt"} "/llms.txt"] (txt " と " " and ") [:a {:href "/ekyc.md"} "/ekyc.md"]
-             (txt " にあります。取り消しは署名鍵の交換（サポート連絡）で行われます: support@kotoba.cloud"
-                  ". Revocation is done by rotating the signing key (contact support): support@kotoba.cloud")])
+             (txt " にあります。トークンは上の一覧から 1 本ずつ取り消せます。取り消した瞬間から API は 401 token-revoked を返します。"
+                  ". Tokens are revoked one by one from the list above; from that moment the API answers 401 token-revoked.")])
    {:id "account-panel-cli"}))
 
 (def sign-in-href

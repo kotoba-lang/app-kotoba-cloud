@@ -350,6 +350,51 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
   console.log("blue team route: admitted on sign-in, the shared route with the model id, refuses by name without the key, offensive band closed, red still gated");
 }
 
+// 11. personal API token registry on the principal record
+{
+  let r;
+  r = await call("/tokens/check", { principalId: principal, tokenId: null });
+  assert.equal(r.status, 200, "legacy token admitted before legacy revocation");
+  r = await call("/tokens/register", { principalId: principal, tokenId: "not-hex" });
+  assert.equal(r.status, 400);
+  r = await call("/tokens/register", { principalId: principal, tokenId: "0123456789ab", label: "cli" });
+  assert.equal(r.status, 200, JSON.stringify(r));
+  assert.equal(r.json.token.label, "cli");
+  assert.equal(typeof r.json.token.issuedAt, "number");
+  r = await call("/tokens/register", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 409, "an id registers once");
+  r = await call("/tokens/register", { principalId: principal, tokenId: "0123456789ac", label: "x".repeat(65) });
+  assert.equal(r.json.token.label, null, "an over-long label is dropped, the token still registers");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 200); assert.equal(r.json.ok, true); assert.equal(r.json.label, "cli");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "ffffffffffff" });
+  assert.equal(r.status, 403); assert.equal(r.json.error, "token-unknown");
+  r = await call("/tokens/revoke", { principalId: principal, tokenId: "ffffffffffff" });
+  assert.equal(r.status, 404);
+  r = await call("/tokens/revoke", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 200); assert.equal(typeof r.json.token.revokedAt, "number");
+  const firstRevokedAt = r.json.token.revokedAt;
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 403); assert.equal(r.json.error, "token-revoked");
+  r = await call("/tokens/revoke", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.json.token.revokedAt, firstRevokedAt, "revoking twice keeps the first revocation time");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ac" });
+  assert.equal(r.status, 200, "the other token is untouched");
+  r = await call("/tokens/list", { principalId: principal });
+  assert.equal(r.json.tokens.length, 2);
+  assert.deepEqual(Object.keys(r.json.tokens[0]).sort(), ["id", "issuedAt", "label", "revokedAt"]);
+  assert.equal(r.json.legacyRevokedAt, null, "not yet revoked (JSON null)");
+  r = await call("/tokens/revoke-legacy", { principalId: principal });
+  assert.equal(typeof r.json.legacyRevokedAt, "number");
+  r = await call("/tokens/check", { principalId: principal, tokenId: null });
+  assert.equal(r.status, 403); assert.equal(r.json.error, "legacy-token-revoked");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ac" });
+  assert.equal(r.status, 200, "revoking legacy tokens does not touch v2 tokens");
+  // the record's research state is untouched by registry writes
+  r = await call("/status", { principalId: principal, sessionRef, action: "code-review" });
+  assert.equal(r.json.status, "active");
+}
+
 console.log("research authority local checks: all passed");
 
 // --- Stripe Identity eKYC E2E (challenge -> signed webhook -> full approval) ---

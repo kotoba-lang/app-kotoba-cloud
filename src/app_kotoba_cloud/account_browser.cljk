@@ -507,12 +507,91 @@
                                "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
                                (t "発行できませんでした。状態を更新してください。" "Could not issue. Refresh and retry.")))))))))
 
+(declare load-pat-list!)
+
+(defn- token-row
+  "One issued token: label · issued date · id, and its own 取り消し (or the
+  revocation date once revoked)."
+  [{:keys [id label issuedAt revokedAt]}]
+  (let [row (.createElement js/document "div")
+        lab (.createElement js/document "span")
+        val (.createElement js/document "span")
+        issued (.toLocaleString (js/Date. issuedAt))]
+    (set! (.-className row) "ck-console__row")
+    (set! (.-className lab) "ck-console__label")
+    (set! (.-textContent lab) (or label (t "（ラベルなし）" "(no label)")))
+    (set! (.-className val) "ck-console__value")
+    (.setAttribute val "data-state" (if revokedAt "empty" "value"))
+    (set! (.-textContent val)
+          (str issued " · " id (when revokedAt (str " · " (t "取り消し済み " "revoked ") (.toLocaleString (js/Date. revokedAt))))))
+    (.appendChild row lab)
+    (.appendChild row val)
+    (when-not revokedAt
+      (let [btn (.createElement js/document "button")]
+        (set! (.-type btn) "button")
+        (set! (.-className btn) "dads-button")
+        (.setAttribute btn "data-type" "outline")
+        (.setAttribute btn "data-size" "sm")
+        (set! (.-textContent btn) (t "取り消し" "Revoke"))
+        (.addEventListener btn "click"
+                           (fn [_]
+                             (set! (.-disabled btn) true)
+                             (-> (api "/v1/account/api-token/revoke" {:tokenId id})
+                                 (.then (fn [r]
+                                          (say! "account-pat-list-note"
+                                                (if (:httpOk r)
+                                                  (t (str "トークン " id " を取り消しました。このトークンでの呼び出しは 401 になります。")
+                                                     (str "Token " id " revoked; calls with it now answer 401."))
+                                                  (t "取り消せませんでした。状態を更新してください。" "Could not revoke. Refresh and retry.")))
+                                          (load-pat-list!))))))
+        (.appendChild row btn)))
+    row))
+
+(defn render-pat-list [r]
+  (when-let [box (el "account-pat-list")]
+    (let [tokens (:tokens r [])]
+      (doseq [n (vec (array-seq (.querySelectorAll box "[data-token-row]")))] (.remove n))
+      (cond
+        (not (:httpOk r))
+        (do (state! "account-pat-list-state" :error))
+        ;; "none issued" is a known state, not an empty cell (console pattern)
+        (empty? tokens)
+        (do (state! "account-pat-list-state" :value)
+            (say! "account-pat-list-state" (t "発行済みのトークンはありません" "No tokens issued")))
+        :else
+        (do (state! "account-pat-list-state" :value)
+            (say! "account-pat-list-state" (t (str (count (remove :revokedAt tokens)) " 本が有効 / " (count tokens) " 本")
+                                              (str (count (remove :revokedAt tokens)) " active / " (count tokens))))
+            (doseq [tk tokens]
+              (let [row (token-row tk)]
+                (.setAttribute row "data-token-row" (:id tk))
+                (.appendChild box row)))))
+      (when-let [b (el "account-pat-revoke-legacy")]
+        (set! (.-hidden b) (some? (:legacyRevokedAt r)))))))
+
+(defn load-pat-list! []
+  (state! "account-pat-list-state" :loading)
+  (-> (api "/v1/account/api-tokens") (.then render-pat-list)))
+
+(defn revoke-legacy! []
+  (when-let [b (el "account-pat-revoke-legacy")]
+    (set! (.-disabled b) true)
+    (-> (api "/v1/account/api-token/revoke-legacy" {})
+        (.then (fn [r]
+                 (say! "account-pat-list-note"
+                       (if (:httpOk r)
+                         (t "登録前に発行したトークンをすべて失効しました。" "All legacy tokens revoked.")
+                         (t "失効できませんでした。状態を更新してください。" "Could not revoke. Refresh and retry.")))
+                 (set! (.-disabled b) false)
+                 (load-pat-list!))))))
+
 (defn create-pat! []
   (when-let [b (el "account-pat-create")]
     (set! (.-disabled b) true)
     (-> (api "/v1/account/api-token" {:label "cli"})
         (.then (fn [r]
                  (render-pat r)
+                 (when (and (:httpOk r) (:token r)) (load-pat-list!))
                  (when-not (and (:httpOk r) (:token r))
                    (set! (.-disabled b) false)))))))
 
@@ -535,6 +614,7 @@
                  (-> (api "/v1/org/status" {})
                      (.then (fn [r] (render-orgs r) (render-team r) (render-sso-orgs r))))
                  (-> (api "/v1/account/identities") (.then render-linked))
+                 (load-pat-list!)
                  (-> (api "/v1/billing/status") (.then render-billing)))))))
 
 (defn init! []
@@ -543,6 +623,7 @@
     (when-let [b (el "account-ekyc-start")] (.addEventListener b "click" start-ekyc!))
     (when-let [b (el "account-org-create")] (.addEventListener b "click" create-org!))
     (when-let [b (el "account-pat-create")] (.addEventListener b "click" create-pat!))
+    (when-let [b (el "account-pat-revoke-legacy")] (.addEventListener b "click" revoke-legacy!))
     (when-let [b (el "account-sso-save")] (.addEventListener b "click" save-sso!))
     (when-let [b (el "account-sso-remove")] (.addEventListener b "click" remove-sso!))
     (when-let [b (el "account-sso-org")] (.addEventListener b "change" load-sso-status!))

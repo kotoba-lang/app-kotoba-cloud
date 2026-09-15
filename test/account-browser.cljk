@@ -36,6 +36,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/research/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ineligible',reason:'verification-required',freeTier:{requestsPerDay:50,maxOutputTokens:4096},scopes:[]})}));
   await page.route('**/v1/org/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({organizations:[]})}));
   await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'connected',plan:'pro',balances:[{scope:'ai',grantedMicroUSD:12000000,spentMicroUSD:243,reservedMicroUSD:0,availableMicroUSD:11999757}]})}));
+  await page.route('**/v1/account/api-tokens',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,tokens:[],legacyRevokedAt:null})}));
  };
  const dupIds=()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)};
  // --- signed out -------------------------------------------------------
@@ -150,6 +151,40 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(back.state!=='確認中')throw Error('back state '+back.state);
   if(!/カード登録を受け付けました/.test(back.note))throw Error('back note '+back.note);
   if(back.button!=='カードを登録・再開')throw Error('back button '+back.button);
+  await page.close();
+ }
+ console.log('block pat-registry');
+ // --- CLI / IDE panel: the issued-token list has one row per token with its
+ // own 取り消し; clicking it posts the id (never the token) and the list
+ // re-reads; issuing a token adds a row.
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  const registry={tokens:[{id:'0123456789ab',label:'cli',issuedAt:Date.now()-86400000},{id:'0123456789ac',label:'laptop',issuedAt:Date.now()-3600000}],legacyRevokedAt:null};
+  const revokes=[];
+  await page.route('**/v1/account/api-tokens',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,...registry})}));
+  await page.route('**/v1/account/api-token/revoke',r=>{const b=r.request().postDataJSON();revokes.push(b);const t=registry.tokens.find(t=>t.id===b.tokenId);t.revokedAt=Date.now();r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:t})})});
+  await page.route('**/v1/account/api-token',r=>{registry.tokens.push({id:'0123456789ad',label:'cli',issuedAt:Date.now()});r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:'kc_pat_x.0123456789ad.0123456789abcdef',tokenId:'0123456789ad',label:'cli'})})});
+  await page.goto(base+'/ja/account/');
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').dataset.state==='value',null,{timeout:5000});
+  const s=await page.evaluate(()=>({state:document.getElementById('account-pat-list-state').textContent,
+    rows:[...document.querySelectorAll('#account-pat-list [data-token-row]')].map(r=>({id:r.dataset.tokenRow,buttons:r.querySelectorAll('button').length})),
+    legacyVisible:!document.getElementById('account-pat-revoke-legacy').hidden}));
+  if(s.state!=='2 本が有効 / 2 本')throw Error('list state '+s.state);
+  if(s.rows.length!==2||s.rows.some(r=>r.buttons!==1))throw Error('rows '+JSON.stringify(s.rows));
+  if(!s.legacyVisible)throw Error('legacy revoke action must show while legacy tokens are not revoked');
+  await page.click('#account-pat-list [data-token-row=\\'0123456789ac\\'] button');
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='1 本が有効 / 2 本',null,{timeout:5000});
+  if(JSON.stringify(revokes)!==JSON.stringify([{tokenId:'0123456789ac'}]))throw Error('revoke posted '+JSON.stringify(revokes));
+  const after=await page.evaluate(()=>({note:document.getElementById('account-pat-list-note').textContent,
+    revokedRow:document.querySelector('#account-pat-list [data-token-row=\\'0123456789ac\\']').textContent,
+    revokedButtons:document.querySelector('#account-pat-list [data-token-row=\\'0123456789ac\\']').querySelectorAll('button').length}));
+  if(!/0123456789ac を取り消しました/.test(after.note))throw Error('note '+after.note);
+  if(!/取り消し済み/.test(after.revokedRow)||after.revokedButtons!==0)throw Error('revoked row '+JSON.stringify(after));
+  await page.click('#account-pat-create');
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='2 本が有効 / 3 本',null,{timeout:5000});
+  const issued=await page.evaluate(()=>document.getElementById('account-pat-token').textContent);
+  if(!/^kc_pat_/.test(issued))throw Error('issued token not shown once: '+issued);
   await page.close();
  }
  console.log('block shell');

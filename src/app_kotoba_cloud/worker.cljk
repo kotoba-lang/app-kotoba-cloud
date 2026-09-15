@@ -290,13 +290,53 @@
                      (if (and (some? label)
                               (or (not (string? label)) (> (count label) 64)))
                        (private-json-response {:ok false :error "invalid-token-label"} 400)
+                       ;; mint, then REGISTER the id with the research authority —
+                       ;; an unregistered v2 token is refused on the bearer path,
+                       ;; so a failed registration must not hand out a token
                        (-> (pat/issue (:principalId viewer) secret)
-                           (.then (fn [token]
-                                    (private-json-response
-                                     {:ok true :token token
-                                      :label (when (seq label) label)
-                                      :note "This token is shown once. Store it now. Revocation is by rotating the signing secret — contact support@kotoba.cloud."
-                                      :issuedAt (.toISOString (js/Date.))}))))))))))))
+                           (.then (fn [{:keys [token tokenId]}]
+                                    (-> (research-gateway/token-registry-call
+                                         env "register" (:principalId viewer)
+                                         {:tokenId tokenId :label (when (seq label) label)})
+                                        (.then (fn [registered]
+                                                 (private-json-response
+                                                  {:ok true :token token :tokenId tokenId
+                                                   :label (get-in registered [:token :label])
+                                                   :note "This token is shown once. Store it now. Revoke it any time from the account console (CLI / IDE panel)."
+                                                   :issuedAt (.toISOString (js/Date. (get-in registered [:token :issuedAt])))})))
+                                        (.catch (fn [e]
+                                                  (private-json-response
+                                                   {:ok false :error (if (= "too-many-tokens" (ex-message e))
+                                                                       "too-many-tokens" "token-registry-unavailable")}
+                                                   (if (= "too-many-tokens" (ex-message e)) 409 503))))))))))))))))
+
+(defn- route-api-token-registry
+  "Same-origin, signed-in: list the principal's tokens (GET /v1/account/api-tokens),
+  revoke one (POST /v1/account/api-token/revoke {tokenId}), or revoke every
+  legacy token (POST /v1/account/api-token/revoke-legacy). Only ids and labels
+  cross this route; the token strings are never stored anywhere."
+  [request env viewer op]
+  (let [origin (.get (.-headers request) "origin")
+        method (.-method request)]
+    (cond
+      (and (= "POST" method) (not (contains? research-gateway/origins origin)))
+      (private-json-response {:ok false :error "invalid-origin"} 403)
+      :else
+      (-> (if (= "POST" method) (.text request) (js/Promise.resolve "{}"))
+          (.then (fn [text]
+                   (let [body (try (js->clj (js/JSON.parse (if (seq text) text "{}")) :keywordize-keys true)
+                                   (catch :default _ nil))]
+                     (if (and (= op "revoke") (not (pat/token-id? (:tokenId body))))
+                       (private-json-response {:ok false :error "invalid-token-id"} 400)
+                       (-> (research-gateway/token-registry-call env op (:principalId viewer)
+                                                                 (select-keys (or body {}) [:tokenId]))
+                           (.then (fn [answer] (private-json-response (assoc answer :ok true) 200)))
+                           (.catch (fn [e]
+                                     (let [code (ex-message e) status (or (:status (ex-data e)) 503)]
+                                       (private-json-response
+                                        {:ok false :error (if (contains? #{"token-not-found" "invalid-token-id"} code)
+                                                            code "token-registry-unavailable")}
+                                        (if (contains? #{"token-not-found" "invalid-token-id"} code) status 503))))))))))))))
 
 (def publication-schema
   "https://kotoba.cloud/schemas/library-publication-request/v3")
@@ -949,6 +989,21 @@
                    (if-not (:valid viewer)
                      (private-json-response {:ok false :error "sign-in-required"} 401)
                      (route-api-token request env viewer)))))
+
+      ;; Token registry for the account console: list / revoke one / revoke
+      ;; legacy. Same viewer gate as issuance.
+      (or (and (= path "/v1/account/api-tokens") (= method "GET"))
+          (and (= path "/v1/account/api-token/revoke") (= method "POST"))
+          (and (= path "/v1/account/api-token/revoke-legacy") (= method "POST")))
+      (-> (fetch-viewer request)
+          (.then (fn [viewer]
+                   (if-not (:valid viewer)
+                     (private-json-response {:ok false :error "sign-in-required"} 401)
+                     (route-api-token-registry request env viewer
+                                               (case path
+                                                 "/v1/account/api-tokens" "list"
+                                                 "/v1/account/api-token/revoke" "revoke"
+                                                 "revoke-legacy"))))))
 
       ;; VM ledger API (PR: security-apps). Deterministic, stateless: POST
       ;; /v1/security/findings validates the submitted finding records and
