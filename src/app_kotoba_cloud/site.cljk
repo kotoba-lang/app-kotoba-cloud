@@ -18,6 +18,7 @@
             [app-kotoba-cloud.crypto-site :as crypto-site]
             [app-kotoba-cloud.compliance-site :as compliance-site]
             [app-kotoba-cloud.enforcement-site :as enforcement-site]
+            [app-kotoba-cloud.vc-site :as vc-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.apps-site :as apps-site]
                         [app-kotoba-cloud.security-services-site :as security-services-site]
@@ -1066,6 +1067,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        knowledge-site/css "\n" tokens/bridge-css "\n"
        security-site/css "\n" csf2-site/css "\n"
        crypto-site/css "\n" compliance-site/css "\n" enforcement-site/css "\n"
+       vc-site/css "\n"
        blog-site/css "\n"
        dds-console/css "\n" shell/css "\n" code/css "\n" account-site/css "\n"
        secure-site/css "\n" models-site/css "\n" billing-site/css "\n"
@@ -1178,6 +1180,11 @@ body:has(.kc-sb){padding-inline-start:15rem}
                    :description "勝訴後に強制執行（差し押さえ）へ進むための日本の手続、日本以外の全世界18法域の執行手段・公式DB、公開/非公開データソースをまとめたカタログ。"
                    :extra-css (str tokens/bridge-css dds-catalog/css enforcement-site/css)}
       (enforcement-site/view)))
+(defn vc-html []
+     (site-layout {:title "VC fund カタログ — Kotoba Cloud" :lang "ja"
+                   :description "DNX Capital / In-Q-Tel / SYN Ventures のファンド・調達・出口・共同投資関係と system dynamics を実 fetch 出典でまとめた公開データカタログ。"
+                   :extra-css (str tokens/bridge-css dds-catalog/css vc-site/css)}
+      (vc-site/view)))
 
 (defn blog-posts []
   "Authored articles from assets/blog/posts.edn, newest date first."
@@ -1719,6 +1726,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "enforcement" "index.html") (enforcement-html))
       (spit-file (node-path/join root "security" "enforcement" "index.html") (enforcement-html))
       (spit-file (node-path/join root "ja" "security" "enforcement" "index.html") (enforcement-html))
+      ;; VC fund catalog: /vc/ + /ja/vc/ (same pattern as the compliance surface)
+      (spit-file (node-path/join root "vc" "index.html") (vc-html))
+      (spit-file (node-path/join root "ja" "vc" "index.html") (vc-html))
       ;; blog: security-research thinktank feed (articles = assets/blog/posts.edn).
       ;; One index per addressable locale, one article page per locale the
       ;; post actually carries (:en canonical, :ja, plus :i18n languages).
@@ -1743,6 +1753,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
               target (node-path/join root "enforcement-data" "enforcement" rel)]
           (copy-file source target)))
       (copy-file (node-path/join "assets" "enforcement-catalog.js") (node-path/join js-dir "enforcement-catalog.js"))
+      ;; VC fund catalog data blocks + browser script (data at /vc-data/vc/)
+      (doseq [source (fs-walk-files (node-path/join "assets" "vc-catalog"))]
+        (let [rel (node-path/relative (node-path/join "assets" "vc-catalog") source)
+              target (node-path/join root "vc-data" "vc" rel)]
+          (copy-file source target)))
+      (copy-file (node-path/join "assets" "vc-catalog.js") (node-path/join js-dir "vc-catalog.js"))
       ;; graph docs: former kotobase.net content surface
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))

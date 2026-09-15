@@ -1,0 +1,54 @@
+{
+  "companies": [
+    {
+      "id": "iceye",
+      "name": "ICEYE",
+      "domain": "SAR Earth observation / satellite data",
+      "rounds": [
+        {"series": "B", "usdM": 34, "date": "2018-05-24", "lead": "True Ventures",
+         "participants": ["True Ventures", "Draper Nexus", "Draper Associates", "Seraphim Capital", "Space Angels", "OTB", "Tesi", "Draper Esprit", "Promus Ventures"],
+         "sourceUrl": "https://www.iceye.com/press/press-releases/iceye-raises-34-million-dollars-series-b-financing-confirms-nine-sar-satellite-launches-by-end-of-2019",
+         "layer": "primary-fetched"}
+      ],
+      "fundInvestments": {"dnx-capital": "listed as 'Iceye' on DNX US fund portfolio (archive 2023-02-07)", "in-q-tel": "not in the fetched static portion of the 2019 portfolio page; treated as not verified there"}
+    },
+    {
+      "id": "cylance",
+      "name": "Cylance",
+      "domain": "endpoint security (AI/ML antivirus)",
+      "rounds": [
+        {"series": "early", "usdM": 42, "date": "2015-07", "lead": null,
+         "participants": ["Draper Fisher Jurvetson", "KKR", "Dell", "Capital One", "TenEleven Ventures"],
+         "sourceUrl": "https://en.wikipedia.org/wiki/Cylance", "layer": "primary-fetched"},
+        {"series": "IQT", "usdM": null, "date": "2015-09", "lead": "In-Q-Tel", "participants": ["In-Q-Tel"],
+         "sourceUrl": "https://en.wikipedia.org/wiki/Cylance", "layer": "primary-fetched"},
+        {"series": "D", "usdM": 100, "date": "2016-06", "lead": null,
+         "participants": ["Blackstone", "Insight Venture Partners"],
+         "sourceUrl": "https://en.wikipedia.org/wiki/Cylance", "layer": "primary-fetched"}
+      ],
+      "outcome": {"type": "acquired", "by": "BlackBerry", "usdB": 1.4, "date": "2019-02", "sourceUrl": "https://en.wikipedia.org/wiki/Cylance"},
+      "fundInvestments": {"dnx-capital": "listed 'Cylance — Exited — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)", "in-q-tel": "listed on iqt.org 2019 portfolio static list (238 tiles)"}
+    },
+    {
+      "id": "jask",
+      "name": "JASK",
+      "domain": "security operations (SIEM/alert triage)",
+      "rounds": [],
+      "fundInvestments": {"dnx-capital": "listed 'JASK — Exited — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)", "in-q-tel": "not in the fetched static portion of the 2019 portfolio page"}
+    },
+    {
+      "id": "mitiga",
+      "name": "Mitiga",
+      "domain": "cloud/network security",
+      "rounds": [],
+      "fundInvestments": {"dnx-capital": "listed 'Mitiga — Active — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)", "in-q-tel": "not in the fetched static portion of the 2019 portfolio page"}
+    },
+    {
+      "id": "fyde",
+      "name": "Fyde",
+      "domain": "endpoint OS / firmware security",
+      "rounds": [],
+      "fundInvestments": {"dnx-capital": "listed 'Fyde — Exited — Cyber Security' on DNX US fund portfolio (archive 2023-02-07)", "in-q-tel": "not in the fetched static portion of the 2019 portfolio page"}
+    }
+  ]
+}

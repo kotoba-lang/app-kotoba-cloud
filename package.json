@@ -23,6 +23,8 @@
     "test:compliance-catalog": "node test/compliance-catalog.mjs",
     "build:enforcement-catalog": "node scripts/build-enforcement-catalog.mjs",
     "test:enforcement-catalog": "node test/enforcement-catalog.mjs",
+    "build:vc-catalog": "node scripts/build-vc-catalog.mjs",
+    "test:vc-catalog": "node test/vc-catalog.mjs",
     "build:crypto-catalog": "node scripts/build-crypto-catalog.mjs",
     "test:crypto-catalog": "node test/crypto-catalog.mjs"
   },
