@@ -1,0 +1,61 @@
+(ns app-kotoba-cloud.research-kotoba-proof-gateway-test
+  "Edge allow-list for POST /v1/research/ekyc/kotoba-proof/submit (layer-1
+  chip evidence, ADR 2609142200). The authority is faked; the edge contract
+  under test is: POST-only, session-derived principal (never body's), chip
+  fields forwarded to /ekyc/kotoba-proof/submit, malformed body -> 400."
+  (:require [cljs.test :refer-macros [deftest is async]]
+            [app-kotoba-cloud.research-gateway :as gateway]))
+(def sod "c29kLWRlcg==")
+(def dg "ZGctYnl0ZXM=")
+(defn request [method body]
+  (js/Request. "https://kotoba.cloud/v1/research/ekyc/kotoba-proof/submit"
+               (clj->js (cond-> {:method method
+                                 :headers {"cookie" "gftd_session=example" "origin" "https://kotoba.cloud"
+                                           "content-type" "application/json"}}
+                          body (assoc :body (js/JSON.stringify (clj->js body)))))))
+(defn env [calls]
+  #js {:RESEARCH_AUTHORITY
+       #js {:fetch (fn [url init]
+                     (let [body (js->clj (js/JSON.parse (.-body init)) :keywordize-keys true)]
+                       (swap! calls conj [url body])
+                       (js/Promise.resolve (js/Response.json
+                                            (clj->js (merge body {:principalId "alice"
+                                                                  :status "active" :provider "kotoba-proof"
+                                                                  :trust 80 :approvedBy "icao-passive-auth"}))))))}})
+(defn response [body status] (js/Response.json (clj->js body) #js {:status status}))
+(defn call [request environment]
+  (js/Promise.resolve (gateway/route request environment
+                                     (fn [_] (js/Promise.resolve {:valid true :principalId "alice"}))
+                                     response)))
+(def valid-body {:scopeId "owned" :tasks ["code-review"]
+                 :sodDer sod :dg1 dg :dg11 dg :dg12 dg :dg5 dg
+                 :principalId "mallory"})
+
+(deftest submit-registered-and-forwarded
+  (async done
+    (let [calls (atom [])]
+      (-> (call (request "POST" valid-body) (env calls))
+          (.then (fn [r] (is (= 200 (.-status r))) (.json r)))
+          (.then (fn [r] (is (= "kotoba-proof" (.-provider r)))
+                   (is (= "alice" (.-principalId r)))
+                   (let [[url payload] (first @calls)]
+                     (is (= "https://research.internal/ekyc/kotoba-proof/submit" url))
+                     (is (= "alice" (:principalId payload)))
+                     (is (= sod (:sodDer payload)))
+                     (is (= [dg dg dg dg] [(:dg1 payload) (:dg11 payload)
+                                           (:dg12 payload) (:dg5 payload)]))
+                     (is (string? (:sessionRef payload)))
+                     (is (pos? (count (:sessionRef payload))))))
+          (.catch #(is false (str %))) (.finally done)))))
+
+(deftest submit-shape-and-method-gates
+  (async done
+    (let [calls (atom [])]
+      (-> (call (request "POST" (dissoc valid-body :dg5)) (env calls))
+          (.then (fn [r] (is (= 400 (.-status r))) (.json r)))
+          (.then (fn [r] (is (= "invalid-kotoba-proof-submit" (.-code r.error)))
+                   (is (empty? @calls))
+                   (call (request "GET" nil) (env calls))))
+          (.then (fn [r] (is (= 405 (.-status r))) (is (empty? @calls))))
+          (.catch #(is false (str %))) (.finally done)))))
+)
