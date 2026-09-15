@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:12:46.977Z",
+ "generatedAt": "2026-09-15T09:14:28.288Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 353,
+ "productCount": 355,
  "ontology": {
   "nodes": 44,
-  "claims": 3864,
+  "claims": 3880,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerar4jsz32kdyq6atttzjlkzwzy6wvsttobk366xef7bunllsls63ra"
+   "/": "baguqeera7j22bj6zydyrvlneagt3a5zm5gzy2yqnjmjelroizy3eeisd2nea"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -2852,6 +2852,19 @@
    ],
    "record": {
     "/": "baguqeeraf7btdnhylo6fec75ie732syyhuz47xt2rfg7gj3h7t6ssczamvia"
+   }
+  },
+  {
+   "id": "trend-container-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Container Security",
+   "categoryId": "container",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; product page offers a 'Get pricing' CTA with no public list pricing (en_us page HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-container-image-security.html",
+   "record": {
+    "/": "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba"
    }
   },
   {
@@ -7155,6 +7168,19 @@
    "record": {
     "/": "baguqeerapiog3354wp2vmiavi4kd6utfrap7xwbxgubfqfdgirve3ahcxiva"
    }
+  },
+  {
+   "id": "trend-deep-discovery-inspector",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Deep Discovery Inspector",
+   "categoryId": "ndr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
+   "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)",
+   "record": {
+    "/": "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a"
+   }
   }
  ],
  "blocks": {
@@ -7641,6 +7667,11 @@
   "baguqeeraf7btdnhylo6fec75ie732syyhuz47xt2rfg7gj3h7t6ssczamvia": {
    "path": "/compliance-data/compliance/blocks/baguqeeraf7btdnhylo6fec75ie732syyhuz47xt2rfg7gj3h7t6ssczamvia.json",
    "bytes": 298,
+   "codec": "dag-json"
+  },
+  "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba.json",
+   "bytes": 489,
    "codec": "dag-json"
   },
   "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a": {
@@ -9003,18 +9034,23 @@
    "bytes": 264,
    "codec": "dag-json"
   },
-  "baguqeerar4jsz32kdyq6atttzjlkzwzy6wvsttobk366xef7bunllsls63ra": {
-   "path": "/compliance-data/compliance/blocks/baguqeerar4jsz32kdyq6atttzjlkzwzy6wvsttobk366xef7bunllsls63ra.json",
+  "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a.json",
+   "bytes": 377,
+   "codec": "dag-json"
+  },
+  "baguqeera7j22bj6zydyrvlneagt3a5zm5gzy2yqnjmjelroizy3eeisd2nea": {
+   "path": "/compliance-data/compliance/blocks/baguqeera7j22bj6zydyrvlneagt3a5zm5gzy2yqnjmjelroizy3eeisd2nea.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeeralbapsuyodrke73dwxc33nlgw5rfzd3q32qjx5vpyyttjsmr4pdqa": {
-   "path": "/compliance-data/compliance/blocks/baguqeeralbapsuyodrke73dwxc33nlgw5rfzd3q32qjx5vpyyttjsmr4pdqa.json",
-   "bytes": 251709,
+  "baguqeerao6i6tasmhtorw3xgrosxwnashabjam74lvhlspc3ust4icid4nma": {
+   "path": "/compliance-data/compliance/blocks/baguqeerao6i6tasmhtorw3xgrosxwnashabjam74lvhlspc3ust4icid4nma.json",
+   "bytes": 253151,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeeralbapsuyodrke73dwxc33nlgw5rfzd3q32qjx5vpyyttjsmr4pdqa"
+  "/": "baguqeerao6i6tasmhtorw3xgrosxwnashabjam74lvhlspc3ust4icid4nma"
  }
 }
