@@ -1,0 +1,19 @@
+;; kotoba.cloud blog — published articles, newest first.
+;; Authored data only: site/-main reads this vector and emits static
+;; documents. One entry per article; the observatory bot appends.
+;;
+;; Schema: {:slug "kebab-case-url-id" :date "YYYY-MM-DD"
+;;          :tags (keywords)
+;;          :title-ja/:title-en :summary-ja/:summary-en (strings)
+;;          :body-ja/:body-en (vector of paragraph strings)}
+[{:slug "observatory-launch"
+  :date "2026-09-15"
+  :tags [:observatory :ai-security]
+  :title-ja "セキュリティ観測ブログを開設しました"
+  :title-en "Introducing the Security Observatory Blog"
+  :summary-ja "ニュース・インシデント・AI モデル動向を毎日観測・分析してここに公開します。"
+  :summary-en "Daily observation and analysis of cybersecurity news, incidents and AI-model developments, published here."
+  :body-ja ["Kotoba Cloud の researcher チームは、cybersecurity の最新ニュース、重大インシデント、AI モデルまわりの動向を毎日観測し、分析記事をこのブログに公開します。"
+            "記事は観測 bot が収集した公開情報に基づき、出典を確認したうえで人間が編集方針を管理します。脅威情報そのものの配信ではなく、Kotoba Cloud のセキュリティ製品カタログ (CSF 2.0) やコンプライアンスデータと接続できる分析を提供します。"]
+  :body-en ["The Kotoba Cloud research team observes the latest cybersecurity news, major incidents and AI-model developments every day and publishes analysis articles here."
+            "Articles are based on public information collected by the observatory bot, verified against sources; a human maintains editorial policy. This is not raw threat-intel feed delivery: the analysis connects to Kotoba Cloud's security product catalog (CSF 2.0) and compliance data."]}]
