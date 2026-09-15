@@ -58,6 +58,14 @@
                                        ;; retrieves (billing/paid-line), so a code
                                        ;; changes the price, never the allowance
                                        :allow_promotion_codes true
+                                       ;; USD only: the AWAI account has Adaptive
+                                       ;; Pricing on, and the first live session
+                                       ;; (2026-09-15 21:41 JST, a buyer in Japan)
+                                       ;; presented $20 as ¥3,221 — a subscription
+                                       ;; created that way invoices in JPY and
+                                       ;; billing/paid-line (currency usd, cents
+                                       ;; amounts) would never grant it
+                                       :adaptive_pricing {:enabled false}
                                        :success_url "https://kotoba.cloud/billing/?checkout=complete"
                                        :cancel_url "https://kotoba.cloud/billing/?checkout=cancelled"}
                                 (not (:topup p)) (assoc :subscription_data {:metadata metadata} :expires_at expires
