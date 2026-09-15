@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T09:10:13.919Z",
+ "generatedAt": "2026-09-15T09:10:46.242Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
@@ -8972,13 +8972,13 @@
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera2x5zedpmjte2amja5kprcboq2lvg4sjtsmpkchle7uaucljznfha": {
-   "path": "/compliance-data/compliance/blocks/baguqeera2x5zedpmjte2amja5kprcboq2lvg4sjtsmpkchle7uaucljznfha.json",
+  "baguqeeradbp5rsh2asfcujjqhlwbgfh7fjsvrq5b36wcbpyzk454gbricjua": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradbp5rsh2asfcujjqhlwbgfh7fjsvrq5b36wcbpyzk454gbricjua.json",
    "bytes": 250028,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera2x5zedpmjte2amja5kprcboq2lvg4sjtsmpkchle7uaucljznfha"
+  "/": "baguqeeradbp5rsh2asfcujjqhlwbgfh7fjsvrq5b36wcbpyzk454gbricjua"
  }
 }
