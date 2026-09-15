@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T20:08:22.101Z",
+ "generatedAt": "2026-09-15T20:14:30.157Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
@@ -2882,8 +2882,13 @@
    "pricingMode": "quote-based",
    "pricingNote": "quote-based; product page offers a 'Get pricing' CTA with no public list pricing (en_us page HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-container-image-security.html",
+   "complianceFits": [
+    "iso-27001",
+    "soc2"
+   ],
+   "complianceNote": "Trend Micro Trust Center コンプライアンス頁 https://www.trendmicro.com/ja_jp/about/trust-center/compliance.html (HTTP 200 確認 2026-09-16): ISO/IEC 27001:2022・SOC 2 Type II は社全体の認証 (PCI DSS 認定サービスプロバイダのスコープは同頁に 'Trend Vision One Applicability Guide for PCI DSS' 資料として提示されるが本製品への直接適用は未確認のため complianceFits に含めず)。Container Security は Vision One プラットフォーム/SaaS モジュールとして提供されるため ISO/SOC2 の適用は間接的。",
    "record": {
-    "/": "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba"
+    "/": "baguqeerai7vl3wsbtojrq6yh2sc5423yhuaamjshknqvs4sgw7focjx2wnla"
    }
   },
   {
@@ -7969,9 +7974,9 @@
    "bytes": 298,
    "codec": "dag-json"
   },
-  "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba": {
-   "path": "/compliance-data/compliance/blocks/baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba.json",
-   "bytes": 489,
+  "baguqeerai7vl3wsbtojrq6yh2sc5423yhuaamjshknqvs4sgw7focjx2wnla": {
+   "path": "/compliance-data/compliance/blocks/baguqeerai7vl3wsbtojrq6yh2sc5423yhuaamjshknqvs4sgw7focjx2wnla.json",
+   "bytes": 1132,
    "codec": "dag-json"
   },
   "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a": {
@@ -9434,13 +9439,13 @@
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerawqxuniyizbojrms5b7rpyf6magurovti4dmurg4ivpom4jlxjc2a": {
-   "path": "/compliance-data/compliance/blocks/baguqeerawqxuniyizbojrms5b7rpyf6magurovti4dmurg4ivpom4jlxjc2a.json",
-   "bytes": 269139,
+  "baguqeerann6itpetblpeyezgupz3vtomnwoky2armq6hdcfxbrqczblhytsa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerann6itpetblpeyezgupz3vtomnwoky2armq6hdcfxbrqczblhytsa.json",
+   "bytes": 269783,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerawqxuniyizbojrms5b7rpyf6magurovti4dmurg4ivpom4jlxjc2a"
+  "/": "baguqeerann6itpetblpeyezgupz3vtomnwoky2armq6hdcfxbrqczblhytsa"
  }
 }
