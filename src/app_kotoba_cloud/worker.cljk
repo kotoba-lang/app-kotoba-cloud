@@ -700,6 +700,89 @@
       :else
       (boot-error "not-found" 404))))
 
+(defn- normalize-finding
+  "Coerce JSON-decoded finding fields to the shapes the ledger validates
+  against: snake_case JSON keys become the schema's kebab keys, and string
+  values for :service/:severity become keywords."
+  [f]
+  (let [f (cond-> f
+            (contains? f :finding_id) (assoc :finding-id (get f :finding_id))
+            (contains? f :first_seen) (assoc :first-seen (get f :first_seen))
+            (contains? f :last_seen) (assoc :last-seen (get f :last_seen)))]
+    (cond-> f
+      (string? (:service f)) (update :service keyword)
+      (string? (:severity f)) (update :severity keyword))))
+
+(defn- parse-findings-payload
+  "Accepts a bare JSON array or {findings:[...]}. Returns [ok findings]."
+  [body]
+  (cond
+    (vector? body) [true body]
+    (and (map? body) (vector? (:findings body))) [true (:findings body)]
+    :else [false nil]))
+
+(defn- route-security-findings [request]
+  (let [content-type (or (.get (.-headers request) "content-type") "")]
+    (if-not (.startsWith content-type "application/json")
+      (private-json-response {:ok false :error {:code "content-type-required"}} 415)
+      (-> (.text request)
+          (.then
+           (fn [text]
+             (let [body (js->clj (js/JSON.parse text) :keywordize-keys true)
+                   [ok? findings] (parse-findings-payload body)
+                   normalized (mapv normalize-finding (or findings []))
+                   first-bad (when ok?
+                               (some (fn [[i f]] (when-let [err (security-services/finding-error f)]
+                                                   (assoc err :index i)))
+                                     (map-indexed vector normalized)))]
+               (cond
+                 (not ok?)
+                 (private-json-response
+                  {:ok false :error {:code "invalid-findings-payload"
+                                     :hint "submit a JSON array or a {findings: [...]} object"}} 400)
+
+                 first-bad
+                 (private-json-response
+                  {:ok false :error {:code "invalid-finding"
+                                     :index (:index first-bad)
+                                     :field (:field first-bad)
+                                     :reason (:code first-bad)}} 400)
+
+                 :else
+                 (private-json-response
+                  (merge {:ok true :accepted (count normalized)}
+                         {:ledger (security-services/build-ledger normalized)}))))))))))
+
+(defn- route-security-vulnerabilities [request]
+  (let [raw (.get (.-searchParams (js/URL. (.-url request))) "findings")]
+    (if (not raw)
+      (private-json-response
+       (merge {:ok true :accepted 0}
+              {:ledger (security-services/build-ledger nil)}))
+      (-> (js/Promise.resolve nil)
+          (.then
+           (fn [_]
+             (let [body (js->clj (js/JSON.parse raw) :keywordize-keys true)
+                   [ok? findings] (parse-findings-payload body)
+                   normalized (mapv normalize-finding (or findings []))
+                   first-bad (when ok?
+                               (some (fn [[i f]] (when-let [err (security-services/finding-error f)]
+                                                   (assoc err :index i)))
+                                     (map-indexed vector normalized)))]
+               (cond
+                 (not ok?)
+                 (private-json-response {:ok false :error {:code "invalid-findings-payload"}} 400)
+                 first-bad
+                 (private-json-response
+                  {:ok false :error {:code "invalid-finding"
+                                     :index (:index first-bad)
+                                     :field (:field first-bad)
+                                     :reason (:code first-bad)}} 400)
+                 :else
+                 (private-json-response
+                  (merge {:ok true :accepted (count normalized)}
+                         {:ledger (security-services/build-ledger normalized)}))))))))))
+
 (defn route [request ^js env]
   (let [url (js/URL. (.-url request))
         path (.-pathname url)
@@ -810,6 +893,18 @@
                    (if-not (:valid viewer)
                      (private-json-response {:ok false :error "sign-in-required"} 401)
                      (route-api-token request env viewer)))))
+
+      ;; VM ledger API (PR: security-apps). Deterministic, stateless: POST
+      ;; /v1/security/findings validates the submitted finding records and
+      ;; returns the deduped scored ledger computed from the body itself;
+      ;; GET /v1/security/vulnerabilities computes the same ledger from an
+      ;; optional ?findings= JSON param. POST routes MUST precede the
+      ;; 405 catch-all below.
+      (and (= path "/v1/security/findings") (= method "POST"))
+      (route-security-findings request)
+
+      (and (= path "/v1/security/vulnerabilities") (#{"GET" "HEAD"} method))
+      (route-security-vulnerabilities request)
 
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
