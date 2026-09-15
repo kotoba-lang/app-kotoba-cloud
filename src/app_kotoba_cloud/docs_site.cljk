@@ -67,7 +67,9 @@
     :pages [{:href "/docs/reference/streaming/" :ja "ストリーミング" :en "Streaming"}
             {:href "/docs/reference/tools/" :ja "ツール呼び出し" :en "Tool calling"}
             {:href "/docs/reference/structured-outputs/" :ja "構造化出力" :en "Structured outputs"}
-            {:href "/docs/reference/reasoning/" :ja "推論（reasoning）" :en "Reasoning"}]}
+            {:href "/docs/reference/reasoning/" :ja "推論（reasoning）" :en "Reasoning"}
+            {:href "/docs/reference/prompts/" :ja "プロンプトの書き方" :en "Prompts"}
+            {:href "/docs/reference/mcp/" :ja "エージェントと MCP" :en "Agents & MCP"}]}
    {:id :features :ja "機能" :en "Features"
     :pages [{:href "/docs/reference/guardrails-firewall/" :ja "ガードレール・ファイアウォール" :en "Guardrails & firewall"}
             {:href "/docs/reference/firewall-rules/" :ja "ファイアウォール規則" :en "Firewall rules"}
@@ -348,6 +350,12 @@
    {:id "reasoning" :name "Reasoning"
     :desc-ja "モデルは答える前に推論する。reasoning tokens は max_tokens の内側。"
     :desc-en "The model reasons before it answers; reasoning tokens count inside max_tokens."}
+   {:id "prompts" :name "Prompts"
+    :desc-ja "研究モデルへの書き方: task の枠、system turn、ファイルの渡し方、JSON を頼む、避けるもの。"
+    :desc-en "Writing for the research model: framing the task, the system turn, passing files, asking for JSON, what to avoid."}
+   {:id "mcp" :name "Agents & MCP"
+    :desc-ja "/mcp.json、llms.txt、agent-quickstart.md — エージェントが自分で読む入口と、何が MCP で何がそうでないか。"
+    :desc-en "/mcp.json, llms.txt, agent-quickstart.md — the entry points an agent reads for itself, and what is MCP and what is not."}
    {:id "guardrails-firewall" :name "Guardrails & firewall"
     :desc-ja "毎回のガードレール、rung ごとのファイアウォール、/secure/ で公開される版。"
     :desc-en "Guardrails on every request, the firewall by assurance rung, versions published at /secure/."}
@@ -508,11 +516,25 @@
 (defn structured-view [locale]
   (let [ja? (= :ja locale)
         txt (fn [ja en] (if ja? ja en))]
-    [[:h1 (txt "Structured outputs" "Structured outputs")]
+    [[:h1 (txt "構造化出力" "Structured outputs")]
      [:p {:class "kc-docs__lead"}
-      (txt "response_format は受理され、上流へは転送されません (openai-ignorable-keys)。出力制約が必要ならプロンプトで JSON を要求し、呼び出し側で検証してください。"
-           "response_format is accepted and dropped (not forwarded). To constrain output, ask for JSON in the prompt and validate on your side.")]
-     (config-block {:ja? ja? :lang :json} "response_format: {\"type\": \"json_object\"}  // accepted-and-dropped\n\n# do this instead:\n# messages: [{\"role\":\"user\",\"content\":\"Return JSON: {\\\"finding\\\": string}\"}]\n# then parse and validate the content yourself")]))
+      (txt "response_format は受理され、転送されません（openai-ignorable-keys）。形の決まった出力が要るときは、ネイティブなツール呼び出しを「形」として使うのが確実です: function の parameters に JSON Schema を書き、tool_choice でその function を強制すると、arguments が schema 通りの JSON で返ります。"
+           "response_format is accepted and dropped (openai-ignorable-keys). When you need output in a fixed shape, use native tool calling as the shape: put a JSON Schema in a function's parameters and force that function with tool_choice — the arguments come back as JSON in that schema.")]
+     (config-block {:ja? ja? :lang :json :title (txt "tool_choice で形を強制する" "Force the shape with tool_choice")}
+                   (str "{\"model\": \"" model-id "\", \"max_tokens\": 2048,\n"
+                        " \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"report_finding\",\n"
+                        "    \"parameters\": {\"type\": \"object\", \"required\": [\"severity\", \"title\", \"evidence\"],\n"
+                        "      \"properties\": {\"severity\": {\"enum\": [\"low\", \"medium\", \"high\", \"critical\"]},\n"
+                        "                     \"title\": {\"type\": \"string\"}, \"evidence\": {\"type\": \"string\"}}}}}],\n"
+                        " \"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"report_finding\"}},\n"
+                        " \"messages\": [{\"role\": \"user\", \"content\": \"Review this handler: ...\"}]}\n\n"
+                        "→ choices[0].message.tool_calls[0].function.arguments\n"
+                        "  \"{\\\"severity\\\":\\\"high\\\",\\\"title\\\":\\\"Auth bypass via ...\\\",\\\"evidence\\\":\\\"...\\\"}\""))
+     [:h2 (txt "プロンプトで頼む場合" "Asking in the prompt")]
+     (config-block {:ja? ja? :lang :json} "messages: [{\"role\":\"user\",\"content\":\"Return ONLY a JSON object {\\\"finding\\\": string, \\\"severity\\\": \\\"low|medium|high\\\"}. No prose.\"}]\n# then parse; validate on your side; retry on a parse failure")
+     (note-block
+      (txt "arguments は文字列（JSON 文字列）で届きます。呼び出し側で parse と検証をしてください。モデルが schema を外すことはあり得るので、検証失敗時は再送を。"
+           "arguments arrive as a string (JSON text). Parse and validate on your side; a model can miss the schema, so resend on a validation failure."))]))
 
 (def error-catalog
   "Every code the edge answers, from the code that answers it (research-
@@ -616,20 +638,34 @@
 
 (defn ratelimits-view [locale]
   (let [ja? (= :ja locale)
-        txt (fn [ja en] (if ja? ja en))]
-    [[:h1 (txt "Rate limits" "Rate limits")]
+        txt (fn [ja en] (if ja? ja en))
+        fl research/free-limits]
+    [[:h1 (txt "レート制限" "Rate limits")]
      [:p {:class "kc-docs__lead"}
-      (txt "無料研究枠は principal ごとに 1 日 1,000 リクエスト、出力最大 32,768 tokens/リクエスト、入力合計 524,288 文字（約 128k tokens）。有料枠 (Credits) を使う場合も 1 リクエストの上限は同じです。"
-           "The free research allowance is 1,000 requests/day per principal, up to 32,768 output tokens per request, 524,288 input characters (about 128k tokens) total. Paid (Credits) usage shares the same per-request ceilings.")]
-     (config-block {:ja? ja? :lang :json :title (txt "上限" "Limits")} (str "free-limits: {\n"
-                        "  \"requestsPerDay\": 1000,\n"
-                        "  \"maxOutputTokens\": 32768,\n"
-                        "  \"maxInputCharacters\": 524288\n"
-                        "}\n\n"
-                        "# assurance ladder (tokens/day by rung) at /v1/secure\n"
-                        "#   L2 identity:    50,000 / ceiling 200,000\n"
-                        "#   L3 business:    2,000,000 / ceiling 8,000,000\n"
-                        "#   L4 contracted:  8,000,000 / ceiling 32,000,000"))]))
+      (txt "今日 enforce されている上限は 3 つ: principal ごとに 1 日 1,000 リクエスト（UTC 日で数える）、1 リクエストの出力 32,768 tokens、入力合計 524,288 文字。有料の応答は日次件数に数えられず、1 リクエストの上限は同じです。"
+           "Three ceilings are enforced today: 1,000 requests per principal per UTC day, 32,768 output tokens per request, 524,288 input characters per request. Paid answers are not counted against the daily number; the per-request ceilings are the same.")]
+     (config-block {:ja? ja? :lang :json :title (txt "enforce される上限（/v1/models → freeTier）" "Enforced ceilings (/v1/models → freeTier)")}
+                   (str "{\"requestsPerDay\": " (:requestsPerDay fl) ",\n"
+                        " \"maxOutputTokens\": " (:maxOutputTokens fl) ",\n"
+                        " \"maxInputCharacters\": " (:maxInputCharacters fl) "}\n\n"
+                        "429 {\"error\": {\"code\": \"free-quota-exhausted\"}}   // resets at UTC midnight, no Retry-After"))
+     [:h2 (txt "assurance ladder（tokens/day）" "The assurance ladder (tokens/day)")]
+     [:p (txt "本人確認の段ごとに 1 日の token 枠が公開されています（/v1/research/status の assurance、/v1/secure）。**これは今日、enforce されていません** — 実際に効くのは上の 3 つです。段は、開く band（code-review / cyber / offensive）とファイアウォールの min rung を決めます。"
+              "Each verification rung publishes a daily token allowance (assurance on /v1/research/status, and /v1/secure). **It is not enforced today** — the three ceilings above are what actually apply. The rung decides the band it opens (code-review / cyber / offensive) and the firewall's minimum rung.")]
+     [:div {:class "kc-docs__scroll"}
+      [:table {:class "kc-docs__table"}
+       [:thead [:tr [:th "rung"] [:th "tokens/day"] [:th "ceiling"] [:th "band"]]]
+       (into [:tbody]
+             (for [r (:rungs research/assurance-ladder)]
+               [:tr [:td [:code (:id r)] " · L" (:level r)] [:td (str (:defaultTokensPerDay r))] [:td (str (:ceilingTokensPerDay r))] [:td (:grantsBand r)]]))]]
+     [:h2 (txt "並列と再送" "Concurrency and retries")]
+     [:ul
+      [:li (txt "並列数の上限はありません。同時リクエストはそれぞれ 1 件と数えます。" "There is no concurrency limit; concurrent requests each count as one.")]
+      [:li (txt "同じ本文の再送は同じジョブに再接続し、数えません（決定的な job id、24 時間以内）。" "Resending the same body re-attaches to the same job and is not counted (deterministic job id, within 24 hours).")]
+      [:li (txt "ガードレールで拒否されたリクエスト、経路未設定のモデルは数えません。" "Requests refused by guardrails, and models whose route is not configured, are not counted.")]]
+     (note-block
+      (txt "無料枠を超えたら: 残高（AI credits）があれば同じリクエストがそのまま有料で走ります（Per-request cost）。無ければ翌 UTC 日。"
+           "Past the free allowance: with an AI balance the same request simply runs paid (Per-request cost); without one, the next UTC day."))]))
 
 (defn billing-doc-view [locale]
   (let [ja? (= :ja locale)
@@ -1208,8 +1244,73 @@
       (txt "価格は USD・税別。Adaptive Pricing は使わず、カード側で換算されます。領収書とインボイスはポータルの履歴から。"
            "Prices are USD, tax excluded; Adaptive Pricing is off and the card converts. Receipts and invoices are in the portal's history."))]))
 
+(defn prompts-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "プロンプトの書き方" "Prompts")]
+     [:p {:class "kc-docs__lead"}
+      (txt "研究モデルは、対象・目的・出力の形が一文ずつ明示されたときに最もよく働きます。ここでは admission と同じ語彙（task / scope）で書く方法と、ガードレールに当たらない書き方を示します。"
+           "The research model works best when the target, the purpose and the shape of the output are each stated in one sentence. This page writes in the same vocabulary admission uses (task / scope) and shows what stays clear of the guardrails.")]
+     [:h2 (txt "system turn" "The system turn")]
+     (config-block {:ja? ja? :lang :json} (str "{\"role\": \"system\", \"content\": \"You are reviewing code the user owns (scope: owned). Report concrete findings with file:line evidence. Prefer fixes over descriptions. Output English.\"}"))
+     [:p (txt "system は先頭 1 turn だけ。役割・スコープ・出力言語・形式をここに。task は本文の名前ではなく用途（code-review / vulnerability-triage / remediation）で、bearer 経路の既定は code-review です。"
+              "One leading system turn only: role, scope, output language and format. task is the purpose (code-review / vulnerability-triage / remediation), not a phrase in the prompt; the bearer path defaults to code-review.")]
+     [:h2 (txt "ファイルを渡す" "Passing files")]
+     (config-block {:ja? ja?} (str "jq -n --arg m \"" model-id "\" --rawfile f src/auth.ts \\\n"
+                        "  '{model:$m,max_tokens:4096,messages:[{role:\"user\",content:(\"Review src/auth.ts for auth bypasses.\\n\\n```ts\\n\"+$f+\"\\n```\")}]}' \\\n"
+                        "  | curl -s -X POST " openai-base "/chat/completions -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" -H \"content-type: application/json\" -d @-"))
+     [:ul
+      [:li (txt "content は文字列だけ（画像・音声・添付は未対応）。ファイルはコードブロックとして本文に。" "content is a string (no images, audio or attachments); put files in the body as code blocks.")]
+      [:li (txt "入力の上限は 524,288 文字（ツール定義を含む）。大きいリポジトリは関係するファイルに絞るか、エージェントのツールで読ませます。" "The input ceiling is 524,288 characters (tool definitions included). For a large repository, narrow to the relevant files or let the agent's tools read them.")]
+      [:li (txt "会話は最大 256 turn。ツール結果は role: tool（tool_call_id 付き）で返します。" "Up to 256 turns; return tool results as role: tool with tool_call_id.")]]
+     [:h2 (txt "出力の形を決める" "Deciding the output shape")]
+     [:ul
+      [:li (txt "箇条書き・表・JSON — 本文で頼む。厳密な JSON はツール呼び出しで強制（Structured outputs）。" "Bullets, tables, JSON — ask in the body; strict JSON is forced through a tool call (Structured outputs).")]
+      [:li (txt "max_tokens は答えの長さ + reasoning の分。短い答えでも 2,048 以上。" "max_tokens covers the answer plus reasoning; 2,048 or more even for short answers.")]
+      [:li (txt "temperature 等は落とされます。ばらつきを抑えたいなら形と根拠を要求してください。" "temperature and friends are dropped; to reduce variance, demand a shape and evidence.")]]
+     [:h2 (txt "避けるもの（ガードレール）" "What to avoid (guardrails)")]
+     [:ul
+      (for [t secure/guardrail-templates]
+        [:li [:code (:id t)] " — " (:action t) ": " (:description t)])]
+     [:p (txt "生きた鍵の形（sk-…、AKIA…、PRIVATE KEY）はモデルに渡る前にマスクされます（redact）。テストではダミー値を使ってください。ブロックは 403 guardrail-blocked で、耐久レシートに残ります。"
+              "Live credential shapes (sk-…, AKIA…, PRIVATE KEY) are masked before the model sees them (redact); use dummy values in tests. A block is 403 guardrail-blocked and leaves a durable receipt.")]
+     (note-block
+      (txt "offensive band（payload-crafting / c2-tooling）は契約 rung まで閉じています。許可された環境での PoC 作成は AUP の範囲内でも、task はその band で拒否されます — 依頼の言い換えではなく、rung を上げる経路が答えです。"
+           "The offensive band (payload-crafting / c2-tooling) is closed until the contracted rung. Even PoC work inside an authorized engagement is refused on that task — the answer is raising the rung, not rewording the request."))]))
+
+(defn mcp-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "エージェントと MCP" "Agents & MCP")]
+     [:p {:class "kc-docs__lead"}
+      (txt "エージェントが自分で読む入口は 3 つ: /mcp.json（サービスの機械可読な地図）、/llms.txt と /llms-full.txt（人間向け docs の要約と全文）、/agent-quickstart.md（手順）。どれも公開で認証は要りません。"
+           "An agent reads three entry points for itself: /mcp.json (a machine-readable map of the service), /llms.txt and /llms-full.txt (the docs, summarized and in full), /agent-quickstart.md (the steps). All public, no auth.")]
+     (config-block {:ja? ja?} (str "curl -s https://kotoba.cloud/mcp.json | jq '.servers, .tools[].name'\n"
+                        "curl -s https://kotoba.cloud/llms.txt\n"
+                        "curl -s https://kotoba.cloud/agent-quickstart.md"))
+     [:h2 (txt "/mcp.json は何で、何でないか" "What /mcp.json is, and is not")]
+     [:ul
+      [:li (txt "MCP プロトコル（JSON-RPC の initialize / tools/list / tools/call）の endpoint は提供していません。/mcp.json は「plain HTTP をどう呼ぶか」を tools の inputSchema と URL で書いた設定ファイルで、エージェントがそれを自分のツールとして包みます。"
+                "There is no MCP protocol endpoint (JSON-RPC initialize / tools/list / tools/call). /mcp.json is a configuration file that says how to call plain HTTP — each tool's inputSchema and URL — for an agent to wrap as its own tool.")]
+      [:li (txt "public: /v1/knowledge/search?q= と /v1/knowledge/context?id= — 公開のセキュリティ証拠（ATT&CK 等）の読み取り。CORS 開放、認証なし。" "public: /v1/knowledge/search?q= and /v1/knowledge/context?id= — read-only public security evidence (ATT&CK and others). CORS-open, no auth.")]
+      [:li (txt "research: 研究 API の endpoint 一覧と sessionSetup（PAT の発行、本人確認の開始、承認は人が行う）。" "research: the research API's endpoints and sessionSetup (issue a PAT, start verification, a human completes it).")]]
+     [:h2 (txt "エージェントの手順" "The agent's steps")]
+     [:ol
+      [:li (txt "アカウント保持者が kotoba.cloud/account で PAT を発行し、エージェントの環境に置く（エージェントはサインインできない）。" "The account holder issues a PAT at kotoba.cloud/account and puts it in the agent's environment (an agent cannot sign in).")]
+      [:li (txt "GET /v1/research/status で eligible か、reason は何かを読む。verification-required なら人に本人確認を頼む（POST /v1/research/ekyc/start は URL を返すだけ。完了は人が行う）。" "Read GET /v1/research/status: eligible, or which reason. On verification-required, ask the person to verify (POST /v1/research/ekyc/start only returns a URL; a person completes it).")]
+      [:li (txt "POST /v1/chat/completions（OpenAI 形式、tools 可）。長い仕事はジョブ API で poll。" "POST /v1/chat/completions (OpenAI shape, tools allowed); poll the job API for long work.")]
+      [:li (txt "ツールはエージェントのマシンで実行する。サーバは何も実行しない（AUP の local execution boundary）。" "Run tools on the agent's machine; the server executes nothing (the AUP's local-execution boundary).")]]
+     (config-block {:ja? ja? :title (txt "Claude Code / hermes などの設定はこちら" "Claude Code / hermes and friends")}
+                   (str "# per-tool copy-paste: " "https://docs.kotoba.cloud/integrations/\n"
+                        "# Anthropic-protocol clients need a translating proxy (docs: Anthropic SDK)"))
+     (note-block
+      (txt "/mcp.json の tools: kotoba_knowledge_search / kotoba_knowledge_context（公開）、kotoba_research_run（ジョブ API）、kotoba_chat_completion（OpenAI 形式）。後の 2 つは PAT の bearer かブラウザセッションで、本人確認済みの principal が要ります。"
+           "/mcp.json's tools: kotoba_knowledge_search / kotoba_knowledge_context (public), kotoba_research_run (the job API), kotoba_chat_completion (the OpenAI shape). The last two take a PAT bearer or a browser session and need a verified principal."))]))
+
 (defn ref-view [id locale]
   (case id
+    "prompts" (prompts-view locale)
+    "mcp" (mcp-view locale)
     "sign-in" (sign-in-view locale)
     "firewall-rules" (firewall-rules-view locale)
     "organizations" (organizations-view locale)
