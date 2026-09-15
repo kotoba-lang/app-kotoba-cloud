@@ -696,6 +696,8 @@
    :receiptId (:receiptId job) :status (:status job)
    :task (get-in job [:request :task]) :scopeId (get-in job [:request :scopeId])
    :content (:content job)
+   :toolCalls (:toolCalls job)
+   :finishReason (:finishReason job)
    :record (public-record record session-ref (get-in job [:request :task]) now)})
 (defn- load-state [storage]
   (-> (js-invoke storage "get" "record") (.then decode)))
@@ -707,10 +709,19 @@
 (defn- load-job [storage job-id]
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
-(defn- upstream-body [request]
-  #js {:model (upstream-model-for (:model request)) :stream false
-       :messages (clj->js (:messages request))
-       :max_tokens (:max_tokens request)})
+(defn- upstream-body
+  "The origin request. Client tool definitions and tool_choice pass through
+  when the edge admitted them: the origin's vLLM runs a tool-call parser, so
+  the model answers with native `tool_calls` the agent executes on ITS side
+  (nothing runs here). Without them the model cannot call anything — the
+  agent's first two calls came back empty and it fell back to another
+  provider (measured 2026-09-15)."
+  [request]
+  (clj->js (cond-> {:model (upstream-model-for (:model request)) :stream false
+                    :messages (:messages request)
+                    :max_tokens (:max_tokens request)}
+             (seq (:tools request)) (assoc :tools (:tools request))
+             (some? (:tool_choice request)) (assoc :tool_choice (:tool_choice request)))))
 
 (def openrouter-url "https://openrouter.ai/api/v1/chat/completions")
 (defn- openrouter-headers
@@ -803,13 +814,15 @@
                                                   :error (str (or (.-message e) e))
                                                   :upstreamStatus (:status data)
                                                   :finishedAt (js/Date.now)))))
-              succeed (fn [{:keys [content usage-receipt]}]
-                        (when-not (text? content max-content-characters)
+              succeed (fn [{:keys [content tool-calls finish-reason usage-receipt]}]
+                        (when-not (or (text? content max-content-characters) (seq tool-calls))
                           (throw (ex-info "inference-result-empty" {})))
-                        (store-job! storage (assoc job :status "succeeded"
-                                                   :content content
-                                                   :usageReceipt usage-receipt
-                                                   :finishedAt (js/Date.now))))
+                        (store-job! storage (cond-> (assoc job :status "succeeded"
+                                                           :content (when (text? content max-content-characters) content)
+                                                           :finishReason finish-reason
+                                                           :usageReceipt usage-receipt
+                                                           :finishedAt (js/Date.now))
+                                              (seq tool-calls) (assoc :toolCalls (vec tool-calls)))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
@@ -828,17 +841,41 @@
               parsed (js-invoke fetched "then"
                        (fn [raw]
                          (let [decoded (decode raw)
-                               content (get-in decoded [:choices 0 :message :content])
-                               reasoning (get-in decoded [:choices 0 :message :reasoning])
+                               choice (get-in decoded [:choices 0])
+                               content (get-in choice [:message :content])
+                               reasoning (get-in choice [:message :reasoning])
                                fallback (if (text? content max-content-characters) content reasoning)
+                               ;; native tool calls: id / type function / name / arguments
+                               ;; (a JSON string). Anything else is a malformed origin answer.
+                               tool-calls (let [tc (get-in choice [:message :tool_calls])]
+                                            (when (and (vector? tc) (seq tc)) tc))
+                               tool-calls-ok? (or (nil? tool-calls)
+                                                  (and (<= (count tool-calls) 64)
+                                                       (every? #(and (map? %) (text? (:id %) 128)
+                                                                     (= "function" (:type %))
+                                                                     (text? (get-in % [:function :name]) 64)
+                                                                     (string? (get-in % [:function :arguments]))
+                                                                     (<= (count (get-in % [:function :arguments])) max-content-characters))
+                                                               tool-calls)))
+                               finish-reason (let [f (:finish_reason choice)]
+                                               (if (contains? #{"stop" "length" "tool_calls"} f) f
+                                                   (if tool-calls "tool_calls" "stop")))
                                expected (upstream-model-for (get-in job [:request :model]))]
                            (if-not (and (or (not expected)
                                             (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
-                                        (text? fallback max-content-characters))
+                                        tool-calls-ok?
+                                        (or (text? fallback max-content-characters) tool-calls))
                              (throw (ex-info "unexpected-modal-model-or-response"
-                                             {:upstream {:model (:model decoded) :object (:object decoded)}}))
+                                             {:upstream {:model (:model decoded) :object (:object decoded)
+                                                         :finish (:finish_reason choice)}}))
                              {:content fallback
+                              :tool-calls (when tool-calls
+                                            (mapv #(hash-map :id (:id %) :type "function"
+                                                             :function {:name (get-in % [:function :name])
+                                                                        :arguments (get-in % [:function :arguments])})
+                                                  tool-calls))
+                              :finish-reason finish-reason
                               :usage-receipt (upstream-usage-receipt decoded job)}))))]
           (js-invoke (js-invoke parsed "then" succeed) "catch" fail)))))))
 ;; --- request handling -------------------------------------------------------
@@ -923,7 +960,7 @@
                                           :else
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
                                                      :status "queued" :receiptId (str "receipt-" (:jobId body))
-                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens])
+                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens :tools :tool_choice])
                                                      :createdAt now :sessionRef (:sessionRef body)}
                                                 next (assoc-in record [:usage :day] day)
                                                 next (assoc-in next [:usage :count] (inc used))]

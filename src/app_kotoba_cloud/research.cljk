@@ -160,51 +160,130 @@
   "Standard OpenAI parameters a text-completion gateway may accept and then
   drop: they never reach the authority or the upstream (the forwarded body is
   rebuilt from the strict admission shape). Accepting-and-ignoring is what an
-  OpenAI SDK client needs; unknown keys remain rejected. `tools` is here too:
-  an agent client (hermes, 2026-09-15) always sends its tool list; the model
-  never emits native tool calls, so the list is dropped and the client falls
-  back to its text-tag tool protocol."
+  OpenAI SDK client needs; unknown keys remain rejected."
   #{"temperature" "top_p" "presence_penalty" "frequency_penalty" "stop"
-    "response_format" "tool_choice" "parallel_tool_calls" "tools"
+    "response_format" "parallel_tool_calls"
     "stream_options" "user" "seed" "logit_bias" "logprobs" "top_logprobs"
     "metadata" "store" "service_tier" "reasoning_effort" "reasoning"
     "prompt_cache_key" "safety_identifier" "modalities"})
+
+;; --- native tool calls (agent clients) --------------------------------------
+;; Tool DEFINITIONS travel to the origin so the model can answer with
+;; `tool_calls`; the agent executes them on its own machine and sends the
+;; results back as `tool` turns. Nothing is executed here. Measured
+;; 2026-09-15: with the list dropped the agent's calls came back empty and it
+;; fell back to another provider.
+(def max-tools 128)
+(def max-tool-calls 64)
+(def tool-name-pattern #"[A-Za-z0-9_.\-]{1,64}")
+
+(defn tool-name? [n] (and (string? n) (boolean (re-matches tool-name-pattern n))))
+
+(defn tool-def? [t]
+  (and (map? t) (= "function" (:type t))
+       (every? #{:type :function} (keys t))
+       (let [f (:function t)]
+         (and (map? f) (tool-name? (:name f))
+              (or (nil? (:description f)) (string? (:description f)))
+              (or (nil? (:parameters f)) (map? (:parameters f)))
+              (or (nil? (:strict f)) (boolean? (:strict f)))
+              (every? #{:name :description :parameters :strict} (keys f))))))
+
+(defn tool-call? [c]
+  (and (map? c) (text? (:id c) 128) (= "function" (:type c))
+       (every? #{:id :type :function :index} (keys c))
+       (let [f (:function c)]
+         (and (map? f) (tool-name? (:name f)) (string? (:arguments f))
+              (every? #{:name :arguments} (keys f))))))
+
+(defn tool-choice? [v]
+  (or (nil? v) (#{"auto" "none" "required"} v)
+      (and (map? v) (= "function" (:type v)) (tool-name? (get-in v [:function :name]))
+           (every? #{:type :function} (keys v))
+           (every? #{:name} (keys (:function v))))))
+
+(defn message-characters
+  "What a turn costs against the input ceiling: its content plus the
+  arguments of any tool calls it carries."
+  [m]
+  (+ (count (str (:content m)))
+     (reduce + 0 (map #(count (str (get-in % [:function :arguments]))) (:tool_calls m)))))
+
+(defn agent-message?
+  "One conversation turn as an OpenAI agent client sends it. `system` is
+  admitted only as the first turn (checked by the caller). `assistant`
+  turns may carry native tool_calls with empty content; `tool` turns are the
+  agent's results, bound to a call by tool_call_id."
+  [m]
+  (and (map? m)
+       (case (:role m)
+         "user" (and (text? (:content m) max-input-characters)
+                     (every? #{:role :content :name} (keys m)))
+         "assistant" (let [tc (:tool_calls m) c (:content m)]
+                       (and (every? #{:role :content :tool_calls :name} (keys m))
+                            (or (nil? c) (string? c))
+                            (or (nil? tc) (and (vector? tc) (<= 1 (count tc) max-tool-calls) (every? tool-call? tc)))
+                            (or (text? c max-input-characters) (seq tc))))
+         "tool" (and (text? (:tool_call_id m) 128)
+                     (string? (:content m)) (<= (count (:content m)) max-input-characters)
+                     (every? #{:role :content :tool_call_id :name} (keys m)))
+         false)))
+
+(defn sanitize-message
+  "The turn the authority and the origin see: role, content, tool binding —
+  never a client's extra fields."
+  [m]
+  (case (:role m)
+    "assistant" (cond-> {:role "assistant" :content (or (:content m) "")}
+                  (seq (:tool_calls m))
+                  (assoc :tool_calls (mapv #(hash-map :id (:id %) :type "function"
+                                                      :function {:name (get-in % [:function :name])
+                                                                 :arguments (get-in % [:function :arguments])})
+                                           (:tool_calls m))))
+    "tool" (cond-> {:role "tool" :content (:content m) :tool_call_id (:tool_call_id m)}
+             (string? (:name m)) (assoc :name (:name m)))
+    {:role (:role m) :content (:content m)}))
 
 (defn completion-openai-compatible?
   "OpenAI-compatible shape for local CLI/IDE agents on the bearer (PAT) path.
   The admission fields the transport cannot send are server-derived by the
   gateway (task defaults to code-review, scopeId resolves to the caller's own
-  approved scope). Core message rules are identical to completion? (system
-  turns allowed only as the first message, max-input-characters total,
-  non-empty, user-terminated); openai-ignorable-keys are accepted and dropped;
-  `stream: true` is accepted and served as a one-chunk SSE emulation by the
-  gateway; `max_completion_tokens` is the OpenAI alias of max_tokens; n must
-  be 1."
+  approved scope). Turns: an optional leading system turn, then user /
+  assistant (with native tool_calls) / tool turns, ending in a user or tool
+  turn; the input ceiling counts content plus tool-call arguments plus the
+  tool definitions. Tool definitions and tool_choice are forwarded (the
+  origin's parser returns native tool_calls). openai-ignorable-keys are
+  accepted and dropped; `stream: true` is served as a one-chunk SSE
+  emulation; `max_completion_tokens` is the OpenAI alias of max_tokens; n
+  must be 1."
   [body]
   (let [ms (:messages body)
         sys-only (and (vector? ms) (pos? (count ms))
                        (= "system" (get (first ms) :role)))
         chat (if sys-only (vec (drop 1 ms)) (vec ms))
+        tools (:tools body)
+        tools-chars (if (seq tools) (count (js/JSON.stringify (clj->js tools))) 0)
         ks (set (map name (keys body)))]
     (and (contains? model-ids (:model body))
          (or (nil? (:task body)) (contains? tasks (:task body)))
          (or (nil? (:scopeId body)) (text? (:scopeId body) 256))
-         (vector? ms) (<= 1 (count ms) 64)
+         (vector? ms) (<= 1 (count ms) 256)
          (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))
-         (every? #(and (map? %) (#{"user" "assistant"} (:role %))
-                        (text? (:content %) max-input-characters)
-                        (every? #{:role :content} (keys %))) chat)
+         (every? agent-message? chat)
          (or (not sys-only)
-             (and (every? #{:role :content} (keys (first ms)))
+             (and (every? #{:role :content :name} (keys (first ms)))
                   (text? (:content (first ms)) max-input-characters)))
-         (= "user" (:role (last ms)))
-         (<= (reduce + (map #(count (:content %)) ms)) max-input-characters)
+         (contains? #{"user" "tool"} (:role (last ms)))
+         (<= (+ tools-chars (reduce + 0 (map message-characters ms))) max-input-characters)
+         (or (nil? tools) (and (vector? tools) (<= (count tools) max-tools) (every? tool-def? tools)))
+         (tool-choice? (:tool_choice body))
+         (or (nil? (:tool_choice body)) (seq tools))
          (or (nil? (:max_tokens body)) (output-tokens? (:max_tokens body)))
          (or (nil? (:max_completion_tokens body)) (output-tokens? (:max_completion_tokens body)))
          (or (nil? (:stream body)) (boolean? (:stream body)))
          (or (nil? (:n body)) (= 1 (:n body)))
-         (or (nil? (:tools body)) (vector? (:tools body)))
-         (every? #(or (#{"model" "messages" "max_tokens" "max_completion_tokens" "task" "scopeId" "stream" "n"} %)
+         (every? #(or (#{"model" "messages" "max_tokens" "max_completion_tokens" "task" "scopeId"
+                          "stream" "n" "tools" "tool_choice"} %)
                       (contains? openai-ignorable-keys %)) ks))))
 
 (defn scope-approved? [record body now]

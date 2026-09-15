@@ -140,6 +140,53 @@ assert.deepEqual(storedJob.usageReceipt && {
   assert.equal(rs.json.status, "failed");
 }
 
+// 6c. native tool calls: the request's tools reach the origin verbatim, and
+// an answer with tool_calls and null content is a SUCCEEDED job carrying
+// toolCalls + finishReason tool_calls (an agent's turn), never an empty
+// result. Measured 2026-09-15: with tools dropped the agent's calls came
+// back empty and it fell back to another provider.
+{
+  const realUpstream = globalThis.fetch;
+  let seenTools = null;
+  globalThis.fetch = async (url, init) => {
+    const req = JSON.parse(String(init.body));
+    seenTools = { tools: req.tools, tool_choice: req.tool_choice, roles: req.messages.map(m => m.role) };
+    return new Response(JSON.stringify({
+      id: "chatcmpl-tool", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      choices: [{ index: 0, finish_reason: "tool_calls", message: { role: "assistant", content: null,
+        tool_calls: [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{\"path\":\"hello.txt\",\"content\":\"hi\"}" } }] } }],
+      usage: { prompt_tokens: 40, completion_tokens: 20, total_tokens: 60 },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const toolJobId = "44444444-4444-4444-8444-444444444444";
+  const rt = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: toolJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 256,
+      tools: [{ type: "function", function: { name: "write_file", parameters: { type: "object", properties: { path: { type: "string" } } } } }],
+      tool_choice: "auto",
+      messages: [{ role: "system", content: "You are an agent." }, { role: "user", content: "Create hello.txt" },
+        { role: "assistant", content: "", tool_calls: [{ id: "call_0", type: "function", function: { name: "read_file", arguments: "{}" } }] },
+        { role: "tool", tool_call_id: "call_0", content: "(no such file)" }] },
+  });
+  assert.equal(rt.status, 200, JSON.stringify(rt));
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  assert.equal(seenTools.tools.length, 1, "tools must reach the origin");
+  assert.equal(seenTools.tools[0].function.name, "write_file");
+  assert.equal(seenTools.tool_choice, "auto");
+  assert.deepEqual(seenTools.roles, ["system", "user", "assistant", "tool"]);
+  const toolJob = JSON.parse(await state.storage.get("job:" + toolJobId));
+  assert.equal(toolJob.status, "succeeded", JSON.stringify(toolJob));
+  assert.equal(toolJob.content, null);
+  assert.equal(toolJob.finishReason, "tool_calls");
+  assert.deepEqual(toolJob.toolCalls, [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{\"path\":\"hello.txt\",\"content\":\"hi\"}" } }]);
+  const rts = await call("/jobs/status", { principalId: principal, sessionRef, jobId: toolJobId });
+  assert.equal(rts.json.status, "succeeded");
+  assert.equal(rts.json.toolCalls[0].function.name, "write_file");
+  assert.equal(rts.json.finishReason, "tool_calls");
+}
+
 // 7. replay same input -> same receipt, not double-counted
 r = await call("/jobs/create", {
   principalId: principal, sessionRef, jobId, policyVersion: "whitehat-2026-09-12-v1",
