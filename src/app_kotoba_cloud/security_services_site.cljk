@@ -34,7 +34,7 @@
               "The first-party security services suite on kotoba.cloud. CTEM, DAST and SAST findings flow into the VM ledger in one shared schema.")
       :nav (catalog/breadcrumb
             "Security services"
-            [["ホーム" "/ja/"]
+            [["ホーム" "/"]
              ["Apps" "/apps/"]
              ["セキュリティサービス" nil]])}
      [:div {:class "kc-secsvc"}
