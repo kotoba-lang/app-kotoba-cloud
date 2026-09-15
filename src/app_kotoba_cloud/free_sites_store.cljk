@@ -52,7 +52,12 @@
                                   (re-matches #"Biscuit [A-Za-z0-9_-]{80,8192}" authorization))
                      (fail! :registry-authorization-required))
                    (fetch! (str origin "/xrpc/ai.gftd.apps.kotobase." method)
-                           #js {:method "POST" :redirect "error" :cache "no-store"
+                           ;; :redirect "manual", never "error": workerd's fetch
+                           ;; rejects "error" before the request leaves (the
+                           ;; Stripe webhook hop lost 5/5 deliveries to it,
+                           ;; 2026-09-15). Not enabled in the Worker yet; a
+                           ;; redirect here is a 3xx status, refused below.
+                           #js {:method "POST" :redirect "manual" :cache "no-store"
                                 :headers #js {"content-type" "application/json"
                                               "authorization" authorization
                                               "x-kotobase-tenant-did" tenant-did
