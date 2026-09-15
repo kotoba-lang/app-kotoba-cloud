@@ -26,7 +26,8 @@
 (def paths
   #{"/v1/org/sso/status" "/v1/org/sso/configure" "/v1/org/sso/remove" "/v1/org/sso/sync"
     "/v1/org/sso/start"
-    "/v1/account/identities" "/v1/account/identities/revoke"})
+    "/v1/account/identities" "/v1/account/identities/revoke"
+    "/v1/account/link/providers"})
 
 (def link-providers #{"google" "github"})
 (def sso-plans #{"team" "enterprise"})
@@ -287,9 +288,21 @@
 (defn route [request env viewer-fn respond]
   (let [url (js/URL. (.-url request)) path (.-pathname url) method (.-method request)
         cookie (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)
-        read? (contains? #{"/v1/org/sso/status" "/v1/org/sso/start" "/v1/account/identities"} path)]
+        read? (contains? #{"/v1/org/sso/status" "/v1/org/sso/start" "/v1/account/identities"
+                           "/v1/account/link/providers"} path)]
     (cond
       (not= method (if read? "GET" "POST")) (respond {:error {:code "method-not-allowed"}} 405)
+
+      ;; Which providers the identity plane can talk to, so the page shows a
+      ;; button only for a provider that can finish. Public and session-free
+      ;; (the same answer auth.kotoba.cloud gives anyone); the page's CSP keeps
+      ;; connect-src 'self', so the apex relays it.
+      (= path "/v1/account/link/providers")
+      (-> (js/fetch (str profile/identity-origin "/v1/link/providers")
+                    #js {:headers #js {"accept" "application/json"} :signal (js/AbortSignal.timeout 10000)})
+          (.then (fn [r] (shared/bounded-json r 4096)))
+          (.then (fn [json] (respond {:providers (vec (filter link-providers (:providers json)))} 200)))
+          (.catch (fn [_] (respond {:providers []} 200))))
       (and (not read?) (not (shared/origins (.get (.-headers request) "origin"))))
       (respond {:error {:code "origin-not-allowed"}} 403)
       (and (not read?) (not= "application/json" (.get (.-headers request) "content-type")))
