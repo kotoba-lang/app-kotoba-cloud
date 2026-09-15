@@ -222,8 +222,11 @@
        (case (:role m)
          "user" (and (text? (:content m) max-input-characters)
                      (every? #{:role :content :name} (keys m)))
+         ;; reasoning / reasoning_content: what a client echoes back from a
+         ;; thinking model's earlier turn; accepted and dropped by
+         ;; sanitize-message (never re-sent to the origin)
          "assistant" (let [tc (:tool_calls m) c (:content m)]
-                       (and (every? #{:role :content :tool_calls :name} (keys m))
+                       (and (every? #{:role :content :tool_calls :name :reasoning :reasoning_content} (keys m))
                             (or (nil? c) (string? c))
                             (or (nil? tc) (and (vector? tc) (<= 1 (count tc) max-tool-calls) (every? tool-call? tc)))
                             (or (text? c max-input-characters) (seq tc))))
@@ -281,7 +284,7 @@
                     (str "messages[" (+ i (if sys-only 1 0)) "]: role " (pr-str (:role m))
                          " — user needs non-empty string content; assistant needs string content or tool_calls"
                          " (id, type function, function.name, function.arguments string) and only"
-                         " role/content/tool_calls/name; tool needs tool_call_id and string content")))
+                         " role/content/tool_calls/name/reasoning/reasoning_content; tool needs tool_call_id and string content")))
                 (map-indexed vector chat))
           (cond
             (not (contains? #{"user" "tool"} (:role (last ms)))) "messages: the last turn must be user or tool"

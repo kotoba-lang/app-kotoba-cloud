@@ -138,6 +138,29 @@ assert.deepEqual(storedJob.usageReceipt && {
   // and the poll reports the failure, not a receipt
   const rs = await call("/jobs/status", { principalId: principal, sessionRef, jobId: failJobId });
   assert.equal(rs.json.status, "failed");
+  // The same prompt again re-dispatches the FAILED reservation (the origin is
+  // back) instead of replaying the failure — measured live 2026-09-15: the
+  // second identical request answered 502 in 0.3 s without a run.
+  const usedBefore = JSON.parse(await state.storage.get("record")).usage.count;
+  const rr = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rr.status, 200, JSON.stringify(rr));
+  await new Promise(r => setTimeout(r, 50));
+  const retried = JSON.parse(await state.storage.get("job:" + failJobId));
+  assert.equal(retried.status, "succeeded", "a failed reservation must run again: " + JSON.stringify(retried));
+  assert.equal(retried.content, "Fix authorization.");
+  assert.equal(JSON.parse(await state.storage.get("record")).usage.count, usedBefore + 1, "the retry is counted");
+  // a succeeded reservation is still replayed, not re-run
+  const rr2 = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rr2.json.receiptId, "receipt-" + failJobId);
+  assert.equal(JSON.parse(await state.storage.get("record")).usage.count, usedBefore + 1, "a replay is not counted");
 }
 
 // 6c. native tool calls: the request's tools reach the origin verbatim, and

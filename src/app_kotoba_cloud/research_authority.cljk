@@ -1044,7 +1044,13 @@
                                           (and prior (not= (get-in body [:request :messages])
                                                            (get-in prior [:request :messages])))
                                           (response {:error "job-input-conflict"} 409)
-                                          prior (response (job-response prior record (:sessionRef body) now) 200)
+                                          ;; a FAILED reservation is not a receipt: the same
+                                          ;; prompt again re-dispatches (the deterministic id
+                                          ;; otherwise made one transient origin failure
+                                          ;; permanent for that prompt — measured 2026-09-15:
+                                          ;; second identical request 502 in 0.3 s, no run)
+                                          (and prior (not= "failed" (:status prior)))
+                                          (response (job-response prior record (:sessionRef body) now) 200)
                                           :else
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
                                                      :status "queued" :receiptId (str "receipt-" (:jobId body))
