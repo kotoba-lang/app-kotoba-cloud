@@ -4602,6 +4602,21 @@
       "pricingMode": "quote-based",
       "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
       "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)"
+    },
+    {
+      "id": "trend-vbts",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "ウイルスバスター トータルセキュリティ スタンダード / プレミアム",
+      "categoryId": "edr-xdr",
+      "pricingMode": "public-list",
+      "pricingNote": "公式オンラインショップで税込の公開価格 (public list)。スタンダード 3年版(自動更新) 16,940円(税込)、3年契約終了後は年額7,480円(税込)で自動更新。プレミアムはお困りごと相談サービス (+217円/月相当) を追加。価格は変更の可能性あり (取得日 2026-09-15)。",
+      "pricingUrl": "https://virusbuster.jp/vb/trial/sem/split_vb_ms.htm",
+      "complianceFits": [
+        "cis-controls",
+        "nist-csf-20",
+        "pci-dss-40"
+      ]
     }
   ]
 }

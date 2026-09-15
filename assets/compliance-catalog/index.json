@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:13:38.001Z",
+ "generatedAt": "2026-09-15T09:15:07.063Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 353,
+ "productCount": 354,
  "ontology": {
   "nodes": 44,
-  "claims": 3860,
+  "claims": 3872,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeraahkfaa2f6y3l7z3t6ou4tajhhzakmz3agqvbutn5i6g46zo7jila"
+   "/": "baguqeerafafe3tfsldjncuabuq46746iwyweizdrl55r2u55ubpzaujauh2a"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -7155,6 +7155,24 @@
    "record": {
     "/": "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a"
    }
+  },
+  {
+   "id": "trend-vbts",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター トータルセキュリティ スタンダード / プレミアム",
+   "categoryId": "edr-xdr",
+   "pricingMode": "public-list",
+   "pricingNote": "公式オンラインショップで税込の公開価格 (public list)。スタンダード 3年版(自動更新) 16,940円(税込)、3年契約終了後は年額7,480円(税込)で自動更新。プレミアムはお困りごと相談サービス (+217円/月相当) を追加。価格は変更の可能性あり (取得日 2026-09-15)。",
+   "pricingUrl": "https://virusbuster.jp/vb/trial/sem/split_vb_ms.htm",
+   "complianceFits": [
+    "cis-controls",
+    "nist-csf-20",
+    "pci-dss-40"
+   ],
+   "record": {
+    "/": "baguqeeratdtebat3c6igxyudt65z7g7cbhpwiokrqohplqcyyhpteojdlwta"
+   }
   }
  ],
  "blocks": {
@@ -9003,18 +9021,23 @@
    "bytes": 377,
    "codec": "dag-json"
   },
-  "baguqeeraahkfaa2f6y3l7z3t6ou4tajhhzakmz3agqvbutn5i6g46zo7jila": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraahkfaa2f6y3l7z3t6ou4tajhhzakmz3agqvbutn5i6g46zo7jila.json",
+  "baguqeeratdtebat3c6igxyudt65z7g7cbhpwiokrqohplqcyyhpteojdlwta": {
+   "path": "/compliance-data/compliance/blocks/baguqeeratdtebat3c6igxyudt65z7g7cbhpwiokrqohplqcyyhpteojdlwta.json",
+   "bytes": 700,
+   "codec": "dag-json"
+  },
+  "baguqeerafafe3tfsldjncuabuq46746iwyweizdrl55r2u55ubpzaujauh2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerafafe3tfsldjncuabuq46746iwyweizdrl55r2u55ubpzaujauh2a.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerapj2jc5mu7ilkjgz6it5zcgn25pm5dhohqg4dbqin4lpeuaslijua": {
-   "path": "/compliance-data/compliance/blocks/baguqeerapj2jc5mu7ilkjgz6it5zcgn25pm5dhohqg4dbqin4lpeuaslijua.json",
-   "bytes": 251470,
+  "baguqeeramrbhztj6xp6vpjnehmie6v535poylpoddizm2jeexhhr5motdcba": {
+   "path": "/compliance-data/compliance/blocks/baguqeeramrbhztj6xp6vpjnehmie6v535poylpoddizm2jeexhhr5motdcba.json",
+   "bytes": 252458,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerapj2jc5mu7ilkjgz6it5zcgn25pm5dhohqg4dbqin4lpeuaslijua"
+  "/": "baguqeeramrbhztj6xp6vpjnehmie6v535poylpoddizm2jeexhhr5motdcba"
  }
 }
