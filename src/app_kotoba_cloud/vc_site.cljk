@@ -1,0 +1,41 @@
+(ns app-kotoba-cloud.vc-site
+  "VC fund catalog (DNX Capital / In-Q-Tel / SYN Ventures): funds, funding
+   rounds, exit outcomes, cross-fund co-investment clusters, system dynamics
+   and strategy reads. Same shell pattern as the compliance catalog."
+  (:require [cloud-kotoba-dds.catalog :as catalog]
+            [jp-go-dds.core :as dds]))
+
+(def css
+  ".kc-vc-row{list-style:none;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);margin-bottom:var(--hig-spacing-2)}\n.kc-vc-row__btn{all:unset;display:block;inline-size:100%;padding:var(--hig-spacing-3) var(--hig-spacing-4);cursor:pointer}\n.kc-vc-row__btn:hover{background:var(--hig-color-secondary-system-background)}\n.kc-vc-row__name{display:block;font-weight:600}\n.kc-vc-row__meta{display:block;color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}\n.kc-vc-empty{color:var(--hig-color-secondary-label);list-style:none;padding:var(--hig-spacing-4)}\n.kc-vc-detail{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);padding:var(--hig-spacing-5);background:var(--hig-color-secondary-system-background)}")
+
+(defn view
+  ([] (view false))
+  ([embedded?]
+   (catalog/page
+    {:title "VC fund カタログ（DNX Capital / In-Q-Tel / SYN Ventures: ファンド・調達・因果・関係）"
+     :lead "アーリーステージ B2B/セキュリティ系 VC の fund 実体、ラウンド調達、出口、そして fund 間の共同投資クラスタと system dynamics を、実 fetch した公開ページのみから出したオントロジー / データカタログです。各レコードに出典 URL と layer（primary-fetched / secondary-reported）を付けています。"
+     :embedded? embedded?
+     :id "kcv-main"
+     :nav (catalog/breadcrumb
+           "カタログ"
+           [["ホーム" "/"]
+            ["セキュリティ公開データ" "/security/"]
+            ["このカタログ" nil]])}
+    (catalog/callout
+     [:strong "使い方："]
+     " 「Fund」「Company」「Relation」「Dynamics」タブで検索・展開できます。データは /vc-data/vc/index.json（IPLD インデックス）と ontology.jsonld / relations.json の JSON-LD クレームとして機械可読です。")
+    (catalog/status "kcv-summary" "データを読み込んでいます…")
+    (catalog/tabs {:id "kcv-tabs" :label "カタログ種別"})
+    (catalog/tools
+     {:search-id "kcv-search" :search-label "検索"
+      :search-placeholder "fund 名・会社名・acquirer で検索"})
+    (catalog/grid
+     {:list-id "kcv-results" :list-label "一覧"}
+     (catalog/detail {:id "kcv-detail" :label "詳細"}))
+    (catalog/about
+     {:summary "このカタログについて"
+      :links [[:a {:href "/vc-data/vc/index.json"} "IPLD インデックス"]
+              [:a {:href "/vc-data/vc/ontology.jsonld"} "オントロジー (JSON-LD)"]
+              [:a {:href "/vc-data/vc/relations.json"} "関係 (claims)"]]
+      :footnote "2026-09-15/16 実 fetch（HTTP 200）: dnxcapital.vc / dnx.vc (archive) / iqt.org / syncapital.vc / iceye.com PR / en.wikipedia.org。layer: primary-fetched = 本文を読了、secondary-reported = 静的スナップショット partial 由来。iqt.org の portfolio は lazy-load のため静的 portion に 238 タイルのみ含まれる（Cylance を含む）。"})
+    [:script {:src "/js/vc-catalog.js" :defer true}])))

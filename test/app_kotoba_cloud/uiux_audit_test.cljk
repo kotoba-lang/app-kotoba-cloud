@@ -24,7 +24,8 @@
                 "/security/aup/" "/security/services/" "/security/csf2/" "/billing/" "/legal/" "/legal/tokushoho/"
                 "/agent-quickstart.md" "/ekyc.md" "/llms.txt" "/security-data/pep/index.json"
                 "/security-data/pep/schema.edn" "/security-data/index.json" "/compliance-data/compliance/index.json"
-                "/security/" "/security/compliance/"}
+                "/vc-data/vc/index.json" "/vc-data/vc/ontology.jsonld" "/vc-data/vc/relations.json"
+                "/security/" "/security/compliance/" "/vc/"}
    :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"
             ;; worker.cljk: Continue with Google/GitHub hand-offs (ADR-2609151900)
             "/sign-in/" "/account/link/"]

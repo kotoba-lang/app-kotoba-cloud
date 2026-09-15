@@ -1,0 +1,28 @@
+{
+  "relations": [
+    {"s": "fund/dnx-capital", "p": "invested", "o": "company/iceye", "via": "Series B 2018-05-24", "layer": "primary-fetched"},
+    {"s": "fund/dnx-capital", "p": "invested", "o": "company/cylance", "via": "DNX US fund portfolio (Exited)", "layer": "primary-fetched"},
+    {"s": "fund/dnx-capital", "p": "invested", "o": "company/jask", "via": "DNX US fund portfolio (Exited)", "layer": "primary-fetched"},
+    {"s": "fund/dnx-capital", "p": "invested", "o": "company/mitiga", "via": "DNX US fund portfolio (Active)", "layer": "primary-fetched"},
+    {"s": "fund/dnx-capital", "p": "invested", "o": "company/fyde", "via": "DNX US fund portfolio (Exited)", "layer": "primary-fetched"},
+    {"s": "fund/in-q-tel", "p": "invested", "o": "company/cylance", "via": "2015-09", "layer": "primary-fetched"},
+    {"s": "company/cylance", "p": "acquired-by", "o": "BlackBerry", "via": "USD 1.4B, 2019-02", "layer": "primary-fetched"},
+    {"s": "fund/dnx-capital", "p": "member-of", "o": "Draper Network", "via": "Draper Associates / Draper Esprit share the lineage", "layer": "primary-fetched"},
+    {"s": "fund/dnx-capital", "p": "co-invested-with", "o": "fund/in-q-tel", "via": "same rounds: Cylance", "layer": "primary-fetched"},
+    {"s": "fund/in-q-tel", "p": "lineage-of", "o": "fund/syn-ventures", "via": "same focus list + $900m AUM 2021 start on syncapital.vc; hypothesis (secondary-reported)", "layer": "secondary-reported"}
+  ],
+  "coInvestmentClusters": [
+    {"fundA": "fund/dnx-capital", "fundB": "fund/in-q-tel", "companies": ["company/cylance"]},
+    {"fundA": "fund/dnx-capital", "fundB": "fund/syn-ventures", "companies": ["company/cylance"], "note": "via In-Q-Tel lineage"}
+  ],
+  "systemDynamics": [
+    {"id": "loop-1", "name": "Exit-recycling loop", "steps": ["Government/IC demand pulls early security startups (IQT/SYN)", "platform acquirers buy them (Cylance->BlackBerry USD 1.4B 2019)", "exit proceeds recycle into next fund vintage", "category knowledge concentrates in operator-led funds"]},
+    {"id": "loop-2", "name": "Cross-border diffusion loop (DNX)", "steps": ["DNX takes Japan/ASEAN early-stage B2B", "200+ corporate partners + SPROUND provide first customers", "US fund (San Mateo) adds second-stage capital", "portfolio count compounds (100+)"]},
+    {"id": "stock-1", "name": "Non-capital moat", "notes": ["IQT/SYN: CISO network + design partners + acquirer network", "DNX: corporate-partner network + venture studio (Alloy Partners)", "both reduce cash need vs pure capital funds"]}
+  ],
+  "strategy": [
+    {"id": "st-1", "for": "JP/ASEAN B2B & AI startups", "read": "DNX path: seed->growth with corporate design customers; the 200+ partner base is the diffusion stock."},
+    {"id": "st-2", "for": "security-category startups", "read": "IQT/SYN path: acquirer-network exits; expect acquired outcomes rather than IPO in category."},
+    {"id": "st-3", "for": "fund selection", "read": "co-investment overlap (Cylance cluster) shows DNX and IQT/SYN are complementary (diffusion vs acquirer network), not competing."}
+  ]
+}
