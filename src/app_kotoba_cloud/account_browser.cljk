@@ -257,6 +257,20 @@
             (.append div text btn)
             (.append host div)))))))
 
+(defn render-link-providers!
+  "Show a Continue-with / link button only for a provider auth.kotoba.cloud
+  can finish with; a button that leads to 'not configured' is worse than
+  none. The buttons start hidden in the document."
+  [r]
+  (let [enabled (set (:providers r))]
+    (doseq [[provider ids] {"google" ["account-continue-google" "account-link-google"]
+                            "github" ["account-continue-github" "account-link-github"]}
+            id ids]
+      (if (contains? enabled provider) (show! id) (hide! id)))
+    (when (empty? enabled)
+      (say! "account-linked-note"
+            (t "Google / GitHub 連携はこの環境ではまだ有効化されていません。" "Google / GitHub linking is not enabled in this environment yet.")))))
+
 (defn render-link-outcome!
   "The apex is returned to with ?linked=<provider> or ?link_error=<code>
   after auth.kotoba.cloud's link callback."
@@ -522,6 +536,7 @@
       (.addEventListener b "click" (fn [_] (when-let [h (selected-org)]
                                              (set! (.-href js/location) (str "/v1/org/sso/start?org=" (js/encodeURIComponent h)))))))
     (render-link-outcome!)
+    (-> (api "/v1/account/link/providers") (.then render-link-providers!))
     (-> (refresh!)
         (.then (fn [_]
                  ;; The org list is known once refresh! resolved; a ?sso=

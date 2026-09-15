@@ -122,8 +122,8 @@
    [:div {:id "account-linked"}
     (row "状態" "account-linked-state")]
    (dds/row
-    (dds/button "Google を連携" {:id "account-link-google" :href "/account/link/google" :type :outline})
-    (dds/button "GitHub を連携" {:id "account-link-github" :href "/account/link/github" :type :outline}))
+    (dds/button "Google を連携" {:id "account-link-google" :href "/account/link/google" :type :outline :attrs {:hidden true}})
+    (dds/button "GitHub を連携" {:id "account-link-github" :href "/account/link/github" :type :outline :attrs {:hidden true}}))
    (console/note "" {:id "account-linked-note" :role "status"})
    (details "連携アカウントとは"
             "Google / GitHub のアカウントを紐づけると、次回から「Google で続行」でこのアカウントのパスキーが提案されます。連携アカウントはログイン手段ではなく、アカウントの目印です。"
@@ -247,8 +247,8 @@
       (dds/button "サインイン" {:id "account-sign-in" :href sign-in-href :type :solid-fill})
       ;; Google / GitHub name the account; the passkey or wallet proves it
       ;; (ADR-2609151900). The apex hands off to auth.kotoba.cloud's link start.
-      (dds/button "Google で続行" {:id "account-continue-google" :href "/sign-in/google" :type :outline})
-      (dds/button "GitHub で続行" {:id "account-continue-github" :href "/sign-in/github" :type :outline}))
+      (dds/button "Google で続行" {:id "account-continue-google" :href "/sign-in/google" :type :outline :attrs {:hidden true}})
+      (dds/button "GitHub で続行" {:id "account-continue-github" :href "/sign-in/github" :type :outline :attrs {:hidden true}}))
      [:p {:class "ck-console__note"}
       "Google / GitHub はアカウントの特定に使います。ログイン自体はパスキーまたはウォレットで行い、パスワードは使いません。"]]
     (into [:div {:id "account-console-body" :class "kc-account" :hidden true}]
