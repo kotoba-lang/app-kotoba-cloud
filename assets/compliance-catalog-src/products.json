@@ -4815,7 +4815,11 @@
       "categoryId": "password-mgr",
       "pricingMode": "public-list",
       "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/idp.html",
-      "pricingNote": "standalone product page https://www.trendmicro.com/ja_jp/forHome/products/pwmgr.html now 301-redirects to the トレンドマイクロ ID プロテクション page (HTTP 200, verified 2026-09-15) — the password manager is sold as a bundled feature of ID プロテクション (subscription via in-app purchase, no separate price list on the ja_jp page)"
+      "pricingNote": "standalone product page https://www.trendmicro.com/ja_jp/forHome/products/pwmgr.html now 301-redirects to the トレンドマイクロ ID プロテクション page (HTTP 200, verified 2026-09-15) — the password manager is sold as a bundled feature of ID プロテクション (subscription via in-app purchase, no separate price list on the ja_jp page)",
+      "complianceFits": [
+        "cis-controls",
+        "nist-csf-20"
+      ]
     }
   ]
 }
