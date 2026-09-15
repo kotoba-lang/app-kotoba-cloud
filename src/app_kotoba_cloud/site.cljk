@@ -1058,6 +1058,36 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :extra-css (str tokens/bridge-css docs-css)}
    (dds/container (content-fn (= locale :ja)))))
 
+(defn docs-index-html
+  "/docs/ — the landing the sidebar's ドキュメント item links. It did not
+   exist until 2026-09-15 (the nav linked a 404 on every page; shinkansen
+   :links-resolve now refuses the build when a same-origin link has no
+   document behind it). One list, three sections, each a real document."
+  [locale]
+  (let [ja? (= locale :ja)]
+    (docs-page locale
+               (fn [ja?] (if ja? "ドキュメント — Kotoba Cloud" "Docs — Kotoba Cloud"))
+               "/docs/"
+               (fn [_]
+                 [:div {:class "kc-docs"}
+                  (dds/heading 1 (if ja? "ドキュメント" "Docs") {:size "36"})
+                  [:p {:class "kc-docs__lead"}
+                   (if ja? "研究 API の使い方、エージェント・IDE からの接続、グラフデータベースの案内。"
+                       "How to use the research API, connect agents and IDEs, and work with the graph database.")]
+                  [:ul {:class "kc-docs__list"}
+                   [:li [:strong (if ja? "API リファレンス" "API reference")]
+                    [:p (if ja? "クイックスタート、ストリーミング、ツール、構造化出力、エラー、レート制限、課金と利用量、BYOK、セキュリティサービス。"
+                            "Quickstart, streaming, tools, structured outputs, errors, rate limits, billing and usage, BYOK, security services.")]
+                    [:a {:href "/docs/reference/"} (if ja? "開く" "Open")]]
+                   [:li [:strong (if ja? "接続ガイド" "Integrations")]
+                    [:p (if ja? "Claude Code、Codex CLI、Cline、Cursor、Aider などから研究 API を呼び出す設定。"
+                            "Configure Claude Code, Codex CLI, Cline, Cursor, Aider and others to call the research API.")]
+                    [:a {:href "/docs/integrations/"} (if ja? "開く" "Open")]]
+                   [:li [:strong (if ja? "グラフ・オントロジーデータベース" "Graph and ontology database")]
+                    [:p (if ja? "Kotobase のグラフデータベース、Datalog クエリ、オントロジーの案内。"
+                            "The Kotobase graph database, Datalog queries and ontology.")]
+                    [:a {:href "/docs/graph/"} (if ja? "開く" "Open")]]]]))))
+
 (defn docs-integrations-html
   ([] (docs-integrations-html :en))
   ([locale]
@@ -1425,6 +1455,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
       ;; docs: integrations overview + one page per client (orcarouter pattern)
+      ;; /docs/ landing — the document the sidebar links (2026-09-15)
+      (spit-file (node-path/join root "docs" "index.html") (docs-index-html :en))
+      (spit-file (node-path/join root "ja" "docs" "index.html") (docs-index-html :ja))
       (spit-file (node-path/join root "docs" "reference" "index.html")
                  (docs-page :en (fn [_] "API reference — Kotoba Cloud") "/docs/reference/"
                             (fn [ja?]

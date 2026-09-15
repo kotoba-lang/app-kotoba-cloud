@@ -1,0 +1,33 @@
+(ns app-kotoba-cloud.csp
+  "The Content-Security-Policy each document family is served with — ONE
+  place, read by the Worker (worker.cljk) and by the UI/UX audit
+  (scripts/uiux-audit.cljk, uiux_audit_test) so the policy that ships is
+  the policy that is measured. 2026-09-15: abc2c4f moved the CSS to
+  /css/site.css while every policy still said style-src 'unsafe-inline'
+  under default-src 'none' — the browser never requested the sheet, every
+  page shipped unstyled, and the audit over the bytes said 100. The
+  shinkansen :csp-allows-assets axis now reads these strings.")
+
+(def public-document
+  "The apex, locale emits and every static site-layout page. connect-src
+   stays 'self' for first-party funnel POSTs; freebuff.com only so a
+   measured bfcid can load the vendor tag."
+  "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+
+(def account-document
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+
+(def admin-document
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+
+(def identity-document admin-document)
+
+(defn for-path
+  "The policy the Worker serves for a document path — the same dispatch
+   the routes below use, so the audit asks the question the browser asks."
+  [path]
+  (cond
+    (re-find #"^/account/?$" path) account-document
+    (re-find #"^/admin/" path) admin-document
+    (re-find #"^/identity/?$" path) identity-document
+    :else public-document))

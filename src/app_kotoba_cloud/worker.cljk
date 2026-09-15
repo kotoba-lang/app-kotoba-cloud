@@ -19,14 +19,14 @@
             [app-kotoba-cloud.pqc :as pqc]
             [app-kotoba-cloud.session :as session]
             [app-kotoba-cloud.pat :as pat]
+            [app-kotoba-cloud.csp :as csp]
             [goog.object :as gobj]))
 
 (def security-headers
   ;; connect-src stays 'self' for first-party funnel POSTs. freebuff.com is
   ;; allowed only so a measured bfcid can load the vendor tag. No OpenAI Ads
   ;; host is listed.
-  {"content-security-policy"
-   "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+  {"content-security-policy" csp/public-document
    "cross-origin-opener-policy" "same-origin"
    "referrer-policy" "no-referrer"
    "x-content-type-options" "nosniff"
@@ -818,7 +818,7 @@
         (#{"/" "/admin/" "/index.html"} path)
         (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/admin/") request))
             (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                             "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                                             "content-security-policy" csp/admin-document
                                              "x-robots-tag" "noindex"
                                              "referrer-policy" "no-referrer"})))
 
@@ -843,7 +843,7 @@
       (and (contains? #{"/identity" "/identity/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/identity/") request))
           (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                           "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                                           "content-security-policy" csp/identity-document
                                            "permissions-policy" "camera=(self), microphone=(), geolocation=(), payment=()"})))
 
       (contains? org-gateway/paths path)
@@ -852,7 +852,7 @@
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
           (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                           "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"})))
+                                           "content-security-policy" csp/account-document})))
 
       (contains? research-gateway/paths path)
       (research-gateway/route request env fetch-viewer private-json-response)

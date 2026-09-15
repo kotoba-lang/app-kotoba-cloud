@@ -162,7 +162,12 @@ npm run test:account-browser             # real browser: signed-out / signed-in 
 
 `npm run deploy` runs the audit between the build and `wrangler deploy` —
 `:assets-resolve` is the only place a deploy from a tree that lacks the
-browser bundle is caught. `docs/uiux-coscientist/` is the append-only
+browser bundle is caught. Four axes are **hard** (fail regardless of the
+floor, because they are breakage rather than degradation): `assets-resolve`,
+`links-resolve` (every same-origin `<a href>` must be an emitted document or
+a Worker route — `/docs/` was linked from 75 documents and never emitted),
+`unique-ids`, `csp-allows-assets` (the policy in `app-kotoba-cloud.csp` is
+what the Worker serves and what the audit reads). `docs/uiux-coscientist/` is the append-only
 measurement record (Generate → Reflect → Rank → Evolve → Meta per
 iteration, plus the per-axis delta from the previous one — the roadmap is
 a prediction, the delta is the proof). `uiux_audit_test.cljk` pins the
