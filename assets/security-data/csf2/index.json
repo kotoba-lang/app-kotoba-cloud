@@ -1,10 +1,10 @@
 {
  "head": {
-  "/": "baguqeerassdcevygf7ln52k4ax7tqfjhz57ewlyaxjuzo7626rkbgmw7qsya"
+  "/": "baguqeera2goxrzqbhmh2dxlgfbvoaebwja6tey7ovk5esfohcy7tcj3kjz2q"
  },
- "headUrl": "/security-data/csf2/blocks/baguqeerassdcevygf7ln52k4ax7tqfjhz57ewlyaxjuzo7626rkbgmw7qsya.json",
+ "headUrl": "/security-data/csf2/blocks/baguqeera2goxrzqbhmh2dxlgfbvoaebwja6tey7ovk5esfohcy7tcj3kjz2q.json",
  "version": 1,
- "generatedAt": "2026-09-14T18:45:13.972Z",
+ "generatedAt": "2026-09-15T18:41:34.288Z",
  "subcategoryCount": 106,
  "productCount": 40,
  "products": [
@@ -979,8 +979,8 @@
   "subcategoryCount": 106
  },
  "blocks": {
-  "baguqeerassdcevygf7ln52k4ax7tqfjhz57ewlyaxjuzo7626rkbgmw7qsya": {
-   "path": "/security-data/csf2/blocks/baguqeerassdcevygf7ln52k4ax7tqfjhz57ewlyaxjuzo7626rkbgmw7qsya.json",
+  "baguqeera2goxrzqbhmh2dxlgfbvoaebwja6tey7ovk5esfohcy7tcj3kjz2q": {
+   "path": "/security-data/csf2/blocks/baguqeera2goxrzqbhmh2dxlgfbvoaebwja6tey7ovk5esfohcy7tcj3kjz2q.json",
    "bytes": 962,
    "codec": "dag-json"
   },
