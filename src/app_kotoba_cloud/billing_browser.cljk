@@ -1,60 +1,62 @@
-(ns app-kotoba-cloud.billing-browser)
-(defn- status! [message] (when-let [el (.getElementById js/document "billing-status")] (set! (.-textContent el) message)))
+(ns app-kotoba-cloud.billing-browser
+  "Hydration for the billing console (billing-site). Reveal-when-known:
+  the balance tiles appear only with numbers from /v1/billing/status, the
+  sign-in block only when the session says signed-out, the plan buttons
+  only when /v1/billing/catalog says checkout is enabled. Nothing is
+  greyed out to mean 'unknown'.")
+
+(defn- el [id] (.getElementById js/document id))
+(defn- ja? [] (= "ja" (.-lang (.-documentElement js/document))))
+(defn- t [ja en] (if (ja?) ja en))
+(defn- status! [message] (when-let [x (el "billing-status")] (set! (.-textContent x) message)))
+(defn- show! [id] (when-let [x (el id)] (set! (.-hidden x) false)))
+(defn- cell! [id text]
+  (when-let [x (el id)] (.setAttribute x "data-state" "value") (set! (.-textContent x) text)))
+
 (defn- balances! []
   (-> (js/fetch "/v1/billing/status" #js {:credentials "same-origin"})
-      (.then (fn [r] (when (.-ok r) (.json r))))
+      (.then (fn [r]
+               (cond
+                 (.-ok r) (.json r)
+                 (contains? #{401 403} (.-status r)) :signed-out
+                 :else nil)))
       (.then (fn [body]
-               (when body
+               (cond
+                 (= :signed-out body) (show! "billing-signed-out")
+                 (nil? body) (status! (t "残高を取得できませんでした。" "Could not read the balance."))
+                 :else
                  (let [balances (js->clj (aget body "balances") :keywordize-keys true)
-                       available (fn [scope] (or (:availableMicroUSD (first (filter #(= scope (:scope %)) balances))) 0))
-                       el (.getElementById js/document "billing-balances")]
-                   (when el
-                     (set! (.-textContent el)
-                           (str "残り利用枠 / Available: AI $" (/ (available "ai") 1000000)
-                                " · 保存 / Storage " (/ (available "storage.capacity") 200000)
-                                " GiB · 保存超過分 $" (/ (available "storage") 1000000))))))))
-      (.catch (fn [_] nil))))
-(defn- connection! []
-  (when (= "1" (.get (.-searchParams (js/URL. (.-href js/location))) "connection-check"))
-    (let [el (.createElement js/document "p")]
-      (set! (.-id el) "billing-connection")
-      (.after (.getElementById js/document "billing-status") el)
-      (set! (.-textContent el) "本番決済の接続を確認しています…")
-      (-> (js/fetch "/v1/billing/readiness" #js {:credentials "same-origin"})
-          (.then (fn [r] (if (.-ok r) (.json r) (throw (js/Error. "sign-in-required")))))
-          (.then (fn [body]
-                   (set! (.-textContent el)
-                         (if (= "connected" (aget body "status"))
-                           (str "AWAI接続確認済み。Stripe決済: " (if (true? (aget body "chargesEnabled")) "利用可能" "制限中")
-                                "。本番課金の開放は別途確認が必要です。")
-                           (str "本番接続の確認結果: " (aget body "status"))))))
-          (.catch (fn [_] (set! (.-textContent el) "接続を確認できません。ログイン状態を確認してください。")))))))
+                       available (fn [scope] (or (:availableMicroUSD (first (filter #(= scope (:scope %)) balances))) 0))]
+                   (cell! "billing-balance-ai" (str "$" (.toFixed (/ (available "ai") 1000000) 2)))
+                   (cell! "billing-balance-storage" (str (.toFixed (/ (available "storage.capacity") 200000) 1) " GiB"))
+                   (cell! "billing-balance-excess" (str "$" (.toFixed (/ (available "storage") 1000000) 2)))
+                   (show! "billing-balances")))))
+      (.catch (fn [_] (status! (t "残高を取得できませんでした。" "Could not read the balance."))))))
+
 (defn- action! [path sku]
   (-> (js/fetch path #js {:method "POST" :credentials "same-origin" :headers #js {"content-type" "application/json"}
                          :body (js/JSON.stringify #js {:sku sku :requestId (.randomUUID js/crypto)})})
-      (.then (fn [r] (if (.-ok r) (.json r) (throw (js/Error. "Billing is not available. Please sign in and try again.")))))
+      (.then (fn [r] (if (.-ok r) (.json r) (throw (js/Error. (t "決済を開始できません。サインインして再試行してください。" "Billing is not available. Please sign in and try again."))))))
       (.then (fn [body] (let [url (js/URL. (.-url body))]
                          (if (and (= "https:" (.-protocol url)) (contains? #{"checkout.stripe.com" "billing.stripe.com"} (.-hostname url)))
                            (.assign js/location (.-href url)) (throw (js/Error. "Invalid payment destination"))))))
       (.catch #(status! (.-message %)))))
+
 (defn init! []
-  (when (.getElementById js/document "billing-status")
-    (when-not (.getElementById js/document "billing-balances")
-      (let [el (.createElement js/document "p")]
-        (set! (.-id el) "billing-balances")
-        (.after (.getElementById js/document "billing-status") el)))
+  (when (el "billing-status")
     (balances!)
-    (connection!)
     (-> (js/fetch "/v1/billing/catalog") (.then #(.json %))
         (.then (fn [catalog]
                  (if-not (true? (aget catalog "checkoutEnabled"))
-                   (status! "料金は検証中です / Billing setup is pending.")
+                   (status! (t "料金は検証中です。購入はまだできません。" "Billing setup is pending; purchases are not available yet."))
                    (do
-                     (status! (if (= "test" (aget catalog "mode")) "テスト決済のみ・実際の請求はありません / Test payments only." ""))
+                     (status! (if (= "test" (aget catalog "mode"))
+                                (t "テスト決済のみ・実際の請求はありません。" "Test payments only — nothing is charged.")
+                                ""))
                      (doseq [button (array-seq (.querySelectorAll js/document "[data-billing-sku]"))]
-                       (set! (.-disabled button) false) (set! (.-textContent button) "選択 / Select")
+                       (set! (.-hidden button) false)
                        (.addEventListener button "click" #(action! "/v1/billing/checkout" (.getAttribute button "data-billing-sku"))))
-                     (let [button (.getElementById js/document "billing-portal")]
-                       (set! (.-disabled button) false)
+                     (when-let [button (el "billing-portal")]
+                       (show! "billing-manage")
                        (.addEventListener button "click" #(action! "/v1/billing/portal" nil)))))))
-        (.catch (fn [_] (status! "料金情報を取得できません / Billing unavailable."))))))
+        (.catch (fn [_] (status! (t "料金情報を取得できません。" "Billing information is unavailable.")))))))

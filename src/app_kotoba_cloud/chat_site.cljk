@@ -27,7 +27,7 @@
            (chat/welcome {:id "norbert-welcome"}
              [:h1 (:title (research-site/copy locale))]
              [:p (:vision (research-site/copy locale))]
-             [:a {:href (if ja? "/ja/#research-register" "/#research-register")}
+             [:a {:href "/#research-register"}
               (t "私たちの想い" "Our purpose")])
            (chat/message-list {:id "norbert-messages" :aria-label (t "メッセージ" "Messages")}))
          (chat/composer {:id "norbert-form"}
@@ -51,6 +51,6 @@
        [:option {:value "remediation"} (t "修正の検討" "Remediation")]]
       [:p (t "履歴はこのページを開いている間だけ保持します。" "History is kept only while this page is open.")]
       [:p [:a {:href login-href} (t "ログイン・本人確認" "Sign in and verify identity")]]
-      [:p [:a {:href (if ja? "/ja/#research-register" "/#research-register")} (t "利用条件・研究申請" "Access requirements and research application")]]]
+      [:p [:a {:href "/#research-register"} (t "利用条件・研究申請" "Access requirements and research application")]]]
      [:script {:src "/js/chat-components.js" :defer true}]
      [:script {:src "/js/norbert-chat.js" :defer true}]]))

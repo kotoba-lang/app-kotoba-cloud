@@ -66,7 +66,7 @@
     :status "live"
     :desc "脆弱性・攻撃手法・グループ・公開ログを、出典まで辿って調べる公開データカタログ (KEV / ATT&CK / OTRF)。"
     :desc-en "Public security-data catalog: KEV, ATT&CK and OTRF lab logs with sources you can trace."
-    :links [["ハブを開く" "/ja/security/"]
+    :links [["ハブを開く" "/security/"]
             ["IPLD" "/security-data/index.json"]]
     :meta ["KEV" "ATT&CK" "OTRF"]}
    {:id "compliance-catalog"
@@ -75,7 +75,7 @@
     :status "live"
     :desc "全世界のコンプライアンス基準 (ISO / SOC 2 / PCI DSS / GDPR / DORA / CRA ほか) と脆弱性対策製品のカテゴリ・価格・プロバイダーをまとめた出典付きカタログ。"
     :desc-en "Worldwide compliance frameworks and vulnerability-management product catalog: categories, providers and pricing, fully sourced."
-    :links [["カタログを開く" "/ja/security/compliance/"]
+    :links [["カタログを開く" "/security/compliance/"]
             ["IPLD" "/compliance-data/compliance/index.json"]
             ["生成スクリプト" "https://github.com/kotoba-lang/app-kotoba-cloud/blob/main/scripts/build-compliance-catalog.mjs"]]
     :meta ["16 基準" "350 プロダクト" "CSF 2.0 対応あり"]}

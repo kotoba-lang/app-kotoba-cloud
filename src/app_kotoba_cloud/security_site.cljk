@@ -23,7 +23,7 @@
      :id "security-main"
      :nav (catalog/breadcrumb
           "公開データ"
-          [["チャット" "/ja/"]
+          [["チャット" "/"]
            ["百科" "https://wiki.kotobase.net/"]
            ["このハブ" nil]
            ["LLM向け利用案内" "/security-data/README.md"]])}

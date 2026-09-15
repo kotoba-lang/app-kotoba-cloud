@@ -35,7 +35,6 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'missing'})}));
   await page.route('**/v1/research/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ineligible',reason:'verification-required',freeTier:{requestsPerDay:50,maxOutputTokens:4096},scopes:[]})}));
   await page.route('**/v1/org/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({organizations:[]})}));
-  await page.route('**/v1/secure',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({guardrails:{templates:['default']},firewall:{tools:['a','b'],observeMode:true},compliance:{frameworks:['nist-csf-2']}})}));
   await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:false})}));
  };
  const dupIds=()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)};
@@ -75,7 +74,6 @@ const shots=process.env.ACCOUNT_SHOTS||'';
       username:document.getElementById('account-username').textContent,
       ekyc:document.getElementById('account-ekyc-state').textContent,
       billing:document.getElementById('account-billing-state').dataset.state,
-      secure:document.getElementById('account-secure-firewall').textContent,
       cells, dup:(()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)})(),
       disabled:[...document.querySelectorAll('button[disabled]')].filter(b=>b.offsetParent!==null).map(b=>b.id),
       iw:innerWidth, scrollW:document.documentElement.scrollWidth,
@@ -87,7 +85,6 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(s.username!=='@hanako')throw Error('username '+s.username);
   if(s.ekyc!=='未確認')throw Error('ekyc '+s.ekyc);
   if(s.billing!=='value')throw Error('billing cell state '+s.billing);
-  if(!/2 tools/.test(s.secure))throw Error('secure cell '+s.secure);
   const bad=s.cells.filter(([,st])=>st==='loading'||st==='empty');
   if(bad.length)throw Error('cells not mapped: '+JSON.stringify(bad));
   if(s.dup.length)throw Error('duplicate ids '+JSON.stringify(s.dup));
@@ -98,12 +95,73 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     if(s.mainLeft<240||s.mainLeft>300)throw Error('desktop main offset '+s.mainLeft); }
   else { if(s.sbH>60)throw Error('phone nav is '+s.sbH+'px tall');
     if(s.sbW>s.iw)throw Error('phone nav is wider than the viewport ('+s.sbW+'px): the chip row must scroll inside it, not overflow it');
-    if(s.h1Top>160)throw Error('content starts at '+s.h1Top+'px on '+width+' (chip row + padding must leave the heading on the first screen)'); }
+    if(s.h1Top>220)throw Error('content starts at '+s.h1Top+'px on '+width+' (chip row + top bar + padding must leave the heading well inside the first screen)'); }
   if(shots)await page.screenshot({path:shots+'/account-signed-in-'+width+'.png',fullPage:true});
   await page.close();
  }
+ console.log('block shell');
+ // --- console shell on /account (signed in): setup chip, account chip ----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>!document.getElementById('kc-setup-chip').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({chip:document.getElementById('kc-setup-chip').textContent,state:document.getElementById('kc-setup-chip').dataset.state,
+    chipHref:document.getElementById('kc-setup-chip').getAttribute('href'),
+    bannerHidden:document.getElementById('kc-setup-banner').hidden,
+    creditHidden:document.getElementById('kc-credit-chip').hidden,
+    foot:document.getElementById('kc-session-nav-side').textContent.replace(/\\s+/g,' ').trim(),
+    section:document.querySelector('.kc-topbar__section').textContent.replace(/\\s+/g,' ').trim()}));
+  if(s.chip!=='はじめる 1/3')throw Error('setup chip '+s.chip);
+  if(s.state!=='pending'||!/account-panel-identity/.test(s.chipHref))throw Error('setup chip next '+JSON.stringify(s));
+  if(!s.bannerHidden)throw Error('banner must not repeat the panel on /account');
+  if(!s.creditHidden)throw Error('credit chip shown without a balance');
+  if(!/@hanako/.test(s.foot)||!/個人/.test(s.foot))throw Error('account chip '+s.foot);
+  if(s.section!=='アカウント')throw Error('section '+s.section);
+  await page.close();
+ }
+ console.log('block secure');
+ // --- /secure/: rendered from policy, versions confirmed, observe mode -----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  await page.route('**/v1/secure',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({guardrails:{version:'kotoba-guardrails-2026-09-v1'},firewall:{version:'kotoba-firewall-2026-09-v1',observeMode:false},compliance:{version:'kotoba-compliance-2026-09-v1'}})}));
+  await page.goto(base+'/secure/');
+  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({status:document.getElementById('secure-status').textContent,
+    observe:document.getElementById('secure-observe-mode').textContent,
+    rows:document.querySelectorAll('#guardrails tbody tr').length,
+    tools:document.querySelectorAll('#firewall tbody tr').length,
+    bannerHidden:document.getElementById('kc-setup-banner').hidden,
+    banner:document.getElementById('kc-setup-banner-text').textContent}));
+  if(s.rows!==5||s.tools!==5)throw Error('policy tables '+JSON.stringify(s));
+  if(!/観測モード: オフ/.test(s.observe))throw Error('observe chip '+s.observe);
+  if(!/一致/.test(s.status))throw Error('version status '+s.status);
+  if(s.bannerHidden||!/本人確認/.test(s.banner))throw Error('resume banner on a non-account page '+JSON.stringify(s));
+  await page.close();
+ }
+ console.log('block billing');
+ // --- /billing/ signed out: sign-in block, no greyed buttons ----------------
+ {
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  await fixture(false)(page);
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'sign-in-required'})}));
+  await page.route('**/v1/billing/catalog',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:false,mode:'test'})}));
+  await page.goto(base+'/billing/');
+  await page.waitForFunction(()=>!document.getElementById('billing-signed-out').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({disabled:document.querySelectorAll('button[disabled]').length,
+    visibleButtons:[...document.querySelectorAll('[data-billing-sku]')].filter(b=>!b.hidden).length,
+    balancesHidden:document.getElementById('billing-balances').hidden,
+    status:document.getElementById('billing-status').textContent,
+    scrollW:document.documentElement.scrollWidth,iw:innerWidth}));
+  if(s.disabled!==0||s.visibleButtons!==0)throw Error('billing idle controls '+JSON.stringify(s));
+  if(!s.balancesHidden)throw Error('balances shown while signed out');
+  if(!/検証中|pending/.test(s.status))throw Error('billing status '+s.status);
+  if(s.scrollW>s.iw)throw Error('billing overflow at 390');
+  await page.close();
+ }
  if(errors.length)throw Error(JSON.stringify(errors));
- console.log('PASS account browser: signed-out, signed-in cells mapped, no dup ids, layout 390/768/1440');
+ console.log('PASS account browser: signed-out, signed-in cells mapped, no dup ids, layout 390/768/1440, console shell, /secure/, /billing/');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
 "))

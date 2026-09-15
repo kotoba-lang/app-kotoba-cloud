@@ -18,7 +18,7 @@
   {:assets #{"/js/session.js" "/js/language-selector.js" "/css/site.css"}
    :stylesheets {"/css/site.css" (site/site-css)}
    :documents (into #{"/zh/"} (map #(str "/" (name %) "/") site/supported-locales)) ; locale emits
-   :documents-static #{"/" "/docs/" "/docs/reference/" "/docs/reference/quickstart/" "/docs/reference/errors/"
+   :documents-static #{"/" "/docs/" "/secure/" "/models/" "/blog/" "/docs/reference/" "/docs/reference/quickstart/" "/docs/reference/errors/"
                 "/docs/reference/billing-and-usage/" "/docs/integrations/" "/docs/graph/" "/apps/"
                 "/security/aup/" "/security/services/" "/security/csf2/" "/billing/" "/legal/" "/legal/tokushoho/"
                 "/agent-quickstart.md" "/ekyc.md" "/llms.txt" "/security-data/pep/index.json"
@@ -44,6 +44,10 @@
 
 (deftest sidebar-shell-documents-hold-the-floor
   (doseq [[file html] [["/docs/" (site/docs-index-html :ja)]
+                       ["/secure/" (site/secure-html)]
+                       ["/models/" (site/models-html)]
+                       ["/billing/" (site/billing-html :ja)]
+                       ["/en/billing/" (site/billing-html :en)]
                        ["/security/services/" (site/security-services-html)]
                        ["/docs/reference/quickstart/" ((site/docs-ref-html "quickstart") :ja)]
                        ["/security/aup/" (site/aup-html :ja)]

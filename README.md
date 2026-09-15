@@ -144,6 +144,18 @@ Deploy only after those checks pass:
 npm run deploy
 ```
 
+### Console IA
+
+The sidebar, the top bar's section label and the setup steps all derive from
+ONE table, `app-kotoba-cloud.console/groups` (views are data; the nav is
+generated — a destination added there cannot be forgotten in the nav, and a
+destination that does not resolve fails the build). Console documents:
+`/account`, `/billing/`, `/secure/` (guardrails / firewall / compliance,
+rendered from the policy the authority enforces), `/models/`, `/apps/`,
+`/docs/`. Every chip in the chrome (credit, setup progress, account) is
+hidden until its fact is known. Coverage against the reference console is
+recorded in `docs/uiux-coscientist/console-coverage.edn`.
+
 ### UI/UX document contract (shinkansen.audit) — the kaizen loop
 
 Every emitted document is scored by `shinkansen.audit` (13 deterministic

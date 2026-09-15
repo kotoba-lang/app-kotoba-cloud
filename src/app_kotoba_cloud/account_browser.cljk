@@ -151,16 +151,6 @@
           (:checkoutEnabled r) (t "有料枠の購入・管理は料金ページから行えます。" "Purchases and management are on the plans page.")
           :else (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet."))))
 
-(defn render-secure [r]
-  (let [ok? (and (:httpOk r) (:guardrails r))
-        cell! (fn [id text]
-                (if ok?
-                  (do (state! id :value) (say! id text))
-                  (state! id :error)))]
-    (cell! "account-secure-guardrails" (str/join ", " (:templates (:guardrails r))))
-    (cell! "account-secure-firewall" (str (count (:tools (:firewall r))) " tools · observe=" (:observeMode (:firewall r))))
-    (cell! "account-secure-compliance" (str/join ", " (:frameworks (:compliance r))))))
-
 (defn render-team [r]
   (let [host (el "account-team")]
     (when host
@@ -291,7 +281,6 @@
                  ;; fetch answers, and every fetch maps to one cell state
                  (doseq [id ["account-ekyc-state" "account-eligibility-state" "account-free-tier"
                              "account-scopes-state" "account-orgs-state" "account-team-state"
-                             "account-secure-guardrails" "account-secure-firewall" "account-secure-compliance"
                              "account-billing-state"]]
                    (state! id :loading))
                  (-> (api "/v1/research/ekyc/status") (.then render-ekyc))
@@ -299,7 +288,6 @@
                      (.then (fn [r] (render-eligibility r) (render-scopes (:scopes r [])))))
                  (-> (api "/v1/org/status" {})
                      (.then (fn [r] (render-orgs r) (render-team r))))
-                 (-> (api "/v1/secure") (.then render-secure))
                  (-> (api "/v1/billing/status") (.then render-billing)))))))
 
 (defn init! []

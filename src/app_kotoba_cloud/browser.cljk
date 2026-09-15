@@ -6,6 +6,7 @@
             [app-kotoba-cloud.attribution :as attribution]
             [app-kotoba-cloud.research-browser :as research-browser]
             [app-kotoba-cloud.session :as session]
+            [app-kotoba-cloud.shell-browser :as shell]
             [goog.object :as gobj]))
 
 (def freebuff-tag-src "https://freebuff.com/freebuff-tag.js")
@@ -122,9 +123,11 @@
                         (if english?
                           "Signed-in session confirmed. Next: connect this Principal to Kotobase."
                           "ログイン済みの session を確認しました。次: この Principal を Kotobase へ接続します。"))]
-    (doseq [nav-id ["kc-session-nav" "kc-session-nav-side"]]
-      (when-let [nav (element nav-id)]
-        (signed-in-menu! nav username)))
+    (when-let [nav (element "kc-session-nav")]
+      (signed-in-menu! nav username))
+    ;; the sidebar foot is the same account chip every console page shows
+    (when-let [nav (element "kc-session-nav-side")]
+      (shell/account-chip! nav username (if english? "Personal" "個人")))
     (when-let [action (element "kc-session-action")]
       (set! (.-textContent action) next-label)
       (.setAttribute action "href" next-href)
@@ -256,24 +259,17 @@
 
 (defn init! []
   (billing-browser/init!)
+  ;; every sidebar document: account chip, setup progress, credit chip —
+  ;; one session read shared by the chrome (no-op on documents without it)
+  (shell/hydrate-shell!)
+  (shell/hydrate-secure!)
+  (shell/hydrate-models!)
   (cond
     (contains? #{"/identity" "/identity/"} (.-pathname js/location))
     (identity-browser/init!)
 
     (contains? #{"/account" "/account/"} (.-pathname js/location))
-    (do (account-browser/init!)
-        ;; the sidebar's account entry follows the same session the console
-        ;; renders — one fact, one state on the page
-        (-> (js/fetch "/v1/session" #js {:credentials "same-origin"
-                                         :headers #js {"accept" "application/json"}})
-            (.then (fn [response] (when (.-ok response) (.json response))))
-            (.then (fn [payload]
-                     (when payload
-                       (let [viewer (session/viewer-model (js->clj payload :keywordize-keys true))]
-                         (when (:valid viewer)
-                           (when-let [nav (element "kc-session-nav-side")]
-                             (signed-in-menu! nav (:username viewer))))))))
-            (.catch (fn [_] nil))))
+    (account-browser/init!)
 
     :else
     (if (= "admin.kotoba.cloud" (.-hostname js/location))

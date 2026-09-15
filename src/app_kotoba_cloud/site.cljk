@@ -23,6 +23,10 @@
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.public-locales :as locales]
             [app-kotoba-cloud.locale :as locale]
+            [app-kotoba-cloud.console :as console]
+            [app-kotoba-cloud.secure-site :as secure-site]
+            [app-kotoba-cloud.models-site :as models-site]
+            [app-kotoba-cloud.billing-site :as billing-site]
             [app-kotoba-cloud.extended-translations :as extended]
             [kotoba.lang.text :as str]
             [cljs.reader :as reader]
@@ -430,8 +434,28 @@
 .kc-sb__group{margin-top:var(--hig-spacing-4);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);font-weight:700;letter-spacing:.08em;color:var(--hig-color-secondary-label)}
 .kc-sb a{display:flex;align-items:center;min-height:2.5rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;white-space:nowrap}
 .kc-sb a:hover{background:var(--hig-color-system-background)}
-.kc-sb a[data-current=true]{background:var(--hig-color-key-100);color:var(--hig-color-key-900,var(--hig-color-label))}
+.kc-sb a[data-current=true]{background:var(--hig-color-system-background);color:var(--hig-color-tint);box-shadow:inset 3px 0 0 var(--hig-color-tint)}
+.kc-sb__badge{margin-inline-start:auto;padding:1px var(--hig-spacing-2);border-radius:var(--hig-radius-capsule,999px);border:1px solid var(--hig-color-tint);color:var(--hig-color-tint);font-size:var(--hig-text-caption2-font-size);font-weight:700;letter-spacing:.04em}
 .kc-sb__foot{margin-top:auto;border-top:1px solid var(--hig-color-separator);padding-top:var(--hig-spacing-3);color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}
+.kc-account-chip{display:flex;align-items:center;gap:var(--hig-spacing-3);inline-size:100%;min-height:2.75rem;padding:var(--hig-spacing-2);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font:inherit;font-weight:700;background:none;border:none;cursor:pointer;text-align:start;list-style:none}
+.kc-account-chip::-webkit-details-marker{display:none}
+.kc-account-chip__avatar{flex:none;inline-size:2rem;block-size:2rem;display:grid;place-items:center;border-radius:var(--hig-radius-capsule,999px);background:var(--hig-color-tint);color:var(--hig-color-system-background);font-weight:700}
+.kc-account-chip__name{display:grid;min-inline-size:0}
+.kc-account-chip__name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kc-account-chip__ws{font-size:var(--hig-text-caption2-font-size);font-weight:400;color:var(--hig-color-secondary-label)}
+.kc-account-chip__caret{margin-inline-start:auto;color:var(--hig-color-secondary-label)}
+.kc-topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--hig-spacing-3);min-height:3rem;margin:calc(-1 * var(--hig-spacing-6)) calc(-1 * var(--hig-spacing-5)) var(--hig-spacing-5);padding:var(--hig-spacing-2) var(--hig-spacing-5);border-block-end:1px solid var(--hig-color-separator);background:var(--hig-color-system-background)}
+.kc-topbar__section{display:flex;align-items:center;gap:var(--hig-spacing-2);font-weight:700}
+.kc-topbar__group{color:var(--hig-color-secondary-label)}
+.kc-topbar__sep{margin:0 var(--hig-spacing-2);color:var(--hig-color-secondary-label)}
+.kc-topbar__actions{display:flex;align-items:center;gap:var(--hig-spacing-2)}
+.kc-topbar__link{color:var(--hig-color-label);font-weight:700;text-decoration:none;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px)}
+.kc-topbar__link:hover{background:var(--hig-color-secondary-system-background)}
+.kc-topbar__chip{display:inline-flex;align-items:center;gap:var(--hig-spacing-2);min-height:2.25rem;padding:0 var(--hig-spacing-3);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-capsule,999px);color:var(--hig-color-label);font-family:var(--hig-font-mono);font-weight:700;text-decoration:none;background:var(--hig-color-secondary-system-background)}
+.kc-topbar__chip--setup{border-color:var(--hig-color-tint);color:var(--hig-color-tint);font-family:inherit}
+.kc-topbar__chip--setup[data-state=done]{border-color:var(--hig-palette-green);color:var(--hig-palette-green)}
+.kc-setup-banner{display:flex;flex-wrap:wrap;align-items:center;gap:var(--hig-spacing-3);margin:0 0 var(--hig-spacing-5);padding:var(--hig-spacing-3) var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-inline-start:4px solid var(--hig-color-tint);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-secondary-system-background)}
+.kc-setup-banner a{font-weight:700}
 #kc-session-nav-side{min-height:3.25rem;display:flex;align-items:center;color:var(--hig-color-secondary-label);font-weight:700}
 #kc-session-nav-side .kc-session-menu{inline-size:100%}
 #kc-session-nav-side .kc-session-menu summary{justify-content:center;inline-size:100%}
@@ -453,47 +477,71 @@ body:has(.kc-sb){padding-inline-start:15rem}
 .kc-sb__foot{position:sticky;inset-inline-end:0;margin-top:0;margin-inline-start:auto;margin-inline-end:calc(-1 * var(--hig-spacing-2));border-top:none;padding:0 var(--hig-spacing-2);flex:none;background:var(--hig-color-secondary-system-background)}
 #kc-session-nav-side{min-height:2.25rem}
 #kc-session-nav-side .kc-session-menu__panel{position:absolute;inset-inline-end:var(--hig-spacing-2);top:3.25rem;border:1px solid var(--hig-color-separator);box-shadow:0 8px 24px rgb(0 0 0 / 12%);background:var(--hig-color-system-background)}
-.kc-sb-main{min-height:0;padding:var(--hig-spacing-5) var(--hig-spacing-4)}}
-@media(max-width:30rem){.kc-sb-main{padding:var(--hig-spacing-4) var(--hig-spacing-3)}}")
+.kc-sb-main{min-height:0;padding:var(--hig-spacing-5) var(--hig-spacing-4)}
+.kc-topbar{margin:calc(-1 * var(--hig-spacing-5)) calc(-1 * var(--hig-spacing-4)) var(--hig-spacing-4);padding:var(--hig-spacing-2) var(--hig-spacing-4)}
+.kc-topbar__group,.kc-topbar__sep{display:none}}
+@media(max-width:30rem){.kc-sb-main{padding:var(--hig-spacing-4) var(--hig-spacing-3)}
+.kc-topbar{min-height:2.5rem;margin:calc(-1 * var(--hig-spacing-4)) calc(-1 * var(--hig-spacing-3)) var(--hig-spacing-3);padding:var(--hig-spacing-1) var(--hig-spacing-3)}
+.kc-topbar__link{display:none}
+.kc-topbar__chip{min-height:2rem;font-size:var(--hig-text-caption1-font-size)}}")
 
 (defn app-sidebar
-  "OrcaRouter-style persistent left nav, grouped by category. One entry per
-  destination (shinkansen.audit :nav-one-home): the Get-started button IS
-  the quickstart entry, the connection-token item points at its panel, and
-  usage lives in its reference page — /account is listed once. Emitted
-  AFTER <main> (see site-layout) so content comes first on every band."
-  [locale t current]
-  (let [item (fn [label href]
-               [:a (cond-> {:href href} (= current href) (assoc :data-current "true")) label])
-        ;; t is the copy MAP — (t "ja" "en") was (get t "ja" "en") and always
-        ;; answered the English default, which is why a ja page showed
-        ;; "Get started" / "Security services" (measured live 2026-09-15)
-        txt (fn [ja en] (if (= locale :ja) ja en))]
-    [:nav {:class "kc-sb" :aria-label (txt "アプリナビゲーション" "App navigation")}
-     [:a {:class "kc-sb__new" :href "/docs/reference/quickstart/"} (txt "＋ はじめる" "＋ Get started")]
-     [:div {:class "kc-sb__group"} (:sb-main t)]
-     (item (:sb-docs t) "/docs/")
-     (item (:menu-apps t) "/apps/")
-     [:div {:class "kc-sb__group"} (:sb-manage t)]
-     (item (:sb-keys t) "/account#account-panel-cli")
-     (item (:sb-routing t) "/#research-models")
-     (item (:menu-register t) "/#research-register")
-     (item (:sb-insights t) "/docs/reference/billing-and-usage/")
-     [:div {:class "kc-sb__group"} (:sb-secure t)]
-     (item (:menu-security t) "/security/aup/")
-     (item (txt "セキュリティサービス" "Security services") "/security/services/")
-     (item (:blog t) "/blog/")
-     (item (txt "エラーリファレンス" "Error reference") "/docs/reference/errors/")
-     [:div {:class "kc-sb__group"} (:sb-account t)]
-     (item (:menu-account t) "/account")
-     (item (:menu-billing t) "/billing/")
-     ;; the account entry on every view: a sign-in control until the
-     ;; session is known, then the @user menu (browser.cljk signed-in-menu!)
-     [:div {:id "kc-session-nav-side" :class "kc-sb__foot"
-            :aria-label (txt "アカウント" "Account")}
-      [:a {:class "dads-button" :data-type "outline" :data-size "sm"
-           :href (passkey-href locale)}
-       (txt "サインイン" "Sign in")]]]))
+  "OrcaRouter-style persistent left nav, generated from console/groups —
+  the ONE table that declares every destination (a view added to the table
+  and forgotten in the nav cannot happen). Emitted AFTER <main> (see
+  site-layout) so content comes first on every band. Badges are facts from
+  the table; the foot is the account entry on every view: a sign-in control
+  until the session is known, then the account chip (shell-browser)."
+  [locale _t current]
+  (let [txt (fn [ja en] (if (= locale :ja) ja en))]
+    (into
+     [:nav {:class "kc-sb" :aria-label (txt "アプリナビゲーション" "App navigation")}
+      [:a {:class "kc-sb__new" :href (:href console/get-started)}
+       (txt (:ja console/get-started) (:en console/get-started))]]
+     (concat
+      (mapcat (fn [{:keys [group items]}]
+                (cons [:div {:class "kc-sb__group"} group]
+                      (for [{:keys [label href badge current?]} items]
+                        [:a (cond-> {:href href} current? (assoc :data-current "true"))
+                         label
+                         (when badge [:span {:class "kc-sb__badge"} badge])])))
+              (console/sidebar-items current locale))
+      [[:div {:id "kc-session-nav-side" :class "kc-sb__foot"
+              :aria-label (txt "アカウント" "Account")}
+        [:a {:class "dads-button" :data-type "outline" :data-size "sm"
+             :href (passkey-href locale)}
+         (txt "サインイン" "Sign in")]]]))))
+
+(defn console-topbar
+  "The console's top bar: the section this page belongs to (from the IA
+  table — navigation, not a second h1), then the actions every console
+  view shares: a credit chip, the docs link and the setup-progress chip.
+  The two chips are hidden until shell-browser has read the session — a
+  chip with no number is not shown (no fabricated state)."
+  [locale current]
+  (let [txt (fn [ja en] (if (= locale :ja) ja en))
+        section (console/section-label current locale)]
+    [:header {:class "kc-topbar"}
+     [:div {:class "kc-topbar__section"}
+      (when section
+        (if (= (:group section) (:item section))
+          [:span (:item section)]
+          [:span [:span {:class "kc-topbar__group"} (:group section)]
+           [:span {:class "kc-topbar__sep" :aria-hidden "true"} "›"]
+           [:span (:item section)]]))]
+     [:div {:class "kc-topbar__actions"}
+      [:a {:class "kc-topbar__chip" :id "kc-credit-chip" :href "/billing/" :hidden true} "—"]
+      [:a {:class "kc-topbar__link" :href "/docs/"} (txt "ドキュメント" "Docs")]
+      [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]]]))
+
+(defn setup-banner
+  "'Resume setup — <next step> · Continue': hidden until the session is
+   known; shell-browser fills the next step from console/setup-progress."
+  [locale]
+  (let [txt (fn [ja en] (if (= locale :ja) ja en))]
+    [:div {:id "kc-setup-banner" :class "kc-setup-banner" :role "status" :hidden true}
+     [:span {:id "kc-setup-banner-text"} (txt "セットアップを続ける" "Resume setup")]
+     [:a {:id "kc-setup-banner-link" :href "/account"} (txt "続ける" "Continue")]]))
 
 (defn app-menu
   "OpenRouter-style single dropdown menu over the compact app header.
@@ -560,44 +608,6 @@ body:has(.kc-sb){padding-inline-start:15rem}
      [:a {:href "/legal/"} (:legal-link t)]
      [:a {:href "/legal/tokushoho/"} (:tokushoho-link t)]])])
 
-(defn billing-view [locale]
-  (let [t (translation locale) ja? (= locale :ja) txt (fn [ja en] (if ja? ja en))]
-    [[:a {:class "kc-skip" :href "#main"} (:skip t)]
-     (site-header locale t {:language-ja "/billing/" :language-en "/billing/"})
-     [:main {:id "main"}
-      (dds/container
-       (dds/section {:title (txt "推論・データベースの料金" "Inference and database plans")}
-        [:p (txt "検証中の料金案です。まだ本番で購入できません。価格は米ドル・税別です。" "Sandbox pricing proposal. Production purchases are not available yet. Prices are in USD, excluding tax.")]
-        [:p (txt "本人確認済みの無料研究枠は継続します。有料プランでも本人確認と研究対象の承認が必要です。" "Verified researchers retain the free research allowance. Paid plans still require identity verification and approved scope.")]
-        [:p (txt "1つの月額プランにtoken利用枠と保存容量（GiB）が含まれます。残量はAIは米ドル相当、保存はGiBで表示します。枠を超える保存は$0.20/GiB・月、推論は用途別の追加クレジット（1 credit = $1）で支払います。自動チャージは無効です。" "One monthly plan includes a token allowance and storage in GiB. Remaining AI balance is shown in USD; storage in GiB. Excess storage costs $0.20/GiB per month; extra inference is paid with scoped credits (1 credit = $1). Automatic top-up is off.")]
-        (into [:div {:class "kc-billing-plans"}]
-              (for [p billing/plans]
-                (dds/card
-                 (dds/heading 2 (:name p) {:size "28"})
-                 [:p (str "$" (/ (:cents p) 100) (when-not (:topup p) (txt " / 月" " / month")))]
-                 (if (:monthly p)
-                   [:p (str (:credits p) (txt " credits / 月 (ボーナス +" (:bonusPercent p) "%)" " credits / month (+"
-                            (:bonusPercent p) "% bonus)"))]
-                   [:p (if (:topup p)
-                         (str "$" (/ (:cents p) 100) (txt " 分の利用分（1 credit = $1）" " of usage (1 credit = $1)"))
-                         (str (:credits p) (txt (str " AI credits / 月（$" (:credits p) "相当）")
-                                                (str " AI credits / month (worth $" (:credits p) ")"))))])
-                 (when (:gib p) [:p (str (:gib p) (txt " GiB の保存容量（超過分は $0.20/GiB・月）" " GiB storage (excess at $0.20/GiB per month)"))])
-                 (when (:seats p) [:p (str (:seats p) (txt " 席（AI・保存枠を共有）" " seats (shared AI and storage allowance)"))])
-                 [:button {:type "button" :data-billing-sku (:sku p) :disabled true}
-                  (txt "接続状況を確認中" "Checking availability")])) )
-        [:p (txt "Credits Monthly は失効しないクレジット残高を毎月付与します (契約額が大きいほどボーナス率が上がります)。毎期自動請求・いつでも解約・自動チャージは無効。" "Credits Monthly grants a balance that never expires (the bonus rate rises with commitment). Auto-charged each period, cancel anytime, no automatic top-up.")]
-        [:p (txt "Proのtoken枠を基準にMaxは5倍、Ultraは10倍。推論の単価は入力$0.90/1M tokens（キャッシュヒット$0.225/1M）、出力$4.50/1M tokensです。Proの12 creditsは、通常入力600万＋出力1,400万tokensに相当します（混合例）。入力・キャッシュ・出力の構成により利用可能なtoken数は変わります。" "Max includes 5× and Ultra 10× the Pro token allowance. Inference is billed at $0.90 per 1M input tokens ($0.225 cached) and $4.50 per 1M output tokens. Pro's 12 credits cover, for example, 6 million uncached input plus 1.4 million output tokens. Actual token capacity varies with the input, cache and output mix.")]
-        [:p (txt "whitehackerセキュリティ推論モデル向けの単価で、同クラスのflashモデル（$0.75/$3.75）より約2割高い設定です。キャッシュヒットは入力単価の25%。" "These rates price the whitehacker security reasoning model at roughly a 20% premium over same-class flash models ($0.75/$3.75). Cache hits bill at 25% of the input rate.")]
-        [:p (txt "WebとAPIで同じtoken枠を共有します。保存容量は推論では消費されません。Viewerは付属し、query処理・外部転送・保存超過は保存超過用クレジット（1 credit = $1 = $0.20/GiB・月5GiB分）の対象です。" "Web and API share the token allowance. Inference does not consume storage capacity. The viewer is included; query compute, egress and excess storage use excess-storage credits (1 credit = $1 = 5 GiB-months at $0.20/GiB).")]
-        [:p {:id "billing-status" :role "status"}]
-        [:button {:id "billing-portal" :type "button" :disabled true} (txt "請求・解約の管理" "Manage billing and cancellation")]
-        (dds/heading 2 "Enterprise" {:size "28"})
-        [:p (txt "月額$1,000からの個別見積。年間コミット、用途別予算、組織の権限管理、監査ログ、専用推論・保管構成を契約に応じて設計します。SLAと専用容量は個別合意後に適用します。" "Custom quotes from $1,000/month: annual commitments, scoped budgets, organization permissions, audit logs, and dedicated inference/storage options. SLA and dedicated capacity require an agreed contract.")]
-        [:p (txt "専用GPU容量（reserved capacity）: B200級GPUを専有する契約です。月額$6,000以上・12か月コミットで、利用量に関係なく専有分の枠を保証します。見積は別途お問い合わせください。" "Reserved capacity: a dedicated B200-class GPU pool quoted per contract. From $6,000/month with a 12-month commitment; your reserved capacity is guaranteed regardless of usage. Contact us for a quote.")]
-        [:p (txt "月額枠は各請求期間末に失効し、追加クレジットは購入から12か月有効です。残高不足で新しい有料処理を停止します。保存済みデータは自動削除しません。" "Monthly allowances expire at the end of their billing period; top-up credits last 12 months. New paid work stops when funds run out. Stored data is not automatically deleted.")]))]
-     (site-footer t)]))
-
 (defn legal-rows [t]
   [[(:operator-label t) operator-name]
    [(:service-provider-label t) operator-name]
@@ -640,7 +650,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
         [:p {:class "kc-legal__note"} (:tokushoho-note t)]
         (dds/row
          (dds/button (:tokushoho-link t) {:type :text :size "md"
-                                          :href (:tokushoho-path t)}))))]
+                                          :href "/legal/tokushoho/"}))))]
      (site-footer t)]))
 
 (defn tokushoho-view [locale]
@@ -658,7 +668,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
         [:p {:class "kc-legal__note"} (:tokushoho-note t)]
         (dds/row
          (dds/button (:legal-link t) {:type :text :size "md"
-                                      :href (:legal-path t)}))))]
+                                      :href "/legal/"}))))]
      (site-footer t)]))
 
 (defn plane-card [connect-label {:keys [kind name origin href body connect-href]}]
@@ -941,6 +951,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        crypto-site/css "\n" compliance-site/css "\n"
        blog-site/css "\n"
        dds-console/css "\n" account-site/css "\n"
+       secure-site/css "\n" models-site/css "\n" billing-site/css "\n"
        apps-site/css "\n" docs-site/css "\n"
        security-services-site/css))
 
@@ -955,11 +966,11 @@ body:has(.kc-sb){padding-inline-start:15rem}
   implementation); shinkansen (CID-published documents) is the planned
   delivery successor — keep emitted documents self-contained (no NEW
   external assets)."
-  [{:keys [title description lang robots extra-css sidebar? current]} body]
+  [{:keys [title description lang robots extra-css sidebar? current locale]} body]
   (page/->page
    {:title title
     :description description
-    :lang (or lang "ja")
+    :lang (or lang (if (= locale :en) "en" "ja"))
     :css ""
     :app-css ""
     :head (into (if robots [[:meta {:name "robots" :content robots}]] [])
@@ -968,20 +979,26 @@ body:has(.kc-sb){padding-inline-start:15rem}
                        [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
                        [:script {:src "/js/language-selector.js" :defer true}]
                        [:script {:src "/js/session.js" :defer true}]]))}
-   (let [t (translation :ja)]
+   (let [locale (or locale :ja)
+         t (translation locale)]
      (if sidebar?
        ;; content first: the sidebar nav is emitted after <main> (fixed to
        ;; the left on desktop, a chip row on top below 64rem) so the reading
        ;; order is the page, then the navigation — shinkansen.audit
        ;; :nav-before-content. The skip link still leads to #main for the
-       ;; keyboard user who lands on the nav via the landmark.
+       ;; keyboard user who lands on the nav via the landmark. The top bar
+       ;; and the setup banner are the console chrome the reference IA has;
+       ;; both chips hydrate from the session (shell-browser).
        (list [:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
-             [:main {:id "main" :class "kc-sb-main"} body]
-             (app-sidebar :ja t (or current "/docs/reference/quickstart/")))
+             [:main {:id "main" :class "kc-sb-main"}
+              (console-topbar locale current)
+              (setup-banner locale)
+              body]
+             (app-sidebar locale t (or current "/docs/reference/quickstart/")))
        (list [:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
-             (site-header :ja t)
+             (site-header locale t)
              [:main {:id "main"} body])))
-   (site-footer (translation :ja))))
+   (site-footer (translation (or locale :ja)))))
 
 (defn security-html []
      (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
@@ -1056,19 +1073,34 @@ body:has(.kc-sb){padding-inline-start:15rem}
    (account-site/section)))
 
 (defn billing-html [locale]
-     (let [ja? (= locale :ja) title (if ja? "料金と決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
-           path (if ja? "/ja/billing/" "/billing/")]
-       (apply page/->page
-              {:title title :description "Kotoba Cloud inference, graph and ontology database subscriptions and credits."
-               :lang (if ja? "ja" "en") :css (document-css) :app-css (str tokens/skin-css app-css research-site/css)
-               :head [[:link {:rel "canonical" :href (str "https://kotoba.cloud" path)}]
-                      [:link {:rel "alternate" :hreflang "ja" :href "https://kotoba.cloud/ja/billing/"}]
-                      [:link {:rel "alternate" :hreflang "en" :href "https://kotoba.cloud/billing/"}]
-                              [:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
-                                    [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
-                      [:script {:src "/js/language-selector.js" :defer true}]
-                      [:script {:src "/js/session.js" :defer true}]]}
-              (billing-view locale))))
+  ;; ACCOUNT › 料金・決済: the console shell in the document's locale (the
+  ;; edge negotiates /billing/ by cookie; the ja and en emits are the two
+  ;; variants of one route). Balance / plan buttons are revealed by
+  ;; billing-browser only when their facts are known.
+  (let [ja? (= locale :ja)]
+    (site-layout {:title (if ja? "料金・決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
+                  :description "Kotoba Cloud inference, graph and ontology database subscriptions and credits."
+                  :locale (if ja? :ja :en)
+                  :sidebar? true :current "/billing/"
+                  :extra-css (str dds-console/css billing-site/css)}
+     (billing-site/section (if ja? :ja :en) (passkey-href (if ja? :ja :en))))))
+
+(defn secure-html []
+  ;; SECURE: guardrails / firewall / compliance — one document, three views,
+  ;; rendered from the policy the authority enforces (secure-site).
+  (site-layout {:title "セキュリティ管理 — Kotoba Cloud" :lang "ja"
+                :description "研究環境の実行時制御 — ガードレール、ファイアウォール、コンプライアンスの規則と版。"
+                :sidebar? true :current "/secure/"
+                :extra-css (str dds-console/css secure-site/css)}
+   (secure-site/section)))
+
+(defn models-html []
+  ;; MANAGE › モデル: the admitted research models, limits and conditions.
+  (site-layout {:title "モデル — Kotoba Cloud" :lang "ja"
+                :description "研究 API で選べるモデル、無料枠、許可の条件。"
+                :sidebar? true :current "/models/"
+                :extra-css (str dds-console/css models-site/css)}
+   (models-site/section)))
 
 (def docs-css
   ".kc-docs{padding-block:var(--hig-spacing-6)}.kc-docs h2{margin-block:var(--hig-spacing-6) var(--hig-spacing-3)}.kc-docs__lead{max-width:48rem;color:var(--hig-color-secondary-label)}.kc-docs__list{display:grid;gap:var(--hig-spacing-3);padding:0;list-style:none}.kc-docs__list li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-4)}.kc-docs__list a{font-weight:700}.kc-docs__config{padding:var(--hig-spacing-4);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;white-space:pre;overflow-wrap:normal}.kc-docs__note{padding:var(--hig-spacing-3) var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-tint);background:var(--hig-color-secondary-system-background);border-radius:0 var(--hig-radius-sm) var(--hig-radius-sm) 0}.kc-docs__chip{font-size:var(--hig-text-caption2-font-size);padding:2px var(--hig-spacing-2);border-radius:var(--hig-radius-capsule);border:1px solid var(--hig-color-separator)}.kc-docs__chip--verified{color:var(--hig-palette-green);border-color:var(--hig-palette-green)}.kc-docs__chip--pending{color:var(--hig-color-secondary-label)}.kc-docs__chip--caveat{color:var(--hig-palette-orange,var(--hig-color-label));border-color:var(--hig-palette-orange,var(--hig-color-label))}")
@@ -1324,7 +1356,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
             [:p {:class "kc-eyebrow"} "404 / NOT FOUND"]
             (dds/heading 1 (:not-found-heading t) {:size "45"})
             [:p {:class "kc-lead"} (:not-found-lead t)]
-            (dds/button (:not-found-cta t) {:href (:path t) :size "lg"})]])
+            (dds/button (:not-found-cta t) {:href "/" :size "lg"})]])
          (site-footer t)))))
 
 (defn- fs-walk-files
@@ -1442,7 +1474,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                   target (node-path/join root rel)]
               (copy-file source target)))))
       (copy-file (node-path/join "assets" "security-data.js") (node-path/join js-dir "security-data.js"))
-      (doseq [path ["ja/security/index.html" "security-data/index.html"]]
+      (doseq [path ["security/index.html" "ja/security/index.html" "security-data/index.html"]]
         (spit-file (node-path/join root path) (security-html)))
       (doseq [path ["csf2/index.html" "security/csf2/index.html" "ja/security/csf2/index.html"]]
         (spit-file (node-path/join root path) (csf2-html)))
@@ -1487,6 +1519,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
       ;; docs: integrations overview + one page per client (orcarouter pattern)
+      ;; console documents rendered from policy data (2026-09-15 round 3)
+      (spit-file (node-path/join root "secure" "index.html") (secure-html))
+      (spit-file (node-path/join root "models" "index.html") (models-html))
       ;; /docs/ landing — the document the sidebar links (2026-09-15)
       (spit-file (node-path/join root "docs" "index.html") (docs-index-html :en))
       (spit-file (node-path/join root "ja" "docs" "index.html") (docs-index-html :ja))
