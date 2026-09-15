@@ -1,0 +1,53 @@
+(ns app-kotoba-cloud.uiux-audit-test
+  "The UI/UX document contract as a gate (shinkansen.audit, owner direction
+  2026-09-15). Documents are rendered in-process and audited with the real
+  shared stylesheet; the asset set is the one the build ships. Both
+  directions: the shipped documents are clean at the floor, and a
+  deliberately broken document is refused by name — a gate that cannot fail
+  is theater."
+  (:require [app-kotoba-cloud.site :as site]
+            [kotoba.lang.text :as str]
+            [shinkansen.audit :as audit]
+            [clojure.test :refer [deftest is testing]]))
+
+(def ctx
+  {:assets #{"/js/session.js" "/js/language-selector.js" "/css/site.css"}
+   :stylesheets {"/css/site.css" (site/site-css)}})
+
+(defn- axis [report id] (first (filter #(= id (:id %)) (:axes report))))
+
+(deftest account-document-is-one-task
+  (let [r (audit/score-document {:file "/account/" :html (site/account-html)} ctx)]
+    (is (empty? (:unmeasured r)) (pr-str (:unmeasured r)))
+    (is (empty? (:findings r)) (pr-str (:findings r)))
+    (is (= 100.0 (:overall r)))
+    (testing "the measured 2026-09-15 failures stay closed by name"
+      (doseq [id [:assets-resolve :unique-ids :idle-pending :idle-disabled :nav-one-home
+                  :nav-before-content :skip-link :plain-labels :repeated-actions
+                  :note-density :locale-path-links :fixed-anchor :viewport]]
+        (is (= 1.0 (:score (axis r id))) (name id))))))
+
+(deftest sidebar-shell-documents-hold-the-floor
+  (doseq [[file html] [["/security/services/" (site/security-services-html)]
+                       ["/docs/reference/quickstart/" ((site/docs-ref-html "quickstart") :ja)]
+                       ["/security/aup/" (site/aup-html :ja)]
+                       ["/admin/" (site/admin-html)]]]
+    (let [r (audit/score-document {:file file :html html} ctx)]
+      (is (empty? (:unmeasured r)) file)
+      (is (>= (:overall r) 90.0) (str file " " (:overall r) " " (pr-str (map :axis (:findings r)))))
+      ;; the shell rules hold on every sidebar document
+      (doseq [id [:nav-one-home :nav-before-content :skip-link :fixed-anchor :unique-ids :assets-resolve]]
+        (is (= 1.0 (:score (axis r id))) (str file " " (name id)))))))
+
+(deftest a-broken-document-is-refused-by-name
+  (testing "a duplicated id"
+    (let [html (str/replace (site/account-html) "id=\"account-refresh\"" "id=\"account-pat-create\"")
+          r (audit/score-document {:file "/account/" :html html} ctx)]
+      (is (str/includes? (:finding (axis r :unique-ids)) "account-pat-create×2"))))
+  (testing "a script the build did not ship"
+    (let [r (audit/score-document {:file "/account/" :html (site/account-html)}
+                                  (assoc ctx :assets #{"/js/language-selector.js" "/css/site.css"}))]
+      (is (str/includes? (:finding (axis r :assets-resolve)) "referenced but absent from the published assets: /js/session.js"))))
+  (testing "a stylesheet nobody supplied is unmeasured, not a pass"
+    (let [r (audit/score-document {:file "/account/" :html (site/account-html)} (dissoc ctx :stylesheets))]
+      (is (= #{:viewport :fixed-anchor} (set (map :axis (:unmeasured r))))))))

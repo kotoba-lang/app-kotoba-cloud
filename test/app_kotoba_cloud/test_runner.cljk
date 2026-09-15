@@ -16,6 +16,7 @@
             [app-kotoba-cloud.site-test]
             [app-kotoba-cloud.security-services-test]
             [app-kotoba-cloud.locale-test]
+            [app-kotoba-cloud.uiux-audit-test]
             [clojure.test :as test]))
 
 (defn -main [& _]
@@ -34,6 +35,7 @@
                                'app-kotoba-cloud.attribution-test
                                'app-kotoba-cloud.site-test
                                'app-kotoba-cloud.security-services-test
-                               'app-kotoba-cloud.locale-test)]
+                               'app-kotoba-cloud.locale-test
+                               'app-kotoba-cloud.uiux-audit-test)]
     (when (pos? (+ (:fail result) (:error result)))
       (js/process.exit 1))))

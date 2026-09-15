@@ -261,7 +261,19 @@
     (identity-browser/init!)
 
     (contains? #{"/account" "/account/"} (.-pathname js/location))
-    (account-browser/init!)
+    (do (account-browser/init!)
+        ;; the sidebar's account entry follows the same session the console
+        ;; renders — one fact, one state on the page
+        (-> (js/fetch "/v1/session" #js {:credentials "same-origin"
+                                         :headers #js {"accept" "application/json"}})
+            (.then (fn [response] (when (.-ok response) (.json response))))
+            (.then (fn [payload]
+                     (when payload
+                       (let [viewer (session/viewer-model (js->clj payload :keywordize-keys true))]
+                         (when (:valid viewer)
+                           (when-let [nav (element "kc-session-nav-side")]
+                             (signed-in-menu! nav (:username viewer))))))))
+            (.catch (fn [_] nil))))
 
     :else
     (if (= "admin.kotoba.cloud" (.-hostname js/location))
