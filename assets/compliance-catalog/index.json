@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:15:13.508Z",
+ "generatedAt": "2026-09-15T09:17:34.728Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 356,
+ "productCount": 358,
  "ontology": {
   "nodes": 44,
-  "claims": 3890,
+  "claims": 3906,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeragpwkvppkp3rm366nmbfsjaeoynmkw6oj2f24fs7ummrk3j5h73ja"
+   "/": "baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -3817,6 +3817,40 @@
    ],
    "record": {
     "/": "baguqeeraxbqiit6aqd45hlo2oqfrtauzghfghkx7jpwhl5vjm3b5soyvtcoa"
+   }
+  },
+  {
+   "id": "trend-tippingpoint-tps",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI TippingPoint Threat Protection System",
+   "categoryId": "nac",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/tipping-point.html",
+   "pricingNote": "Appliance/subscription sold via quote; no TippingPoint line items on the Trend Micro JP public price list (checked 2026-09-15).",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeera2yveek3e25dv7tzqqpmypusnt655zeq6ihsjjbs75rqo22zc6zqa"
+   }
+  },
+  {
+   "id": "trend-tippingpoint-sms",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI TippingPoint Security Management System",
+   "categoryId": "nac",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/intrusion-prevention/centralized-management-response.html",
+   "pricingNote": "Centralized management for TippingPoint deployments, sold via quote; no line items on the Trend Micro JP public price list (checked 2026-09-15).",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeeraox5333wj7jgict6qpenuefb3n27jtf5zze7lun3cz7n3ndx6tbva"
    }
   },
   {
@@ -7972,6 +8006,16 @@
    "bytes": 267,
    "codec": "dag-json"
   },
+  "baguqeera2yveek3e25dv7tzqqpmypusnt655zeq6ihsjjbs75rqo22zc6zqa": {
+   "path": "/compliance-data/compliance/blocks/baguqeera2yveek3e25dv7tzqqpmypusnt655zeq6ihsjjbs75rqo22zc6zqa.json",
+   "bytes": 458,
+   "codec": "dag-json"
+  },
+  "baguqeeraox5333wj7jgict6qpenuefb3n27jtf5zze7lun3cz7n3ndx6tbva": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraox5333wj7jgict6qpenuefb3n27jtf5zze7lun3cz7n3ndx6tbva.json",
+   "bytes": 516,
+   "codec": "dag-json"
+  },
   "baguqeerac6cdndegs3t7wjrab2bizuws567lagtcwseh3v7geclzmuwpfapa": {
    "path": "/compliance-data/compliance/blocks/baguqeerac6cdndegs3t7wjrab2bizuws567lagtcwseh3v7geclzmuwpfapa.json",
    "bytes": 341,
@@ -9057,18 +9101,18 @@
    "bytes": 493,
    "codec": "dag-json"
   },
-  "baguqeeragpwkvppkp3rm366nmbfsjaeoynmkw6oj2f24fs7ummrk3j5h73ja": {
-   "path": "/compliance-data/compliance/blocks/baguqeeragpwkvppkp3rm366nmbfsjaeoynmkw6oj2f24fs7ummrk3j5h73ja.json",
+  "baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera2pskehjj2jju6erkusbwoecigk4z3dwiqhil3q7wzeps5caquica": {
-   "path": "/compliance-data/compliance/blocks/baguqeera2pskehjj2jju6erkusbwoecigk4z3dwiqhil3q7wzeps5caquica.json",
-   "bytes": 253932,
+  "baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza": {
+   "path": "/compliance-data/compliance/blocks/baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza.json",
+   "bytes": 255482,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera2pskehjj2jju6erkusbwoecigk4z3dwiqhil3q7wzeps5caquica"
+  "/": "baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza"
  }
 }
