@@ -1,0 +1,86 @@
+(ns app-kotoba-cloud.sousa-test
+  (:require [app-kotoba-cloud.sousa :as s]
+            [clojure.test :as test :refer [deftest is testing]]))
+
+(deftest schema-constants
+  (testing "entity kinds and statuses are the documented five / four"
+    (is (= #{:case :victim :suspect :evidence :procedure} s/entity-kinds))
+    (is (= [:reported :accepted :investigating :referred] s/case-statuses)))
+  (testing "every relation name is unique across the table"
+    (is (= (count s/relation-names)
+           (count (distinct (for [m (vals s/relations) r (vals m)] r)))))))
+
+(deftest validate-entity-closed-world
+  (testing "well-formed sample entities validate"
+    (doseq [e s/sample-records]
+      (is (:ok (s/validate-entity e)) (pr-str e))))
+  (testing "unknown kind is rejected, not passed through"
+    (is (not (:ok (s/validate-entity {:kind :warrant :case-id "x"}))))
+    (is (not (:ok (s/validate-entity {})))))
+  (testing "unknown attribute is rejected (closed world)"
+    (is (contains? (set (:errors (s/validate-entity
+                                  (assoc (first s/sample-records) :bogus 1))))
+                   [:unknown-attribute :bogus])))
+  (testing "missing required attribute is rejected"
+    (is (contains? (set (:errors (s/validate-entity
+                                  {:kind :case :case-id "c1"})))
+                   [:missing-required :title])))
+  (testing "illegal keyword value is rejected"
+    (is (contains? (set (:errors (s/validate-entity
+                                  (assoc-in (nth s/sample-records 2) [:status] :deleted))))
+                   [:invalid-attribute :status]))))
+
+(deftest custody-chain
+  (let [chain (:custody-chain (nth s/sample-records 3))]
+    (testing "sample chain is legal and time-ordered"
+      (is (s/validate-custody-chain chain)))
+    (testing "reversed chain is rejected"
+      (is (not (s/validate-custody-chain (reverse chain)))))
+    (testing "empty chain is rejected"
+      (is (not (s/validate-custody-chain []))))))
+
+(deftest case-status-lifecycle
+  (testing "full forward path is legal"
+    (is (s/valid-transition? :reported :accepted))
+    (is (s/valid-transition? :accepted :investigating))
+    (is (s/valid-transition? :investigating :referred)))
+  (testing "no regressions and no skipping"
+    (is (not (s/valid-transition? :accepted :reported)))
+    (is (not (s/valid-transition? :reported :investigating)))
+    (is (not (s/valid-transition? :referred :investigating))))
+  (testing "terminal status has no successors"
+    (is (empty? (s/next-legal-statuses :referred)))
+    (is (= [:accepted] (s/next-legal-statuses :reported))))
+  (testing "advance-status applies procedures"
+    (is (= {:ok true :status :accepted} (s/advance-status :reported :accept)))
+    (is (= {:ok false :reason :case-already-reported}
+           (s/advance-status :reported :report)))
+    (is (= {:ok false :reason :illegal-transition}
+           (s/advance-status :reported :refer)))
+    (is (= {:ok false :reason :unknown-procedure-type}
+           (s/advance-status :reported :warrant)))))
+
+(deftest queries-over-sample-records
+  (testing "links resolve grouped by kind"
+    (let [{:keys [ok links]} (s/case-with-links s/sample-records "R2-2026-0001")]
+      (is ok)
+      (is (= 1 (count (:victim links))))
+      (is (= 1 (count (:suspect links))))
+      (is (= 1 (count (:evidence links))))
+      (is (= 1 (count (:procedure links))))))
+  (testing "unknown case number is not an empty result"
+    (is (= {:ok false :reason :case-not-found}
+           (s/case-with-links s/sample-records "no-such-case"))))
+  (testing "chain-of-custody lookup"
+    (is (s/validate-custody-chain
+         (:chain (s/chain-of-custody s/sample-records "case-sample-001" "ev-001"))))
+    (is (= {:ok false :reason :evidence-not-found}
+           (s/chain-of-custody s/sample-records "case-sample-001" "nope")))))
+
+(deftest ontology-schema-document
+  (testing "document covers every kind, status, and relation"
+    (is (= (mapv name (sort s/entity-kinds)) (:entityKinds s/ontology-schema-document)))
+    (is (= (mapv name s/case-statuses) (:caseStatuses s/ontology-schema-document)))
+    (is (= (set (map name (for [m (vals s/relations) r (vals m)] r)))
+           (set (for [m (vals (:relations s/ontology-schema-document))
+                      r (vals m)] (name r)))))))

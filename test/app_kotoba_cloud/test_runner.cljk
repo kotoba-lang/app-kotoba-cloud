@@ -20,6 +20,7 @@
             [app-kotoba-cloud.fake-report-authority-test]
             [app-kotoba-cloud.uiux-audit-test]
             [app-kotoba-cloud.console-test]
+            [app-kotoba-cloud.sousa-test]
             [app-kotoba-cloud.org-sso-gateway-test]
             [app-kotoba-cloud.research-kotoba-proof-gateway-test]
             [clojure.test :as test]))
@@ -44,8 +45,9 @@
                                'app-kotoba-cloud.fake-report-kit-test
                                'app-kotoba-cloud.fake-report-authority-test
                                'app-kotoba-cloud.uiux-audit-test
-                               'app-kotoba-cloud.org-sso-gateway-test
                                'app-kotoba-cloud.console-test
+                               'app-kotoba-cloud.sousa-test
+                               'app-kotoba-cloud.org-sso-gateway-test
                                'app-kotoba-cloud.research-kotoba-proof-gateway-test)]
     (when (pos? (+ (:fail result) (:error result)))
       (js/process.exit 1))))
