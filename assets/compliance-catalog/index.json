@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:17:34.728Z",
+ "generatedAt": "2026-09-15T09:20:01.245Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 358,
+ "productCount": 359,
  "ontology": {
   "nodes": 44,
-  "claims": 3906,
+  "claims": 3916,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za"
+   "/": "baguqeera3776ai4au6qr5b6kg4kl3msm7t5b6tmhec3euqq7nl4oxi4ltaaa"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -4767,6 +4767,19 @@
    }
   },
   {
+   "id": "trend-identity-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Identity Security (ITDR)",
+   "categoryId": "itdr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/identity-security",
+   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here)",
+   "record": {
+    "/": "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka"
+   }
+  },
+  {
    "id": "checkpoint-harmony-endpoint",
    "provider": "Check Point",
    "providerHq": "IL",
@@ -8296,6 +8309,11 @@
    "bytes": 279,
    "codec": "dag-json"
   },
+  "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka": {
+   "path": "/compliance-data/compliance/blocks/baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka.json",
+   "bytes": 438,
+   "codec": "dag-json"
+  },
   "baguqeera6wtfni7ufszgug5tmrwcbrt4izco77tyqwgcbopa77j7lufcoq5a": {
    "path": "/compliance-data/compliance/blocks/baguqeera6wtfni7ufszgug5tmrwcbrt4izco77tyqwgcbopa77j7lufcoq5a.json",
    "bytes": 295,
@@ -9101,18 +9119,18 @@
    "bytes": 493,
    "codec": "dag-json"
   },
-  "baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraxyd664a5al2y626aodbfhn5lir4tjjeof5kjk7lmd5xps66uh5za.json",
+  "baguqeera3776ai4au6qr5b6kg4kl3msm7t5b6tmhec3euqq7nl4oxi4ltaaa": {
+   "path": "/compliance-data/compliance/blocks/baguqeera3776ai4au6qr5b6kg4kl3msm7t5b6tmhec3euqq7nl4oxi4ltaaa.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza": {
-   "path": "/compliance-data/compliance/blocks/baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza.json",
-   "bytes": 255482,
+  "baguqeerabechntxg4nhz2222qplailpp54l6u62lwrrh2irxa2cxsr7kjgha": {
+   "path": "/compliance-data/compliance/blocks/baguqeerabechntxg4nhz2222qplailpp54l6u62lwrrh2irxa2cxsr7kjgha.json",
+   "bytes": 256208,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera2ijbvyaggpihlteublm6l2pozy7nchsrproeo3vulh45ztokfkza"
+  "/": "baguqeerabechntxg4nhz2222qplailpp54l6u62lwrrh2irxa2cxsr7kjgha"
  }
 }
