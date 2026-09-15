@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:10:46.242Z",
+ "generatedAt": "2026-09-15T09:12:15.797Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 351,
+ "productCount": 352,
  "ontology": {
   "nodes": 44,
-  "claims": 3844,
+  "claims": 3852,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeramy6qlk467uod5yrcpe3hm7wyjhhuxw7owrmxdu4wqoy7e7vnehla"
+   "/": "baguqeera2b5ebu3ui2hleskbke4xxo6j5oyzqjjhiuvykuokugowgig2ms5a"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -7129,6 +7129,19 @@
    "record": {
     "/": "baguqeerapiog3354wp2vmiavi4kd6utfrap7xwbxgubfqfdgirve3ahcxiva"
    }
+  },
+  {
+   "id": "trend-deep-discovery-inspector",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Deep Discovery Inspector",
+   "categoryId": "ndr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
+   "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)",
+   "record": {
+    "/": "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a"
+   }
   }
  ],
  "blocks": {
@@ -8967,18 +8980,23 @@
    "bytes": 264,
    "codec": "dag-json"
   },
-  "baguqeeramy6qlk467uod5yrcpe3hm7wyjhhuxw7owrmxdu4wqoy7e7vnehla": {
-   "path": "/compliance-data/compliance/blocks/baguqeeramy6qlk467uod5yrcpe3hm7wyjhhuxw7owrmxdu4wqoy7e7vnehla.json",
+  "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a.json",
+   "bytes": 377,
+   "codec": "dag-json"
+  },
+  "baguqeera2b5ebu3ui2hleskbke4xxo6j5oyzqjjhiuvykuokugowgig2ms5a": {
+   "path": "/compliance-data/compliance/blocks/baguqeera2b5ebu3ui2hleskbke4xxo6j5oyzqjjhiuvykuokugowgig2ms5a.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeeradbp5rsh2asfcujjqhlwbgfh7fjsvrq5b36wcbpyzk454gbricjua": {
-   "path": "/compliance-data/compliance/blocks/baguqeeradbp5rsh2asfcujjqhlwbgfh7fjsvrq5b36wcbpyzk454gbricjua.json",
-   "bytes": 250028,
+  "baguqeeraysqzquer5yxa2kn7imucemxi5bzm5ispj34udawzynfsibrufhba": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraysqzquer5yxa2kn7imucemxi5bzm5ispj34udawzynfsibrufhba.json",
+   "bytes": 250693,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeeradbp5rsh2asfcujjqhlwbgfh7fjsvrq5b36wcbpyzk454gbricjua"
+  "/": "baguqeeraysqzquer5yxa2kn7imucemxi5bzm5ispj34udawzynfsibrufhba"
  }
 }

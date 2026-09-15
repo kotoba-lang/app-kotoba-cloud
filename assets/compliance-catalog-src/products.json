@@ -4582,6 +4582,16 @@
       "pricingMode": "quote-based",
       "pricingNote": "国内診断サービス、見積り。",
       "pricingUrl": "https://www.arax.co.jp/"
+    },
+    {
+      "id": "trend-deep-discovery-inspector",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "TrendAI Deep Discovery Inspector",
+      "categoryId": "ndr",
+      "pricingMode": "quote-based",
+      "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
+      "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)"
     }
   ]
 }
