@@ -179,8 +179,9 @@
     :else (js->clj value :keywordize-keys true)))
 
 ;; Mirror of app-kotoba-cloud.research/free-limits (owner direction 2026-09-15:
-;; 128k input characters, 32k output tokens; the daily count is unchanged).
-(def free-limits {:requestsPerDay 50 :maxOutputTokens 32768 :maxInputCharacters 128000})
+;; 524,288 input characters ≈ a 128k-token context, 32k output tokens; the
+;; daily count is unchanged).
+(def free-limits {:requestsPerDay 50 :maxOutputTokens 32768 :maxInputCharacters 524288})
 ;; Longest answer the job store accepts: 32k tokens of CJK text can approach
 ;; 200k characters; SQLite-backed DO storage takes values up to 2 MB.
 (def max-content-characters 1048576)

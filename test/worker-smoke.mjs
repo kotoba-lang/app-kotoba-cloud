@@ -829,10 +829,10 @@ assert.equal((await route(researchRequest("/v1/research/applications", applicati
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verified: true }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse" }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse", issuer: "trusted", reference: "existing-record" }), researchEnv)).status, 202);
-// The completion body cap is 1 MiB (128k input characters, JSON-escaped and
+// The completion body cap is 2 MiB (524,288 input characters, JSON-escaped and
 // UTF-8 encoded); a streamed body past it is cut off at 413, never buffered.
 const overLimitStream = new ReadableStream({ start(controller) {
-  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(1048600) + '"')); controller.close();
+  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(2097200) + '"')); controller.close();
 } });
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", duplex: "half", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" },
@@ -1038,10 +1038,10 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
   assert.equal(lastCreate.body.request.messages[0].role, "system");
   assert.equal(lastCreate.body.request.temperature, undefined);
   // n and unknown keys stay closed on the bearer path; the ceilings are
-  // 128,000 input characters and 32,768 output tokens (owner 2026-09-15),
-  // and the boundary itself passes.
+  // 524,288 input characters (~128k tokens) and 32,768 output tokens (owner
+  // 2026-09-15), and the boundary itself passes.
   for (const bad of [{ n: 2 }, { unknown_key: 1 }, { max_tokens: 32769 }, { max_completion_tokens: 32769 },
-    { messages: [{ role: "user", content: "x".repeat(128001) }] }]) {
+    { messages: [{ role: "user", content: "x".repeat(524289) }] }]) {
     assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
       method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
       body: JSON.stringify({ ...openaiBody, ...bad })
