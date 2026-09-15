@@ -64,8 +64,14 @@
                      (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true)))
       "pending" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "確認中" "Pending"))
-                    (say! "account-ekyc-note" (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。" "Approval happens automatically when Stripe completes. Refresh this page to see the change."))
-                    (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true)))
+                    (say! "account-ekyc-note" (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。カード登録を中断した場合は下のボタンから再開できます。" "Approval happens automatically when Stripe completes. Refresh this page to see the change. If you left the card entry midway, resume below."))
+                    ;; A pending challenge means a setup session may still be
+                    ;; open — re-running start mints a fresh one (or verifies
+                    ;; inline once the card is on file), so keep the button
+                    ;; enabled as the resume affordance.
+                    (when-let [b (el "account-ekyc-start")]
+                      (set! (.-disabled b) false)
+                      (set! (.-textContent b) (t "カードを登録・再開" "Add or resume card"))))
       "missing" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "未確認" "Not verified"))
                     (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) false))
