@@ -843,6 +843,41 @@
      :totalTokens total
      :observedAt (js/Date.now)}))
 
+;; --- origin cold start ---------------------------------------------------
+;; Statuses that mean "the origin is not serving yet", not "the request is
+;; wrong": the proxy's 503 while vLLM is not listening, Modal's 303/502/504
+;; while nothing listens at all, and Cloudflare's 524 when the origin held the
+;; request past the 100 s fetch limit.
+(def origin-loading-statuses #{303 502 503 504 524})
+(def origin-loading-retry-ms 10000)
+;; 13 min: under the edge's 14-min job wait; a snapshot rebuild measured 491 s.
+(def origin-loading-budget-ms 780000)
+
+(defn- origin-retry-delay-ms
+  "Tests shorten the wait through ORIGIN_LOADING_RETRY_MS; production has no
+  reason to set it."
+  [env]
+  (let [v (js/Number (or (aget env "ORIGIN_LOADING_RETRY_MS") ""))]
+    (if (and (> v 0) (js/Number.isFinite v)) v origin-loading-retry-ms)))
+
+(defn- fetch-until-serving
+  "Promise of the first response whose status is not an origin-loading one,
+  retrying every `delay-ms` until `deadline` (ms); the last loading response
+  is returned once the deadline passes so the caller fails it by name. Only
+  the status and attempt count are logged."
+  [url init job-id deadline delay-ms]
+  (letfn [(attempt [n]
+            (-> (js/fetch url init)
+                (.then (fn [r]
+                         (if (and (contains? origin-loading-statuses (.-status r))
+                                  (< (js/Date.now) deadline))
+                           (do (js/console.warn "inference-origin-loading" job-id (.-status r) n)
+                               (-> (.text r) (.catch (fn [_] nil))
+                                   (.then (fn [_] (js/Promise. (fn [resolve] (js/setTimeout resolve delay-ms)))))
+                                   (.then (fn [_] (attempt (inc n))))))
+                           r)))))]
+    (attempt 1)))
+
 (defn- run-inference! [env storage job-id]
   ;; Detached from the request: the Durable Object writes the terminal state; a
   ;; crashed run is reconciled on the next poll as "unknown", never re-dispatched.
@@ -857,15 +892,24 @@
               ;; terminal catch below stores it — never a fallback to the
               ;; other team's deployment.
               unavailable (if blue? "blue-route-unavailable" "red-route-unavailable")
+              ;; A scale-to-zero red origin answers 503 ("model loading") from
+              ;; its proxy, or holds the request until Cloudflare's 100 s
+              ;; origin limit returns 524, while its container restores or
+              ;; rebuilds (measured 2026-09-15 22:47: snapshot rebuild 491 s to
+              ;; healthy; every request in that window failed as 524 on the
+              ;; first try). Loading statuses are retried until the job's
+              ;; dispatch deadline; anything else fails at once.
               q (try
-                  (js/fetch (if blue? blue-route-url (red-route-url env))
-                            #js {:method "POST" :redirect "manual"
-                                 :signal (js/AbortSignal.timeout 2100000)
-                                 :headers (if blue?
-                                            (blue-route-headers env)
-                                            #js {"content-type" "application/json"
-                                                 "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
-                                 :body (js/JSON.stringify (upstream-body (:request job)))})
+                  (fetch-until-serving (if blue? blue-route-url (red-route-url env))
+                                       #js {:method "POST" :redirect "manual"
+                                            :signal (js/AbortSignal.timeout 2100000)
+                                            :headers (if blue?
+                                                       (blue-route-headers env)
+                                                       #js {"content-type" "application/json"
+                                                            "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
+                                            :body (js/JSON.stringify (upstream-body (:request job)))}
+                                       job-id (+ (js/Date.now) origin-loading-budget-ms)
+                                       (origin-retry-delay-ms env))
                   (catch :default e (js/Promise.reject e)))
               ;; ONE terminal catch at the end of the chain. The previous shape
               ;; attached `fail` as the rejection handler of every `then`: a
