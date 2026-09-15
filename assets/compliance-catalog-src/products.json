@@ -4724,6 +4724,16 @@
       "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)"
     },
     {
+      "id": "trend-vision-one-xdr-networks",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "TrendAI Vision One XDR for Networks",
+      "categoryId": "edr-xdr",
+      "pricingMode": "quote-based",
+      "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/detection-response.html",
+      "pricingNote": "quote-based; ja_jp 製品ページに公開価格はなく、購入・更新/お問い合わせ経由 (ページ HTTP 200, verified 2026-09-16)"
+    },
+    {
       "id": "trend-file-security",
       "provider": "Trend Micro",
       "providerHq": "JP",
