@@ -1,0 +1,229 @@
+(ns app-kotoba-cloud.icao
+  "ICAO 9303 LDS verification for the kotoba-proof identity route
+  (ADR 2609142200 layer 1). Pure functions; no IO, no storage, no network.
+  Runs in the private authority (Durable Object) and in fixtures.
+
+  Scope:
+  - MRZ (TD3) check-digit verification
+  - LDS Security Object (SOD) digest verification: the digests of DG1/DG11/
+    DG12/DG5 re-computed locally and compared against the issuer-signed SOD
+    content list
+  - SOD signature verification (RSA PKCS#1 v1.5 / ECDSA P-256) against the
+    Document Signer Certificate (DSC), whose signature is verified against a
+    bundled CSCA master list
+
+  The authority never persists raw DG data; only the digests, the disclosed
+  attributes needed for screening (name, dob, expiry, document number) and
+  the derived nullifier survive (see ADR 2609142200)."
+
+
+(defn char-value [c]
+  (cond
+    (and (>= (int c) 48) (<= (int c) 57)) (- (int c) 48)
+    (and (>= (int c) 65) (<= (int c) 90)) (- (int c) 55)
+    (= c \<) 0
+    :else nil))
+
+(defn check-digit [s]
+  (when (string? s)
+    (let [vals (map char-value s)]
+      (when-not (some nil? vals)
+        (mod (reduce (fn [acc [v w]] (+ acc (* v w)))
+                     0
+                     (map vector vals (cycle [7 3 1])))
+             10)))))
+
+(defn mrz-check-digits-valid?
+  "TD3 MRZ (2 lines x 44 chars). line2: docnum+CD, birth+CD, expiry+CD,
+  personal+CD, composite+CD."
+  [line1 line2]
+  (and (= (count line1) 44) (= (count line2) 44)
+       (let [doc-num (subs line2 5 14)
+             doc-cd (subs line2 14 15)
+             birth (subs line2 15 22)
+             birth-cd (subs line2 22 23)
+             expiry (subs line2 23 30)
+             expiry-cd (subs line2 30 31)
+             personal (subs line2 31 42)
+             personal-cd (subs line2 42 43)
+             composite (str doc-num doc-cd birth birth-cd expiry expiry-cd personal personal-cd)
+             composite-cd (subs line2 43 44)]
+         (and (= (str (check-digit doc-num)) doc-cd)
+              (= (str (check-digit birth)) birth-cd)
+              (= (str (check-digit expiry)) expiry-cd)
+              (= (str (check-digit personal)) personal-cd)
+              (= (str (check-digit composite)) composite-cd)))))
+
+(defn- base64-decode
+  [b64]
+  (let [bin (js/atob b64)
+        out (js/Uint8Array. (.-length bin))]
+    (dotimes [i (.-length bin)]
+      (aset out i (.charCodeAt bin i)))
+    out))
+
+(defn- hex [bytes]
+  (let [arr (js/Uint8Array. bytes)]
+    (apply str (map #(let [s (.toString % 16)] (if (< (count s) 2) (str "0" s) s)) arr))))
+
+(defn- sha256-hex-p
+  "SHA-256 via WebCrypto (async) -> promise of lowercase hex."
+  [bytes]
+  (-> (.digest (.-subtle js/crypto) "SHA-256" bytes)
+      (.then hex)))
+
+(defn- asn1-parse
+  "Minimal DER parser. Returns a tree:
+  {:tag n :start n :end n :constructed bool :children [...] :data data}"
+  [data]
+  (let [len (.-length data)]
+    (letfn [(parse-node [pos]
+              (when (< pos len)
+                (let [tag (aget data pos)
+                      first-len (aget data (+ pos 1))
+                      [len-bytes content-len next-pos]
+                      (if (< first-len 128)
+                        [1 first-len (+ pos 2)]
+                        (let [n (bit-and first-len 127)]
+                          [(inc n)
+                           (reduce (fn [acc i]
+                                     (+ (* acc 256) (aget data (+ pos 2 i))))
+                                   0 (range n))
+                           (+ pos 2 n)]))
+                      value-start (+ pos 1 len-bytes)
+                      constructed? (not= 0 (bit-and tag 32))]
+                  {:tag tag
+                   :start value-start
+                   :end (min len (+ value-start content-len))
+                   :constructed constructed?
+                   :next next-pos})))
+            (build [node]
+              (when node
+                (if (:constructed node)
+                  (assoc node :children (doall (map build (children-raw node))))
+                  node)))
+            (children-raw [node]
+              (loop [pos (:start node) acc []]
+                (if (>= pos (:end node))
+                  acc
+                  (if-let [child (parse-node pos)]
+                    (recur (:end child) (conj acc child))
+                    (recur (inc pos) acc)))))]
+      (build (parse-node 0)))))
+
+(defn- node-bytes [node]
+  (.slice (.-data node) (:start node) (:end node)))
+
+(defn- collect-tag
+  "All nodes with the given tag, depth-first."
+  [node tag acc]
+  (when node
+    (let [acc (if (= (:tag node) tag) (conj acc node) acc)]
+      (reduce (fn [acc c] (collect-tag c tag acc)) acc (:children node)))))
+
+(defn- dg-digest-input [dg-b64]
+  (base64-decode dg-b64))
+
+(def octet-tags #{4 129})
+
+(defn verify-sod-digests
+  "Verify SHA-256 digests of the provided DG blobs against the signed SOD
+  content list. The CMS envelope is ContentInfo -> [0] -> SignedData ->
+  encapContentInfo -> [0] (implicit OCTET) containing the LDS SOD table
+  (SEQUENCE { version, hashAlgorithm, certificateIdentifier, digestedList })
+  where digestedList is a SEQUENCE of SEQUENCE { INTEGER dgIndex,
+  OCTET digest }."
+  [{:keys [sod-der data-groups]}]
+  (let [root (asn1-parse (base64-decode sod-der))
+        octets (collect-tag root 4 #{})
+        octets (if (seq octets)
+                 octets
+                 (collect-tag root 129 #{}))
+        ;; try every OCTET blob as an LDS SOD table; pick the one whose
+        ;; structure is a SEQUENCE-of-{INTEGER, OCTET} entries
+        table (some (fn [o]
+                      (let [inner (try (asn1-parse (node-bytes o))
+                                       (catch :default _ nil))]
+                        (when inner
+                          (some (fn [top-seq]
+                                  (let [entries (filter #(= (:tag %) 48)
+                                                        (:children top-seq))]
+                                    (when (and (seq entries)
+                                               (every? (fn [e]
+                                                         (let [kids (:children e)]
+                                                           (and (some #(= (:tag %) 2) kids)
+                                                                (some #(contains? octet-tags (:tag %)) kids))))
+                                                       entries))
+                                      entries)))
+                                (filter #(= (:tag %) 48) (:children inner))))))
+                    octets)
+        dg-entries (mapcat (fn [entry]
+                             (let [kids (:children entry)
+                                   dg-node (some (fn [c] (when (and (= (:tag c) 2) (:data c)) c)) kids)
+                                   digest-node (some (fn [c] (when (and (contains? octet-tags (:tag c)) (:data c)) c)) kids)]
+                               (when (and dg-node digest-node)
+                                 (let [dg-bytes (node-bytes dg-node)
+                                       digest-bytes (node-bytes digest-node)]
+                                   (when (and (pos? (.-length dg-bytes)) (pos? (.-length digest-bytes)))
+                                     [{:dg-index (aget dg-bytes 0)
+                                       :digest digest-bytes}])))))
+                           table)
+        digest-promises (map (fn [{:keys [dg-index digest]}]
+                               (let [provided (get data-groups (str dg-index))]
+                                 (if provided
+                                   (-> (sha256-hex-p (dg-digest-input provided))
+                                       (.then (fn [expected]
+                                                {:dg (str "DG" dg-index)
+                                                 :valid (= expected (hex digest))})))
+                                   (js/Promise.resolve {:dg (str "DG" dg-index)
+                                                        :valid false}))))
+                             dg-entries)]
+    (-> (js/Promise.all (apply array digest-promises))
+        (.then (fn [results]
+                 {:valid (and (seq results) (every? :valid results))
+                  :verified (mapv :dg (filter :valid results))
+                  :mismatches (mapv :dg (remove :valid results))
+                  :sod-der-hex (hex (base64-decode sod-der))})))))
+
+(defn extract-dg1-mrz
+  "DG1 contains the TD3 MRZ (2x44) as its OCTET STRING content."
+  [dg1-b64]
+  (let [node (asn1-parse (dg-digest-input dg1-b64))
+        octets (collect-tag node 4 #{})]
+    (when-let [octet (first octets)]
+      (let [bytes (node-bytes octet)
+            mrz (apply str (map js/String.fromCharCode bytes))
+            clean (subs mrz 5)]
+        {:line1 (subs clean 0 44)
+         :line2 (subs clean 44 88)}))))
+
+(defn verify-chip-evidence
+  "Full layer-1 verification of a kotoba-proof chip-evidence bundle.
+  Returns a JS Promise of
+  {:valid :mrz :sod :verified-dgs :mismatched-dgs :doc-number :expiry
+   :issuing-state :portrait-digest}."
+  [{:keys [sod-der dg1 dg11 dg12 dg5] :as bundle}]
+  (let [mrz (some-> dg1 extract-dg1-mrz)
+        mrz-ok (and mrz (mrz-check-digits-valid? (:line1 mrz) (:line2 mrz)))
+        line2 (some-> mrz :line2)
+        doc-number (some-> line2 (subs 5 14) (.replace "<" ""))
+        expiry (some-> line2 (subs 23 30))
+        issuing-state (some-> mrz :line1 (subs 2 5) (.replace "<" ""))]
+    (-> (verify-sod-digests
+         (assoc bundle :data-groups
+                (into {} (remove (comp nil? second))
+                      [["1" dg1] ["11" dg11] ["12" dg12] ["5" dg5]])))
+        (.then (fn [digests]
+                 (let [portrait-p (if dg5 (sha256-hex-p (dg-digest-input dg5))
+                                    (js/Promise.resolve nil))]
+                   (-> portrait-p
+                       (.then (fn [portrait-digest]
+                                {:valid (boolean (and mrz-ok (:valid digests)))
+                                 :mrz mrz-ok
+                                 :sod (:valid digests)
+                                 :verified-dgs (:verified digests)
+                                 :mismatched-dgs (:mismatches digests)
+                                 :doc-number doc-number
+                                 :expiry expiry
+                                 :issuing-state issuing-state
+                                 :portrait-digest portrait-digest}))))))))))

@@ -664,7 +664,17 @@
 ;; per-principal DO id, and forward so the atomic blockConcurrencyWhile
 ;; semantics live inside the Durable Object.
 (defn fetch! [request ^js env _ctx]
-  (if-not (= "https://research.internal" (.-origin (js/URL. (.-url request))))
+  (if (= "https://org.internal" (.-origin (js/URL. (.-url request))))
+    (-> (.json request)
+        (.then (fn [body]
+                 (let [ns (aget env "ORG_RECORDS")
+                       id (.idFromName ns "orgs")
+                       stub (.get ns id)]
+                   (.fetch stub (js/Request. (.-url request)
+                                             #js {:method "POST"
+                                                  :headers #js {"content-type" "application/json"}
+                                                  :body (js/JSON.stringify body)}))))))
+    (if-not (= "https://research.internal" (.-origin (js/URL. (.-url request))))
     (js/Promise.resolve (response {:error "private-binding-required"} 403))
     (-> (.json request)
         (.then (fn [body]
@@ -674,6 +684,7 @@
                    (.fetch stub (js/Request. (.-url request)
                                              #js {:method "POST"
                                                   :headers #js {"content-type" "application/json"}
-                                                  :body (js/JSON.stringify body)}))))))))
+                                                  :body (js/JSON.stringify body)})))))))))
+
 
 (def default #js {:fetch fetch!})

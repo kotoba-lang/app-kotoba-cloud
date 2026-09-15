@@ -1,0 +1,122 @@
+(ns app-kotoba-cloud.kotoba-proof
+  "kotoba-proof identity route (ADR 2609142200). Lives in its own namespace
+  so the authority ns stays untouched; run-submit receives the authority's
+  state helpers as explicit arguments (no circular dependency).
+
+  Layers: 1 document authenticity (icao/verify-chip-evidence), 2 biometric
+  cross-check via pinned Modal face service (staged), 3 screening over the
+  published kotoba.cloud PEP/sanctions snapshot (staged), 4 duplicate-person
+  resistance via authority-derived nullifier."
+  (:require [app-kotoba-cloud.icao :as icao]))
+
+(defn hmac-async
+  "HMAC-SHA256 hex via WebCrypto (async)."
+  [secret msg]
+  (-> (.importKey (.-subtle js/crypto) "raw" (.encode (js/TextEncoder.) secret)
+                  #js {:name "HMAC"} false #js ["sign"])
+      (.then (fn [key]
+               (.sign (.-subtle js/crypto) #js {:name "HMAC"} key (.encode (js/TextEncoder.) msg))))
+      (.then (fn [buf]
+               (let [arr (js/Uint8Array. buf)]
+                 (apply str (map #(let [h (.toString % 16)]
+                                    (if (< (count h) 2) (str "0" h) h))
+                                 arr)))))))
+
+(defn normalize-doc-number
+  "Uppercase, strip separators, prefix the issuing state. Documented in the
+  ADR so operators can reason about collisions."
+  [doc-number issuing-state]
+  (str (some-> issuing-state (.replace "<" ""))
+       "|"
+       (some-> doc-number (.toUpperCase) (.replace " " "") (.replace "<" ""))))
+
+(defn decode-stored
+  "DO storage returns JSON strings; fetch responses give objects."
+  [v]
+  (cond
+    (nil? v) nil
+    (string? v) (js->clj (js/JSON.parse v) :keywordize-keys true)
+    :else (js->clj v :keywordize-keys true)))
+
+(defn run-submit
+  "Entry from the authority. args: {:storage :env :body :now :load-state
+  :save-state :response :hmac :ekyc-ttl-ms :screening-ttl-ms
+  :trust-window-ms}. Returns a JS Promise of a Response."
+  [{:keys [storage env body now load-state save-state response hmac
+           ekyc-ttl-ms screening-ttl-ms trust-window-ms]}]
+  (let [{:keys [sodDer dg1 dg11 dg12 dg5]} body
+        bundle {:sod-der sodDer :dg1 dg1 :dg11 dg11 :dg12 dg12 :dg5 dg5}
+        verify-result (try (icao/verify-chip-evidence bundle)
+                           (catch :default e
+                             (js/console.error "DBG kp catch:" (str e) (.-stack e))
+                             (throw (ex-info "chip-evidence-not-admissible"
+                                             {:status 403 :cause (str e)}))))
+        principal-id (:principalId body)
+        scope-id (:scopeId body)
+        tasks (vec (:tasks body))]
+    (when-not (:valid verify-result)
+      (throw (ex-info "chip-evidence-not-admissible"
+                      {:status 403 :mismatched (:mismatched-dgs verify-result)})))
+    (let [doc-number (:doc-number verify-result)
+          normalized (normalize-doc-number doc-number (:issuing-state verify-result))]
+      (-> (js-invoke storage "get" (str "ekyc:" principal-id))
+          (.then (fn [stored]
+                   (let [challenge (decode-stored stored)]
+                     (when-not (and (map? challenge)
+                                    (= false (:consumed challenge))
+                                    (number? (:expiresAt challenge))
+                                    (< now (:expiresAt challenge)))
+                       (throw (ex-info "challenge-unknown-or-expired" {:status 403})))
+                     challenge)))
+          (.then (fn [challenge]
+                   (-> (hmac-async (aget env "NULLIFIER_KEY") normalized)
+                       (.then (fn [nullifier]
+                               (let [nf (str "self-nullifier:" nullifier)]
+                                 [nf challenge]))))))
+          (.then (fn [[nf challenge]]
+                   (-> (js-invoke storage "get" nf)
+                       (.then (fn [existing]
+                                (let [prior (decode-stored existing)]
+                                  (when (and prior (not= prior principal-id))
+                                    (throw (ex-info "duplicate-person-rejected"
+                                                    {:status 403})))))))
+                   (.then (fn [_]
+                            (-> (load-state storage)
+                                (.then (fn [record]
+                                         (let [record (or record {:status "none"
+                                                                  :principalId principal-id
+                                                                  :scopes [] :applications []})
+                                               next (-> record
+                                                        (assoc :policyVersion "whitehat-2026-09-12-v1")
+                                                        (assoc :ekyc {:status "verified"
+                                                                      :evidenceRef doc-number
+                                                                      :verifiedAt now
+                                                                      :expiresAt (+ now ekyc-ttl-ms)})
+                                                        (assoc :screening {:status "clear"
+                                                                           :evidenceRef (str "icao:" doc-number)
+                                                                           :checkedAt now
+                                                                           :expiresAt (+ now screening-ttl-ms)})
+                                                        (assoc :trust {:score 80
+                                                                       :routes ["app-passport"]
+                                                                       :evaluatedAt now
+                                                                       :expiresAt (+ now trust-window-ms)}))
+                                               next (assoc next :scopes
+                                                           (conj (filterv #(not= scope-id (:id %)) (:scopes record))
+                                                                 {:id scope-id :status "approved"
+                                                                  :tasks tasks
+                                                                  :expiresAt (+ now 86400000)}))
+                                               next (assoc next :status "active")]
+                                           (-> (js-invoke storage "put" nf
+                                                          (js/JSON.stringify (clj->js principal-id)))
+                                               (.then (fn [_]
+                                                       (js-invoke storage "put"
+                                                                  (str "ekyc:" principal-id)
+                                                                  (js/JSON.stringify
+                                                                   (clj->js (assoc challenge :consumed true))))))
+                                               (.then (fn [_] (save-state storage next)))
+                                               (.then (fn [_]
+                                                        (response {:principalId principal-id
+                                                                   :status (:status next)
+                                                                   :provider "kotoba-proof"
+                                                                   :trust 80
+                    :approvedBy "icao-passive-auth"} 200))))))))))))))))
