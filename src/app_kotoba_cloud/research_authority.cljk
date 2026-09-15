@@ -195,7 +195,7 @@
 (def upstream-models
   {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-cybersecurity-nvfp4"
    "glm5.3-flash" "glm5.3-flash"
-   ;; blue team (OpenRouter): the public id is the OpenRouter id
+   ;; blue team (the shared route): the public id is the publisher's id
    "qwen/qwen3.8-flash" "qwen/qwen3.8-flash"
    "z-ai/glm-5.3-flash" "z-ai/glm-5.3-flash"})
 (def blue-models #{"qwen/qwen3.8-flash" "z-ai/glm-5.3-flash"})
@@ -204,7 +204,7 @@
 (defn- upstream-model-for [public-id] (get upstream-models public-id public-model))
 
 ;; --- Card-based identity verification (sole verification/approval path) -----
-;; OrcaRouter-style assurance rung 1: a live payment method on file is the
+;; Assurance rung 1: a live payment method on file is the
 ;; verification instrument. Prepaid (and unknown-funding) cards are rejected;
 ;; only credit/debit funding admits. Challenges live under `ekyc:<principalId>`
 ;; (slot kept for wire compatibility). No document PII is persisted: only the
@@ -355,7 +355,7 @@
              (js/JSON.stringify (clj->js challenge))))
 
 (defn- card-method!
-  "Card-based verification start (OrcaRouter-style rung 1). Mints/locates one
+  "Card-based verification start (assurance rung 1). Mints/locates one
   customer per principal, requires a live card on file, and rejects prepaid
   (and unknown-funding) cards. Returns a hosted Setup Session URL when no card
   is on file (the human completes card entry at checkout.stripe.com — never the
@@ -780,35 +780,42 @@
              (seq (:tools request)) (assoc :tools (:tools request))
              (some? (:tool_choice request)) (assoc :tool_choice (:tool_choice request)))))
 
-(def openrouter-url "https://openrouter.ai/api/v1/chat/completions")
-(defn- openrouter-headers
-  "Blue-team route. The key is an operator secret (OPENROUTER_API_KEY);
+(def blue-route-url
+  "The shared inference route's OpenAI-compatible endpoint. Which provider
+  stands behind it is operator configuration; the public catalog never
+  names it."
+  "https://openrouter.ai/api/v1/chat/completions")
+(defn- blue-route-headers
+  "Blue-team route. The key is an operator secret (BLUE_ROUTE_API_KEY);
   without it the route refuses by name — a blue job never silently falls
-  back to the red team's Modal deployment."
+  back to the red team's dedicated deployment. The two attribution headers
+  are what the route expects from an application."
   [env]
-  (let [key (aget env "OPENROUTER_API_KEY")]
+  (let [key (aget env "BLUE_ROUTE_API_KEY")]
     (when-not (text? key 512)
-      (throw (ex-info "openrouter-not-configured" {:status 503})))
+      (throw (ex-info "blue-route-not-configured" {:status 503})))
     #js {"content-type" "application/json"
          "authorization" (str "Bearer " key)
          "HTTP-Referer" "https://kotoba.cloud"
          "X-Title" "Kotoba Cloud"}))
-(defn- modal-upstream-url
-  "The Modal deployment URL is an operator secret/configuration, never a
-  browser field. Restrict it to Modal's deployment host so this private Worker
-  cannot be turned into an arbitrary authenticated HTTP relay."
+(defn- red-route-url
+  "The dedicated research deployment's URL is an operator secret /
+  configuration (MODAL_INFERENCE_URL — the secret's name is fixed by the
+  stored value), never a browser field. Restricted to the deployment's host
+  so this private Worker cannot be turned into an arbitrary authenticated
+  HTTP relay."
   [env]
   (let [raw (aget env "MODAL_INFERENCE_URL")]
     (when-not (text? raw 2048)
-      (throw (ex-info "modal-inference-not-configured" {:status 503})))
+      (throw (ex-info "red-route-not-configured" {:status 503})))
     (let [url (js/URL. raw)
           host (.toLowerCase (.-hostname url))]
       (when-not (and (= "https:" (.-protocol url)) (.endsWith host ".modal.run"))
-        (throw (ex-info "modal-inference-url-invalid" {:status 503})))
+        (throw (ex-info "red-route-url-invalid" {:status 503})))
       raw)))
 
 (defn- upstream-usage-receipt
-  "Accept only Modal's measured OpenAI-compatible usage. Missing, negative, or
+  "Accept only the upstream's measured OpenAI-compatible usage. Missing, negative, or
   inconsistent values are a provider error; no request-derived estimate may
   enter a future billing ledger."
   [decoded job]
@@ -819,9 +826,9 @@
     (when-not (and (integer? input) (<= 0 input)
                    (integer? output) (<= 0 output)
                    (integer? total) (= total (+ input output)))
-      (throw (ex-info "modal-usage-receipt-invalid" {})))
+      (throw (ex-info "usage-receipt-invalid" {})))
     {:receiptVersion "kotoba-inference-usage-2026-09-v1"
-     :source "modal-openai-compatible"
+     :source "upstream-openai-compatible"
      :requestId (:jobId job)
      :receiptId (:receiptId job)
      :model (get-in job [:request :model])
@@ -840,17 +847,18 @@
       (when (and job (= "queued" (:status job)))
         (let [blue? (blue-model? (get-in job [:request :model]))
               ;; the route is decided by the model's team (research.cljk
-              ;; teams): blue → OpenRouter, red → Modal. A route that is not
+              ;; teams): blue → the shared route, red → the dedicated
+              ;; deployment. A route that is not
               ;; configured refuses by name INSIDE the promise chain, so the
               ;; terminal catch below stores it — never a fallback to the
               ;; other team's deployment.
-              unavailable (if blue? "openrouter-inference-unavailable" "modal-inference-unavailable")
+              unavailable (if blue? "blue-route-unavailable" "red-route-unavailable")
               q (try
-                  (js/fetch (if blue? openrouter-url (modal-upstream-url env))
+                  (js/fetch (if blue? blue-route-url (red-route-url env))
                             #js {:method "POST" :redirect "manual"
                                  :signal (js/AbortSignal.timeout 2100000)
                                  :headers (if blue?
-                                            (openrouter-headers env)
+                                            (blue-route-headers env)
                                             #js {"content-type" "application/json"
                                                  "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))})
                                  :body (js/JSON.stringify (upstream-body (:request job)))})
@@ -929,7 +937,7 @@
                                         (= "chat.completion" (:object decoded))
                                         tool-calls-ok?
                                         (or (text? fallback max-content-characters) tool-calls))
-                             (throw (ex-info "unexpected-modal-model-or-response"
+                             (throw (ex-info "unexpected-upstream-model-or-response"
                                              {:upstream {:model (:model decoded) :object (:object decoded)
                                                          :finish (:finish_reason choice)}}))
                              {:content fallback

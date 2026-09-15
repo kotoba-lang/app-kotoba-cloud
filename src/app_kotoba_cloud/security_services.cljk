@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.security-services
-  "First-party security-services suite catalog (orcarouter pattern): ONE
+  "First-party security-services suite catalog: ONE
   canonical def describes the four services — CTEM, DAST, SAST and VM —
   and every surface (the /apps cards, the /security/services/ document and
   the GET /v1/security/services edge catalog) renders from it, so the page

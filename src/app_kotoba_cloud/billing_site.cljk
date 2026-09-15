@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.billing-site
-  "The ACCOUNT › 料金・決済 console. Reference IA (OrcaRouter Billing):
+  "The ACCOUNT › 料金・決済 console. Reference IA (Billing):
   a balance panel first, then 'add credits' as one-time vs monthly, then
   the plans, then the terms — each fact once, the explanation on demand.
 

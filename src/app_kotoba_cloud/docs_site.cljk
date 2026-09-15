@@ -1,7 +1,7 @@
 (ns app-kotoba-cloud.docs-site
   "docs.kotoba.cloud content — served under /docs/ on the canonical origin
   (a separate docs subdomain is not provisioned; one origin, see graph-docs).
-  orcarouter-pattern: an integrations overview with the two rules that apply
+  an integrations overview with the two rules that apply
   to every tool, then one copy-paste page per client. Every config block is
   generated from the same data the API serves (base URLs, model id) so the
   docs cannot drift from the endpoints. All pages carry the shared chrome.")
@@ -24,7 +24,7 @@
 (defn- config-block [s] [:pre {:class "kc-docs__config"} s])
 (defn- txt [ja en] ja) ;; overridden per view
 
-;; --- the two rules (orcarouter pattern) -------------------------------------
+;; --- the two rules ----------------------------------------------------------
 (defn two-rules [ja?]
   (let [txt (fn [ja en] (if ja? ja en))]
     [[:h2 (txt "すべてのツールに共する 2 つのルール" "Two rules that apply to every tool")]
@@ -40,7 +40,7 @@
 ;; --- client catalog ----------------------------------------------------------
 (def clients
   "One entry per client page. protocol: openai (base URL with /v1) or
-  anthropic (bare host). status mirrors the orcarouter chips honestly."
+  anthropic (bare host). status mirrors the reference chips honestly."
   [{:id "claude-code" :name "Claude Code"
     :protocol :anthropic :status :verified
     :desc-ja "Anthropic 製ターミナルコーディングエージェント。Anthropic プロトコル (ベース URL に /v1 を付けない)。"
@@ -156,7 +156,7 @@
 (defn- note-block [child] [:p {:class "kc-docs__note"} child])
 
 (def ref-pages
-  "API reference pages (orcarouter pattern). Only what the shipped API
+  "API reference pages. Only what the shipped API
   actually does: async jobs (poll, no SSE), no tool calling, guardrail /
   firewall denials as errors, free-quota 429s, ZDR design."
   [{:id "quickstart" :name "Quickstart"

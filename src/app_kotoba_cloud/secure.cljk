@@ -1,5 +1,5 @@
 (ns app-kotoba-cloud.secure
-  "OrcaRouter-style SECURE surfaces: Guardrails (content policy enforced on
+  "SECURE surfaces: Guardrails (content policy enforced on
   every request), Firewall (which task tools a principal may call), and
   Compliance (framework coverage + audit-log retention + would-block events).
 

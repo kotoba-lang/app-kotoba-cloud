@@ -286,7 +286,7 @@
   (if (policy/blue? (:model body))
     ;; Blue team: the edge has authenticated the principal (cookie session or
     ;; PAT); the authority admits on guardrails + task + free quota and routes
-    ;; to OpenRouter. No identity ladder, no scope, no continuous session.
+    ;; to the shared route. No identity ladder, no scope, no continuous session.
     (complete-via-job binding principal reference body respond)
     (-> (service binding "/status" {:principalId principal :sessionRef reference :action (:task body)})
         (.then
@@ -495,16 +495,16 @@
       (not= method required-method)
       (respond {:error {:code "method-not-allowed"}} 405)
       (= path "/v1/models")
-      ;; blue-team availability is an environment fact: the OpenRouter key
-      ;; is an operator secret on the RESEARCH authority; the edge reads its
-      ;; own copy of the flag (OPENROUTER_CONFIGURED) rather than the key
+      ;; blue-team availability is an environment fact: the shared route's
+      ;; key is an operator secret on the RESEARCH authority; the edge reads
+      ;; its own copy of the flag (BLUE_ROUTE_CONFIGURED) rather than the key
       (respond (update policy/catalog :data
                        (fn [rows]
                          (mapv (fn [m]
                                  (if (= "blue" (:team m))
-                                   (assoc m :availability (if (= "true" (aget env "OPENROUTER_CONFIGURED"))
-                                                            "openrouter-configured"
-                                                            "openrouter-key-not-configured"))
+                                   (assoc m :availability (if (= "true" (aget env "BLUE_ROUTE_CONFIGURED"))
+                                                            "route-configured"
+                                                            "route-key-not-configured"))
                                    m))
                                rows)))
                200)

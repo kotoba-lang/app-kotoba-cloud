@@ -1,5 +1,5 @@
-;; Console IA coverage against the owner-supplied reference (OrcaRouter
-;; console screenshots, 2026-09-15). Append-only: one entry per measurement.
+;; Console IA coverage against the owner-supplied reference console
+;; (15 screenshots, 2026-09-15). Append-only: one entry per measurement.
 ;; :document  a real emitted document (or a fragment view of one) exists
 ;; :data      the view shows live facts from an endpoint (or policy data the
 ;;            authority enforces) — never a placeholder

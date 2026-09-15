@@ -5,7 +5,7 @@
   browser adds what only the live surface knows: each model's current
   availability and the running policy version (/v1/models).
 
-  Reference IA (OrcaRouter Models / Routing): title + one-line meaning, a
+  Reference IA (Models / Routing): title + one-line meaning, a
   table with explicit columns, the request shape the caller sends."
   (:require [jp-go-dds.core :as dds]
             [kotoba.lang.text :as str]
@@ -45,11 +45,9 @@
 
 (def team-copy
   {:blue {:title "ブルーチーム"
-          :lead "一般用途のモデル。OpenRouter 経由で提供し、サインインすれば無料枠の範囲で使えます。"
-          :route "OpenRouter"}
+          :lead "一般用途のモデル。サインインすれば無料枠の範囲で使えます。"}
    :red {:title "レッドチーム"
-         :lead "セキュリティ研究向けの無制限モデル。Modal 経由で提供し、カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"
-         :route "Modal"}})
+         :lead "セキュリティ研究向けの無制限モデル。カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"}})
 
 (defn- model-rows [team]
   (for [[id {:keys [source strictAttribution] :as spec}] research/models
@@ -62,12 +60,12 @@
      [:td (if strictAttribution "上流が自身のモデル ID を返すことを要求" "応答の形と内容で検証")]]))
 
 (defn- team-section [team]
-  (let [{:keys [title lead route]} (get team-copy team)
+  (let [{:keys [title lead]} (get team-copy team)
         reqs (get-in research/teams [team :requirements])]
     [:section {:class "ck-console__panel" :id (str "team-" (name team))}
      [:div {:class "kc-models__head"}
       [:h2 title]
-      (console/badge (str "経路: " route) {:state (if (= team :red) :action :ok)})]
+      (console/badge (if (= team :red) "本人確認が必要" "サインインで利用") {:state (if (= team :red) :action :ok)})]
      [:p {:class "ck-console__note"} lead]
      [:div {:class "kc-models__table"}
       [:table
@@ -101,4 +99,4 @@
                         "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
                         "  -H \"content-type: application/json\" \\\n"
                         "  -d '{\"model\":\"" research/model-id "\",\"messages\":[{\"role\":\"user\",\"content\":\"…\"}]}'")]]
-      [:p {:class "ck-console__note"} "ブルーチームのモデルは OpenRouter の ID をそのまま `model` に指定します。" [:a {:href "/docs/reference/quickstart/"} "クイックスタート"] "に発行から最初のリクエストまでの手順があります。"]]]))
+      [:p {:class "ck-console__note"} "モデルは表の ID をそのまま `model` に指定します。" [:a {:href "/docs/reference/quickstart/"} "クイックスタート"] "に発行から最初のリクエストまでの手順があります。"]]]))

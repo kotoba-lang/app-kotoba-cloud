@@ -103,7 +103,7 @@ assert.deepEqual(storedJob.usageReceipt && {
   inputTokens: storedJob.usageReceipt.inputTokens,
   outputTokens: storedJob.usageReceipt.outputTokens,
   totalTokens: storedJob.usageReceipt.totalTokens,
-}, { source: "modal-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
+}, { source: "upstream-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
 
 // 6b. upstream refuses (401) -> terminal state is FAILED with the upstream
 // status; never "succeeded" with nil content. Live, the chain's per-step
@@ -129,7 +129,7 @@ assert.deepEqual(storedJob.usageReceipt && {
   console.error = realError;
   const failed = JSON.parse(await state.storage.get("job:" + failJobId));
   assert.equal(failed.status, "failed", "terminal state must be failed: " + JSON.stringify(failed));
-  assert.equal(failed.error, "modal-inference-unavailable");
+  assert.equal(failed.error, "red-route-unavailable");
   assert.equal(failed.upstreamStatus, 401);
   assert.equal(failed.content, undefined);
   const logged = errLines.filter(l => l.startsWith("inference-run-failed " + failJobId));
@@ -273,8 +273,8 @@ r = await call("/applications", {
 assert.equal(r.status, 200);
 assert.ok(r.json.applicationId.startsWith("app-req-1"));
 
-// 11. blue team (OpenRouter): a signed-in principal with NO record is admitted,
-//     the job goes to OpenRouter with the OpenRouter id, and the offensive
+// 11. blue team (the shared route): a signed-in principal with NO record is
+//     admitted, the job goes to the shared route with the model's id, and the offensive
 //     band stays closed. Without the key the route refuses by name.
 {
   const blueState = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
@@ -293,18 +293,18 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
       usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } }), { status: 200, headers: { "content-type": "application/json" } });
   };
   try {
-    // key absent → the job is admitted but the run refuses by name (never falls back to Modal)
+    // key absent → the job is admitted but the run refuses by name (never falls back to the dedicated deployment)
     const noKey = new ResearchAuthority(blueState, { ...env });
     const callNoKey = (path, body) => noKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
     let b = await callNoKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
     assert.equal(b.status, 200, "blue: no record needed " + JSON.stringify(b.json));
     let stored = JSON.parse(await blueState.storage.get("job:" + blueJob));
     assert.equal(stored.status, "failed");
-    assert.match(stored.error, /openrouter-not-configured/);
+    assert.match(stored.error, /blue-route-not-configured/);
     assert.equal(routed.length, 0, "nothing was fetched — no fallback to the red route");
-    // key present → OpenRouter, OpenRouter id, referer, strict attribution
+    // key present → the shared route, the model id, referer, strict attribution
     const blueState2 = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
-    const withKey = new ResearchAuthority(blueState2, { ...env, OPENROUTER_API_KEY: "or-test-key" });
+    const withKey = new ResearchAuthority(blueState2, { ...env, BLUE_ROUTE_API_KEY: "or-test-key" });
     const callKey = (path, body) => withKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
     b = await callKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
     assert.equal(b.status, 200, JSON.stringify(b.json));
@@ -323,7 +323,7 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
     assert.equal(b.status, 403, "red stays gated: " + JSON.stringify(b.json));
     assert.equal(b.json.error, "review-required");
   } finally { globalThis.fetch = oldFetch; }
-  console.log("blue team route: admitted on sign-in, OpenRouter with its id, refuses by name without the key, offensive band closed, red still gated");
+  console.log("blue team route: admitted on sign-in, the shared route with the model id, refuses by name without the key, offensive band closed, red still gated");
 }
 
 console.log("research authority local checks: all passed");
