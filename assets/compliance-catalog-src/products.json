@@ -2692,6 +2692,20 @@
    "pricingNote": "quote-based; per-workload/endpoint subscription via quote"
   },
   {
+   "id": "trend-security-awareness",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Vision One Security Awareness Training",
+   "categoryId": "awareness",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/cyber-risk-exposure-management/security-awareness.html",
+   "pricingNote": "quote-based; no public list pricing on the vendor JP product page (observed 2026-09-15)",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ]
+  },
+  {
    "id": "trend-identity-security",
    "provider": "Trend Micro",
    "providerHq": "JP",
