@@ -1,9 +1,10 @@
 (ns app-kotoba-cloud.apps-site
-  "Apps catalog (orcarouter pattern): a card grid of products built on the
+  "Apps catalog: a card grid of products built on the
   kotoba.cloud gateway — each card carries an icon tile, title, description,
   status badge and Open/Docs actions. The catalog data lives in apps-edn
   below so the page and the /apps data export cannot drift."
   (:require [cloud-kotoba-dds.catalog :as catalog]
+            [app-kotoba-cloud.security-services :as security-services]
             [jp-go-dds.core :as dds]))
 
 (def css
@@ -20,10 +21,26 @@
 .kc-app-card__status[data-state=beta]::before{background:var(--hig-color-tint)}
 .kc-app-card__actions{display:flex;flex-wrap:wrap;gap:var(--hig-spacing-3);align-items:center;margin-top:auto}")
 
+(defn- service->card
+  "Derive an /apps grid card from the ONE canonical security-services def —
+  the card and the /security/services/ page cannot drift."
+  [{:keys [id name summary capabilities status]}]
+  {:id (str "security-" (clojure.core/name id))
+   :name name
+   :kind "security-service"
+   :status (if (= status "component-shipped") "live" "beta")
+   :desc (:ja summary)
+   :desc-en (:en summary)
+   :links [["サービス詳細" security-services/ledger-page]]
+   :meta [(str (count capabilities) " capabilities")]})
+
 (def apps
   "The public app catalog. status: live (shipped, reachable) / beta (data live,
-  UI complete). Every href must resolve after render — the smoke checks it."
-  [{:id "pep-registry"
+  UI complete). Every href must resolve after render — the smoke checks it.
+  The four security-service cards derive from the ONE canonical
+  security-services def, so card and document cannot drift."
+  (into
+   [{:id "pep-registry"
     :name "PEP Registry"
     :kind "public-data"
     :status "live"
@@ -49,9 +66,19 @@
     :status "live"
     :desc "脆弱性・攻撃手法・グループ・公開ログを、出典まで辿って調べる公開データカタログ (KEV / ATT&CK / OTRF)。"
     :desc-en "Public security-data catalog: KEV, ATT&CK and OTRF lab logs with sources you can trace."
-    :links [["ハブを開く" "/ja/security/"]
+    :links [["ハブを開く" "/security/"]
             ["IPLD" "/security-data/index.json"]]
     :meta ["KEV" "ATT&CK" "OTRF"]}
+   {:id "compliance-catalog"
+    :name "コンプライアンス & 製品カタログ"
+    :kind "public-data"
+    :status "live"
+    :desc "全世界のコンプライアンス基準 (ISO / SOC 2 / PCI DSS / GDPR / DORA / CRA ほか) と脆弱性対策製品のカテゴリ・価格・プロバイダーをまとめた出典付きカタログ。"
+    :desc-en "Worldwide compliance frameworks and vulnerability-management product catalog: categories, providers and pricing, fully sourced."
+    :links [["カタログを開く" "/security/compliance/"]
+            ["IPLD" "/compliance-data/compliance/index.json"]
+            ["生成スクリプト" "https://github.com/kotoba-lang/app-kotoba-cloud/blob/main/scripts/build-compliance-catalog.mjs"]]
+    :meta ["16 基準" "350 プロダクト" "CSF 2.0 対応あり"]}
    {:id "aup"
     :name "Security Research AUP"
     :kind "policy"
@@ -76,7 +103,8 @@
     :desc "推論モデルカタログとアクセスゲート状態 (availability / requirements / freeTier)。"
     :desc-en "Inference model catalog with live access-gate state (availability, requirements, freeTier)."
     :links [["API" "/v1/models"]]
-    :meta ["OpenAI-compatible" "gate state"]}])
+    :meta ["OpenAI-compatible" "gate state"]}]
+   (map service->card security-services/security-services)))
 
 (defn app-card [{:keys [name desc links meta status id]}]
   [:article {:class "kc-app-card" :data-app id}
@@ -104,7 +132,7 @@
               "Public products on the kotoba.cloud gateway — data, APIs and docs you can open directly.")
       :nav (catalog/breadcrumb
             "Apps"
-            [["ホーム" "/ja/"]
+            [["ホーム" "/"]
              ["Apps" nil]])}
      (into [:div {:class "kc-apps-grid"}]
            (map app-card apps))

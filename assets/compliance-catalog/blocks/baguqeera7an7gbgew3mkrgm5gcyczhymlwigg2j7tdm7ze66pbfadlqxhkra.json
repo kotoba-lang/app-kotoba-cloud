@@ -1,0 +1,1 @@
+{"categoryId":"iam","complianceFits":["cis-controls","soc2"],"id":"tailscale-sso","name":"Tailscale (SSO/device identity)","pricingMode":"public-list","pricingNote":"public per-user tiers (Personal free, Starter about $6/user/month); Enterprise quote-based","pricingUrl":"https://tailscale.com/pricing","provider":"Tailscale","providerHq":"CA"}

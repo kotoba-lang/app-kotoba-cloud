@@ -1,0 +1,189 @@
+#!/usr/bin/env kbb
+;; UI/UX audit of every emitted kotoba.cloud document, with the published
+;; asset set — the consumer side of shinkansen.audit / shinkansen.coscientist
+;; (owner direction 2026-09-15: /account's quality is low; improve the
+;; framework with the co-scientist approach).
+;;
+;;   kbb --backend sci scripts/uiux-audit.cljk [--root public] [--only /account/]
+;;                                             [--min 80] [--iteration N] [--json]
+;;
+;; exit 0  every document at or above --min (or no floor given) and no HARD finding
+;; exit 1  a document scored below the floor, or a HARD axis has a finding in
+;;         any document. Hard axes are outright breakage, not degradation:
+;;         assets-resolve / links-resolve / unique-ids / csp-allows-assets —
+;;         a single dead nav link across 100 documents must not average away
+;;         above the floor (it did: 0.66 × 76 documents stayed above 80).
+;;         Override with --hard a,b,c (empty string = none).
+;; exit 2  REFUSED — nothing to measure (no documents under --root) or an axis
+;;         could not be measured (a referenced script/stylesheet nobody
+;;         supplied). Never the same value as a pass.
+;;
+;; Run it AFTER `npm run build` and BEFORE `wrangler deploy`: :assets-resolve
+;; is the only place a deploy from a tree that lacks /js/session.js is caught
+;; (2026-09-15: production served /account whose script was 404 — every
+;; console cell stayed "読み込んでいます…" for every visitor).
+;;
+;; --iteration N appends docs/uiux-coscientist/iteration-NN.edn (+ .md) — the
+;; kaizen loop's measurement record (append-only; a new file per iteration).
+(ns uiux-audit
+  (:require [kotoba.lang.text :as str]
+            [clojure.edn :as edn]
+            [app-kotoba-cloud.csp :as csp]
+            [app-kotoba-cloud.public-locales :as locales]
+            [app-kotoba-cloud.console :as console]
+            [shinkansen.audit :as audit]
+            [shinkansen.coscientist :as cosci]
+            ["node:fs" :as fs]
+            ["node:path" :as node-path]
+            ["node:process" :as proc]))
+
+(def argv (vec (drop 2 (js->clj (.-argv proc)))))
+(defn- opt [f d] (let [i (.indexOf argv f)] (if (neg? i) d (nth argv (inc i) d))))
+(defn- flag? [f] (>= (.indexOf argv f) 0))
+
+(defn- walk-files [dir]
+  (let [out (js/Array.)]
+    (letfn [(walk [d]
+              (doseq [name (js->clj (fs/readdirSync d))]
+                (let [p (node-path/join d name)]
+                  (if (.isDirectory (fs/statSync p))
+                    (walk p)
+                    (.push out p)))))]
+      (when (fs/existsSync dir) (walk dir)))
+    (vec out)))
+
+(defn- url-path
+  "public/account/index.html → /account/ ; public/js/x.js → /js/x.js"
+  [root p]
+  (let [rel (str "/" (str/replace (node-path/relative root p) #"\\" "/"))]
+    (if (str/ends-with? rel "/index.html")
+      (subs rel 0 (- (count rel) (count "index.html")))
+      rel)))
+
+(defn- pad2 [n] (if (< n 10) (str "0" n) (str n)))
+
+(defn- print-report [{:keys [overall documents findings unmeasured empty?]} min-floor]
+  (println (str "SCANNED\t" (count documents)))
+  (doseq [[f rep] (sort-by key documents)]
+    (println (str (if (and min-floor (< (:overall rep) min-floor)) "BELOW\t" "OK\t")
+                  (.toFixed (:overall rep) 1) "\t" f
+                  (when (seq (:unmeasured rep)) (str "\tUNMEASURED " (str/join "," (map (comp name :axis) (:unmeasured rep))))))))
+  (println (str "OVERALL\t" (.toFixed overall 1)))
+  (when (seq findings)
+    (println "\nFindings (heaviest headroom first):")
+    (doseq [{:keys [axis files worst-score finding]} findings]
+      (println (str "- " (name axis) " [" (count files) " doc(s), worst " (.toFixed worst-score 2) "] " finding))))
+  (when (seq unmeasured)
+    (println "\nUNMEASURED (refused — not a pass):")
+    (doseq [{:keys [file axis why]} unmeasured]
+      (println (str "- " file " " (name axis) ": " why))))
+  (when empty? (println "REFUSED: no documents found")))
+
+(defn -main []
+  (let [root (opt "--root" "public")
+        only (opt "--only" nil)
+        min-floor (some-> (opt "--min" nil) js/parseFloat)
+        hard (set (map keyword (remove str/blank? (str/split (opt "--hard" "assets-resolve,links-resolve,unique-ids,csp-allows-assets") #","))))
+        iteration (some-> (opt "--iteration" nil) js/parseInt)
+        out-dir (opt "--out" "docs/uiux-coscientist")
+        files (walk-files root)
+        assets (set (map #(url-path root %) files))
+        ;; every same-origin stylesheet the documents may reference, by path
+        stylesheets (into {} (for [p files :when (str/ends-with? p ".css")]
+                               [(url-path root p) (str (fs/readFileSync p "utf8"))]))
+        ;; two hosts share this tree (console/surfaces): the /docs/… documents
+        ;; (and their /<locale>/docs/… variants) are served from the root of
+        ;; docs.kotoba.cloud and were emitted for it — their same-origin links
+        ;; resolve against THAT surface's document set (shinkansen.audit: a
+        ;; document may carry its own :ctx), never against the apex's
+        docs-surface? (fn [f] (boolean (re-find #"^(?:/[A-Za-z-]+)?/docs/" f)))
+        docs-documents (into #{} (comp (filter #(str/starts-with? % "/docs/"))
+                                       (map #(console/href-for :docs %)))
+                             assets)
+        docs (->> files
+                  (filter #(str/ends-with? % ".html"))
+                  (map (fn [p] (let [f (url-path root p)]
+                                 (cond-> {:file f :html (str (fs/readFileSync p "utf8"))}
+                                   (docs-surface? f) (assoc :ctx {:documents (into docs-documents
+                                                                                   (filter #(some (fn [pfx] (str/starts-with? % pfx)) console/shared-asset-prefixes))
+                                                                                   assets)
+                                                               :routes []})))))
+                  (filter #(or (nil? only) (str/includes? (:file %) only)))
+                  vec)
+        ;; every same-origin link must land on a published document or on a
+        ;; path the Worker itself answers (worker.cljk route table — kept as
+        ;; data here so a new Worker route is a one-line addition, and an
+        ;; emitted link to anything else fails the build, not the visitor)
+        worker-routes ["/account" "/identity" "/graph" "/health" "/favicon.ico"
+                       "/mcp.json" "/.well-known/mcp-config.json"   ; knowledge.cljk
+                       "/sign-in/" "/account/link/"                 ; worker.cljk, ADR-2609151900
+                       "/v1/" "/api/" "/schemas/" "/.well-known/"]
+        report (audit/audit docs {:assets assets
+                                  :stylesheets stylesheets
+                                  :documents assets
+                                  :routes worker-routes
+                                  ;; the Worker canonicalises /<locale>/<route> to
+                                  ;; /<route> (locale.cljk) — the language switch
+                                  ;; links resolve through their target
+                                  :locale-prefixes (set (map name locales/locale-order))
+                                  :csp csp/for-path})]
+    (if (flag? "--json")
+      (println (js/JSON.stringify (clj->js (dissoc report :documents))))
+      (print-report report min-floor))
+    (let [hard-hits (filter #(contains? hard (:axis %)) (:findings report))]
+      (when (seq hard-hits)
+        (println "\nHARD (breakage, fails regardless of the floor):")
+        (doseq [{:keys [axis files finding]} hard-hits]
+          (println (str "- " (name axis) " [" (count files) " doc(s)] " finding)))))
+    (when iteration
+      (let [{:keys [doc meta]} (cosci/kaizen-cycle report {:n iteration
+                                                            :seed (str "kotoba.cloud emitted documents under " root
+                                                                       (when only (str " (only " only ")")))})
+            base (node-path/join out-dir (str "iteration-" (pad2 iteration)))
+            prev-path (node-path/join out-dir (str "iteration-" (pad2 (dec iteration)) ".edn"))
+            ;; the kaizen proof: per-axis delta against the previous iteration's
+            ;; record (which carries :axes per document for exactly this)
+            delta (when (fs/existsSync prev-path)
+                    (let [prev (edn/read-string (str (fs/readFileSync prev-path "utf8")))]
+                      (cosci/delta {:overall (:overall prev) :documents (:documents prev) :findings (:findings prev)}
+                                   report)))]
+        (fs/mkdirSync out-dir #js {:recursive true})
+        (fs/writeFileSync (str base ".edn")
+                          (pr-str {:iteration iteration
+                                   :measured-at (.toISOString (js/Date.))
+                                   :root root :only only
+                                   :overall (:overall report)
+                                   :documents (into (sorted-map)
+                                                    (map (fn [[f r]]
+                                                           [f (-> (select-keys r [:overall :findings :unmeasured])
+                                                                  (assoc :axes (mapv #(select-keys % [:id :score]) (:axes r))))])
+                                                         (:documents report)))
+                                   :findings (:findings report)
+                                   :unmeasured (:unmeasured report)
+                                   :delta-from-previous delta
+                                   :meta meta}))
+        (fs/writeFileSync (str base ".md")
+                          (str doc
+                               (when delta
+                                 (str "\n## Delta from iteration " (pad2 (dec iteration)) " (the measurement)\n\n"
+                                      "overall " (.toFixed (:overall-before delta) 1) " → **" (.toFixed (:overall-after delta) 1)
+                                      "** (" (if (neg? (:delta delta)) "" "+") (.toFixed (:delta delta) 1) ")\n\n"
+                                      "| axis | before | after |\n|---|---|---|\n"
+                                      (str/join "\n" (map (fn [{:keys [axis before after]}]
+                                                             (str "| `" (name axis) "` | " (some-> before (.toFixed 3)) " | " (some-> after (.toFixed 3)) " |"))
+                                                           (:axes delta)))
+                                      "\n\nclosed: " (str/join ", " (map name (:closed delta)))
+                                      "\nopened: " (if (seq (:opened delta)) (str/join ", " (map name (:opened delta))) "none") "\n"))))
+        (when delta
+          (println (str "\nDELTA\t" (.toFixed (:overall-before delta) 1) " -> " (.toFixed (:overall-after delta) 1)
+                        "\tclosed " (str/join "," (map name (:closed delta)))
+                        "\topened " (if (seq (:opened delta)) (str/join "," (map name (:opened delta))) "none"))))
+        (println (str "\nwrote " base ".edn / .md"))))
+    (cond
+      (:empty? report) (.exit proc 2)
+      (seq (:unmeasured report)) (.exit proc 2)
+      (some #(contains? hard (:axis %)) (:findings report)) (.exit proc 1)
+      (and min-floor (some #(< (:overall %) min-floor) (vals (:documents report)))) (.exit proc 1)
+      :else (.exit proc 0))))
+
+(-main)

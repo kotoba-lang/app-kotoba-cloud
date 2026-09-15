@@ -1,0 +1,64 @@
+(ns app-kotoba-cloud.console-test
+  (:require [app-kotoba-cloud.console :as console]
+            [kotoba.lang.text :as str]
+            [clojure.test :refer [deftest is testing]]))
+
+(deftest every-destination-is-unique-and-labelled
+  (let [items (mapcat :items console/groups)]
+    (is (= (count items) (count (set (map :href items)))) "one home per destination")
+    (is (every? #(and (seq (:ja %)) (seq (:en %)) (str/starts-with? (:href %) "/")) items))))
+
+(deftest current-item-follows-exact-href-then-document
+  (is (= :account (:id (console/current-item "/account"))))
+  (is (= :guardrails (:id (console/current-item "/secure/"))) "the document's first view")
+  (is (= :firewall (:id (console/current-item "/secure/#firewall"))))
+  (is (= :docs (:id (console/current-item "/docs/reference/quickstart/"))) "longest document prefix")
+  (is (= :services (:id (console/current-item "/security/services/"))) "exact wins over the /security/ prefix of nothing")
+  (is (nil? (console/current-item "/nowhere/"))))
+
+(deftest section-label-names-group-and-item
+  (is (= {:group "セキュリティ" :item "ガードレール"} (console/section-label "/secure/" :ja)))
+  (is (= {:group "Account" :item "Billing"} (console/section-label "/billing/" :en)))
+  (is (nil? (console/section-label "/nowhere/" :ja))))
+
+(deftest sidebar-rows-mark-exactly-one-current
+  (let [rows (mapcat :items (console/sidebar-items "/billing/" :ja))]
+    (is (= 1 (count (filter :current? rows))))
+    (is (= "料金・決済" (:label (first (filter :current? rows)))))
+    (is (= ["Team"] (keep :badge rows)) "a badge is a fact: only the team item carries one")))
+
+(deftest setup-progress-counts-only-what-is-known
+  (testing "signed out"
+    (let [p (console/setup-progress {:signed-in? false} :ja)]
+      (is (= 0 (:done p))) (is (= 3 (:total p))) (is (= :sign-in (:id (:next p))))))
+  (testing "signed in, verification missing"
+    (let [p (console/setup-progress {:signed-in? true :ekyc "missing" :eligible? false} :ja)]
+      (is (= 1 (:done p))) (is (= :verify (:id (:next p))))
+      (is (= "/account#account-panel-identity" (:href (:next p))))))
+  (testing "unknown states never count"
+    (let [p (console/setup-progress {:signed-in? true :ekyc nil :eligible? nil} :ja)]
+      (is (= 1 (:done p)))))
+  (testing "complete"
+    (let [p (console/setup-progress {:signed-in? true :ekyc "verified" :eligible? true} :en)]
+      (is (= 3 (:done p))) (is (nil? (:next p))))))
+
+(deftest hrefs-are-written-once-and-resolved-per-surface
+  ;; /docs/ lives on docs.kotoba.cloud (owner direction 2026-09-15): an
+  ;; apex-form href resolves to a host-relative path on its own surface and
+  ;; to an absolute URL on the other; shared assets, query-only, fragment,
+  ;; absolute and mailto hrefs pass through untouched
+  (is (= :docs (console/surface-of "/docs/reference/quickstart/")))
+  (is (= :docs (console/surface-of "/docs")))
+  (is (= :apex (console/surface-of "/account")))
+  (is (= "/reference/quickstart/" (console/href-for :docs "/docs/reference/quickstart/")))
+  (is (= "/" (console/href-for :docs "/docs/")))
+  (is (= "/" (console/href-for :docs "/docs")))
+  (is (= "/#x" (console/href-for :docs "/docs/#x")))
+  (is (= "https://kotoba.cloud/account#account-panel-cli" (console/href-for :docs "/account#account-panel-cli")))
+  (is (= "https://docs.kotoba.cloud/reference/quickstart/" (console/href-for :apex "/docs/reference/quickstart/")))
+  (is (= "https://docs.kotoba.cloud/" (console/href-for :apex "/docs/")))
+  (is (= "/account" (console/href-for :apex "/account")))
+  (doseq [h ["/css/site.css" "/js/session.js" "/assets/kotoba-logo.png" "/favicon.ico" "?lang=ja" "#main" "https://x/" "mailto:a@b" "//cdn/x"]]
+    (is (= h (console/href-for :docs h)) h)
+    (is (= h (console/href-for :apex h)) h))
+  (is (nil? (console/href-for :docs nil))))

@@ -15,10 +15,13 @@ globalThis.fetch = async (url, init) => {
 import { ResearchAuthority } from "../build/research/worker.js";
 
 class MockStorage {
-  constructor() { this.map = new Map(); }
+  constructor() { this.map = new Map(); this.alarmAt = null; }
   async get(k) { return this.map.has(k) ? this.map.get(k) : null; }
   async put(k, v) { this.map.set(k, String(v)); }
   async delete(k) { this.map.delete(k); }
+  async list({ prefix } = {}) { return new Map([...this.map].filter(([k]) => !prefix || k.startsWith(prefix))); }
+  async getAlarm() { return this.alarmAt; }
+  async setAlarm(t) { this.alarmAt = t; }
 }
 const state = {
   storage: new MockStorage(),
@@ -26,6 +29,7 @@ const state = {
   blockConcurrencyWhile(fn) { return fn(); },
 };
 const env = {
+  ORIGIN_LOADING_RETRY_MS: "20",
   RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef",
   MODAL_INFERENCE_URL: "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions",
   MODAL_INFERENCE_TOKEN: "modal-test-token",
@@ -96,6 +100,8 @@ assert.equal(r.status, 200, JSON.stringify(r));
 assert.equal(r.json.policyDecision, "allowed");
 assert.equal(r.json.model, "qwen3.8-flash-next-whitehacker");
 
+// the run is detached (waitUntil): give the mocked upstream a tick to land
+await new Promise(res => setTimeout(res, 50));
 const storedJob = JSON.parse(await state.storage.get("job:" + jobId));
 assert.equal(storedJob.status, "succeeded");
 assert.deepEqual(storedJob.usageReceipt && {
@@ -103,7 +109,232 @@ assert.deepEqual(storedJob.usageReceipt && {
   inputTokens: storedJob.usageReceipt.inputTokens,
   outputTokens: storedJob.usageReceipt.outputTokens,
   totalTokens: storedJob.usageReceipt.totalTokens,
-}, { source: "modal-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
+}, { source: "upstream-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
+
+// 6a. job retention: the terminal write arms the object's alarm 24 h out;
+// the alarm deletes every record past its expiry (the prompt and the answer
+// go with it), keeps the rest and re-arms for the earliest one left. Until
+// 2026-09-15 nothing deleted these records while the public page said
+// prompts and outputs were never kept.
+{
+  const day = 86400000;
+  // creation arms 24 h from createdAt (a run that never finishes still
+  // expires); the terminal write never pushes an earlier alarm later
+  assert.ok(state.storage.alarmAt >= storedJob.createdAt + day && state.storage.alarmAt <= storedJob.finishedAt + day,
+    "retention armed within [createdAt+24h, finishedAt+24h]: " + state.storage.alarmAt);
+  // an older job, already past its expiry, and a queued one that never finished
+  const old = { ...storedJob, jobId: "44444444-4444-4444-8444-444444444444", finishedAt: Date.now() - day - 1000 };
+  const stuck = { jobId: "55555555-5555-4555-8555-555555555555", principalId: principal, status: "queued",
+    request: { messages: [{ role: "user", content: "never ran" }] }, createdAt: Date.now() - 2 * day };
+  await state.storage.put("job:" + old.jobId, JSON.stringify(old));
+  await state.storage.put("job:" + stuck.jobId, JSON.stringify(stuck));
+  state.storage.alarmAt = null;   // the runtime clears a fired alarm before the handler runs
+  await auth.alarm();
+  assert.equal(await state.storage.get("job:" + old.jobId), null, "a job past its expiry is deleted");
+  assert.equal(await state.storage.get("job:" + stuck.jobId), null, "a job that never finished expires from its creation");
+  assert.ok(await state.storage.get("job:" + jobId), "a job inside the window is kept");
+  assert.equal(state.storage.alarmAt, storedJob.finishedAt + day, "re-armed for the earliest remaining expiry");
+}
+
+// 6b. upstream refuses (401) -> terminal state is FAILED with the upstream
+// status; never "succeeded" with nil content. Live, the chain's per-step
+// rejection handlers let `succeed` run on undefined after `fail` had
+// already stored "failed", and the edge served 200 + content null.
+{
+  const realUpstream = globalThis.fetch;
+  const errLines = [];
+  const realError = console.error;
+  console.error = (...args) => { errLines.push(args.map(String).join(" ")); };
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { type: "invalid_request_error",
+    code: "invalid_api_key", message: "Incorrect API key provided" } }),
+    { status: 401, headers: { "content-type": "application/json" } });
+  const failJobId = "33333333-3333-4333-8333-333333333333";
+  const rf = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rf.status, 200, JSON.stringify(rf));
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  console.error = realError;
+  const failed = JSON.parse(await state.storage.get("job:" + failJobId));
+  assert.equal(failed.status, "failed", "terminal state must be failed: " + JSON.stringify(failed));
+  assert.equal(failed.error, "red-route-unavailable");
+  assert.equal(failed.upstreamStatus, 401);
+  assert.equal(failed.content, undefined);
+  const logged = errLines.filter(l => l.startsWith("inference-run-failed " + failJobId));
+  assert.equal(logged.length, 1, JSON.stringify(errLines));
+  assert.match(logged[0], /"code":"invalid_api_key"/);
+  // and the poll reports the failure, not a receipt
+  const rs = await call("/jobs/status", { principalId: principal, sessionRef, jobId: failJobId });
+  assert.equal(rs.json.status, "failed");
+  // The same prompt again re-dispatches the FAILED reservation (the origin is
+  // back) instead of replaying the failure — measured live 2026-09-15: the
+  // second identical request answered 502 in 0.3 s without a run.
+  const usedBefore = JSON.parse(await state.storage.get("record")).usage.count;
+  const rr = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rr.status, 200, JSON.stringify(rr));
+  await new Promise(r => setTimeout(r, 50));
+  const retried = JSON.parse(await state.storage.get("job:" + failJobId));
+  assert.equal(retried.status, "succeeded", "a failed reservation must run again: " + JSON.stringify(retried));
+  assert.equal(retried.content, "Fix authorization.");
+  assert.equal(JSON.parse(await state.storage.get("record")).usage.count, usedBefore + 1, "the retry is counted");
+  // a succeeded reservation is still replayed, not re-run
+  const rr2 = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: failJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] },
+  });
+  assert.equal(rr2.json.receiptId, "receipt-" + failJobId);
+  assert.equal(JSON.parse(await state.storage.get("record")).usage.count, usedBefore + 1, "a replay is not counted");
+}
+
+// 6b2. a scale-to-zero origin: the proxy's 503 ("model loading") and
+// Cloudflare's 524 are retried until the origin serves; the job then
+// succeeds — measured live 2026-09-15 22:47: every request during a 491 s
+// snapshot rebuild failed on the first 524. A 401 is still failed at once.
+{
+  const realUpstream = globalThis.fetch;
+  let attempts = 0;
+  const warnLines = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => { warnLines.push(args.map(String).join(" ")); };
+  globalThis.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) return new Response("error code: 524", { status: 524 });
+    if (attempts === 2) return new Response(JSON.stringify({ error: "model loading" }), { status: 503, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({
+      id: "chatcmpl-cold", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      choices: [{ index: 0, message: { role: "assistant", content: "Served after loading." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const coldJobId = "77777777-7777-4777-8777-777777777777";
+  const rc = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: coldJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, cold." }] },
+  });
+  assert.equal(rc.status, 200, JSON.stringify(rc));
+  await new Promise(r => setTimeout(r, 200));
+  globalThis.fetch = realUpstream;
+  console.warn = realWarn;
+  const cold = JSON.parse(await state.storage.get("job:" + coldJobId));
+  assert.equal(cold.status, "succeeded", "the loading origin must be retried: " + JSON.stringify(cold));
+  assert.equal(cold.content, "Served after loading.");
+  assert.equal(attempts, 3);
+  const loading = warnLines.filter(l => l.startsWith("inference-origin-loading " + coldJobId));
+  assert.deepEqual(loading.map(l => l.split(" ").slice(2).join(" ")), ["524 1", "503 2"]);
+}
+
+// 6c. native tool calls: the request's tools reach the origin verbatim, and
+// an answer with tool_calls and null content is a SUCCEEDED job carrying
+// toolCalls + finishReason tool_calls (an agent's turn), never an empty
+// result. Measured 2026-09-15: with tools dropped the agent's calls came
+// back empty and it fell back to another provider.
+{
+  const realUpstream = globalThis.fetch;
+  let seenTools = null;
+  globalThis.fetch = async (url, init) => {
+    const req = JSON.parse(String(init.body));
+    seenTools = { tools: req.tools, tool_choice: req.tool_choice, roles: req.messages.map(m => m.role) };
+    return new Response(JSON.stringify({
+      id: "chatcmpl-tool", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      choices: [{ index: 0, finish_reason: "tool_calls", message: { role: "assistant", content: null,
+        reasoning: "The user wants a file.",
+        tool_calls: [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{\"path\":\"hello.txt\",\"content\":\"hi\"}" } }] } }],
+      usage: { prompt_tokens: 40, completion_tokens: 20, total_tokens: 60 },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const toolJobId = "44444444-4444-4444-8444-444444444444";
+  const rt = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: toolJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 256,
+      tools: [{ type: "function", function: { name: "write_file", parameters: { type: "object", properties: { path: { type: "string" } } } } }],
+      tool_choice: "auto",
+      messages: [{ role: "system", content: "You are an agent." }, { role: "user", content: "Create hello.txt" },
+        { role: "assistant", content: "", tool_calls: [{ id: "call_0", type: "function", function: { name: "read_file", arguments: "{}" } }] },
+        { role: "tool", tool_call_id: "call_0", content: "(no such file)" }] },
+  });
+  assert.equal(rt.status, 200, JSON.stringify(rt));
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  assert.equal(seenTools.tools.length, 1, "tools must reach the origin");
+  assert.equal(seenTools.tools[0].function.name, "write_file");
+  assert.equal(seenTools.tool_choice, "auto");
+  assert.deepEqual(seenTools.roles, ["system", "user", "assistant", "tool"]);
+  const toolJob = JSON.parse(await state.storage.get("job:" + toolJobId));
+  assert.equal(toolJob.status, "succeeded", JSON.stringify(toolJob));
+  assert.equal(toolJob.content, null, "reasoning must not stand in for content next to native tool calls");
+  assert.equal(toolJob.finishReason, "tool_calls");
+  assert.deepEqual(toolJob.toolCalls, [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{\"path\":\"hello.txt\",\"content\":\"hi\"}" } }]);
+  const rts = await call("/jobs/status", { principalId: principal, sessionRef, jobId: toolJobId });
+  assert.equal(rts.json.status, "succeeded");
+  assert.equal(rts.json.toolCalls[0].function.name, "write_file");
+  assert.equal(rts.json.finishReason, "tool_calls");
+}
+
+// 6d. The model answers tool calls as Qwen3-Coder XML text (the origin's
+// hermes parser leaves it in content, measured live 2026-09-15 21:04). The
+// authority converts it to native tool_calls, typing the parameters from
+// the request's tool schema, and the residual text becomes null content.
+{
+  const realUpstream = globalThis.fetch;
+  const xml = '\n\n<tool_call>\n<function=write_file>\n<parameter=path>\ngreet.py\n</parameter>\n<parameter=content>\nprint("hi")\n\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=terminal>\n<parameter=command>\npython3 greet.py\n</parameter>\n<parameter=timeout>\n30\n</parameter>\n<parameter=background>\nfalse\n</parameter>\n</function>\n</tool_call>';
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    id: "chatcmpl-xml", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: xml } }],
+    usage: { prompt_tokens: 40, completion_tokens: 60, total_tokens: 100 },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const xmlJobId = "55555555-5555-4555-8555-555555555555";
+  const rx = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: xmlJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 256,
+      tools: [{ type: "function", function: { name: "write_file", parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } } } } },
+              { type: "function", function: { name: "terminal", parameters: { type: "object", properties: { command: { type: "string" }, timeout: { type: "integer" }, background: { type: "boolean" } } } } }],
+      messages: [{ role: "user", content: "Create greet.py and run it" }] },
+  });
+  assert.equal(rx.status, 200, JSON.stringify(rx));
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  const xmlJob = JSON.parse(await state.storage.get("job:" + xmlJobId));
+  assert.equal(xmlJob.status, "succeeded", JSON.stringify(xmlJob));
+  assert.equal(xmlJob.content, null, "residual text is only whitespace");
+  assert.equal(xmlJob.finishReason, "tool_calls");
+  assert.equal(xmlJob.toolCalls.length, 2);
+  assert.equal(xmlJob.toolCalls[0].function.name, "write_file");
+  assert.deepEqual(JSON.parse(xmlJob.toolCalls[0].function.arguments), { path: "greet.py", content: 'print("hi")\n' });
+  assert.equal(xmlJob.toolCalls[1].function.name, "terminal");
+  assert.deepEqual(JSON.parse(xmlJob.toolCalls[1].function.arguments), { command: "python3 greet.py", timeout: 30, background: false });
+  assert.match(xmlJob.toolCalls[0].id, /^call_/);
+  assert.notEqual(xmlJob.toolCalls[0].id, xmlJob.toolCalls[1].id);
+  // the hermes-style json form is read too, and text outside the block survives
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    id: "chatcmpl-json", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: 'Let me look.\n<tool_call>\n{"name": "read_file", "arguments": {"path": "a.txt"}}\n</tool_call>' } }],
+    usage: { prompt_tokens: 4, completion_tokens: 6, total_tokens: 10 },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const jsonJobId = "66666666-6666-4666-8666-666666666666";
+  await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: jsonJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 256, messages: [{ role: "user", content: "Read a.txt" }] },
+  });
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  const jsonJob = JSON.parse(await state.storage.get("job:" + jsonJobId));
+  assert.equal(jsonJob.status, "succeeded", JSON.stringify(jsonJob));
+  assert.equal(jsonJob.content, "Let me look.");
+  assert.deepEqual(JSON.parse(jsonJob.toolCalls[0].function.arguments), { path: "a.txt" });
+  assert.equal(jsonJob.toolCalls[0].function.name, "read_file");
+}
 
 // 7. replay same input -> same receipt, not double-counted
 r = await call("/jobs/create", {
@@ -135,6 +366,105 @@ r = await call("/applications", {
 assert.equal(r.status, 200);
 assert.ok(r.json.applicationId.startsWith("app-req-1"));
 
+// 11. blue team (the shared route): a signed-in principal with NO record is
+//     admitted, the job goes to the shared route with the model's id, and the offensive
+//     band stays closed. Without the key the route refuses by name.
+{
+  const blueState = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const bluePrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-222222222222";
+  const blueJob = "33333333-3333-4333-8333-333333333333";
+  const blueRequest = (model, task, content) => ({
+    principalId: bluePrincipal, sessionRef, jobId: blueJob, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model, task, scopeId: "owned", max_tokens: 64, messages: [{ role: "user", content }] },
+  });
+  const oldFetch = globalThis.fetch;
+  const routed = [];
+  globalThis.fetch = async (url, init) => {
+    routed.push({ url: String(url), auth: init.headers.authorization, referer: init.headers["HTTP-Referer"], body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ id: "gen-1", object: "chat.completion", model: "qwen/qwen3.8-flash",
+      choices: [{ index: 0, message: { role: "assistant", content: "Blue answer." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    // key absent → the job is admitted but the run refuses by name (never falls back to the dedicated deployment)
+    const noKey = new ResearchAuthority(blueState, { ...env });
+    const callNoKey = (path, body) => noKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
+    let b = await callNoKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
+    assert.equal(b.status, 200, "blue: no record needed " + JSON.stringify(b.json));
+    let stored = JSON.parse(await blueState.storage.get("job:" + blueJob));
+    assert.equal(stored.status, "failed");
+    assert.match(stored.error, /blue-route-not-configured/);
+    assert.equal(routed.length, 0, "nothing was fetched — no fallback to the red route");
+    // key present → the shared route, the model id, referer, strict attribution
+    const blueState2 = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+    const withKey = new ResearchAuthority(blueState2, { ...env, BLUE_ROUTE_API_KEY: "or-test-key" });
+    const callKey = (path, body) => withKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
+    b = await callKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
+    assert.equal(b.status, 200, JSON.stringify(b.json));
+    await new Promise(res => setTimeout(res, 50)); // detached run: let the mocked upstream land
+    stored = JSON.parse(await blueState2.storage.get("job:" + blueJob));
+    assert.equal(stored.status, "succeeded", JSON.stringify(stored));
+    assert.equal(routed.length, 1);
+    assert.equal(routed[0].url, "https://openrouter.ai/api/v1/chat/completions");
+    assert.equal(routed[0].auth, "Bearer or-test-key");
+    assert.equal(routed[0].referer, "https://kotoba.cloud");
+    assert.equal(routed[0].body.model, "qwen/qwen3.8-flash");
+    // the offensive band is closed to the blue team regardless of key
+    b = await callKey("/jobs/create", { ...blueRequest("z-ai/glm-5.3-flash", "payload-crafting", "x"), jobId: "44444444-4444-4444-8444-444444444444" });
+    assert.equal(b.status, 403, JSON.stringify(b.json));
+    // red team on a fresh principal is still refused
+    b = await callKey("/jobs/create", { ...blueRequest("qwen3.8-flash-next-whitehacker", "code-review", "x"), jobId: "55555555-5555-4555-8555-555555555555" });
+    assert.equal(b.status, 403, "red stays gated: " + JSON.stringify(b.json));
+    assert.equal(b.json.error, "review-required");
+  } finally { globalThis.fetch = oldFetch; }
+  console.log("blue team route: admitted on sign-in, the shared route with the model id, refuses by name without the key, offensive band closed, red still gated");
+}
+
+// 11. personal API token registry on the principal record
+{
+  let r;
+  r = await call("/tokens/check", { principalId: principal, tokenId: null });
+  assert.equal(r.status, 200, "legacy token admitted before legacy revocation");
+  r = await call("/tokens/register", { principalId: principal, tokenId: "not-hex" });
+  assert.equal(r.status, 400);
+  r = await call("/tokens/register", { principalId: principal, tokenId: "0123456789ab", label: "cli" });
+  assert.equal(r.status, 200, JSON.stringify(r));
+  assert.equal(r.json.token.label, "cli");
+  assert.equal(typeof r.json.token.issuedAt, "number");
+  r = await call("/tokens/register", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 409, "an id registers once");
+  r = await call("/tokens/register", { principalId: principal, tokenId: "0123456789ac", label: "x".repeat(65) });
+  assert.equal(r.json.token.label, null, "an over-long label is dropped, the token still registers");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 200); assert.equal(r.json.ok, true); assert.equal(r.json.label, "cli");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "ffffffffffff" });
+  assert.equal(r.status, 403); assert.equal(r.json.error, "token-unknown");
+  r = await call("/tokens/revoke", { principalId: principal, tokenId: "ffffffffffff" });
+  assert.equal(r.status, 404);
+  r = await call("/tokens/revoke", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 200); assert.equal(typeof r.json.token.revokedAt, "number");
+  const firstRevokedAt = r.json.token.revokedAt;
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.status, 403); assert.equal(r.json.error, "token-revoked");
+  r = await call("/tokens/revoke", { principalId: principal, tokenId: "0123456789ab" });
+  assert.equal(r.json.token.revokedAt, firstRevokedAt, "revoking twice keeps the first revocation time");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ac" });
+  assert.equal(r.status, 200, "the other token is untouched");
+  r = await call("/tokens/list", { principalId: principal });
+  assert.equal(r.json.tokens.length, 2);
+  assert.deepEqual(Object.keys(r.json.tokens[0]).sort(), ["id", "issuedAt", "label", "revokedAt"]);
+  assert.equal(r.json.legacyRevokedAt, null, "not yet revoked (JSON null)");
+  r = await call("/tokens/revoke-legacy", { principalId: principal });
+  assert.equal(typeof r.json.legacyRevokedAt, "number");
+  r = await call("/tokens/check", { principalId: principal, tokenId: null });
+  assert.equal(r.status, 403); assert.equal(r.json.error, "legacy-token-revoked");
+  r = await call("/tokens/check", { principalId: principal, tokenId: "0123456789ac" });
+  assert.equal(r.status, 200, "revoking legacy tokens does not touch v2 tokens");
+  // the record's research state is untouched by registry writes
+  r = await call("/status", { principalId: principal, sessionRef, action: "code-review" });
+  assert.equal(r.json.status, "active");
+}
+
 console.log("research authority local checks: all passed");
 
 // --- Stripe Identity eKYC E2E (challenge -> signed webhook -> full approval) ---
@@ -153,6 +483,9 @@ const realFetch = globalThis.fetch;
 // Card-verification Stripe mock: customers, setup-mode checkout sessions and
 // per-customer payment method listings. Cards map: customer -> funding kind.
 const cardFunding = new Map();
+const stripeRefusals = [];
+const checkoutParams = [];
+let refuseCheckout = false;
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   if (u.startsWith("https://api.stripe.com/")) {
@@ -170,6 +503,18 @@ globalThis.fetch = async (url, init) => {
       const customer = params.get("customer");
       const principal = params.get("metadata[principal]");
       if (!customer || !principal) throw new Error("stripe setup session missing bindings");
+      // Hosted Checkout refuses a session without success_url — the exact
+      // 400 the live AWAI account returned to this route on 2026-09-15
+      // (parameter_missing). The mock must say no the way Stripe does, or a
+      // green test proves nothing about the live call.
+      if (!params.get("success_url") || refuseCheckout) {
+        stripeRefusals.push({ path: "/v1/checkout/sessions", param: "success_url" });
+        return new Response(JSON.stringify({ error: { type: "invalid_request_error",
+          code: "parameter_missing", param: "success_url",
+          message: "Missing required param: success_url." } }),
+          { status: 400, headers: { "content-type": "application/json" } });
+      }
+      checkoutParams.push(Object.fromEntries(params.entries()));
       return new Response(JSON.stringify({
         id: "cs_setup_" + customer.slice(-10), object: "checkout.session",
         status: "open", mode: "setup", customer, metadata: { principal },
@@ -206,6 +551,42 @@ const { sessionId, externalId, verificationUrl, expiresAt, requiresCard } = r.js
 assert.ok(sessionId && externalId.startsWith("opaque-") && verificationUrl && expiresAt > Date.now());
 assert.equal(requiresCard, true);
 assert.ok(verificationUrl.startsWith("https://checkout.stripe.com/"), "setup URL must be checkout.stripe.com");
+// The setup session must carry the return legs Stripe requires, pointing the
+// human back at the account console's identity panel (the client re-reads
+// /ekyc/status there; approval arrives by webhook).
+assert.deepEqual(stripeRefusals, [], "Stripe refused the setup session: " + JSON.stringify(stripeRefusals));
+assert.equal(checkoutParams.length, 1);
+assert.equal(checkoutParams[0].success_url, "https://kotoba.cloud/account?card=done#account-panel-identity");
+assert.equal(checkoutParams[0].cancel_url, "https://kotoba.cloud/account?card=cancelled#account-panel-identity");
+assert.equal(checkoutParams[0].mode, "setup");
+assert.equal(checkoutParams[0]["metadata[principal]"], p2);
+
+// S1b. Stripe refuses the setup session -> 503 stripe-unavailable, and the
+// refusal itself (type/code/param) is on the operator log line instead of
+// being dropped. The reason literal is pinned: a 503 for any other cause
+// must not pass this block.
+{
+  const errLines = [];
+  const realError = console.error;
+  console.error = (...args) => { errLines.push(args.map(String).join(" ")); };
+  refuseCheckout = true;
+  const stRef = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const authRef = new ResearchAuthority(stRef, stripeEnv2);
+  const rRef = await authRef.fetch(new Request("https://research.internal/ekyc/start", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-666666666666",
+      sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] }),
+  })).then(x => x.json().then(j => ({ status: x.status, json: j })));
+  refuseCheckout = false;
+  console.error = realError;
+  assert.equal(rRef.status, 503, JSON.stringify(rRef));
+  assert.equal(rRef.json.error, "stripe-unavailable");
+  const logged = errLines.filter(l => l.startsWith("stripe-request-failed /v1/checkout/sessions 400"));
+  assert.equal(logged.length, 1, "Stripe refusal must reach the log once: " + JSON.stringify(errLines));
+  assert.match(logged[0], /"code":"parameter_missing"/);
+  assert.match(logged[0], /"param":"success_url"/);
+  assert.equal(stRef.storage.map.size, 0, "a refused setup session must not leave a challenge behind");
+}
 
 // S2. ekyc/status pending (card not yet added)
 r = await call2("/ekyc/status", { principalId: p2 });
@@ -266,6 +647,97 @@ const badPayload = JSON.stringify({ id: "evt_test_2", type: "identity.verificati
 r = await call2("/ekyc/webhook", { principalId: p2, raw: badPayload,
   signatureHeader: "t=1,v1=" + "0".repeat(64), sessionId: "vs_nonexistent", externalId: "opaque-x" });
 assert.equal(r.status, 400, JSON.stringify(r));
+
+// S6. checkout.session.completed (card setup done on another session id) ->
+// setup-session index resolves the challenge and the approval chain applies.
+{
+  // fresh principal + a start that hands out a setup session
+  const stS6 = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const authS6 = new ResearchAuthority(stS6, stripeEnv2);
+  const callS6 = (path, body) => authS6.fetch(new Request(`https://research.internal${path}`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })).then(x => x.json().then(j => ({ status: x.status, json: j })));
+  const pS6 = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-666666666666";
+  const rStart = await callS6("/ekyc/start", { principalId: pS6, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(rStart.status, 200, JSON.stringify(rStart));
+  assert.equal(rStart.json.requiresCard, true);
+  const setupId = rStart.json.verificationUrl.split("/").pop(); // mock URL ends with customer suffix matching cs_setup_<suffix>
+  // the mock's checkout session id is cs_setup_<customer suffix>; recover it from storage
+  const chal = JSON.parse(await stS6.storage.get("ekyc:" + pS6));
+  assert.equal(chal.stripeSessionId.startsWith("cs_setup_"), true, JSON.stringify(chal));
+  // overwrite the principal slot with a LATER start (the webhook must still resolve)
+  const rStart2 = await callS6("/ekyc/start", { principalId: pS6, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(rStart2.status, 200);
+  // build the checkout.session.completed event over the FIRST setup session
+  const cs = JSON.parse(await stS6.storage.get("ekyc-session:" + chal.stripeSessionId));
+  const payload = JSON.stringify({ id: "evt_setup_done", type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
+    data: { object: { id: chal.stripeSessionId, object: "checkout.session", status: "complete",
+      mode: "setup", metadata: { principal: pS6, purpose: "identity-verification" } } } });
+  const { createHmac } = await import("node:crypto");
+  const t = String(Math.floor(Date.now() / 1000));
+  const sig = "t=" + t + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t + "." + payload).digest("hex");
+  const rW = await callS6("/ekyc/webhook", { principalId: pS6, raw: payload, signatureHeader: sig });
+  assert.equal(rW.status, 200, JSON.stringify({r:rW.json, chal, setupId: chal.stripeSessionId, stored: JSON.parse(await stS6.storage.get("ekyc-session:"+chal.stripeSessionId))}));
+  assert.equal(rW.json.approvedBy, "stripe-card");
+  assert.equal(rW.json.receiptId.startsWith("op-card-setup-"), true);
+  const recS6 = JSON.parse(await stS6.storage.get("record"));
+  assert.equal(recS6.status, "active");
+  assert.equal(recS6.ekyc.status, "verified");
+  assert.equal(recS6.trust.score, 60);
+  assert.equal(recS6.scopes[0].status, "approved");
+  // replay is idempotent (same receipt, no double-apply)
+  const rW2 = await callS6("/ekyc/webhook", { principalId: pS6, raw: payload, signatureHeader: sig });
+  assert.equal(rW2.status, 200);
+  assert.equal(rW2.json.receiptId, rW.json.receiptId);
+  // and a checkout event over an UNKNOWN session stays refused
+  const badPayload = JSON.stringify({ id: "evt_unknown", type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
+    data: { object: { id: "cs_setup_unknown", object: "checkout.session", status: "complete",
+      metadata: { principal: pS6 } } } });
+  const t2 = String(Math.floor(Date.now() / 1000));
+  const sig2 = "t=" + t2 + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t2 + "." + badPayload).digest("hex");
+  const rBad = await callS6("/ekyc/webhook", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-777777777777", raw: badPayload, signatureHeader: sig2 });
+  assert.equal(rBad.status, 403, JSON.stringify(rBad));
+
+  // S6b. The trust grant outlives its 60-second stamp. Age the stored stamp
+  // by two minutes (what any /status read after the first minute sees) and
+  // the projection must still carry the grant: policyVersion, score 60, a
+  // fresh evaluatedAt and an expiresAt at most 60 s later. Live, the first
+  // console read after approval said trust-route-required (2026-09-15).
+  const aged = JSON.parse(await stS6.storage.get("record"));
+  aged.trust.evaluatedAt = Date.now() - 120000;
+  aged.trust.expiresAt = Date.now() - 60000;
+  await stS6.storage.put("record", JSON.stringify(aged));
+  const t0 = Date.now();
+  const rSt = await callS6("/status", { principalId: pS6, sessionRef: ref2, action: "code-review" });
+  assert.equal(rSt.status, 200, JSON.stringify(rSt));
+  assert.equal(rSt.json.trust.policyVersion, "kotoba-trust-routes-2026-09-v1", "trust must be projected after the stamp aged: " + JSON.stringify(rSt.json.trust));
+  assert.equal(rSt.json.trust.score, 60);
+  assert.deepEqual(rSt.json.trust.routes, ["web-reviewed"]);
+  assert.ok(rSt.json.trust.evaluatedAt >= t0, "projection is stamped now");
+  assert.ok(rSt.json.trust.expiresAt - rSt.json.trust.evaluatedAt <= 60000, "projection window is at most 60 s");
+  assert.ok(rSt.json.trust.expiresAt <= aged.ekyc.expiresAt, "projection never outlives the evidence");
+  // and a job admitted on the same aged record is not trust-route-required
+  const rJob = await callS6("/jobs/create", { principalId: pS6, sessionRef: ref2, jobId: "job-aged-1",
+    policyVersion: "whitehat-2026-09-12-v1", billing: "free-only",
+    trustPolicyVersion: "kotoba-trust-routes-2026-09-v1", sessionPolicyVersion: "kotoba-session-evidence-2026-09-v1",
+    request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review", scopeId: "owned", max_tokens: 64,
+      messages: [{ role: "user", content: "Review my authorization checks." }] },
+    limits: { requestsPerDay: 50, maxOutputTokens: 2048, maxInputCharacters: 24000 } });
+  assert.notEqual(rJob.json.error, "trust-route-required", JSON.stringify(rJob));
+  // Evidence gone -> no projection (the reason literal is verification-expired
+  // upstream; here the trust simply is not re-stamped).
+  const expired = JSON.parse(await stS6.storage.get("record"));
+  expired.ekyc.expiresAt = Date.now() - 1;
+  await stS6.storage.put("record", JSON.stringify(expired));
+  const rEx = await callS6("/status", { principalId: pS6, sessionRef: ref2, action: "code-review" });
+  assert.equal(rEx.json.trust.policyVersion, undefined, "no evidence, no projection: " + JSON.stringify(rEx.json.trust));
+  expired.ekyc.expiresAt = aged.ekyc.expiresAt;
+  await stS6.storage.put("record", JSON.stringify(expired));
+}
+console.log("card setup webhook E2E: passed");
 
 // S7. ekyc/status verified after approval; missing for unknown principal
 r = await call2("/ekyc/status", { principalId: p2 });

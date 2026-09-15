@@ -1,0 +1,406 @@
+#!/usr/bin/env kbb
+;; Real-browser pass over the /account document (owner direction 2026-09-15,
+;; the kaizen loop's browser arm). Serves ./public statically, intercepts the
+;; Worker API with fixtures, and asserts the three states the static audit
+;; cannot see: signed-out (one status line + the sign-in action, console
+;; hidden), signed-in (console revealed, every cell mapped to a state, no
+;; cell left pending, no duplicate-id dead button), and the layout at
+;; 390 / 768 / 1440 (no horizontal overflow; content starts within the first
+;; screen on the phone band; the fixed nav sits at inline-start 0 on
+;; desktop). Screenshots land in ACCOUNT_SHOTS when set.
+;;
+;;   kbb --backend sci test/account-browser.cljk        (after npm run build)
+;;
+;; Same shape as test/graph-workbench-browser.cljk: node + playwright driven
+;; from kbb, the static server is a child process of this script.
+(ns account-browser
+  (:require ["node:child_process" :as cp]
+            ["node:process" :as proc]
+            ["node:fs" :as fs]))
+
+(def port 8849)
+
+(def script
+  (str "
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/junkawasaki/github/com-junkawasaki/node_modules/playwright');
+const base='http://127.0.0.1:" port "';
+const shots=process.env.ACCOUNT_SHOTS||'';
+(async()=>{
+ const browser=await chromium.launch({headless:true,channel:'chrome'});
+ const errors=[];
+ const fixture=(signedIn)=>async (page)=>{
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.route('https://**/*',route=>route.abort());
+  await page.route('**/v1/session',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(signedIn?{valid:true,username:'hanako',principalId:'urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111'}:{valid:false})}));
+  await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'missing'})}));
+  await page.route('**/v1/research/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ineligible',reason:'verification-required',freeTier:{requestsPerDay:50,maxOutputTokens:4096},scopes:[]})}));
+  await page.route('**/v1/org/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({organizations:[]})}));
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'connected',plan:'pro',balances:[{scope:'ai',grantedMicroUSD:12000000,spentMicroUSD:243,reservedMicroUSD:0,availableMicroUSD:11999757}]})}));
+  await page.route('**/v1/account/api-tokens',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,tokens:[],legacyRevokedAt:null})}));
+ };
+ const dupIds=()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)};
+ // --- signed out -------------------------------------------------------
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(false)(page);
+  await page.goto(base+'/ja/account/');
+  await page.waitForFunction(()=>document.getElementById('account-session-status').dataset.state!=='loading');
+  const s=await page.evaluate(()=>({status:document.getElementById('account-session-status').textContent,
+    signedOutVisible:!document.getElementById('account-signed-out').hidden,
+    bodyHidden:document.getElementById('account-console-body').hidden,
+    signIn:document.getElementById('account-sign-in').getAttribute('href'),
+    pending:document.querySelectorAll('[data-state=loading]').length}));
+  if(s.status!=='サインインしていません。')throw Error('signed-out status: '+s.status);
+  // one document per locale (2026-09-15): the locale-free root is English,
+  // a non-ja/en locale carries the shell in its language and an English body
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:5000});
+  const en=await page.evaluate(()=>({lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,h1:document.querySelector('h1').textContent}));
+  if(en.lang!=='en'||en.status!=='Not signed in.'||en.h1!=='Account')throw Error('english root document: '+JSON.stringify(en));
+  await page.goto(base+'/de/account/');
+  await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:5000});
+  const de=await page.evaluate(()=>({lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,bodyLang:document.getElementById('account-console').closest('[lang]').getAttribute('lang')}));
+  if(de.lang!=='de'||de.status!=='Not signed in.'||de.bodyLang!=='en')throw Error('german shell, english body: '+JSON.stringify(de));
+  if(!s.signedOutVisible||!s.bodyHidden)throw Error('signed-out reveal wrong '+JSON.stringify(s));
+  if(!/auth\\.kotoba\\.cloud\\/sign-in/.test(s.signIn))throw Error('sign-in href '+s.signIn);
+  if(s.pending!==0)throw Error('pending cells after session known: '+s.pending);
+  if(shots)await page.screenshot({path:shots+'/account-signed-out-1440.png',fullPage:true});
+  await page.close();
+ }
+ // --- signed in ---------------------------------------------------------
+ for(const width of [390,768,1440]){
+  const page=await browser.newPage({viewport:{width,height:width<800?844:900}});
+  await fixture(true)(page);
+  await page.goto(base+'/ja/account/');
+  await page.waitForFunction(()=>document.getElementById('account-session-status').dataset.state==='ok');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  const s=await page.evaluate(()=>{
+    const cells=[...document.querySelectorAll('#account-console-body .ck-console__value[data-state]')].map(e=>[e.id||e.textContent.trim(),e.dataset.state]);
+    const sb=document.querySelector('.kc-sb'); const r=sb.getBoundingClientRect();
+    const main=document.querySelector('main').getBoundingClientRect();
+    return {status:document.getElementById('account-session-status').textContent,
+      bodyVisible:!document.getElementById('account-console-body').hidden,
+      signedOutHidden:document.getElementById('account-signed-out').hidden,
+      refreshVisible:!document.getElementById('account-refresh-slot').hidden,
+      username:document.getElementById('account-username').textContent,
+      ekyc:document.getElementById('account-ekyc-state').textContent,
+      billing:document.getElementById('account-billing-state').dataset.state,
+      billingText:document.getElementById('account-billing-state').textContent,
+      cells, dup:(()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)})(),
+      disabled:[...document.querySelectorAll('button[disabled]')].filter(b=>b.offsetParent!==null).map(b=>b.id),
+      iw:innerWidth, scrollW:document.documentElement.scrollWidth,
+      sbPos:getComputedStyle(sb).position, sbLeft:r.left, sbTop:r.top, sbH:r.height, sbW:r.width,
+      mainTop:main.top, mainLeft:main.left, h1Top:document.querySelector('h1').getBoundingClientRect().top,
+      brandH:Math.round(document.querySelector('.kc-sb__brand img').getBoundingClientRect().height)};
+  });
+  console.log('layout',width,JSON.stringify({iw:s.iw,scrollW:s.scrollW,sb:[s.sbPos,s.sbLeft,s.sbTop,s.sbW,s.sbH],mainTop:s.mainTop,mainLeft:s.mainLeft,h1Top:s.h1Top}));
+  if(!s.bodyVisible||!s.signedOutHidden||!s.refreshVisible)throw Error('signed-in reveal wrong '+JSON.stringify(s));
+  if(s.username!=='@hanako')throw Error('username '+s.username);
+  if(s.ekyc!=='未確認')throw Error('ekyc '+s.ekyc);
+  if(s.billing!=='value')throw Error('billing cell state '+s.billing);
+  if(!/pro/.test(s.billingText)||!/[$]12[.]00/.test(s.billingText))throw Error('billing cell should name the plan and the AI balance: '+s.billingText);
+  const bad=s.cells.filter(([,st])=>st==='loading'||st==='empty');
+  if(bad.length)throw Error('cells not mapped: '+JSON.stringify(bad));
+  if(s.dup.length)throw Error('duplicate ids '+JSON.stringify(s.dup));
+  if(s.disabled.length)throw Error('disabled without reason '+JSON.stringify(s.disabled));
+  if(s.scrollW>s.iw)throw Error('horizontal overflow at '+width+': '+s.scrollW);
+  if(width>=1440){ if(s.sbPos!=='fixed'||s.sbLeft!==0)throw Error('desktop sidebar not anchored: '+s.sbPos+' '+s.sbLeft);
+    if(s.sbW>s.mainLeft)throw Error('desktop sidebar ('+s.sbW+'px) overlaps main (starts at '+s.mainLeft+'px)');
+    if(s.mainLeft<240||s.mainLeft>300)throw Error('desktop main offset '+s.mainLeft); }
+  else { if(s.sbH>60)throw Error('phone nav is '+s.sbH+'px tall');
+    if(s.sbW>s.iw)throw Error('phone nav is wider than the viewport ('+s.sbW+'px): the chip row must scroll inside it, not overflow it');
+    if(s.brandH<16||s.brandH>28)throw Error('brand mark on the chip row is '+s.brandH+'px tall');
+    // 240: a paying account carries the AI-credit chip in the top bar and on
+    // 390 the actions row wraps once (cloud-kotoba-dds .ck-topbar__actions
+    // flex-wrap) — 227 px measured 2026-09-15 with the pro fixture, 197 px
+    // without the chip; both are well inside the 844 px first screen
+    if(s.h1Top>240)throw Error('content starts at '+s.h1Top+'px on '+width+' (chip row + top bar + padding must leave the heading well inside the first screen)'); }
+  if(shots)await page.screenshot({path:shots+'/account-signed-in-'+width+'.png',fullPage:true});
+  await page.close();
+ }
+ console.log('block ekyc-start');
+ // --- 本人確認を開始: the click posts { scopeId, tasks } (no principalId —
+ // the edge takes it from the session), follows verificationUrl, and maps
+ // the surfaced authority codes to their sentences. Back from Checkout with
+ // ?card=done the pending note says the card was received.
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  const starts=[]; let answer={status:200,body:{verificationUrl:'https://checkout.stripe.com/c/pay/cs_test_x'}};
+  await page.route('**/v1/research/ekyc/start',r=>{starts.push({method:r.request().method(),body:r.request().postDataJSON()});r.fulfill({status:answer.status,contentType:'application/json',body:JSON.stringify(answer.body)})});
+  await page.route('https://checkout.stripe.com/**',r=>r.fulfill({status:200,contentType:'text/html',body:'<title>checkout</title>'}));
+  await page.goto(base+'/ja/account/');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  await Promise.all([page.waitForURL('https://checkout.stripe.com/**',{timeout:5000}),page.click('#account-ekyc-start')]);
+  if(starts.length!==1)throw Error('start posted '+starts.length+' times');
+  if(starts[0].method!=='POST')throw Error('start method '+starts[0].method);
+  if(JSON.stringify(starts[0].body)!==JSON.stringify({scopeId:'owned',tasks:['code-review']}))throw Error('start body '+JSON.stringify(starts[0].body));
+  await page.goto(base+'/ja/account/');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  for(const [code,status,expect] of [['prepaid-card-not-accepted',403,/プリペイドカード/],['card-verification-not-configured',503,/一時的に利用できません/],['stripe-unavailable',503,/Stripe に接続できませんでした/],['something-else',503,/開始できませんでした/]]){
+    answer={status,body:{error:{code}}};
+    await page.click('#account-ekyc-start');
+    await page.waitForFunction(()=>!document.getElementById('account-ekyc-start').disabled,null,{timeout:5000});
+    const note=await page.evaluate(()=>document.getElementById('account-ekyc-note').textContent);
+    if(!expect.test(note))throw Error('note for '+code+': '+note);
+  }
+  await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'pending',sessionId:'s1',expiresAt:Date.now()+600000})}));
+  await page.goto(base+'/ja/account/?card=done#account-panel-identity');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  const back=await page.evaluate(()=>({state:document.getElementById('account-ekyc-state').textContent,note:document.getElementById('account-ekyc-note').textContent,button:document.getElementById('account-ekyc-start').textContent}));
+  if(back.state!=='確認中')throw Error('back state '+back.state);
+  if(!/カード登録を受け付けました/.test(back.note))throw Error('back note '+back.note);
+  if(back.button!=='カードを登録・再開')throw Error('back button '+back.button);
+  await page.close();
+ }
+ console.log('block pat-registry');
+ // --- CLI / IDE panel: the issued-token list has one row per token with its
+ // own 取り消し; clicking it posts the id (never the token) and the list
+ // re-reads; issuing a token adds a row.
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  const registry={tokens:[{id:'0123456789ab',label:'cli',issuedAt:Date.now()-86400000},{id:'0123456789ac',label:'laptop',issuedAt:Date.now()-3600000}],legacyRevokedAt:null};
+  const revokes=[];
+  await page.route('**/v1/account/api-tokens',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,...registry})}));
+  await page.route('**/v1/account/api-token/revoke',r=>{const b=r.request().postDataJSON();revokes.push(b);const t=registry.tokens.find(t=>t.id===b.tokenId);t.revokedAt=Date.now();r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:t})})});
+  await page.route('**/v1/account/api-token',r=>{registry.tokens.push({id:'0123456789ad',label:'cli',issuedAt:Date.now()});r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:'kc_pat_x.0123456789ad.0123456789abcdef',tokenId:'0123456789ad',label:'cli'})})});
+  await page.goto(base+'/ja/account/');
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').dataset.state==='value',null,{timeout:5000});
+  const s=await page.evaluate(()=>({state:document.getElementById('account-pat-list-state').textContent,
+    rows:[...document.querySelectorAll('#account-pat-list [data-token-row]')].map(r=>({id:r.dataset.tokenRow,buttons:r.querySelectorAll('button').length})),
+    legacyVisible:!document.getElementById('account-pat-revoke-legacy').hidden}));
+  if(s.state!=='2 本が有効 / 2 本')throw Error('list state '+s.state);
+  if(s.rows.length!==2||s.rows.some(r=>r.buttons!==1))throw Error('rows '+JSON.stringify(s.rows));
+  if(!s.legacyVisible)throw Error('legacy revoke action must show while legacy tokens are not revoked');
+  await page.click('#account-pat-list [data-token-row=\\'0123456789ac\\'] button');
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='1 本が有効 / 2 本',null,{timeout:5000});
+  if(JSON.stringify(revokes)!==JSON.stringify([{tokenId:'0123456789ac'}]))throw Error('revoke posted '+JSON.stringify(revokes));
+  const after=await page.evaluate(()=>({note:document.getElementById('account-pat-list-note').textContent,
+    revokedRow:document.querySelector('#account-pat-list [data-token-row=\\'0123456789ac\\']').textContent,
+    revokedButtons:document.querySelector('#account-pat-list [data-token-row=\\'0123456789ac\\']').querySelectorAll('button').length}));
+  if(!/0123456789ac を取り消しました/.test(after.note))throw Error('note '+after.note);
+  if(!/取り消し済み/.test(after.revokedRow)||after.revokedButtons!==0)throw Error('revoked row '+JSON.stringify(after));
+  await page.click('#account-pat-create');
+  await page.waitForFunction(()=>document.getElementById('account-pat-list-state').textContent==='2 本が有効 / 3 本',null,{timeout:5000});
+  const issued=await page.evaluate(()=>document.getElementById('account-pat-token').textContent);
+  if(!/^kc_pat_/.test(issued))throw Error('issued token not shown once: '+issued);
+  await page.close();
+ }
+ console.log('block shell');
+ // --- console shell on /account (signed in): setup chip, account chip ----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  // this block measures the shell of an account WITHOUT a balance (billing
+  // still pending); the signed-in block above carries the pro fixture
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'pending-configuration',checkoutEnabled:false})}));
+  await page.goto(base+'/ja/account/');
+  await page.waitForFunction(()=>!document.getElementById('kc-setup-chip').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({chip:document.getElementById('kc-setup-chip').textContent,state:document.getElementById('kc-setup-chip').dataset.state,
+    chipHref:document.getElementById('kc-setup-chip').getAttribute('href'),
+    bannerHidden:document.getElementById('kc-setup-banner').hidden,
+    creditHidden:document.getElementById('kc-credit-chip').hidden,
+    foot:document.getElementById('kc-session-nav-side').textContent.replace(/\\s+/g,' ').trim(),
+    brand:(()=>{const i=document.querySelector('.kc-sb__brand img');const r=i.getBoundingClientRect();return {loaded:i.complete&&i.naturalWidth>0,left:Math.round(r.left),top:Math.round(r.top),h:Math.round(r.height)}})(),
+    section:document.querySelector('.ck-topbar__section').textContent.replace(/\\s+/g,' ').trim()}));
+  if(s.chip!=='はじめる 1/3')throw Error('setup chip '+s.chip);
+  if(s.state!=='pending'||!/account-panel-identity/.test(s.chipHref))throw Error('setup chip next '+JSON.stringify(s));
+  if(!s.bannerHidden)throw Error('banner must not repeat the panel on /account');
+  if(!s.creditHidden)throw Error('credit chip shown without a balance');
+  if(!/@hanako/.test(s.foot)||!/個人/.test(s.foot))throw Error('account chip '+s.foot);
+  if(s.section!=='アカウント')throw Error('section '+s.section);
+  if(!s.brand.loaded||s.brand.left>32||s.brand.top>40||s.brand.h<20||s.brand.h>40)throw Error('brand mark not top-left / not loaded '+JSON.stringify(s.brand));
+  // the account entry is cloud-kotoba-dds.shell's: the sign-in control is
+  // hidden, the chip revealed; opening the menu changes NOTHING in flow (the
+  // foot's height, the chip's place) and the menu floats over the rail —
+  // 'just expands' (owner, 2026-09-15) is measured as a foot that grows
+  const closed=await page.evaluate(()=>{const c=document.querySelector('.ck-account__chip').getBoundingClientRect();return {signIn:document.querySelector('[data-ck-account=sign-in]').hidden,chip:[Math.round(c.top),Math.round(c.left)],foot:Math.round(document.querySelector('.kc-sb__foot').getBoundingClientRect().height)};});
+  if(!closed.signIn)throw Error('sign-in control still shown beside the chip');
+  await page.click('.ck-account__chip'); await page.waitForTimeout(200);
+  const nav=await page.evaluate(()=>{const nav=document.querySelector('.kc-sb');const rects=[...nav.children].map(e=>e.getBoundingClientRect());let overlaps=0;for(let i=1;i<rects.length;i++){if(rects[i].top<rects[i-1].bottom-1)overlaps++;}
+    const item=nav.querySelectorAll(':scope > a')[3].getBoundingClientRect();const chip=document.querySelector('.ck-account__chip').getBoundingClientRect();
+    const menu=document.querySelector('[data-chrome=float]');const m=menu.getBoundingClientRect();const cs=getComputedStyle(menu);
+    return {overlaps,itemH:Math.round(item.height),chipH:Math.round(chip.height),open:document.querySelector('#kc-session-nav-side details').open,menuItems:document.querySelectorAll('#kc-session-nav-side .ck-account__item').length,
+      after:{chip:[Math.round(chip.top),Math.round(chip.left)],foot:Math.round(document.querySelector('.kc-sb__foot').getBoundingClientRect().height)},
+      menu:{position:cs.position,z:cs.zIndex,above:m.bottom<=chip.top+1,inViewport:m.top>=0&&m.bottom<=innerHeight,w:Math.round(m.width)}}});
+  if(nav.overlaps)throw Error('sidebar children overlap ('+nav.overlaps+') — a shrunken foot paints its chip over the items');
+  if(nav.itemH>36||nav.chipH>44)throw Error('sidebar menu not compact '+JSON.stringify(nav));
+  if(!nav.open||nav.menuItems!==3)throw Error('account menu '+JSON.stringify(nav));
+  if(nav.after.foot!==closed.foot||nav.after.chip[0]!==closed.chip[0])throw Error('the account menu opened in flow (foot '+closed.foot+'→'+nav.after.foot+', chip top '+closed.chip[0]+'→'+nav.after.chip[0]+') — it must float');
+  if(nav.menu.position!=='absolute'||Number(nav.menu.z)<40||!nav.menu.above||!nav.menu.inViewport)throw Error('account menu does not float above the chip '+JSON.stringify(nav.menu));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  const esc=await page.evaluate(()=>({open:document.querySelector('#kc-session-nav-side details').open,focus:document.activeElement.className}));
+  if(esc.open||!/ck-account__chip/.test(esc.focus))throw Error('Escape must close the menu and return focus to the chip '+JSON.stringify(esc));
+  // the top bar is sticky: after scrolling it is still at the top edge
+  const stuck=await page.evaluate(async()=>{const bar=document.querySelector('[data-chrome=top]');window.scrollTo(0,4000);await new Promise(r=>setTimeout(r,120));return {top:Math.round(bar.getBoundingClientRect().top),scrolled:window.scrollY,h:document.documentElement.scrollHeight};});
+  if(stuck.scrolled<300)throw Error('page too short to test the sticky bar '+JSON.stringify(stuck));
+  if(stuck.top!==0)throw Error('top bar scrolled away (top '+stuck.top+' after '+stuck.scrolled+'px)');
+  await page.close();
+ }
+ console.log('block theme+language');
+ // --- theme toggle (jp-go-dds.theme-toggle) + console language switch ----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(false)(page);
+  await page.goto(base+'/secure/');
+  await page.waitForFunction(()=>!document.getElementById('kot-theme').hidden,null,{timeout:5000});
+  const light=await page.evaluate(()=>({bg:getComputedStyle(document.body).backgroundColor,theme:document.documentElement.getAttribute('data-theme'),
+    toggleRight:innerWidth-document.getElementById('kot-theme').getBoundingClientRect().right,
+    langRight:innerWidth-document.getElementById('kc-console-language-opener').getBoundingClientRect().right,
+    meta:document.querySelectorAll('meta[name=theme-color]').length,scheme:document.querySelector('meta[name=color-scheme]').content}));
+  if(light.bg!=='rgb(255, 255, 255)'||light.theme)throw Error('light start '+JSON.stringify(light));
+  if(light.toggleRight>80||light.langRight>200)throw Error('switches not at the top right '+JSON.stringify(light));
+  if(light.meta!==2||light.scheme!=='light dark')throw Error('dark meta pair '+JSON.stringify(light));
+  await page.click('#kot-theme'); await page.waitForTimeout(600);
+  const dark=await page.evaluate(()=>({bg:getComputedStyle(document.body).backgroundColor,theme:document.documentElement.getAttribute('data-theme'),stored:localStorage.getItem('kotoba-theme'),
+    checked:document.getElementById('kot-theme').getAttribute('aria-checked'),sb:getComputedStyle(document.querySelector('.kc-sb')).backgroundColor,fg:getComputedStyle(document.body).color}));
+  if(dark.theme!=='dark'||dark.stored!=='dark'||dark.checked!=='true')throw Error('toggle did not switch '+JSON.stringify(dark));
+  if(dark.bg===light.bg||dark.sb===light.bg)throw Error('dark surfaces did not change '+JSON.stringify(dark));
+  await page.goto(base+'/models/'); await page.waitForTimeout(300);
+  const kept=await page.evaluate(()=>({theme:document.documentElement.getAttribute('data-theme'),bg:getComputedStyle(document.body).backgroundColor}));
+  if(kept.theme!=='dark'||kept.bg!==dark.bg)throw Error('theme choice did not survive navigation '+JSON.stringify(kept));
+  await page.click('#kc-console-language-opener'); await page.waitForTimeout(200);
+  const lang=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,
+    items:[...document.querySelectorAll('#kc-console-language-popup a')].map(a=>[a.getAttribute('href'),a.getAttribute('hreflang'),a.getAttribute('aria-current')])}));
+  if(lang.hidden||lang.items.length!==2)throw Error('language popup '+JSON.stringify(lang));
+  // ?lang= relative to the document: the route is preserved by construction
+  // and no /<locale>/ path is linked (owner direction 2026-09-15)
+  // the static emit tree hands out the locale-free (English) document, so English is the current item
+  if(lang.items[0][0]!=='?lang=ja'||lang.items[1][0]!=='?lang=en'||lang.items[1][2]!=='true')throw Error('language switch must be ?lang= on the same route '+JSON.stringify(lang));
+  const resolved=await page.evaluate(()=>[...document.querySelectorAll('#kc-console-language-popup a')].map(a=>a.href));
+  if(!resolved.every(h=>/\\/models\\/\\?lang=(ja|en)$/.test(h)))throw Error('switch hrefs must resolve on /models/ '+JSON.stringify(resolved));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  const closed=await page.evaluate(()=>({hidden:document.getElementById('kc-console-language-popup').hidden,focus:document.activeElement&&document.activeElement.id}));
+  if(!closed.hidden||closed.focus!=='kc-console-language-opener')throw Error('Escape must close and return focus to the opener '+JSON.stringify(closed));
+  await page.close();
+ }
+ console.log('block secure');
+ // --- /secure/: rendered from policy, versions confirmed, observe mode -----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  await page.route('**/v1/secure',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({guardrails:{version:'kotoba-guardrails-2026-09-v1'},firewall:{version:'kotoba-firewall-2026-09-v1',observeMode:false},compliance:{version:'kotoba-compliance-2026-09-v1'}})}));
+  await page.goto(base+'/ja/secure/');
+  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({status:document.getElementById('secure-status').textContent,
+    observe:document.getElementById('secure-observe-mode').textContent,
+    rows:document.querySelectorAll('#guardrails tbody tr').length,
+    tools:document.querySelectorAll('#firewall tbody tr').length,
+    bannerHidden:document.getElementById('kc-setup-banner').hidden,
+    banner:document.getElementById('kc-setup-banner-text').textContent}));
+  if(s.rows!==5||s.tools!==5)throw Error('policy tables '+JSON.stringify(s));
+  if(!/観測モード: オフ/.test(s.observe))throw Error('observe chip '+s.observe);
+  if(!/一致/.test(s.status))throw Error('version status '+s.status);
+  if(s.bannerHidden||!/本人確認/.test(s.banner))throw Error('resume banner on a non-account page '+JSON.stringify(s));
+  // the English document (the locale-free emit): same ids, English copy, the
+  // hydration answers in English — /secure/ answered in Japanese to an
+  // English reader until 2026-09-15
+  await page.goto(base+'/secure/');
+  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:5000});
+  const en=await page.evaluate(()=>({lang:document.documentElement.lang,h1:document.querySelector('main h1').textContent.trim(),status:document.getElementById('secure-status').textContent,
+    observe:document.getElementById('secure-observe-mode').textContent,rows:document.querySelectorAll('#guardrails tbody tr').length,
+    ja:(document.querySelector('.kc-secure').textContent.match(/[\u3040-\u30ff\u4e00-\u9fff]/g)||[]).length}));
+  if(en.lang!=='en'||en.h1!=='Security controls'||en.rows!==5)throw Error('en secure document '+JSON.stringify(en));
+  if(!/Observe mode: off/.test(en.observe)||!/Matches the running policy/.test(en.status))throw Error('en secure hydration '+JSON.stringify(en));
+  if(en.ja!==0)throw Error('Japanese characters in the en secure console: '+en.ja);
+  await page.close();
+ }
+ console.log('block models');
+ // --- /models/: two teams, availability per route, requirement links land ---
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(false)(page);
+  await page.route('**/v1/models',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({object:'list',policyVersion:'whitehat-2026-09-12-v1',data:[
+    {id:'qwen3.8-flash-next-whitehacker',team:'red',route:'dedicated',availability:'upstream-tested-access-gated'},
+    {id:'glm5.3-flash',team:'red',route:'dedicated',availability:'upstream-tested-access-gated'},
+    {id:'qwen/qwen3.8-flash',team:'blue',route:'shared',availability:'route-configured'},
+    {id:'z-ai/glm-5.3-flash',team:'blue',route:'shared',availability:'route-key-not-configured'}]})}));
+  await page.goto(base+'/ja/models/');
+  await page.waitForFunction(()=>/ポリシー版/.test(document.getElementById('models-status').textContent),null,{timeout:5000});
+  const s=await page.evaluate(()=>({
+    blueRows:document.querySelectorAll('#team-blue tbody tr').length,
+    redRows:document.querySelectorAll('#team-red tbody tr').length,
+    cells:Object.fromEntries([...document.querySelectorAll('[data-model-availability]')].map(c=>[c.getAttribute('data-model-availability'),c.textContent])),
+    empty:document.querySelectorAll('[data-model-availability][data-state=empty]').length,
+    redReqs:[...document.querySelectorAll('#team-red .kc-models__reqs a')].map(a=>a.getAttribute('href')),
+    blueReqs:[...document.querySelectorAll('#team-blue .kc-models__reqs code')].map(c=>c.textContent)}));
+  if(s.blueRows!==2||s.redRows!==2)throw Error('team tables '+JSON.stringify(s));
+  if(s.empty!==0)throw Error('unhydrated availability cells '+JSON.stringify(s));
+  if(!/^提供中$/.test(s.cells['qwen/qwen3.8-flash'].trim())||!/接続キー未設定/.test(s.cells['z-ai/glm-5.3-flash']))throw Error('blue availability copy '+JSON.stringify(s.cells));
+  if(!/許可されたリクエスト/.test(s.cells['glm5.3-flash']))throw Error('red availability copy '+JSON.stringify(s.cells));
+  if(!s.redReqs.includes('/security/aup/')||!s.redReqs.includes('/account#account-panel-identity'))throw Error('red requirements must link the AUP and card identity '+JSON.stringify(s.redReqs));
+  if(JSON.stringify(s.blueReqs)!==JSON.stringify(['authenticated-principal','available-free-quota','guardrails']))throw Error('blue requirements '+JSON.stringify(s.blueReqs));
+  for(const href of s.redReqs){const r=await page.request.get(base+href.replace(/#.*$/,''));if(r.status()!==200)throw Error('requirement link '+href+' → '+r.status());}
+  // the English document: same tables, English availability copy
+  await page.goto(base+'/models/');
+  await page.waitForFunction(()=>/Policy version/.test(document.getElementById('models-status').textContent),null,{timeout:5000});
+  const en=await page.evaluate(()=>({lang:document.documentElement.lang,h1:document.querySelector('main h1').textContent.trim(),
+    cells:Object.fromEntries([...document.querySelectorAll('[data-model-availability]')].map(c=>[c.getAttribute('data-model-availability'),c.textContent])),
+    reqs:[...document.querySelectorAll('#team-red .kc-models__reqs a')].map(a=>a.textContent),
+    ja:(document.querySelector('.kc-models').textContent.match(/[\u3040-\u30ff\u4e00-\u9fff]/g)||[]).length}));
+  if(en.lang!=='en'||en.h1!=='Models')throw Error('en models document '+JSON.stringify(en));
+  if(!/^Serving$/.test(en.cells['qwen/qwen3.8-flash'].trim())||!/route key not configured/.test(en.cells['z-ai/glm-5.3-flash']))throw Error('en availability copy '+JSON.stringify(en.cells));
+  if(!en.reqs.includes('Acceptable-use policy (AUP) accepted'))throw Error('en requirement labels '+JSON.stringify(en.reqs));
+  if(en.ja!==0)throw Error('Japanese characters in the en models console: '+en.ja);
+  await page.close();
+ }
+ console.log('block billing');
+ // --- /billing/ signed out: sign-in block, no greyed buttons ----------------
+ {
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  await fixture(false)(page);
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'sign-in-required'})}));
+  await page.route('**/v1/billing/catalog',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:false,mode:'test'})}));
+  await page.goto(base+'/billing/');
+  await page.waitForFunction(()=>!document.getElementById('billing-signed-out').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({disabled:document.querySelectorAll('button[disabled]').length,
+    visibleButtons:[...document.querySelectorAll('[data-billing-sku]')].filter(b=>!b.hidden).length,
+    balancesHidden:document.getElementById('billing-balances').hidden,
+    status:document.getElementById('billing-status').textContent,
+    scrollW:document.documentElement.scrollWidth,iw:innerWidth}));
+  if(s.disabled!==0||s.visibleButtons!==0)throw Error('billing idle controls '+JSON.stringify(s));
+  if(!s.balancesHidden)throw Error('balances shown while signed out');
+  if(!/検証中|pending/.test(s.status))throw Error('billing status '+s.status);
+  if(s.scrollW>s.iw)throw Error('billing overflow at 390');
+  await page.close();
+ }
+ // --- /billing/ with checkout enabled: only SKUs the live catalog prices are sold
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({balances:[{scope:'ai',availableMicroUSD:0}]})}));
+  await page.route('**/v1/billing/catalog',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:true,mode:'live',purchasable:['pro','ai-credits-25']})}));
+  await page.goto(base+'/billing/');
+  await page.waitForFunction(()=>[...document.querySelectorAll('[data-billing-sku]')].some(b=>!b.hidden),null,{timeout:5000});
+  const s=await page.evaluate(()=>({visible:[...document.querySelectorAll('[data-billing-sku]')].filter(b=>!b.hidden).map(b=>b.dataset.billingSku).sort(),
+    notes:[...document.querySelectorAll('[data-billing-unavailable]')].filter(p=>!p.hidden).length,
+    total:document.querySelectorAll('[data-billing-sku]').length,
+    manage:!document.getElementById('billing-manage').hidden,
+    status:document.getElementById('billing-status').textContent}));
+  if(s.visible.join(',')!=='ai-credits-25,pro')throw Error('purchasable buttons '+JSON.stringify(s));
+  if(s.notes!==s.total-2)throw Error('unpriced plans must say so '+JSON.stringify(s));
+  if(!s.manage)throw Error('manage billing must appear when checkout is enabled');
+  if(/テスト決済|Test payments/.test(s.status))throw Error('live mode must not claim test payments: '+s.status);
+  await page.close();
+ }
+ if(errors.length)throw Error(JSON.stringify(errors));
+ console.log('PASS account browser: signed-out, signed-in cells mapped, no dup ids, layout 390/768/1440, console shell, /secure/, /models/, /billing/');
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
+"))
+
+(defn -main []
+  (when-not (fs/existsSync "public/js/session.js")
+    (.error js/console "REFUSED: public/js/session.js is missing — run npm run build first (this is exactly the deploy failure the audit exists for)")
+    (.exit proc 2))
+  (let [server (cp/spawn "python3" #js ["-m" "http.server" (str port) "--bind" "127.0.0.1" "--directory" "public"]
+                         #js {:stdio "ignore"})]
+    (js/setTimeout
+     (fn []
+       (let [r (cp/spawnSync "node" #js ["-e" script] #js {:stdio "inherit"})]
+         (.kill server)
+         (.exit proc (or (.-status r) 1))))
+     800)))
+
+(-main)

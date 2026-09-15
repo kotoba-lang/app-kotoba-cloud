@@ -1,0 +1,352 @@
+(ns app-kotoba-cloud.org-sso-gateway
+  "kotoba.cloud's side of two non-authority identity features (ADR-2609151900):
+
+  - **linked identities** (Google / GitHub): the apex only points the browser
+    at auth.kotoba.cloud's `/v1/link/*` and proxies the identity ledger for
+    the account page. It never sees a provider token.
+  - **organization SSO** (Team / Enterprise): the apex owns the two facts the
+    identity plane must not: the org's *plan* and the caller's *org role*. It
+    mints the entitlement auth.kotoba.cloud demands before storing an IdP
+    connection, records the org's SSO policy in the org authority, provisions
+    the membership VC from a fresh assertion, and gates org-scoped operations
+    on that assertion.
+
+  Sessions are never minted here: every upstream call forwards the caller's
+  `gftd_session` cookie the way `fetch-viewer` does, and the answer is what
+  auth.kotoba.cloud says about that session.
+
+  Same seam as research-gateway / org-gateway: session-authenticated,
+  same-origin JSON for mutations, bounded bodies."
+  (:require [app-kotoba-cloud.billing-gateway :as billing-gateway]
+            [app-kotoba-cloud.profile :as profile]
+            [app-kotoba-cloud.research-gateway :as shared]
+            [app-kotoba-cloud.session :as session]
+            [goog.object :as gobj]))
+
+(def paths
+  #{"/v1/org/sso/status" "/v1/org/sso/configure" "/v1/org/sso/remove" "/v1/org/sso/sync"
+    "/v1/org/sso/start"
+    "/v1/account/identities" "/v1/account/identities/revoke"
+    "/v1/account/link/providers"})
+
+(def link-providers #{"google" "github"})
+(def sso-plans #{"team" "enterprise"})
+(def entitlement-ttl-ms (* 5 60 1000))
+(def handle-re #"^com-[a-z0-9][a-z0-9-]{2,62}\.kotoba\.cloud$")
+
+(defn handle? [v] (boolean (and (string? v) (re-matches handle-re v))))
+
+;; ── upstream: auth.kotoba.cloud, as the caller ──────────────────────────────
+
+(defn- authority!
+  "→ Promise of {:status :json} from auth.kotoba.cloud, forwarding the caller's
+  session cookie. Mutations carry this origin, which is what auth's
+  same-origin guard admits for its primary apex."
+  [cookie path {:keys [method body headers]}]
+  (-> (js/fetch (str profile/identity-origin path)
+                (clj->js (cond-> {:method (or method "GET") :redirect "manual"
+                                  :signal (js/AbortSignal.timeout 20000)
+                                  :headers (merge {"accept" "application/json"
+                                                   "origin" "https://kotoba.cloud"
+                                                   "content-type" "application/json"
+                                                   "cookie" (str session/cookie-name "=" cookie)}
+                                                  headers)}
+                           body (assoc :body (js/JSON.stringify (clj->js body))))))
+      (.then (fn [r]
+               (-> (shared/bounded-json r 65536)
+                   (.catch (fn [_] nil))
+                   (.then (fn [json] {:status (.-status r) :json json})))))))
+
+;; ── the entitlement (HMAC-SHA256 over the base64url payload) ────────────────
+
+(defn- b64url-bytes [^js buf]
+  (let [u8 (js/Uint8Array. buf)
+        s (loop [i 0 acc ""] (if (< i (.-length u8)) (recur (inc i) (str acc (js/String.fromCharCode (aget u8 i)))) acc))]
+    (-> (js/btoa s) (.replace (js/RegExp. "\\+" "g") "-") (.replace (js/RegExp. "/" "g") "_") (.replace (js/RegExp. "=+$") ""))))
+
+(defn mint-entitlement!
+  "→ Promise of the `x-kotoba-org-entitlement` value for (org, plan,
+  principal), or nil when the shared secret is not configured. The identity
+  plane verifies it with the same secret (`authn.org-sso/verify-entitlement!`)."
+  [env {:keys [org plan principal-id]}]
+  (let [secret (gobj/get env "ORG_SSO_ENTITLEMENT_SECRET")]
+    (if-not (and (string? secret) (>= (count secret) 32))
+      (js/Promise.resolve nil)
+      (let [now (js/Date.now)
+            payload (js/JSON.stringify (clj->js {:org org :plan plan :principalId principal-id
+                                                 :issuedAt now :expiresAt (+ now entitlement-ttl-ms)}))
+            payload-b64 (b64url-bytes (.encode (js/TextEncoder.) payload))]
+        (-> (js/crypto.subtle.importKey "raw" (.encode (js/TextEncoder.) secret)
+                                        #js {:name "HMAC" :hash "SHA-256"} false #js ["sign"])
+            (.then (fn [key] (js/crypto.subtle.sign "HMAC" key (.encode (js/TextEncoder.) payload-b64))))
+            (.then (fn [mac] (str payload-b64 "." (b64url-bytes mac)))))))))
+
+;; ── the org's plan and the caller's role ────────────────────────────────────
+
+(defn- org-authority! [env path payload]
+  (let [binding (gobj/get env "ORG_AUTHORITY")]
+    (if-not binding
+      (js/Promise.reject (ex-info "org-authority-not-configured" {:status 503}))
+      (-> (.fetch binding (str "https://org.internal" path)
+                  #js {:method "POST" :redirect "manual" :signal (js/AbortSignal.timeout 30000)
+                       :headers #js {"content-type" "application/json"}
+                       :body (js/JSON.stringify (clj->js payload))})
+          (.then (fn [r] (-> (shared/bounded-json r 65536)
+                             (.catch (fn [_] nil))
+                             (.then (fn [json] {:status (.-status r) :json json})))))))))
+
+(defn- membership!
+  "The caller's row for `handle` from the org authority's status, or nil."
+  [env principal-id handle]
+  (-> (org-authority! env "/status" {:principalId principal-id})
+      (.then (fn [{:keys [json]}]
+               (some #(when (and (= handle (:handle %)) (= "active" (:status %))) %)
+                     (:organizations json))))))
+
+(defn plan-for-org!
+  "The org's plan: an operator override (`ORG_PLAN_OVERRIDES`, JSON
+  {handle: plan} — how Enterprise, which is quote-based, is granted), else
+  the owner principal's active platform plan from billing. Until org billing
+  (ADR-2609141633 §5) lands, the founding owner's subscription IS the org's
+  plan. → Promise of a plan sku or nil."
+  [env handle owner-principal]
+  (let [overrides (try (js->clj (js/JSON.parse (or (gobj/get env "ORG_PLAN_OVERRIDES") "{}")))
+                       (catch :default _ {}))]
+    (if-let [forced (get overrides handle)]
+      (js/Promise.resolve forced)
+      (if-not (and owner-principal (gobj/get env "BILLING_ACCOUNTS"))
+        (js/Promise.resolve nil)
+        (-> (billing-gateway/account env owner-principal "/status" {})
+            (.then (fn [r] (if (.-ok r) (.json r) nil)))
+            (.then (fn [j] (when j (:plan (js->clj j :keywordize-keys true)))))
+            (.catch (fn [_] nil)))))))
+
+;; ── the gate (used by org-scoped operations) ────────────────────────────────
+
+(defn gate!
+  "For an org whose SSO policy enforces assertions, ask auth.kotoba.cloud for
+  the caller's standing. → Promise of nil when open; rejects with
+  {:status 403 :error \"sso-assertion-required\"|\"sso-assertion-expired\"
+  :start <url>} when the member must (re)assert. An org that enforces nothing
+  is open without a network call."
+  [cookie handle sso-policy]
+  (if-not (and (map? sso-policy) (:enforce sso-policy))
+    (js/Promise.resolve nil)
+    (-> (authority! cookie (str "/v1/org-sso/status?org=" (js/encodeURIComponent handle)) {})
+        (.then (fn [{:keys [status json]}]
+                 (cond
+                   (not= 200 status)
+                   (throw (ex-info "sso-status-unavailable" {:status 503}))
+                   (not= "open" (:gate json))
+                   (throw (ex-info (:gate json) {:status 403 :error (:gate json) :start (:start json)}))
+                   :else nil))))))
+
+;; ── routes ──────────────────────────────────────────────────────────────────
+
+(defn- connection-input [body]
+  (select-keys body [:issuer :clientId :clientSecret :authorizationEndpoint :tokenEndpoint :jwksUri
+                     :domains :roleClaim :roleMap :defaultRole :maxAgeHours :enforce]))
+
+(defn- respond-error [respond e]
+  (let [d (ex-data e)]
+    (respond (cond-> {:error {:code (or (:error d) (ex-message e))}}
+               (:start d) (assoc :start (:start d)))
+             (or (:status d) 503))))
+
+(defn- with-org-admin
+  "Resolve the caller's membership (owner/admin) and the org's plan, then `f`."
+  [env viewer handle respond f]
+  (-> (membership! env (:principalId viewer) handle)
+      (.then (fn [member]
+               (cond
+                 (nil? member) (respond {:error {:code "org-membership-required"}} 403)
+                 (not (contains? #{"owner" "admin"} (:role member)))
+                 (respond {:error {:code "org-role-insufficient"}} 403)
+                 :else
+                 (-> (plan-for-org! env handle (:owner member))
+                     (.then (fn [plan] (f member plan)))))))))
+
+(defn- route-status [request env viewer cookie respond]
+  (let [handle (.get (.-searchParams (js/URL. (.-url request))) "org")]
+    (if-not (handle? handle)
+      (respond {:error {:code "invalid-org-handle"}} 400)
+      (-> (membership! env (:principalId viewer) handle)
+          (.then (fn [member]
+                   (if-not member
+                     (respond {:error {:code "org-membership-required"}} 403)
+                     (-> (js/Promise.all
+                          #js [(plan-for-org! env handle (:owner member))
+                               (authority! cookie (str "/v1/org-sso/status?org=" (js/encodeURIComponent handle)) {})])
+                         (.then (fn [[plan upstream]]
+                                  (respond {:org handle
+                                            :role (:role member)
+                                            :plan plan
+                                            :eligible (contains? sso-plans plan)
+                                            :canConfigure (and (contains? #{"owner" "admin"} (:role member))
+                                                               (contains? sso-plans plan)
+                                                               (boolean (gobj/get env "ORG_SSO_ENTITLEMENT_SECRET")))
+                                            :policy (:ssoPolicy member)
+                                            :sso (when (= 200 (:status upstream)) (:json upstream))
+                                            :start (str "/v1/org/sso/start?org=" (js/encodeURIComponent handle))}
+                                           200)))))))))))
+
+(defn- route-configure [env viewer cookie body respond]
+  (let [handle (:handle body)]
+    (if-not (handle? handle)
+      (respond {:error {:code "invalid-org-handle"}} 400)
+      (with-org-admin
+       env viewer handle respond
+       (fn [_member plan]
+         (if-not (contains? sso-plans plan)
+           (respond {:error {:code "org-plan-not-eligible" :plan plan :required ["team" "enterprise"]}} 402)
+           (-> (mint-entitlement! env {:org handle :plan plan :principal-id (:principalId viewer)})
+               (.then (fn [ent]
+                        (if-not ent
+                          (respond {:error {:code "org-sso-entitlement-not-configured"}} 503)
+                          (authority! cookie (str "/v1/org-sso/connections/" handle)
+                                      {:method "PUT" :body (connection-input body)
+                                       :headers {"x-kotoba-org-entitlement" ent}}))))
+               (.then (fn [{:keys [status json] :as r}]
+                        (if (instance? js/Response r)
+                          r
+                          (if (not= 200 status)
+                            (respond {:error {:code (or (:error json) "org-sso-refused")
+                                              :detail (:detail json) :reason (:reason json)}}
+                                     (if (contains? #{400 401 403 409} status) status 502))
+                            (let [conn (:connection json)]
+                              (-> (org-authority! env "/sso-policy"
+                                                  {:principalId (:principalId viewer) :handle handle
+                                                   :policy {:configured true :enforce (:enforce conn)
+                                                            :issuer (:issuer conn) :maxAgeHours (:max-age-hours conn)}})
+                                  (.then (fn [_] (respond {:connection conn} 200))))))))))))))))
+
+(defn- route-remove [env viewer cookie body respond]
+  (let [handle (:handle body)]
+    (if-not (handle? handle)
+      (respond {:error {:code "invalid-org-handle"}} 400)
+      (with-org-admin
+       env viewer handle respond
+       (fn [_member plan]
+         ;; Removal is allowed even when the plan lapsed: an org that is no
+         ;; longer entitled must still be able to switch enforcement off, and
+         ;; the identity plane's entitlement check accepts the plan the org
+         ;; had when it configured (recorded on the connection).
+         (-> (mint-entitlement! env {:org handle :plan (if (contains? sso-plans plan) plan "team")
+                                     :principal-id (:principalId viewer)})
+             (.then (fn [ent]
+                      (if-not ent
+                        (respond {:error {:code "org-sso-entitlement-not-configured"}} 503)
+                        (authority! cookie (str "/v1/org-sso/connections/" handle)
+                                    {:method "DELETE" :headers {"x-kotoba-org-entitlement" ent}}))))
+             (.then (fn [{:keys [status json] :as r}]
+                      (if (instance? js/Response r)
+                        r
+                        (if (not (contains? #{200 404} status))
+                          (respond {:error {:code (or (:error json) "org-sso-refused")}} 502)
+                          (-> (org-authority! env "/sso-policy"
+                                              {:principalId (:principalId viewer) :handle handle
+                                               :policy {:configured false :enforce false}})
+                              (.then (fn [_] (respond {:ok true} 200))))))))))))))
+
+(defn- route-sync
+  "After the IdP callback returned the browser to /account/?sso=<org>: read
+  the member's assertion from auth.kotoba.cloud and provision the org
+  membership it implies. Idempotent; a stale or missing assertion provisions
+  nothing and says so."
+  [env viewer cookie body respond]
+  (let [handle (:handle body)]
+    (if-not (handle? handle)
+      (respond {:error {:code "invalid-org-handle"}} 400)
+      (-> (authority! cookie (str "/v1/org-sso/status?org=" (js/encodeURIComponent handle)) {})
+          (.then (fn [{:keys [status json]}]
+                   (cond
+                     (not= 200 status) (respond {:error {:code "sso-status-unavailable"}} 503)
+                     (not (:configured json)) (respond {:error {:code "org-sso-not-configured"}} 409)
+                     (not (:fresh json)) (respond {:error {:code (:gate json)} :start (:start json)} 403)
+                     :else
+                     (-> (org-authority! env "/sso-provision"
+                                         {:handle handle :memberPrincipalId (:principalId viewer)
+                                          :role (get-in json [:assertion :role])
+                                          :subject (get-in json [:assertion :subject])})
+                         (.then (fn [{:keys [status json]}]
+                                  (respond (if (= 200 status)
+                                             {:provisioned (:provisioned json) :member (:member json)
+                                              :membership (:membership json)}
+                                             {:error {:code (or (:error json) "org-sso-provision-failed")}})
+                                           (if (= 200 status) 200 (if (contains? #{400 404 409} status) status 502)))))))))))))
+
+(defn- redirect [location]
+  (js/Response. "" #js {:status 302 :headers #js {"location" location "cache-control" "no-store"}}))
+
+(defn link-start-location
+  "Where the apex sends a browser that pressed Continue with <provider>:
+  auth.kotoba.cloud's link start, returning to `return-to` on this apex."
+  [provider return-to]
+  (when (contains? link-providers provider)
+    (str profile/identity-origin "/v1/link/" provider "/start?return_to=" (js/encodeURIComponent return-to))))
+
+(defn route [request env viewer-fn respond]
+  (let [url (js/URL. (.-url request)) path (.-pathname url) method (.-method request)
+        cookie (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)
+        read? (contains? #{"/v1/org/sso/status" "/v1/org/sso/start" "/v1/account/identities"
+                           "/v1/account/link/providers"} path)]
+    (cond
+      (not= method (if read? "GET" "POST")) (respond {:error {:code "method-not-allowed"}} 405)
+
+      ;; Which providers the identity plane can talk to, so the page shows a
+      ;; button only for a provider that can finish. Public and session-free
+      ;; (the same answer auth.kotoba.cloud gives anyone); the page's CSP keeps
+      ;; connect-src 'self', so the apex relays it.
+      (= path "/v1/account/link/providers")
+      (-> (js/fetch (str profile/identity-origin "/v1/link/providers")
+                    #js {:headers #js {"accept" "application/json"} :signal (js/AbortSignal.timeout 10000)})
+          (.then (fn [r] (shared/bounded-json r 4096)))
+          (.then (fn [json] (respond {:providers (vec (filter link-providers (:providers json)))} 200)))
+          (.catch (fn [_] (respond {:providers []} 200))))
+      (and (not read?) (not (shared/origins (.get (.-headers request) "origin"))))
+      (respond {:error {:code "origin-not-allowed"}} 403)
+      (and (not read?) (not= "application/json" (.get (.-headers request) "content-type")))
+      (respond {:error {:code "json-required"}} 415)
+      (not cookie) (respond {:error {:code "sign-in-required"}} 401)
+
+      ;; A navigation, not an API call: the member goes to the IdP by way of
+      ;; auth.kotoba.cloud, which requires their session before starting.
+      (= path "/v1/org/sso/start")
+      (let [handle (.get (.-searchParams url) "org")]
+        (if-not (handle? handle)
+          (respond {:error {:code "invalid-org-handle"}} 400)
+          (js/Promise.resolve
+           (redirect (str profile/identity-origin "/v1/org-sso/start?org=" (js/encodeURIComponent handle)
+                          "&return_to=" (js/encodeURIComponent (str "https://kotoba.cloud/account/?sso=" handle)))))))
+
+      :else
+      (-> (viewer-fn request)
+          (.then (fn [viewer]
+                   (if-not (true? (:valid viewer))
+                     (respond {:error {:code "sign-in-required"}} 401)
+                     (case path
+                       "/v1/org/sso/status" (route-status request env viewer cookie respond)
+                       "/v1/account/identities"
+                       (-> (authority! cookie "/v1/identities" {})
+                           (.then (fn [{:keys [status json]}]
+                                    (if (not= 200 status)
+                                      (respond {:error {:code "identities-unavailable"}} 502)
+                                      (respond {:identities (mapv #(select-keys % [:provider :subject :email :name :createdAt :revokedAt])
+                                                                  (:identities json))
+                                                :recovery (:recovery json)} 200)))))
+                       (-> (shared/bounded-json request 16384)
+                           (.then (fn [body]
+                                    (case path
+                                      "/v1/org/sso/configure" (route-configure env viewer cookie body respond)
+                                      "/v1/org/sso/remove" (route-remove env viewer cookie body respond)
+                                      "/v1/org/sso/sync" (route-sync env viewer cookie body respond)
+                                      "/v1/account/identities/revoke"
+                                      (-> (authority! cookie "/v1/identities/revoke"
+                                                      {:method "POST" :body (select-keys body [:provider :subject])})
+                                          (.then (fn [{:keys [status json]}]
+                                                   (respond (if (= 200 status)
+                                                              {:ok true :identities (:identities json)}
+                                                              {:error {:code (or (:error json) "revoke-refused") :reason (:reason json)}})
+                                                            status))))
+                                      (respond {:error {:code "not-found"}} 404)))))))))
+          (.catch (fn [e] (respond-error respond e)))))))

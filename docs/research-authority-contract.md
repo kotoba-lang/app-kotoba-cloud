@@ -124,7 +124,6 @@ prove this full process is live.
 
 ## Reference sources (checked 2026-09-12)
 
-- https://www.orcarouter.ai/ — model discovery and gateway experience; no integration assumed.
 - https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4 — candidate model card.
 - https://dealign.ai/ — source research; no model modifications are performed here.
 - https://docs.sumsub.com/docs/reusable-kyc — example of contractual verification reuse, not a selected vendor.

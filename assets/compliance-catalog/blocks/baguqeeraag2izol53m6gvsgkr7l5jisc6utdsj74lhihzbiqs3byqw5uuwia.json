@@ -1,0 +1,1 @@
+{"categoryId":"sast-dast","complianceFits":["iso-27001"],"id":"sonarqube-server","name":"SonarQube Server","pricingMode":"public-list","pricingNote":"free Community Edition; Developer/Enterprise/Data Center public per-LOC/instance tiers starting in the hundreds USD/yr","pricingUrl":"https://www.sonarsource.com/products/sonarqube/","provider":"SonarSource","providerHq":"CH"}

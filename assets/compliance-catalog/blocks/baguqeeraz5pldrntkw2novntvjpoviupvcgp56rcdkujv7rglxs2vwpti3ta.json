@@ -1,0 +1,1 @@
+{"categoryId":"encryption","complianceFits":["fedramp","iso-27001","nist-csf-20","pci-dss-40","soc2"],"id":"aws-kms","name":"AWS KMS","pricingMode":"public-list","pricingNote":"about $1/key/month plus per-request charges as published; CloudHSM clusters higher","pricingUrl":"https://aws.amazon.com/kms/pricing/","provider":"AWS","providerHq":"US"}

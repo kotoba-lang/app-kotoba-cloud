@@ -1,0 +1,228 @@
+(ns app-kotoba-cloud.security-services
+  "First-party security-services suite catalog: ONE
+  canonical def describes the four services — CTEM, DAST, SAST and VM —
+  and every surface (the /apps cards, the /security/services/ document and
+  the GET /v1/security/services edge catalog) renders from it, so the page
+  and the API cannot drift. The edge DESCRIBES only; any enforcement stays
+  on the private authority. VM is the aggregation ledger: the three upstream
+  services emit findings with the shared finding-schema and VM dedups,
+  scores (reachability + exploitability) and tracks the remediation
+  lifecycle keyed by CPE/CVE. Data-only (the view lives in
+  security-services-site), so the Worker bundle can require it without
+  pulling the design system in.")
+
+(def finding-schema
+  "Every upstream service (CTEM / DAST / SAST) emits findings in this one
+  schema; VM consumes them into its deduped, scored ledger."
+  [:finding-id :service :asset :severity :evidence :first-seen :last-seen])
+
+(def ledger-page "/security/services/")
+
+(def security-services
+  "The canonical suite def. :integration states how the service feeds VM;
+  :status is component-shipped (shipped as a component of the platform) or
+  gated (gated behind the private authority / not yet offered). Person-facing
+  text (:summary, capability labels, :integration :note) is a {:ja :en} map,
+  so the /security/services/ document renders in either language and the
+  edge catalog carries both."
+  [{:id :ctem
+    :name "CTEM"
+    :summary {:ja "継続的脅威曝露管理。外部攻撃表面と社内エントリポイントを継続的に列挙し、攻撃パスと資産コンテキストを VM 台帳へ渡します。"
+              :en "Continuous Threat Exposure Management: continuously enumerates the external attack surface and entry points, and hands attack paths plus asset context to the VM ledger."}
+    :domain :exposure-management
+    :capabilities [[:surface-inventory {:ja "外部攻撃表面・資産インベントリの継続列挙" :en "continuous external attack-surface and asset inventory"}]
+                   [:attack-path {:ja "到達可能な攻撃パスの特定" :en "reachable attack-path identification"}]
+                   [:context {:ja "資産コンテキスト（公開経路・依存・所有者）の付与" :en "asset context (public routes, dependencies, owner)"}]
+                   [:exposure-feed {:ja "曝露イベントの VM フィード出力" :en "exposure events fed to the VM ledger"}]]
+    :inputs [:assets :dns :certificates :open-endpoints]
+    :outputs [:attack-paths :exposure-findings :asset-context]
+    :integration {:feeds "vm"
+                  :emits :finding
+                  :role "attack-path-and-context"
+                  :note {:ja "CTEM は攻撃パスと資産コンテキストを VM 台帳へ渡し、到達可能性スコアの根拠になります。"
+                         :en "CTEM hands attack paths and asset context to the VM ledger; they are the basis of the reachability score."}}
+    :status "component-shipped"}
+   {:id :dast
+    :name "DAST"
+    :summary {:ja "動的アプリケーションセキュリティテスト。稼働中のアプリを実行して脆弱性を検出し、ランタイム所見を VM 台帳へ報告します。"
+              :en "Dynamic application security testing: probes running applications and reports runtime findings to the VM ledger."}
+    :domain :dynamic-testing
+    :capabilities [[:runtime-probe {:ja "稼働中アプリへの動的検査" :en "dynamic probing of running applications"}]
+                   [:auth-scenarios {:ja "認証シナリオつき検査" :en "probing with authenticated scenarios"}]
+                   [:runtime-finding {:ja "実行時脆弱性の検出と所見化" :en "runtime vulnerability detection as findings"}]]
+    :inputs [:running-apps :scan-scopes :auth-scenarios]
+    :outputs [:runtime-findings :request-response-evidence]
+    :integration {:feeds "vm"
+                  :emits :finding
+                  :role "runtime-findings"
+                  :note {:ja "DAST は実行時の再現性のある所見（リクエスト・レスポンスのエビデンス）を VM 台帳へ出します。"
+                         :en "DAST emits reproducible runtime findings (request/response evidence) to the VM ledger."}}
+    :status "gated"}
+   {:id :sast
+    :name "SAST"
+    :summary {:ja "静的アプリケーションセキュリティテスト。ソースコードを解析して脆弱パターンとサニタイズ漏れを検出し、コード所見を VM 台帳へ報告します。"
+              :en "Static application security testing: analyzes source code for vulnerable patterns and missing sanitization, reporting code findings to the VM ledger."}
+    :domain :static-analysis
+    :capabilities [[:code-analysis {:ja "ソースコード静的解析" :en "static source-code analysis"}]
+                   [:taint-flow {:ja "データフロー・検査（taint）" :en "taint / data-flow inspection"}]
+                   [:code-finding {:ja "コード所見（ファイル・行）の検出" :en "code findings with file and line"}]]
+    :inputs [:source-code :dependency-manifests]
+    :outputs [:code-findings :taint-paths :dependency-notes]
+    :integration {:feeds "vm"
+                  :emits :finding
+                  :role "code-findings"
+                  :note {:ja "SAST はファイル・行つきのコード所見を VM 台帳へ出し、修正対象の特定を速くします。"
+                         :en "SAST emits code findings with file and line to the VM ledger, so the fix target is found faster."}}
+    :status "gated"}
+   {:id :vm
+    :name "VM"
+    :summary {:ja "脆弱性管理 (wvme)。3 つの上流サービスが発した共通スキーマの所見を重複排除し、到達可能性と悪用可能性でスコアリングして、CPE/CVE キーつきの修正ライフサイクル台帳として管理します。CVE/CPE フィード入力を受け付けます。"
+              :en "Vulnerability management (wvme): consumes the shared-schema findings emitted by the three upstream services, dedups and scores them by reachability and exploitability, and tracks the remediation lifecycle in a ledger keyed by CPE/CVE. Accepts CVE/CPE feed input."}
+    :domain :vulnerability-management
+    :capabilities [[:dedup {:ja "所見の重複排除（資産 × 脆弱性キー）" :en "finding deduplication (asset × vulnerability key)"}]
+                   [:scoring {:ja "到達可能性 × 悪用可能性スコアリング" :en "reachability × exploitability scoring"}]
+                   [:ledger {:ja "CPE/CVE キーつき脆弱性台帳" :en "vulnerability ledger keyed by CPE/CVE"}]
+                   [:remediation {:ja "修正ライフサイクル（検出→着手→確認→閉じ）" :en "remediation lifecycle (detected → in progress → verified → closed)"}]
+                   [:cve-cpe-feed {:ja "CVE/CPE フィード入力" :en "CVE/CPE feed intake"}]]
+    :inputs [:findings-from-ctem :findings-from-dast :findings-from-sast :cve-cpe-feeds]
+    :outputs [:vulnerability-ledger :remediation-status :exposure-reports]
+    :integration {:role "aggregation-ledger"
+                  :dedup true
+                  :scoring [:reachability :exploitability]
+                  :ledger-keys [:cpe :cve]
+                  :remediation-lifecycle [:detected :in-progress :verified :closed]
+                  :consumes "ctem-dast-sast-findings"
+                  :note {:ja "VM は台帳サービス: 上流 3 サービスの所見を共通スキーマで受け、重複排除・スコアリング・修正追跡を行います。"
+                         :en "VM is the ledger service: it receives the three upstream services' findings in the shared schema and dedups, scores and tracks remediation."}}
+    :status "component-shipped"}])
+
+(defn service-by-id [id] (some #(when (= id (:id %)) %) security-services))
+
+;; ---------------------------------------------------------------------------
+;; VM ledger (deterministic, no AI): validation + dedup + scoring.
+;; The edge computes the ledger FROM the submitted findings per request —
+;; pure-stateless, no DO, no stored state. Every field below is derived
+;; deterministically so tests and live responses match byte for byte.
+;; ---------------------------------------------------------------------------
+
+(def valid-services #{:ctem :dast :sast})
+
+(def valid-severities #{:critical :high :medium :low :info})
+
+(def severity-points
+  "Exploitability points per severity (deterministic scoring input)."
+  {:critical 5 :high 4 :medium 3 :low 2 :info 1})
+
+(def evidence-kind-bonus
+  "Reachability points contributed by the evidence kind. A proven
+  request/response pair or an enumerated attack path is direct evidence of
+  reachability; a static taint path is weaker; a feed record alone is none."
+  {"request-response" 2 "attack-path" 2 "taint-path" 1})
+
+(def service-reachability
+  "Base reachability points per emitting service: DAST proves runtime
+  reachability, CTEM proves an enumerable attack path, SAST is code-only."
+  {:dast 1 :ctem 1 :sast 0})
+
+(defn- str-field [v] (if (string? v) (not-empty v) nil))
+
+(defn- max-str [a b] (if (neg? (compare (or a "") (or b ""))) b a))
+(defn- min-str [a b] (if (pos? (compare (or a "") (or b ""))) b a))
+
+(defn- evidence-kind
+  [evidence]
+  (cond
+    (map? evidence) (or (str-field (:kind evidence)) "unspecified")
+    (string? evidence) (or (str-field evidence) "unspecified")
+    :else "unspecified"))
+
+(defn- evidence-refs
+  "Optional CVE/CPE refs carried inside the evidence map."
+  [evidence]
+  (if (map? evidence)
+    (into {} (remove (fn [[_ v]] (nil? v)))
+          {:cve (str-field (:cve evidence))
+           :cpe (str-field (:cpe evidence))})
+    {}))
+
+(defn finding-error
+  "Returns the first schema violation of one finding record as
+  {:index i :field k :code reason}, or nil when the record conforms."
+  [f]
+  (let [first-err (fn [ok field code] (when-not ok {:field field :code code}))]
+    (or (when-not (map? f) {:field nil :code "not-a-map"})
+        (first-err (str-field (:finding-id f)) :finding-id "missing-or-empty")
+        (first-err (contains? valid-services (:service f)) :service "invalid-service")
+        (first-err (contains? valid-severities (:severity f)) :severity "invalid-severity")
+        (first-err (str-field (:asset f)) :asset "missing-or-empty")
+        (first-err (or (map? (:evidence f)) (string? (:evidence f)))
+                   :evidence "not-a-map-or-string")
+        (first-err (str-field (:first-seen f)) :first-seen "missing-or-empty")
+        (first-err (str-field (:last-seen f)) :last-seen "missing-or-empty"))))
+
+(defn finding-score
+  "Deterministic score in 0..100: 12 points per severity point
+  (exploitability) + 8 points per reachability point, capped at 100."
+  [f]
+  (let [sev (severity-points (:severity f) 1)
+        kind (evidence-kind (:evidence f))
+        reach (min 3 (+ (evidence-kind-bonus kind 0)
+                        (service-reachability (:service f) 0)))]
+    {:score (min 100 (+ (* 12 sev) (* 8 reach)))
+     :exploitability sev
+     :reachability reach
+     :evidence-kind kind}))
+
+(defn- ledger-entry
+  [f extra]
+  (let [s (finding-score f)]
+    (merge {:finding-id (:finding-id f)
+            :asset (:asset f)
+            :service (:service f)
+            :severity (:severity f)
+            :status "open"
+            :first-seen (:first-seen f)
+            :last-seen (:last-seen f)
+            :occurrences 0
+            :evidence-refs (evidence-refs (:evidence f))}
+           s
+           extra)))
+
+(defn build-ledger
+  "The deduped, scored VM ledger computed from a seq of validated findings.
+  Groups by asset, dedups identical finding-ids (min first-seen, max
+  last-seen, occurrence count), scores deterministically. Output is sorted
+  by asset then finding-id so the same input always yields the same ledger."
+  [findings]
+  (let [fs (seq findings)
+        merged (reduce
+                (fn [acc f]
+                  (let [k [(:asset f) (:finding-id f)]]
+                    (update acc k
+                            (fn [e]
+                              (let [e (or e (ledger-entry f nil))]
+                                (-> e
+                                    (assoc :first-seen (min-str (:first-seen e)
+                                                                (:first-seen f)))
+                                    (assoc :last-seen (max-str (:last-seen e)
+                                                               (:last-seen f)))
+                                    (update :occurrences inc)))))))
+                {} fs)
+        by-asset (reduce (fn [acc [[asset _fid] e]]
+                           (update acc asset (fnil conj []) e))
+                         {} merged)
+        assets (into []
+                     (map (fn [[asset vs]]
+                            {:asset asset
+                             :vulnerabilities (vec (sort-by :finding-id vs))})
+                          (sort-by first by-asset)))]
+    {:schema "kotoba.security/vm-ledger-v1"
+     :scoring {:severity-points severity-points
+               :evidence-kind-bonus evidence-kind-bonus
+               :service-reachability service-reachability
+               :formula "score = min(100, 12 * exploitability + 8 * reachability)"
+               :lifecycle-statuses ["open" "in-progress" "verified" "closed"]}
+     :assets assets
+     :counts {:findings (count fs)
+              :assets (count assets)
+              :vulnerabilities (count merged)}}))

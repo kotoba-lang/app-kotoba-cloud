@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { route, resetFunnelStore } from "../build/worker.js";
+import { readdirSync, existsSync, readFileSync } from "node:fs";
 
 const calls = [];
 let upstreamStatus = 200;
@@ -514,14 +515,150 @@ assert.equal(jaCanonical.status, 301);
 assert.equal(jaCanonical.headers.get("location"), "/billing/");
 assert.match(jaCanonical.headers.get("set-cookie") || "", /^kb_locale=ja;/);
 
-const sharedUntouched = await route(new Request("https://kotoba.cloud/account", {
-  headers: { cookie: "kb_locale=ja" }
-}), env);
-assert.equal(sharedUntouched.status, 200);
-assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
+// The account console is a locale variant root like /billing/ (owner
+// direction 2026-09-15: /account?lang=en answered the Japanese document —
+// "account" sat in locale/shared-prefixes and the Worker fetched the one
+// emit directly). Cookie, ?lang= and Accept-Language pick the emit; the
+// document keeps its own no-store + CSP; the shared /admin stays untouched.
+const sharedUntouched = await route(new Request("https://kotoba.cloud/account", { headers: { cookie: "kb_locale=ja" } }), env);
+{
+  const accountJa = sharedUntouched;
+  assert.equal(accountJa.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/ja/account/", "the ja variant by cookie");
+  assert.match(accountJa.headers.get("cache-control") || "", /no-store/);
+  assert.match(accountJa.headers.get("content-security-policy") || "", /connect-src/);
+  const accountEn = await route(new Request("https://kotoba.cloud/account?lang=en", { headers: { cookie: "kb_locale=ja" } }), env);
+  assert.equal(accountEn.status, 200);
+  assert.equal(accountEn.headers.get("location"), null, "served in place, no redirect");
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/account/?lang=en", "?lang=en beats the ja cookie: the English document at the locale-free root");
+  assert.match(accountEn.headers.get("set-cookie") || "", /^kb_locale=en;/, "the switch is persisted");
+  const accountDe = await route(new Request("https://kotoba.cloud/account/", { headers: { "accept-language": "de" } }), env);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/de/account/", "every public locale has an emit (German shell, English body)");
+  assert.equal(accountDe.status, 200);
+  // the emitted documents: 22 locales, each with its own <html lang>, RTL
+  // marked, the non-ja/en body in English
+  const accountRoot = new URL("../public/", import.meta.url);
+  const arDoc = readFileSync(new URL("ar/account/index.html", accountRoot), "utf8");
+  assert.match(arDoc, /<html lang="ar" dir="rtl">/);
+  assert.match(arDoc, /<div lang="en">/, "an English body under a non-English shell says so");
+  assert.match(readFileSync(new URL("ja/account/index.html", accountRoot), "utf8"), /<html lang="ja">[\s\S]*本人確認/);
+  assert.match(readFileSync(new URL("account/index.html", accountRoot), "utf8"), /<html lang="en">[\s\S]*Identity verification/);
+  const adminUntouched = await route(new Request("https://kotoba.cloud/admin", { headers: { cookie: "kb_locale=ja" } }), env);
+  assert(!assetReads[assetReads.length - 1].includes("/ja/admin"), "shared infrastructure is never rewritten");
+  assert.notEqual(adminUntouched.status, 500);
+}
+
+// The language switch is ?lang=<locale> on the SAME route (owner direction
+// 2026-09-15: the /ja, /en paths are no longer needed): served directly as
+// that variant — 200, no Location, the choice persisted — and it beats a
+// saved cookie in both directions. A value outside the catalog is ignored
+// and never persisted.
+{
+  const jaQuery = await route(new Request("https://kotoba.cloud/apps/?lang=ja", {
+    headers: { cookie: "kb_locale=he" }
+  }), env);
+  assert.equal(jaQuery.status, 200);
+  assert.equal(jaQuery.headers.get("location"), null);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/ja/apps/?lang=ja");
+  assert.match(jaQuery.headers.get("set-cookie") || "", /^kb_locale=ja;/);
+  assert.match(jaQuery.headers.get("vary") || "", /Cookie/);
+  const enQuery = await route(new Request("https://kotoba.cloud/billing/?lang=en", {
+    headers: { cookie: "kb_locale=ja" }
+  }), env);
+  assert.equal(enQuery.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/billing/?lang=en");
+  assert.match(enQuery.headers.get("set-cookie") || "", /^kb_locale=en;/);
+  const badQuery = await route(new Request("https://kotoba.cloud/billing/?lang=klingon", {
+    headers: { cookie: "kb_locale=he" }
+  }), env);
+  assert.equal(badQuery.status, 200);
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/he/billing/?lang=klingon", "an unknown lang neither redirects nor overrides the saved choice");
+  assert.equal(badQuery.headers.get("set-cookie"), null, "an unknown lang is never persisted");
+  // an explicit prefix is compatibility only: 301 to the locale-free route
+  const prefixed = await route(new Request("https://kotoba.cloud/ja/blog/"), env);
+  assert.equal(prefixed.status, 301);
+  assert.equal(prefixed.headers.get("location"), "/blog/");
+  // the emit tree is the truth of which roots have variants: every
+  // directory site.cljk writes under public/ja/ must be served at its
+  // locale-free route for a ja reader (blog and apps were not, measured
+  // live 2026-09-15). Refuse — not pass — when the tree is not there.
+  const jaRoot = new URL("../public/ja/", import.meta.url);
+  assert(existsSync(jaRoot), "public/ja/ missing — run npm run render before the smoke");
+  const jaDirs = readdirSync(jaRoot, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
+  assert(jaDirs.length >= 5, "public/ja/ has " + jaDirs.length + " directories — the emit tree looks empty");
+  for (const dir of jaDirs) {
+    // /docs/ is served from the root of docs.kotoba.cloud (console/surfaces)
+    const url = dir === "docs" ? "https://docs.kotoba.cloud/" : `https://kotoba.cloud/${dir}/`;
+    await route(new Request(url, { headers: { cookie: "kb_locale=ja" } }), env);
+    assert.equal(assetReads[assetReads.length - 1], `https://kotoba.cloud/ja/${dir}/`,
+      `/${dir}/ is emitted under /ja/ but the Worker did not serve the variant (locale/variant-roots)`);
+  }
+  console.log("locale switch: ?lang= served in place for " + jaDirs.length + " variant roots (" + jaDirs.join(", ") + "), prefix 301 kept");
+}
+// docs.kotoba.cloud (owner direction 2026-09-15): the /docs/… documents of
+// the same asset tree, served from the host root; locale negotiation and
+// ?lang= exactly as on the apex; shared assets as-is; the apex keeps the old
+// addresses as 301s to the host (locale prefix first).
+{
+  const docs = (path, headers = {}) => route(new Request("https://docs.kotoba.cloud" + path, { headers }), env);
+  const last = () => assetReads[assetReads.length - 1];
+  assert.equal((await docs("/")).status, 200);
+  assert.equal(last(), "https://kotoba.cloud/docs/", "the host root is /docs/");
+  assert.equal((await docs("/reference/quickstart/")).status, 200);
+  assert.equal(last(), "https://kotoba.cloud/docs/reference/quickstart/");
+  await docs("/reference/quickstart/", { cookie: "kb_locale=ja" });
+  assert.equal(last(), "https://kotoba.cloud/ja/docs/reference/quickstart/", "the ja variant by cookie");
+  const q = await docs("/integrations/?lang=ja");
+  assert.equal(last(), "https://kotoba.cloud/ja/docs/integrations/?lang=ja");
+  assert.match(q.headers.get("set-cookie") || "", /^kb_locale=ja;/);
+  await docs("/css/site.css");
+  assert.equal(last(), "https://docs.kotoba.cloud/css/site.css", "shared assets are the host's own");
+  await docs("/js/shell.js");
+  assert.equal(last(), "https://docs.kotoba.cloud/js/shell.js");
+  await docs("/js/code.js");
+  assert.equal(last(), "https://docs.kotoba.cloud/js/code.js", "the code block's copy runtime is the host's own too");
+  assert.match((await docs("/")).headers.get("content-security-policy"), /style-src 'self'/);
+  // the apex: /docs/… → the host, query kept; the locale prefix canonicalises first
+  const moved = await route(new Request("https://kotoba.cloud/docs/reference/quickstart/?lang=ja"), env);
+  assert.equal(moved.status, 301);
+  assert.equal(moved.headers.get("location"), "https://docs.kotoba.cloud/reference/quickstart/?lang=ja");
+  const root = await route(new Request("https://kotoba.cloud/docs/"), env);
+  assert.equal(root.headers.get("location"), "https://docs.kotoba.cloud/");
+  assert.equal((await route(new Request("https://kotoba.cloud/docs"), env)).headers.get("location"), "https://docs.kotoba.cloud/");
+  const prefixed = await route(new Request("https://kotoba.cloud/ja/docs/graph/"), env);
+  assert.equal(prefixed.status, 301);
+  assert.equal(prefixed.headers.get("location"), "/docs/graph/", "one hop to the locale-free apex path, the next to the host");
+  console.log("docs host: root, reference, ja by cookie and ?lang=, shared assets, apex 301s");
+}
+// /graph resolves to the locale-free apex; the apex negotiates the variant.
+{
+  const graph = await route(new Request("https://kotoba.cloud/graph", { headers: { cookie: "kb_locale=ja" } }), env);
+  assert.equal(graph.status, 302);
+  assert.equal(graph.headers.get("location"), "/#knowledge/overview");
+  // Continue with Google (ADR-2609151900) returns to the locale-free apex;
+  // a catalog locale rides along as ?lang=, an unknown one is dropped.
+  const returnTo = async (q) => {
+    const r = await route(new Request("https://kotoba.cloud/sign-in/google" + q), env);
+    assert.equal(r.status, 302);
+    return decodeURIComponent(new URL(r.headers.get("location")).searchParams.get("return_to"));
+  };
+  assert.equal(await returnTo("?lang=ja"), "https://kotoba.cloud/?lang=ja");
+  assert.equal(await returnTo(""), "https://kotoba.cloud/");
+  assert.equal(await returnTo("?lang=klingon"), "https://kotoba.cloud/");
+}
 
 assert(idFromHeader.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
+
+// Every document links /css/site.css (abc2c4f). A CSP whose style-src lacks
+// 'self' blocks that sheet silently and the page ships unstyled — measured
+// live 2026-09-15: the sidebar rendered position:static under the content on
+// every band while the audit over the HTML + CSS bytes said 100. The header
+// is the document's behaviour too; pin it on the app, account and admin docs.
+for (const [name, res] of [["apex", headerBeatsCountry], ["account", sharedUntouched]]) {
+  const csp = res.headers.get("content-security-policy") || "";
+  assert.match(csp, /style-src [^;]*'self'/, name + " CSP must allow the same-origin stylesheet: " + csp);
+}
 
 const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/session"), env);
 assert.equal(sessionUntouched.status, 200);
@@ -536,6 +673,7 @@ console.log("worker Passkey/PQ publication, AIUEOS boot, and origin locale negot
 // Research gateway: these tests qualify edge admission only, not a real provider.
 upstreamStatus = 200;
 const researchPrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111";
+const tokenRegistry = { tokens: [], legacyRevokedAt: null };
 const researchModel = "qwen3.8-flash-next-whitehacker";
 const researchPolicy = "whitehat-2026-09-12-v1";
 const researchBody = { model: researchModel, task: "code-review", scopeId: "owned-code",
@@ -548,18 +686,78 @@ let researchRecord = { principalId: researchPrincipal, policyVersion: researchPo
   continuous: { policyVersion: "kotoba-session-evidence-2026-09-v1", sessionRef: researchSessionRef, action: 'code-review', decision: 'allow',
     opinion: { belief: .9, disbelief: 0, uncertainty: .1, calibrated: false }, evaluatedAt: researchNow, expiresAt: researchNow + 15000 },
   trust: { policyVersion: "kotoba-trust-routes-2026-09-v1", score: 60, routes: ["web-reviewed"], evaluatedAt: researchNow, expiresAt: researchNow + 60000 },
-  ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
-  screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
-  scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 60000 }] };
+  // evidence windows: an hour, so a run slowed by a concurrent build cannot
+  // outlive them (the projections below are re-stamped per read instead)
+  ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 3600000 },
+  screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 3600000 },
+  scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 3600000 }] };
+// The authority re-stamps its trust / session projections on every read
+// (research_authority trust-projection / session-projection: evaluatedAt =
+// its now). This mock did not: the stamps were minted once at module load
+// with 15 s (session) and 60 s (trust) windows, so a run slowed by a
+// concurrent build answered 403 session-reverification-required from the
+// paid-inference block onward (measured 2026-09-15 23:25). Re-stamp a
+// projection that still has its untouched window width and has aged past
+// 5 s; a test that deliberately broke a stamp (expiresAt = 1, evaluatedAt
+// in the future) keeps it.
+const projected = (record) => {
+  const now = Date.now();
+  const fresh = (p, width) => (p && p.expiresAt - p.evaluatedAt === width && p.evaluatedAt < now - 5000)
+    ? { ...p, evaluatedAt: now, expiresAt: now + width } : p;
+  return { ...record, continuous: fresh(record.continuous, 15000), trust: fresh(record.trust, 60000) };
+};
 let corruptReceipt = false;
 let oldTrustReceipt = false;
 let exhausted = false;
+let upstreamOutcome = "ok";
+// When set, /ekyc/start answers with the authority's own error shape
+// ({ error: <code> }, status) so the edge's code surfacing can be measured.
+let ekycAuthorityRefusal = null;
+// The authority's answer to a forwarded Stripe webhook ({ error } + status
+// when set, else the approval receipt).
+let webhookAuthorityAnswer = null;
 const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => {
   const body = JSON.parse(init.body);
   const path = new URL(url).pathname;
-  researchCalls.push({ path, body, headers: new Headers(init.headers) });
+  researchCalls.push({ path, body, headers: new Headers(init.headers), redirect: init.redirect });
   assert.equal(new Headers(init.headers).get("cookie"), null);
-  if (path === "/status") return Response.json(researchRecord);
+  // workerd's fetch accepts only "follow" | "manual"; "error" throws a
+  // TypeError before the hop — the real binding never sees the request.
+  // Mirror that here so a bundle that regresses fails the same way live did.
+  if (init.redirect !== undefined && init.redirect !== "follow" && init.redirect !== "manual") {
+    throw new TypeError("Invalid redirect mode: " + init.redirect);
+  }
+  if (path === "/status") return Response.json(projected(researchRecord));
+  // personal API token registry (per principal): what the real authority keeps
+  if (path.startsWith("/tokens/")) {
+    const op = path.slice("/tokens/".length);
+    const reg = tokenRegistry;
+    if (op === "register") {
+      if (reg.tokens.some(t => t.id === body.tokenId)) return Response.json({ error: "token-id-taken" }, { status: 409 });
+      const entry = { id: body.tokenId, label: body.label ?? null, issuedAt: Date.now() };
+      reg.tokens.push(entry); return Response.json({ principalId: body.principalId, token: entry });
+    }
+    if (op === "list") return Response.json({ principalId: body.principalId, tokens: reg.tokens, legacyRevokedAt: reg.legacyRevokedAt });
+    if (op === "revoke") {
+      const entry = reg.tokens.find(t => t.id === body.tokenId);
+      if (!entry) return Response.json({ error: "token-not-found" }, { status: 404 });
+      entry.revokedAt = entry.revokedAt ?? Date.now(); return Response.json({ principalId: body.principalId, token: entry });
+    }
+    if (op === "revoke-legacy") { reg.legacyRevokedAt = Date.now(); return Response.json({ principalId: body.principalId, legacyRevokedAt: reg.legacyRevokedAt }); }
+    if (op === "check") {
+      const entry = body.tokenId ? reg.tokens.find(t => t.id === body.tokenId) : null;
+      const allowed = body.tokenId ? (entry && !entry.revokedAt) : !reg.legacyRevokedAt;
+      if (allowed) return Response.json({ principalId: body.principalId, ok: true, tokenId: body.tokenId ?? null });
+      return Response.json({ error: !body.tokenId ? "legacy-token-revoked" : (!entry ? "token-unknown" : "token-revoked") }, { status: 403 });
+    }
+  }
+  if (path === "/ekyc/webhook") {
+    if (webhookAuthorityAnswer) return Response.json({ error: webhookAuthorityAnswer.error }, { status: webhookAuthorityAnswer.status });
+    return Response.json({ principalId: body.principalId, status: "active", receiptId: "op-card-setup-1", approvedBy: "stripe-card" });
+  }
+  if (path === "/ekyc/start" && ekycAuthorityRefusal) {
+    return Response.json({ error: ekycAuthorityRefusal.error }, { status: ekycAuthorityRefusal.status });
+  }
   if (path === "/ekyc/start") return Response.json({ sessionId: "session-1",
     externalId: "ext-1", verificationUrl: "https://verify.stripe.com/test",
     expiresAt: Date.now() + 900000, scopeId: body.scopeId, tasks: body.tasks });
@@ -570,21 +768,34 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     let job = jobs.get(body.jobId);
     if (!job) {
       job = { jobId: body.jobId, principalId: body.principalId, sessionRef: body.sessionRef,
+        // the edge's word: "paid" holds a reservation for this id, anything
+        // else is the free daily quota (research_authority handle-jobs-create)
+        billing: body.billing === "paid" ? "paid" : "free",
         status: "queued", receiptId: "receipt-" + body.jobId, request: body.request, createdAt: Date.now() };
       jobs.set(body.jobId, job);
-      setTimeout(() => { if (job.status === "queued") { job.status = "succeeded";
-        job.content = "Check ownership before returning the record."; } }, 5);
+      setTimeout(() => { if (job.status === "queued") {
+        // upstreamOutcome: "ok" (default) | "failed" | "empty" — the last two
+        // are what a refused dedicated origin used to look like on the edge
+        if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "red-route-unavailable"; }
+        else if (upstreamOutcome === "tool_calls") { job.status = "succeeded"; job.content = null; job.finishReason = "tool_calls";
+          job.toolCalls = [{ id: "call_9", type: "function", function: { name: "write_file", arguments: "{\"path\":\"a.txt\"}" } }]; }
+        else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; }
+        // the provider's measured usage as the authority stores it on every
+        // succeeded job (research_authority run-inference!)
+        if (job.status === "succeeded") job.usageReceipt = { receiptVersion: "kotoba-inference-usage-2026-09-v1", source: "origin-openai-compatible",
+          requestId: job.jobId, receiptId: job.receiptId, model: job.request.model, inputTokens: 120, cachedInputTokens: 0,
+          outputTokens: 30, totalTokens: 150, observedAt: Date.now() }; } }, 5);
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
-      sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
-      model: body.request ? body.request.model : researchModel, record: researchRecord });
+      sessionPolicyVersion: body.sessionPolicyVersion, policyDecision: "allowed",
+      model: body.request ? body.request.model : researchModel, record: projected(researchRecord) });
   }
   if (path === "/jobs/status") {
     const job = jobs.get(body.jobId);
     if (!job) return new Response(JSON.stringify({ error: "not-found" }), { status: 404 });
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
-      sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
-      model: body.request ? body.request.model : researchModel, record: researchRecord });
+      sessionPolicyVersion: body.sessionPolicyVersion, policyDecision: "allowed",
+      model: body.request ? body.request.model : researchModel, record: projected(researchRecord) });
   }
   assert.equal(path, "/complete");
   assert.equal(body.principalId, researchPrincipal);
@@ -632,9 +843,33 @@ assert.equal(researchCalls.length, 0);
 }
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
 const modelCatalogBody = await modelCatalog.json();
-assert.equal(modelCatalogBody.data[0].availability, "upstream-tested-access-gated");
+// Two teams (owner direction 2026-09-15): red = the dedicated research
+// deployment, the identity ladder; blue = the shared route, sign-in + free
+// quota. The blue rows' availability is the edge's BLUE_ROUTE_CONFIGURED
+// flag, never the key. No provider is named anywhere in the catalog.
 assert.deepEqual(modelCatalogBody.data.map(m => m.id).sort(),
-  ["glm5.3-flash", "qwen3.8-flash-next-whitehacker"]);
+  ["glm5.3-flash", "qwen/qwen3.8-flash", "qwen3.8-flash-next-whitehacker", "z-ai/glm-5.3-flash"]);
+const catalogRow = id => modelCatalogBody.data.find(m => m.id === id);
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").team, "red");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").route, "dedicated");
+assert.equal(catalogRow("qwen3.8-flash-next-whitehacker").availability, "upstream-tested-access-gated");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").team, "blue");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").route, "shared");
+assert.equal(catalogRow("z-ai/glm-5.3-flash").availability, "route-key-not-configured");
+assert.equal(catalogRow("qwen/qwen3.8-flash").upstream, undefined, "no upstream endpoint in the public catalog");
+assert.doesNotMatch(JSON.stringify(modelCatalogBody), /openrouter|modal|orcarouter/i, "no provider is named in the public catalog");
+assert.deepEqual(modelCatalogBody.teams.red.requirements.slice(0, 3),
+  ["authenticated-principal", "verified-ekyc-card", "aup-consent"]);
+assert.deepEqual(modelCatalogBody.teams.blue.requirements,
+  ["authenticated-principal", "available-free-quota", "guardrails"]);
+{
+  const configured = await (await route(new Request("https://kotoba.cloud/v1/models"), { ...env, BLUE_ROUTE_CONFIGURED: "true" })).json();
+  assert.equal(configured.data.find(m => m.id === "z-ai/glm-5.3-flash").availability, "route-configured");
+  // a red model whose origin is not up is listed as route-not-configured
+  // (the one origin answered 404 for it, after a quota unit — 2026-09-15)
+  assert.equal(configured.data.find(m => m.id === "glm5.3-flash").availability, "route-not-configured");
+  assert.equal(configured.data.find(m => m.id === "qwen3.8-flash-next-whitehacker").availability, "upstream-tested-access-gated");
+}
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 const eligibleStatusBody = await eligibleStatus.json();
 assert.equal(eligibleStatusBody.status, "eligible");
@@ -642,7 +877,21 @@ assert.equal(eligibleStatusBody.trust.score, 60);
 assert.deepEqual(eligibleStatusBody.trust.routes, ['web-reviewed']);
 assert.equal(eligibleStatusBody.trust.evidenceRef, undefined);
 assert.match(eligibleStatus.headers.get("cache-control"), /no-store/);
-for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 9999 }]) {
+// The authority stamps projections on another machine: a stamp a few
+// seconds in the edge's future is still current (one live 403
+// trust-route-required between two eligible reads, 2026-09-15); a stamp
+// beyond the tolerance is not.
+for (const [skewMs, expect] of [[2000, "eligible"], [10000, "pending"]]) {
+  const saved = structuredClone(researchRecord);
+  researchRecord.trust.evaluatedAt = Date.now() + skewMs;
+  researchRecord.trust.expiresAt = researchRecord.trust.evaluatedAt + 60000;
+  researchRecord.continuous.evaluatedAt = Date.now() + skewMs;
+  researchRecord.continuous.expiresAt = researchRecord.continuous.evaluatedAt + 15000;
+  const skewed = await (await route(researchRequest("/v1/research/status"), researchEnv)).json();
+  assert.equal(skewed.status, expect, "skew " + skewMs + ": " + JSON.stringify({ status: skewed.status, reason: skewed.reason }));
+  researchRecord = saved;
+}
+for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 40000 }]) {
   assert.equal((await route(researchRequest("/v1/chat/completions", { ...researchBody, ...extra }), researchEnv)).status, 400);
 }
 const beforeDenials = researchCalls.filter(c => c.path === "/complete").length;
@@ -657,9 +906,46 @@ for (const mutate of [r => { r.principalId = "another"; }, r => { r.status = "su
   researchRecord = saved;
 }
 assert.equal(researchCalls.filter(c => c.path === "/complete").length, beforeDenials);
+// Blue team at the edge: the same suspended / unscoped / stale-session record
+// that refuses a red model does not gate a blue one — the edge makes no
+// /status hop and the job carries the blue id. A red request on that record
+// stays 403 in the same breath, so the two bars are measured side by side.
+{
+  const blueBody = { ...researchBody, model: "z-ai/glm-5.3-flash" };
+  const saved = structuredClone(researchRecord);
+  researchRecord.status = "suspended"; researchRecord.scopes = []; researchRecord.continuous.expiresAt = 1;
+  const statusHops = researchCalls.filter(c => c.path === "/status").length;
+  assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 403);
+  const blueOk = await route(researchRequest("/v1/chat/completions", blueBody), researchEnv);
+  researchRecord = saved;
+  assert.equal(blueOk.status, 200);
+  const blueJson = await blueOk.json();
+  assert.equal(blueJson.model, "z-ai/glm-5.3-flash");
+  assert.equal(blueJson.billing, "free");
+  assert.equal(researchCalls.filter(c => c.path === "/status").length, statusHops + 1, "only the red request asked /status");
+  const blueCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(blueCreate.body.request.model, "z-ai/glm-5.3-flash");
+  assert.equal(blueCreate.body.billing, "free-only");
+  // the edge shape still closes the offensive band for blue
+  assert.equal((await route(researchRequest("/v1/chat/completions", { ...blueBody, task: "payload-crafting" }), researchEnv)).status, 400);
+  console.log("blue/red teams: catalog split by team and route, blue admitted at the edge without the ladder, red still 403 on the same record");
+}
 const researchOk = await route(researchRequest("/v1/chat/completions", researchBody), researchEnv);
 assert.equal(researchOk.status, 200);
 assert.equal((await researchOk.json()).billing, "free");
+// A job the authority ends as failed is 502 inference-failed by name — the
+// catch used to look for the code in ex-data and answered
+// research-service-unavailable for everything. A job that "succeeded" with
+// no text is a broken receipt, never a 200 with content null (live
+// 2026-09-15: the first PAT completions after eligibility).
+for (const [outcome, expectStatus, expectCode] of [["failed", 502, "inference-failed"], ["empty", 502, "invalid-inference-receipt"]]) {
+  upstreamOutcome = outcome;
+  const r = await route(researchRequest("/v1/chat/completions", { ...researchBody, messages: [{ role: "user", content: "outcome " + outcome }] }), researchEnv);
+  const j = await r.json();
+  assert.equal(r.status, expectStatus, outcome + " " + JSON.stringify(j));
+  assert.equal(j.error.code, expectCode, outcome + " " + JSON.stringify(j));
+}
+upstreamOutcome = "ok";
 corruptReceipt = true;
 assert.equal((await route(researchRequest("/v1/chat/completions", researchBody), researchEnv)).status, 502);
 corruptReceipt = false; oldTrustReceipt = true;
@@ -677,14 +963,105 @@ assert.equal((await route(researchRequest("/v1/research/applications", applicati
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verified: true }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse" }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse", issuer: "trusted", reference: "existing-record" }), researchEnv)).status, 202);
+// The completion body cap is 2 MiB (524,288 input characters, JSON-escaped and
+// UTF-8 encoded); a streamed body past it is cut off at 413, never buffered.
 const overLimitStream = new ReadableStream({ start(controller) {
-  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(100000) + '"')); controller.close();
+  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(2097200) + '"')); controller.close();
 } });
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", duplex: "half", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" },
   body: overLimitStream
 }), researchEnv)).status, 413);
 console.log("research gateway identity, evidence, scope, free-only receipts and streamed limits passed");
+
+// Account console eKYC start: the browser sends exactly { scopeId, tasks }
+// (account-browser start-ekyc!) — no principalId. The edge must take the
+// principal from the session, not demand it in the body (the live console
+// got 400 invalid-ekyc-request for every click on 2026-09-15).
+{
+  const before = researchCalls.filter(c => c.path === "/ekyc/start").length;
+  const consoleStart = await route(researchRequest("/v1/research/ekyc/start",
+    { scopeId: "owned", tasks: ["code-review"] }), researchEnv);
+  const consoleStartText = await consoleStart.text();
+  assert.equal(consoleStart.status, 200, consoleStartText);
+  const consoleStartBody = JSON.parse(consoleStartText);
+  assert.equal(consoleStartBody.verificationUrl, "https://verify.stripe.com/test");
+  const starts = researchCalls.filter(c => c.path === "/ekyc/start");
+  assert.equal(starts.length, before + 1);
+  assert.equal(starts[starts.length - 1].body.principalId, researchPrincipal);
+  assert.equal(starts[starts.length - 1].body.sessionRef, researchSessionRef);
+  assert.deepEqual(starts[starts.length - 1].body.tasks, ["code-review"]);
+  // A body principalId is still ignored, never trusted.
+  const spoofed = await route(researchRequest("/v1/research/ekyc/start",
+    { principalId: "urn:kotoba:principal:someone-else", scopeId: "owned", tasks: ["code-review"] }), researchEnv);
+  assert.equal(spoofed.status, 200);
+  const spoofedCall = researchCalls.filter(c => c.path === "/ekyc/start").pop();
+  assert.equal(spoofedCall.body.principalId, researchPrincipal);
+  // Malformed bodies are still refused by name.
+  for (const bad of [{}, { scopeId: "owned" }, { scopeId: "owned", tasks: [] }, { scopeId: "", tasks: ["code-review"] }]) {
+    const r = await route(researchRequest("/v1/research/ekyc/start", bad), researchEnv);
+    assert.equal(r.status, 400, JSON.stringify(bad));
+    assert.equal((await r.json()).error.code, "invalid-ekyc-request");
+  }
+  // The authority's operator-visible codes survive the hop with their status;
+  // an unlisted code still collapses to the status family.
+  for (const [refusal, expectStatus, expectCode] of [
+    [{ status: 503, error: "card-verification-not-configured" }, 503, "card-verification-not-configured"],
+    [{ status: 403, error: "prepaid-card-not-accepted" }, 403, "prepaid-card-not-accepted"],
+    [{ status: 503, error: "stripe-unavailable" }, 503, "stripe-unavailable"],
+    [{ status: 503, error: "some-internal-detail" }, 503, "research-service-unavailable"],
+    [{ status: 403, error: "some-internal-detail" }, 403, "research-access-denied"],
+  ]) {
+    ekycAuthorityRefusal = refusal;
+    const r = await route(researchRequest("/v1/research/ekyc/start", { scopeId: "owned", tasks: ["code-review"] }), researchEnv);
+    assert.equal(r.status, expectStatus, JSON.stringify(refusal));
+    assert.equal((await r.json()).error.code, expectCode, JSON.stringify(refusal));
+  }
+  ekycAuthorityRefusal = null;
+  console.log("account console ekyc/start: session principal, spoof ignored, authority codes surfaced");
+}
+
+// Stripe -> /v1/research/ekyc/webhook (server-to-server: no origin, no cookie).
+// The edge forwards raw body + signature and only ROUTING HINTS; the
+// authority decides. Live, every delivery was 503 with an empty eventId
+// because the hop asked for redirect "error" (2026-09-15, 5/5 that week).
+{
+  const checkoutEvent = { id: "evt_setup_1", type: "checkout.session.completed", created: Math.floor(Date.now() / 1000),
+    data: { object: { id: "cs_test_setup_1", object: "checkout.session", mode: "setup", status: "complete",
+      client_reference_id: null, metadata: { principal: researchPrincipal, purpose: "identity-verification" } } } };
+  const deliver = (event) => route(new Request("https://api.kotoba.cloud/v1/research/ekyc/webhook", {
+    method: "POST", headers: { "content-type": "application/json", "stripe-signature": "t=1,v1=" + "ab".repeat(32) },
+    body: JSON.stringify(event) }), researchEnv);
+  const before = researchCalls.length;
+  const ok = await deliver(checkoutEvent);
+  const okText = await ok.text();
+  assert.equal(ok.status, 200, okText);
+  assert.equal(JSON.parse(okText).approvedBy, "stripe-card");
+  const hop = researchCalls.slice(before).filter(c => c.path === "/ekyc/webhook");
+  assert.equal(hop.length, 1, "exactly one authority hop per delivery");
+  assert.equal(hop[0].redirect, "manual");
+  assert.equal(hop[0].body.principalId, researchPrincipal);
+  assert.equal(hop[0].body.sessionId, "cs_test_setup_1");
+  assert.equal(hop[0].body.signatureHeader, "t=1,v1=" + "ab".repeat(32));
+  assert.equal(hop[0].body.raw, JSON.stringify(checkoutEvent), "raw body must reach the authority byte-for-byte for HMAC");
+  // Authority refusals keep their status and carry the event id, nothing else.
+  for (const [answer, expectStatus] of [[{ status: 403, error: "stripe-evidence-not-admissible" }, 403],
+    [{ status: 400, error: "stripe-signature-invalid" }, 400], [{ status: 500, error: "authority-internal" }, 503]]) {
+    webhookAuthorityAnswer = answer;
+    const r = await deliver(checkoutEvent);
+    const j = await r.json();
+    assert.equal(r.status, expectStatus, JSON.stringify(answer));
+    assert.equal(j.error.code, expectStatus === 400 ? "invalid-json" : "stripe-webhook-rejected");
+    assert.equal(j.error.eventId, "evt_setup_1");
+  }
+  webhookAuthorityAnswer = null;
+  // A body that is not a Stripe event never reaches the authority.
+  const junk = await route(new Request("https://api.kotoba.cloud/v1/research/ekyc/webhook", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hello: 1 }) }), researchEnv);
+  assert.equal(junk.status, 400);
+  assert.equal(researchCalls.slice(before).filter(c => c.path === "/ekyc/webhook").length, 4, "junk must not reach the authority");
+  console.log("stripe webhook edge hop: manual redirect, raw+signature forwarded, refusals carry the event id");
+}
 
 // PAT (personal API token) path for local CLI/IDE agents: stateless HMAC
 // token issued same-origin, verified on the bearer research path. The
@@ -698,7 +1075,20 @@ const patIssue = await route(new Request("https://kotoba.cloud/v1/account/api-to
 }), patEnv);
 assert.equal(patIssue.status, 200);
 const patBody = await patIssue.json();
-assert.match(patBody.token, /^kc_pat_[A-Za-z0-9_-]+\.[0-9a-f]{16}$/);
+// v2: principal . tokenId (12 hex) . mac; the id is registered with the
+// authority at issuance (label kept), and two issues are two different tokens
+assert.match(patBody.token, /^kc_pat_[A-Za-z0-9_-]+\.[0-9a-f]{12}\.[0-9a-f]{16}$/);
+assert.match(patBody.tokenId, /^[0-9a-f]{12}$/);
+assert.equal(tokenRegistry.tokens.length, 1);
+assert.equal(tokenRegistry.tokens[0].id, patBody.tokenId);
+assert.equal(tokenRegistry.tokens[0].label, "cli");
+assert.equal(patBody.label, "cli");
+assert.doesNotMatch(patBody.note, /rotating the signing secret/);
+const secondPat = await (await route(new Request("https://kotoba.cloud/v1/account/api-token", {
+  method: "POST", headers: { cookie: "gftd_session=research-session", origin: "https://kotoba.cloud",
+    "content-type": "application/json" }, body: JSON.stringify({ label: "laptop" }) }), patEnv)).json();
+assert.notEqual(secondPat.token, patBody.token, "each issue is its own token");
+assert.equal(tokenRegistry.tokens.length, 2);
 
 // Issue must fail closed without the secret.
 assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token", {
@@ -719,17 +1109,79 @@ assert.equal(agentCalls.length >= 2, true);
 assert.equal(agentCalls[agentCalls.length - 1].body.principalId, researchPrincipal);
 // Stable agent-domain sessionRef, distinct from the cookie-domain one.
 const agentSessionRef = agentCalls[agentCalls.length - 1].body.sessionRef;
+// Every bearer request asks the registry first (tokenId travels, never the token).
+{
+  const checks = researchCalls.filter(c => c.path === "/tokens/check");
+  assert.equal(checks.length >= 1, true, "bearer path consults /tokens/check");
+  assert.equal(checks[checks.length - 1].body.tokenId, patBody.tokenId);
+  assert.equal(checks[checks.length - 1].body.token, undefined);
+}
+// Token registry from the account console: list, revoke one, the revoked
+// token answers 401 token-revoked on the very next bearer call, the other
+// token still works; legacy (v1) tokens work until revoke-legacy.
+{
+  const cookieHeaders = { cookie: "gftd_session=research-session", origin: "https://kotoba.cloud", "content-type": "application/json" };
+  const list1 = await (await route(new Request("https://kotoba.cloud/v1/account/api-tokens", { headers: { cookie: "gftd_session=research-session" } }), patEnv)).json();
+  assert.equal(list1.ok, true);
+  assert.equal(list1.tokens.length, 2);
+  assert.equal(list1.tokens[0].id, patBody.tokenId);
+  assert.equal(list1.tokens[0].revokedAt, undefined);
+  // revoke needs a valid id and the same-origin gate
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: { ...cookieHeaders, origin: "https://evil.example" }, body: JSON.stringify({ tokenId: patBody.tokenId }) }), patEnv)).status, 403);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: cookieHeaders, body: JSON.stringify({ tokenId: "nope" }) }), patEnv)).status, 400);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: cookieHeaders, body: JSON.stringify({ tokenId: "0123456789ab" }) }), patEnv)).status, 404);
+  // the second token works before, answers 401 by name right after its revocation
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", {
+    headers: { authorization: `Bearer ${secondPat.token}` } }), patEnv)).status, 200);
+  const revoked = await (await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke", { method: "POST",
+    headers: cookieHeaders, body: JSON.stringify({ tokenId: secondPat.tokenId }) }), patEnv)).json();
+  assert.equal(revoked.ok, true);
+  assert.equal(typeof revoked.token.revokedAt, "number");
+  const afterRevoke = await route(new Request("https://kotoba.cloud/v1/research/status", {
+    headers: { authorization: `Bearer ${secondPat.token}` } }), patEnv);
+  const afterRevokeBody = await afterRevoke.json();
+  assert.equal(afterRevoke.status, 401, JSON.stringify(afterRevokeBody));
+  assert.equal(afterRevokeBody.error.code, "token-revoked");
+  assert.match(afterRevokeBody.error.message, /token-revoked/);
+  const list2 = await (await route(new Request("https://kotoba.cloud/v1/account/api-tokens", { headers: { cookie: "gftd_session=research-session" } }), patEnv)).json();
+  assert.equal(typeof list2.tokens[1].revokedAt, "number");
+  assert.equal(list2.tokens[0].revokedAt, undefined);
+  // the first token is untouched by the other's revocation
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", {
+    headers: { authorization: `Bearer ${patBody.token}` } }), patEnv)).status, 200);
+  // a v2 token with a valid MAC but no registry entry is refused too
+  const b64url = Buffer.from(researchPrincipal).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const unregisteredId = "ffffffffffff";
+  const unregistered = "kc_pat_" + b64url + "." + unregisteredId + "." + createHmac("sha256", patSecret).update("kotoba-agent-pat-v2:" + researchPrincipal + ":" + unregisteredId).digest("hex").slice(0, 16);
+  const unknown = await route(new Request("https://kotoba.cloud/v1/research/status", { headers: { authorization: `Bearer ${unregistered}` } }), patEnv);
+  assert.equal(unknown.status, 401);
+  assert.equal((await unknown.json()).error.code, "token-revoked");
+  // legacy v1 (no id): still admitted, until legacy tokens are revoked
+  const legacy = "kc_pat_" + b64url + "." + createHmac("sha256", patSecret).update("kotoba-agent-pat-v1:" + researchPrincipal).digest("hex").slice(0, 16);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/research/status", { headers: { authorization: `Bearer ${legacy}` } }), patEnv)).status, 200);
+  const legacyRevoke = await (await route(new Request("https://kotoba.cloud/v1/account/api-token/revoke-legacy", { method: "POST",
+    headers: cookieHeaders, body: "{}" }), patEnv)).json();
+  assert.equal(typeof legacyRevoke.legacyRevokedAt, "number");
+  const legacyAfter = await route(new Request("https://kotoba.cloud/v1/research/status", { headers: { authorization: `Bearer ${legacy}` } }), patEnv);
+  assert.equal(legacyAfter.status, 401);
+  assert.match((await legacyAfter.json()).error.message, /legacy-token-revoked/);
+  console.log("personal API token registry: issue registers, list, revoke → 401 by name, legacy revoke");
+}
 assert.match(agentSessionRef, /^[0-9a-f]{64}$/);
 assert.notEqual(agentSessionRef, researchSessionRef);
 
 // The agent's first ekyc/start binds continuous evidence to the AGENT
 // sessionRef (the authority stores what the edge sends, no recompute).
 const patBodyReq = { principalId: researchPrincipal, scopeId: "owned", tasks: ["code-review"] };
+const ekycCallsBefore = researchCalls.filter(c => c.path === "/ekyc/start").length;
 assert.equal((await route(new Request("https://kotoba.cloud/v1/research/ekyc/start", {
   method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
   body: JSON.stringify(patBodyReq)
 }), patEnv)).status, 200);
-const ekycCalls = researchCalls.filter(c => c.path === "/ekyc/start");
+const ekycCalls = researchCalls.filter(c => c.path === "/ekyc/start").slice(ekycCallsBefore);
 assert.equal(ekycCalls.length, 1);
 assert.equal(ekycCalls[0].body.principalId, researchPrincipal);
 assert.equal(ekycCalls[0].body.sessionRef, agentSessionRef);
@@ -793,33 +1245,149 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
   assert.equal(lastCreate.body.request.scopeId, "owned");
   assert.equal(lastCreate.body.request.messages[0].role, "system");
   assert.equal(lastCreate.body.request.temperature, undefined);
-  // tools/stream/n rejections and unknown keys stay closed on the bearer path.
-  for (const bad of [{ tools: [{ type: "function" }] }, { stream: true }, { n: 2 }, { unknown_key: 1 }]) {
+  // n and unknown keys stay closed on the bearer path; the ceilings are
+  // 524,288 input characters (~128k tokens) and 32,768 output tokens (owner
+  // 2026-09-15), and the boundary itself passes.
+  for (const bad of [{ n: 2 }, { unknown_key: 1 }, { max_tokens: 32769 }, { max_completion_tokens: 32769 },
+    { messages: [{ role: "user", content: "x".repeat(524289) }] }]) {
     assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
       method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
       body: JSON.stringify({ ...openaiBody, ...bad })
-    }), bearerPatEnv)).status, 400);
+    }), bearerPatEnv)).status, 400, JSON.stringify(Object.keys(bad)));
+  }
+  // An agent client's body: tools list, stream: true, max_completion_tokens,
+  // stream_options, a 100k-character system prompt. Tools are dropped, the
+  // alias becomes max_tokens, and the answer is a one-chunk SSE emulation.
+  {
+    const savedForAgent = structuredClone(researchRecord);
+    researchRecord.continuous.sessionRef = agentSessionRef;
+    researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+    const agentBody = { model: researchModel, stream: true, stream_options: { include_usage: true },
+      max_completion_tokens: 32768, tools: [{ type: "function", function: { name: "read_file", parameters: {} } }],
+      tool_choice: "auto", parallel_tool_calls: true, user: "hermes",
+      messages: [{ role: "system", content: "s".repeat(100000) }, { role: "user", content: "Say OK." }] };
+    const sse = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+      method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+      body: JSON.stringify(agentBody)
+    }), bearerPatEnv);
+    researchRecord = savedForAgent;
+    const sseText = await sse.text();
+    assert.equal(sse.status, 200, sseText);
+    assert.match(sse.headers.get("content-type"), /^text\/event-stream/);
+    const frames = sseText.split("\n\n").filter(Boolean);
+    assert.equal(frames.length, 3, sseText);
+    const chunk1 = JSON.parse(frames[0].replace(/^data: /, ""));
+    const chunk2 = JSON.parse(frames[1].replace(/^data: /, ""));
+    assert.equal(chunk1.object, "chat.completion.chunk");
+    assert.equal(chunk1.choices[0].delta.content, "Check ownership before returning the record.");
+    assert.equal(chunk1.choices[0].finish_reason, null);
+    assert.equal(chunk2.choices[0].finish_reason, "stop");
+    assert.equal(frames[2], "data: [DONE]");
+    const agentCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+    assert.equal(agentCreate.body.request.max_tokens, 32768);
+    // tool definitions travel to the authority (native tool calls); the
+    // transport flags do not
+    assert.equal(agentCreate.body.request.tools.length, 1);
+    assert.equal(agentCreate.body.request.tool_choice, "auto");
+    assert.equal(agentCreate.body.request.stream, undefined);
+    assert.equal(agentCreate.body.request.stream_options, undefined);
+    assert.equal(agentCreate.body.request.messages[0].content.length, 100000);
+    // Native tool calls: an agent's conversation (assistant tool_calls turn,
+    // tool result turn last) is admitted; tools + tool_choice and the
+    // sanitized turns reach the authority; a tool_calls answer comes back
+    // as finish_reason tool_calls with content null — as JSON and as SSE.
+    {
+      const agentTurns = { model: researchModel, max_tokens: 256, tool_choice: "auto",
+        tools: [{ type: "function", function: { name: "write_file", description: "write", parameters: { type: "object", properties: { path: { type: "string" } } } } }],
+        messages: [{ role: "system", content: "You are an agent." }, { role: "user", content: "Create a.txt" },
+          { role: "assistant", content: null, tool_calls: [{ id: "call_0", type: "function", function: { name: "read_file", arguments: "{\"path\":\"a.txt\"}" } }], reasoning_content: "thinking" },
+          { role: "tool", tool_call_id: "call_0", content: "(no such file)" }] };
+      // reasoning_content echoed back by the client is accepted and dropped
+      // (it never reaches the authority); an unknown assistant field is not
+      assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify({ ...agentTurns, messages: [agentTurns.messages[0], agentTurns.messages[1],
+          { ...agentTurns.messages[2], surprise: 1 }, agentTurns.messages[3]] }) }), bearerPatEnv)).status, 400);
+      for (const bad of [{ tool_choice: "auto", tools: undefined }, { tools: [{ type: "function", function: { name: "bad name" } }] },
+        { messages: [...agentTurns.messages.slice(0, 2), { role: "assistant", content: "", tool_calls: [{ type: "function", function: { name: "x", arguments: "{}" } }] }, agentTurns.messages[3]] },
+        { messages: [...agentTurns.messages.slice(0, 3)] }]) {
+        const r = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+          method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+          body: JSON.stringify({ ...agentTurns, ...bad }) }), bearerPatEnv);
+        assert.equal(r.status, 400, JSON.stringify(Object.keys(bad)));
+      }
+      upstreamOutcome = "tool_calls";
+      const savedForTools = structuredClone(researchRecord);
+      researchRecord.continuous.sessionRef = agentSessionRef;
+      researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+      const toolJson = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify(agentTurns) }), bearerPatEnv);
+      const toolText = await toolJson.text();
+      assert.equal(toolJson.status, 200, toolText);
+      const toolBody = JSON.parse(toolText);
+      assert.equal(toolBody.choices[0].finish_reason, "tool_calls");
+      assert.equal(toolBody.choices[0].message.content, null);
+      assert.equal(toolBody.choices[0].message.tool_calls[0].function.name, "write_file");
+      const toolCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+      assert.equal(toolCreate.body.request.tools.length, 1);
+      assert.equal(toolCreate.body.request.tool_choice, "auto");
+      assert.deepEqual(toolCreate.body.request.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
+      assert.equal(toolCreate.body.request.messages[2].content, "");
+      assert.equal(toolCreate.body.request.messages[2].reasoning_content, undefined);
+      assert.equal(toolCreate.body.request.messages[3].tool_call_id, "call_0");
+      // the same answer over SSE carries the tool call in the delta with an index
+      researchRecord.continuous.sessionRef = agentSessionRef;
+      researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+      const toolSse = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+        method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+        body: JSON.stringify({ ...agentTurns, stream: true, messages: [...agentTurns.messages, { role: "user", content: "again" }] }) }), bearerPatEnv);
+      researchRecord = savedForTools;
+      upstreamOutcome = "ok";
+      const sseFrames = (await toolSse.text()).split("\n\n").filter(Boolean);
+      assert.equal(toolSse.status, 200, sseFrames.join("|"));
+      const d1 = JSON.parse(sseFrames[0].replace(/^data: /, ""));
+      const d2 = JSON.parse(sseFrames[1].replace(/^data: /, ""));
+      assert.equal(d1.choices[0].delta.tool_calls[0].index, 0);
+      assert.equal(d1.choices[0].delta.tool_calls[0].function.name, "write_file");
+      assert.equal(d2.choices[0].finish_reason, "tool_calls");
+      assert.equal(sseFrames[2], "data: [DONE]");
+    }
+    // stream: false stays a JSON body
+    const savedForJson = structuredClone(researchRecord);
+    researchRecord.continuous.sessionRef = agentSessionRef;
+    researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+    const plain = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+      method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ ...agentBody, stream: false, messages: [{ role: "user", content: "Say OK again." }] })
+    }), bearerPatEnv);
+    researchRecord = savedForJson;
+    assert.equal(plain.status, 200);
+    assert.match(plain.headers.get("content-type"), /^application\/json/);
+    assert.equal((await plain.json()).object, "chat.completion");
   }
   // Cookie path stays strict: OpenAI-only body without task/scopeId → 400.
   assert.equal((await route(researchRequest("/v1/chat/completions", { model: researchModel,
     messages: [{ role: "user", content: "x" }] }), researchEnv)).status, 400);
-  // Multi-model: glm5.3-flash admitted end-to-end on the bearer path; the
-  // completion echoes the requested model and the authority request keeps it.
+  // Multi-model: a listed red model with no origin (glm5.3-flash) is refused
+  // by name at admission — no job reserved, no quota unit spent — until an
+  // origin serves it; the request is otherwise well-formed.
   const glmBody = { model: "glm5.3-flash", messages: [{ role: "user", content: "Review my auth checks." }] };
   const savedForGlm = structuredClone(researchRecord);
   researchRecord.continuous.sessionRef = agentSessionRef;
   researchRecord.continuous.action = "code-review";
   researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
-  const okGlm = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+  const createsBeforeGlm = researchCalls.filter(c => c.path === "/jobs/create").length;
+  const noGlm = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
     method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
     body: JSON.stringify(glmBody)
   }), bearerPatEnv);
   researchRecord = savedForGlm;
-  assert.equal(okGlm.status, 200);
-  const glmJson = await okGlm.json();
-  assert.equal(glmJson.model, "glm5.3-flash");
-  const lastGlmCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
-  assert.equal(lastGlmCreate.body.request.model, "glm5.3-flash");
+  assert.equal(noGlm.status, 503);
+  const noGlmJson = await noGlm.json();
+  assert.equal(noGlmJson.error.code, "model-route-not-configured");
+  assert.match(noGlmJson.error.message, /glm5\.3-flash/);
+  assert.equal(researchCalls.filter(c => c.path === "/jobs/create").length, createsBeforeGlm, "no reservation for an unserved model");
   // Unknown models remain rejected on the bearer path.
   assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
     method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
@@ -833,6 +1401,127 @@ for (const c of researchCalls) {
   assert.equal(JSON.stringify(c.body).includes("kc_pat_"), false);
 }
 console.log("PAT issue + bearer research path passed");
+
+// Paid inference (docs/billing/design.md "Enforcement"): with both launch
+// flags on and a BillingAccount binding, a principal whose ledger HOLDS a
+// reservation runs the job as "paid" — the authority is told so (no free
+// count), and the edge settles from the provider receipt, never from the
+// request. No balance (402) is the free quota exactly as before; a failed
+// paid job releases its hold at zero; a job the ledger cannot settle is
+// still answered, with the settlement named pending.
+{
+  const ledgerCalls = [];
+  let reserveAnswer = { status: 200, body: { status: "held" } };
+  let settleAnswer = { status: 200, body: { settled: true, receiptId: "inference:fixture", amountMicroUSD: 243 } };
+  const billingAccounts = { idFromName: (name) => name, get: (name) => ({ fetch: async (url, init) => {
+    const body = JSON.parse(init.body);
+    const path = new URL(url).pathname;
+    ledgerCalls.push({ name, path, body });
+    if (path === "/reserve") return Response.json(reserveAnswer.body, { status: reserveAnswer.status });
+    if (path === "/settle-usage") return Response.json(settleAnswer.body, { status: settleAnswer.status });
+    if (path === "/settle") return Response.json({ status: "settled", actual: body.actual }, { status: 200 });
+    throw new Error("unexpected ledger path " + path);
+  } }) };
+  const paidEnv = { ...researchEnv, PAT_SIGNING_SECRET: patSecret, BILLING_ACCOUNTS: billingAccounts,
+    BILLING_ENABLED: "true", BILLING_METERING_READY: "true", BILLING_MODE: "live", BILLING_ENVIRONMENT_ID: "acct_1TuxvPIzvFrqWhXK-live" };
+  const savedForPaid = structuredClone(researchRecord);
+  researchRecord.continuous.sessionRef = agentSessionRef;
+  researchRecord.continuous.action = "code-review";
+  researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+  const bearer = (body) => new Request("https://kotoba.cloud/v1/chat/completions", {
+    method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+    body: JSON.stringify(body) });
+  const paidBody = { model: researchModel, max_tokens: 2048, messages: [{ role: "user", content: "Review my auth checks (paid)." }] };
+
+  // held → paid: the authority hears "paid", the ledger settles the receipt
+  const paidOk = await route(bearer(paidBody), paidEnv);
+  assert.equal(paidOk.status, 200, JSON.stringify(await paidOk.clone().json()));
+  const paidJson = await paidOk.json();
+  assert.equal(paidJson.billing, "paid");
+  assert.deepEqual(paidJson.usage, { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 });
+  assert.equal(paidJson.chargedMicroUSD, 243);
+  const paidCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(paidCreate.body.billing, "paid");
+  const reserve = ledgerCalls.find(c => c.path === "/reserve");
+  assert.equal(reserve.name, "live:acct_1TuxvPIzvFrqWhXK-live:" + researchPrincipal, "the ledger a purchase funds is the one a completion debits");
+  assert.equal(reserve.body.id, paidCreate.body.jobId, "reservation id = job id: a retry re-attaches to both");
+  assert.equal(reserve.body.scope, "ai");
+  // the hold is an upper bound: 2048 output tokens at $4.50/M alone is 9,216 µUSD
+  assert(reserve.body.maximum >= 9216, "maximum " + reserve.body.maximum);
+  const settle = ledgerCalls.find(c => c.path === "/settle-usage");
+  assert.equal(settle.body.id, paidCreate.body.jobId);
+  assert.equal(settle.body.kind, "inference");
+  assert.deepEqual([settle.body.receipt.inputTokens, settle.body.receipt.outputTokens, settle.body.receipt.cachedInputTokens], [120, 30, 0]);
+  assert.match(settle.body.receipt.occurredAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(JSON.stringify(settle.body).includes("Review my auth checks"), false, "no prompt text reaches the ledger");
+  // the streamed shape carries the same accounting
+  const paidStream = await route(bearer({ ...paidBody, stream: true }), paidEnv);
+  assert.equal(paidStream.status, 200);
+  const streamText = await paidStream.text();
+  assert.match(streamText, /"billing":"paid"/);
+  assert.match(streamText, /"chargedMicroUSD":243/);
+
+  // no balance → the free quota, untouched: 402 makes no settle call and the
+  // authority hears free-only
+  ledgerCalls.length = 0;
+  reserveAnswer = { status: 402, body: { error: "usage-limit-exceeded" } };
+  const freeAgain = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "no balance" }] }), paidEnv);
+  assert.equal(freeAgain.status, 200);
+  assert.equal((await freeAgain.json()).billing, "free");
+  assert.equal(researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0].body.billing, "free-only");
+  assert.deepEqual(ledgerCalls.map(c => c.path), ["/reserve"]);
+
+  // metering off → no ledger hop at all
+  ledgerCalls.length = 0;
+  reserveAnswer = { status: 200, body: { status: "held" } };
+  const meteringOff = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "metering off" }] }), { ...paidEnv, BILLING_METERING_READY: "false" });
+  assert.equal((await meteringOff.json()).billing, "free");
+  assert.deepEqual(ledgerCalls, []);
+
+  // a paid job that fails releases the hold at zero
+  ledgerCalls.length = 0;
+  upstreamOutcome = "failed";
+  const paidFailed = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "paid but failed" }] }), paidEnv);
+  upstreamOutcome = "ok";
+  assert.equal(paidFailed.status, 502);
+  assert.equal((await paidFailed.json()).error.code, "inference-failed");
+  const release = ledgerCalls.find(c => c.path === "/settle");
+  assert.deepEqual([release.body.actual, release.body.receiptId.startsWith("released:")], [0, true]);
+  assert.equal(ledgerCalls.some(c => c.path === "/settle-usage"), false);
+
+  // a settlement the ledger refuses is named, not hidden — the answer is
+  // still served and the hold stays for reconciliation
+  ledgerCalls.length = 0;
+  settleAnswer = { status: 503, body: { error: "billing-reconciliation-required" } };
+  const paidPending = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "paid, settle refused" }] }), paidEnv);
+  assert.equal(paidPending.status, 200);
+  const pendingJson = await paidPending.json();
+  assert.equal(pendingJson.billing, "paid");
+  assert.equal(pendingJson.settlement, "pending");
+  assert.equal(pendingJson.chargedMicroUSD, undefined);
+  settleAnswer = { status: 200, body: { settled: true, receiptId: "inference:fixture", amountMicroUSD: 243 } };
+  researchRecord = savedForPaid;
+
+  // the same bearer reads the balance its completions debit; a bad token or
+  // no token stays 401; writes stay cookie + origin only
+  const statusCalls = [];
+  const statusEnv = { ...paidEnv, STRIPE_AWAI_LIVE_KEY: "rk_live_fixture", STRIPE_AWAI_LIVE_WEBHOOK_SECRET: "whsec_fixture",
+    BILLING_SANDBOX_ENABLED: "false", STRIPE_PRICE_IDS: JSON.stringify({ pro: "price_live_pro" }), STRIPE_PORTAL_CONFIGURATION_ID: "",
+    BILLING_ACCOUNTS: { idFromName: (name) => name, get: (name) => ({ fetch: async (url, init) => {
+      statusCalls.push({ name, path: new URL(url).pathname, body: JSON.parse(init.body) });
+      return Response.json({ status: "connected", plan: "pro", balances: [{ scope: "ai", availableMicroUSD: 11999757 }] });
+    } }) } };
+  const bearerBalance = await route(new Request("https://kotoba.cloud/v1/billing/status", { headers: { authorization: `Bearer ${patBody.token}` } }), statusEnv);
+  assert.equal(bearerBalance.status, 200, JSON.stringify(await bearerBalance.clone().json()));
+  assert.equal((await bearerBalance.json()).plan, "pro");
+  assert.equal(statusCalls[0].name, "live:acct_1TuxvPIzvFrqWhXK-live:" + researchPrincipal);
+  assert.equal(statusCalls[0].body.principal, researchPrincipal);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/billing/status", { headers: { authorization: "Bearer kc_pat_bogus.0000000000000000" } }), statusEnv)).status, 401);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/billing/status"), statusEnv)).status, 401);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/billing/checkout", { method: "POST",
+    headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" }, body: "{}" }), statusEnv)).status, 403, "a PAT cannot start a checkout");
+  console.log("paid inference: reserve → paid job → settle from the receipt; no balance stays free; failure releases; refused settlement named; PAT reads its own balance");
+}
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" }, body: "{broken"
 }), researchEnv)).status, 400);
@@ -960,19 +1649,25 @@ assert.deepEqual(orgRegistryBody.organizations, []);
   assert.equal(lrb.organizations.length,1);
   assert.equal(lrb.organizations[0].handle,'com-live.kotoba.cloud');
   assert.equal(lrb.statusLists.length,1);
-  // authority unreachable → static policy doc, never an error
-  const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>Response.error('down')}};
+  // authority non-ok HTTP → explicit error (live intent, fef2dbd); authority
+  // unreachable (fetch rejects) → static policy doc, never an error.
+  const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>new Response('503',{status:503})}};
   const dr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),downEnv);
   assert.equal(dr.status,200);
   assert.deepEqual((await dr.json()).organizations,[]);
+  const deadEnv={...env, ORG_AUTHORITY:{fetch:async()=>{throw new Error('binding down');}}};
+  const rr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),deadEnv);
+  assert.equal(rr.status,200);
+  assert.deepEqual((await rr.json()).organizations,[]);
 }
 // Public per-org did:webvh log: worker proxies the private authority's
 // /didlog and serves it as application/jsonl (ADR-2609141633 layer 1).
 {
   const didLogEnv={...env, ORG_AUTHORITY:{fetch:async(url,init)=>{
     const b=JSON.parse(init && init.body ? init.body : await url.text());
-    if (b.handle==='com-pub.kotoba.cloud') return Response.json({did:'did:webvh:zS:com-pub.kotoba.cloud',
-      scid:'zS',log:'{"versionId":"1-zS"}',publishedAt:1700000000000});
+    if (b.handle==='com-pub.kotoba.cloud') return Response.json({organizations:[{
+      handle:'com-pub.kotoba.cloud', did:'did:webvh:zS:com-pub.kotoba.cloud',
+      scid:'zS', log:'{"versionId":"1-zS"}', publishedAt:1700000000000}]});
     return Response.json({error:'org-unknown'},{status:404});
   }}};
   const pubLog=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-dids/com-pub.kotoba.cloud/did.jsonl'),didLogEnv);
@@ -1148,6 +1843,11 @@ try {
  const checkoutParams=new URLSearchParams(providerCalls.find(c=>c.url.endsWith('/checkout/sessions')).body);
  assert.equal(checkoutParams.get('line_items[0][price]'),'price_fixture');
  assert.equal(checkoutParams.has('line_items[1][price]'),false,'one recurring item includes both balances');
+ // USD only: the first live session (2026-09-15) presented $20 as ¥3,221 under
+ // the account's Adaptive Pricing; a JPY invoice never grants (paid-line)
+ assert.equal(checkoutParams.get('adaptive_pricing[enabled]'),'false');
+ assert.equal(checkoutParams.get('allow_promotion_codes'),'true');
+ assert.equal(checkoutParams.get('payment_method_collection'),'if_required','a fully discounted first invoice needs no card');
  r=await doBill('/reserve',{id:'reserved-one',scope:'ai',maximum:10000000});assert.equal(r.status,200,await r.clone().text());
  r=await doBill('/reserve',{id:'reserved-two',scope:'ai',maximum:3000000});assert.equal(r.status,402);
  r=await doBill('/settle',{id:'reserved-one',actual:8000000,receiptId:'receipt-fixture'});assert.equal(r.status,200);
@@ -1182,6 +1882,53 @@ try {
  assert.equal((await r.json()).amountMicroUSD,278);
 } finally {globalThis.fetch=oldFetchBilling;}
 console.log('billing provider, invoice replay, tenant and durable usage checks passed');
+
+// Live environment (2026-09-15): the AWAI account, live price map, launch
+// flags. While either flag is "false" nothing can be sold; the catalog
+// still names the mode and the SKUs a live price exists for; the portal
+// never sends a test configuration id to the live account.
+{
+  const liveBase = {BILLING_MODE:'live', BILLING_SANDBOX_ENABLED:'false', BILLING_ENVIRONMENT_ID:'acct_1TuxvPIzvFrqWhXK-live',
+    STRIPE_AWAI_LIVE_KEY:'sk_live_fixture_not_a_real_key', STRIPE_AWAI_LIVE_WEBHOOK_SECRET:'whsec_live_fixture',
+    STRIPE_PRICE_IDS:JSON.stringify({pro:'price_live_pro', 'ai-credits-25':'price_live_topup'}), STRIPE_PORTAL_CONFIGURATION_ID:'', BILLING_ACCOUNTS:{}};
+  const closed = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'false', BILLING_METERING_READY:'false'})).json();
+  assert.equal(closed.mode, 'live');
+  assert.equal(closed.checkoutEnabled, false, 'live mode with a launch flag off sells nothing');
+  assert.deepEqual(closed.purchasable, ['pro','ai-credits-25'], 'the catalog names the SKUs a live price exists for');
+  const halfOpen = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'false'})).json();
+  assert.equal(halfOpen.checkoutEnabled, false, 'both flags are required');
+  const open = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true'})).json();
+  assert.equal(open.checkoutEnabled, true, 'live: both flags + live key + webhook secret + price map; no portal id needed');
+  const wrongEnv = await (await route(new Request('https://kotoba.cloud/v1/billing/catalog'), {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true', BILLING_ENVIRONMENT_ID:'acct_other-live'})).json();
+  assert.equal(wrongEnv.checkoutEnabled, false, 'a different live account never becomes configured');
+  // portal in live mode: resolved from the live account, stored, reused; the test id is never sent
+  const liveMemory = new Map([['customer', '{:stripe "cus_live_fixture"}']]);
+  const liveState = {storage:{get:async k=>liveMemory.get(k), put:async(k,v)=>liveMemory.set(k,v), list:async()=>new Map(), setAlarm:async()=>{}}, blockConcurrencyWhile: f=>f()};
+  const liveDO = BillingAccount(liveState, {...liveBase, BILLING_ENABLED:'true', BILLING_METERING_READY:'true', STRIPE_PORTAL_CONFIGURATION_ID:'bpc_TESTID_MUST_NOT_LEAK'});
+  const portalCalls = [];
+  const oldFetchLive = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url); portalCalls.push({url:u, body:String(init?.body||'')});
+    if (u.startsWith('https://api.stripe.com/v1/billing_portal/configurations?')) return Response.json({data:[], has_more:false});
+    if (u === 'https://api.stripe.com/v1/billing_portal/configurations') return Response.json({id:'bpc_live_created'});
+    if (u === 'https://api.stripe.com/v1/billing_portal/sessions') return Response.json({url:'https://billing.stripe.com/p/session/fixture'});
+    throw new Error('Unexpected live billing URL ' + u);
+  };
+  try {
+    const r = await liveDO.fetch(new Request('https://billing.internal/portal', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({principal:'principal_live'})}));
+    assert.equal(r.status, 200, 'portal session created against the live account');
+    const session = portalCalls.find(c => c.url === 'https://api.stripe.com/v1/billing_portal/sessions');
+    assert(session && /configuration=bpc_live_created/.test(session.body), 'the created live configuration is used: ' + session?.body);
+    assert(!portalCalls.some(c => /bpc_TESTID_MUST_NOT_LEAK/.test(c.body)), 'the test portal id never reaches the live account');
+    const created = decodeURIComponent(portalCalls.find(c => c.url === 'https://api.stripe.com/v1/billing_portal/configurations').body);
+    assert(/subscription_cancel\]\[mode\]=at_period_end/.test(created) && /subscription_update\]\[enabled\]=false/.test(created) && /subscription_pause\]\[enabled\]=false/.test(created), 'live configuration mirrors the qualified test features: ' + created);
+    assert.equal(liveMemory.get('portal-configuration'), '{:id "bpc_live_created"}', 'stored for reuse');
+    portalCalls.length = 0;
+    await liveDO.fetch(new Request('https://billing.internal/portal', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({principal:'principal_live'})}));
+    assert(!portalCalls.some(c => c.url.includes('billing_portal/configurations')), 'second portal session reuses the stored configuration');
+  } finally { globalThis.fetch = oldFetchLive; }
+  console.log('billing live environment: flags gate checkout, purchasable SKUs named, live portal configuration resolved without the test id');
+}
 
 // Raw-body Stripe signature/mode enforcement precedes any account mutation.
 const webhookSecret = 'whsec_fixture_only';
@@ -1331,4 +2078,103 @@ console.log('Scoped database session exchange and header isolation passed');
   const noOrigin=await route(new Request('https://kotoba.cloud/v1/org/verify',{method:'POST',
     headers:{'content-type':'application/json'},body:'{}'}),{});
   assert.equal(noOrigin.status,403);
+}
+
+{
+  // Security-services suite catalog on the edge (describing only).
+  const res=await route(new Request('https://kotoba.cloud/v1/security/services'),env);
+  assert.equal(res.status,200);
+  const catalog=await res.json();
+  assert.deepEqual([...catalog.map(s=>s.id)].sort(),['ctem','dast','sast','vm']);
+  assert.ok(catalog.every(s=>s.integration&&s.capabilities&&s.summary));
+  const vm=catalog.find(s=>s.id==='vm');
+  assert.equal(vm.integration.role,'aggregation-ledger');
+  assert.deepEqual(vm.integration['ledger-keys'],['cpe','cve']);
+  for(const s of catalog.filter(x=>x.id!=='vm')){
+    assert.equal(s.integration.feeds,'vm');
+  }
+  const denied=await route(new Request('https://kotoba.cloud/v1/security/services',{method:'POST'}),env);
+  assert.equal(denied.status,405);
+}
+
+{
+  // VM ledger API: deterministic, stateless aggregation on the edge.
+  const good=[{findingId:'xss-reflected',service:'dast',asset:'https://api.example.com/login',
+    severity:'high',evidence:{kind:'request-response',cve:'CVE-2026-1234',cpe:'cpe:2.3:a:acme:gw'},
+    firstSeen:'2026-08-01',lastSeen:'2026-09-10'},
+    {findingId:'sqli-blind',service:'sast',asset:'https://api.example.com/login',
+    severity:'low',evidence:{kind:'taint-path'},firstSeen:'2026-09-02',lastSeen:'2026-09-02'}];
+  const payload=JSON.stringify(good.map(f=>({finding_id:f.findingId,service:f.service,asset:f.asset,
+    severity:f.severity,evidence:f.evidence,first_seen:f.firstSeen,last_seen:f.lastSeen})));
+  const post=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:payload}),env);
+  assert.equal(post.status,200);
+  const postBody=await post.json();
+  assert.equal(postBody.ok,true);
+  assert.equal(postBody.accepted,2);
+  assert.equal(postBody.ledger.schema,'kotoba.security/vm-ledger-v1');
+  assert.equal(postBody.ledger.counts.vulnerabilities,2);
+  assert.equal(postBody.ledger.counts.assets,1);
+  // deterministic scoring sample: high + dast + request-response = 72
+  const xss=postBody.ledger.assets[0].vulnerabilities.find(v=>v['finding-id']==='xss-reflected');
+  assert.equal(xss.score,72);
+  assert.equal(xss.status,'open');
+  assert.equal(xss['evidence-refs'].cve,'CVE-2026-1234');
+  assert.ok(xss['first-seen']&&xss['last-seen']);
+  // malformed finding -> 400 with error code
+  const bad=JSON.stringify([{finding_id:'x',service:'dast',asset:'a',severity:'catastrophic',
+    evidence:{},first_seen:'2026-09-01',last_seen:'2026-09-01'}]);
+  const badRes=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:bad}),env);
+  assert.equal(badRes.status,400);
+  assert.equal((await badRes.json()).error.code,'invalid-finding');
+  const badPayload=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:'{"nope":1}'}),env);
+  assert.equal(badPayload.status,400);
+  assert.equal((await badPayload.json()).error.code,'invalid-findings-payload');
+  // GET ledger endpoint: empty ledger is 200 with the same scoring metadata
+  const getLedger=await route(new Request('https://kotoba.cloud/v1/security/vulnerabilities'),env);
+  assert.equal(getLedger.status,200);
+  const getBody=await getLedger.json();
+  assert.equal(getBody.ledger.schema,'kotoba.security/vm-ledger-v1');
+  assert.equal(getBody.ledger.counts.vulnerabilities,0);
+  assert.ok(getBody.ledger.scoring.formula);
+  const qLedger=await route(new Request('https://kotoba.cloud/v1/security/vulnerabilities?findings='
+    +encodeURIComponent(payload)),env);
+  assert.equal(qLedger.status,200);
+  const qBody=await qLedger.json();
+  assert.equal(qBody.ledger.counts.vulnerabilities,2);
+  const qXss=qBody.ledger.assets[0].vulnerabilities.find(v=>v['finding-id']==='xss-reflected');
+  assert.equal(qXss.score,72);
+  // findings POST without JSON content-type -> 415
+  const noCt=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',body:'[]'}),env);
+  assert.equal(noCt.status,415);
+}
+
+{
+  // Compliance Fit Finder: deterministic service -> category -> control fit.
+  const fit=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit?framework=nist-csf-20'),env);
+  assert.equal(fit.status,200);
+  const fitBody=await fit.json();
+  assert.equal(fitBody.ok,true);
+  assert.equal(fitBody.framework.id,'nist-csf-20');
+  assert.equal(fitBody.framework.controlMapping,'committed');
+  assert.deepEqual(fitBody.services.map(s=>s.service).sort(),['ctem','dast','sast','vm']);
+  const vm=fitBody.services.find(s=>s.service==='vm');
+  assert.ok(vm.categories.includes('vm-scanner'));
+  assert.ok(vm.controls.length>0);
+  assert.ok(fitBody.allControls.length>0);
+  const fitPath=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/nist-csf-20'),env);
+  assert.equal(fitPath.status,200);
+  const fitPathBody=await fitPath.json();
+  assert.equal(fitPathBody.framework.id,'nist-csf-20');
+  // unknown framework -> 404 with error code + committed list
+  const unknown=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/iso-99999'),env);
+  assert.equal(unknown.status,404);
+  const unknownBody=await unknown.json();
+  assert.equal(unknownBody.error.code,'unknown-framework');
+  assert.ok(unknownBody.error.committed.includes('nist-csf-20'));
+  // missing framework param -> 400
+  const missing=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit'),env);
+  assert.equal(missing.status,400);
 }

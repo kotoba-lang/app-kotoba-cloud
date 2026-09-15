@@ -1,0 +1,1 @@
+{"categoryId":"encryption","complianceFits":["fedramp","iso-27001","pci-dss-40"],"id":"aws-cloudhsm","name":"AWS CloudHSM","pricingMode":"public-list","pricingNote":"about $1.50-2.50/hour per HSM instance as published (single-tenant cluster)","pricingUrl":"https://aws.amazon.com/cloudhsm/pricing/","provider":"AWS","providerHq":"US"}

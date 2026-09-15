@@ -1,0 +1,1 @@
+{"categoryId":"secrets","complianceFits":["cis-controls","pci-dss-40"],"id":"hashicorp-vault","name":"HashiCorp Vault","pricingMode":"public-list","pricingNote":"OSS free; HCP Vault Standard from $0.03/hour instance + $0.10/client/month list bands; Enterprise via quote.","pricingUrl":"https://developer.hashicorp.com/vault/docs/hcp","provider":"IBM (HashiCorp)","providerHq":"US"}

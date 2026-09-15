@@ -1,0 +1,1 @@
+{"categoryId":"sast-dast","complianceFits":["fedramp","iso-27001","nist-csf-20","pci-dss-40","soc2"],"id":"veracode-static","name":"Veracode Static Analysis","pricingMode":"quote-based","pricingNote":"quote-based; historically per-app subscription tiers, not public","pricingUrl":"https://www.veracode.com/products/platform/","provider":"Veracode","providerHq":"US"}

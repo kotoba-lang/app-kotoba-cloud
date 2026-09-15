@@ -27,7 +27,7 @@ References checked 2026-09-14:
 - https://support.claude.com/en/articles/12429409-manage-usage-credits-for-paid-claude-plans
 - https://help.openai.com/en/articles/12642688-using-credits-for-flexible-usage-in-chatgpt-freego-pluspro-sora
 
-Proposed rate card (version 2026-09-14-v2): uncached input $0.60/million; cached input $0.15/million; output $2.40/million. Storage overage $0.20/GiB-month; customer egress $0.09/GiB; measured query compute $0.06/vCPU-hour. These are launch proposals, not measured margins or provider prices. Qualify Modal GPU cost, utilization, cache accounting, actual query CPU and storage costs before offering them live. Never estimate billable CPU from wall time.
+Proposed rate card (version 2026-09-14-v2): uncached input $0.60/million; cached input $0.15/million; output $2.40/million. Storage overage $0.20/GiB-month; customer egress $0.09/GiB; measured query compute $0.06/vCPU-hour. These are launch proposals, not measured margins or provider prices. Qualify the dedicated deployment's GPU cost, utilization, cache accounting, actual query CPU and storage costs before offering them live. Never estimate billable CPU from wall time.
 
 Storage is time-integrated customer-retained bytes, including customer-selected history and indexes; internal replication and deduplication are not separate customer charges. Use GiB = 2^30 bytes. Monthly included capacity is integrated over that customer's actual billing period (not a fixed 30 days). Hourly or shorter signed server snapshots become retained-byte × elapsed-second measures. Subtract the integrated included allowance once, before rating overage. Do not sum snapshots as cumulative byte counts. Missing snapshots mean reconciliation is required, not zero usage. DB included credits apply only to storage.capacity, not egress/query compute.
 
@@ -55,7 +55,7 @@ Refunds, disputes and cancellations must reconcile the local allowance and outst
 
 Quote-based, starting proposal $1,000/month, usually an annual minimum commitment with monthly/quarterly drawdown. Model usage, capacity, support and reserved resources separately in the order form. Negotiate volume tiers after margin review; unused commitments expire only as stated in the contract. Net-30 invoicing/postpaid is individually approved, with a credit ceiling and suspension terms. No self-service Enterprise checkout or automatic negotiated discount.
 
-Specify organization owner/billing admin/project roles, per-project budgets, audit export, retention/deletion, DPA/subprocessors, deployment regions, dedicated Modal capacity, encryption/key ownership, recovery objectives, support hours/escalation and an agreed SLA with service credits. These are contract options, not claims that dedicated capacity or a certified SLA already exists. Do not add weaker login methods to deliver enterprise identity management.
+Specify organization owner/billing admin/project roles, per-project budgets, audit export, retention/deletion, DPA/subprocessors, deployment regions, dedicated inference capacity, encryption/key ownership, recovery objectives, support hours/escalation and an agreed SLA with service credits. These are contract options, not claims that dedicated capacity or a certified SLA already exists. Do not add weaker login methods to deliver enterprise identity management.
 
 ## Launch requirements
 

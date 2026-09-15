@@ -1,0 +1,114 @@
+(ns app-kotoba-cloud.billing-site
+  "The ACCOUNT › 料金・決済 console. Reference IA (Billing):
+  a balance panel first, then 'add credits' as one-time vs monthly, then
+  the plans, then the terms — each fact once, the explanation on demand.
+
+  Honest states: the balance is hidden until /v1/billing/status answers
+  (signed-out shows the sign-in action instead); every plan's button is
+  hidden until /v1/billing/catalog says checkout is enabled — a greyed
+  'Checking availability' button ×10 was the measured idle state (10
+  disabled controls, 10 repeated labels). The plan data is
+  app-kotoba-cloud.billing/plans — the same table the catalog endpoint
+  serves. Japanese and English copy; billing-browser fills the state."
+  (:require [jp-go-dds.core :as dds]
+            [app-kotoba-cloud.billing :as billing]
+            [cloud-kotoba-dds.console :as console]))
+
+(def css
+  (str
+   ".kc-billing{display:grid;gap:var(--hig-spacing-4);max-inline-size:64rem}"
+   ".kc-billing__lead{max-inline-size:48rem;color:var(--hig-color-secondary-label)}"
+   ".kc-billing__balance{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:var(--hig-spacing-3)}"
+   ".kc-billing__tile{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);padding:var(--hig-spacing-4)}"
+   ".kc-billing__tile dt{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);letter-spacing:.06em;color:var(--hig-color-secondary-label)}"
+   ".kc-billing__tile dd{margin:var(--hig-spacing-2) 0 0;font-family:var(--hig-font-mono);font-size:var(--hig-text-title2-font-size);font-weight:700}"
+   ".kc-billing__tile dd[data-state=loading]{color:var(--hig-color-secondary-label);font-style:italic;font-size:var(--hig-text-body-font-size)}"
+   ".kc-billing__kinds{display:flex;flex-wrap:wrap;gap:var(--hig-spacing-2);padding:0;margin:0;list-style:none}"
+   ".kc-billing__kinds a{display:inline-flex;align-items:center;min-height:2.5rem;padding:0 var(--hig-spacing-4);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-capsule,999px);color:var(--hig-color-label);font-weight:700;text-decoration:none}"
+   ".kc-billing__plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:var(--hig-spacing-4)}"
+   ".kc-billing__plan{display:grid;gap:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);padding:var(--hig-spacing-5)}"
+   ".kc-billing__plan h3{margin:0;font-size:var(--hig-text-title3-font-size)}"
+   ".kc-billing__price{font-family:var(--hig-font-mono);font-size:var(--hig-text-title1-font-size);font-weight:700}"
+   ".kc-billing__price small{font-size:var(--hig-text-caption1-font-size);font-weight:400;color:var(--hig-color-secondary-label)}"
+   ".kc-billing__bonus{color:var(--hig-palette-green);font-weight:700}"
+   ".kc-billing__plan ul{margin:0;padding-inline-start:1.1em;color:var(--hig-color-secondary-label);font-size:var(--hig-text-footnote-font-size)}"
+   ".kc-billing__plan .dads-button{margin-top:auto;justify-self:start}"
+   ".kc-billing details{margin-top:var(--hig-spacing-2)}"
+   ".kc-billing summary{cursor:pointer;font-weight:700;color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}"
+   ".kc-billing details p{margin:var(--hig-spacing-2) 0 0;font-size:var(--hig-text-caption1-font-size);color:var(--hig-color-secondary-label)}"))
+
+(defn- money [cents] (str "$" (/ cents 100)))
+
+(defn- plan-card [txt {:keys [sku name cents credits gib seats monthly topup bonusPercent]}]
+  [:div {:class "kc-billing__plan" :data-plan sku}
+   [:h3 name]
+   [:p {:class "kc-billing__price"} (money cents)
+    (when-not topup [:small (txt " / 月" " / month")])]
+   (when monthly
+     [:p {:class "kc-billing__bonus"} (str credits " credits (+" bonusPercent "%)")])
+   (into [:ul]
+         (remove nil?
+                 [(when (and (not monthly) (not topup)) [:li (str credits (txt " AI credits / 月" " AI credits / month"))])
+                  (when topup [:li (str credits " credits · 1 credit = $1")])
+                  (when gib [:li (str gib (txt " GiB の保存容量" " GiB storage"))])
+                  (when seats [:li (str seats (txt " 席" " seats"))])
+                  (when monthly [:li (txt "毎月付与・失効なし・いつでも解約" "Granted monthly · never expires · cancel anytime")])]))
+   ;; hidden until the catalog says checkout is enabled AND this SKU has a
+   ;; price in the live catalog (billing-browser); otherwise the note shows
+   [:button {:class "dads-button" :data-type "solid-fill" :data-size "md" :type "button"
+             :data-billing-sku sku :hidden true}
+    (txt "選択" "Select")]
+   [:p {:class "ck-console__note" :data-billing-unavailable sku :hidden true}
+    (txt "このプランは準備中です。" "This plan is not purchasable yet.")]])
+
+(defn section [locale sign-in-href]
+  (let [ja? (= locale :ja) txt (fn [ja en] (if ja? ja en))
+        platform (filter #(= "platform" (:scope %)) billing/plans)
+        monthly (filter :monthly billing/plans)
+        topups (filter :topup billing/plans)]
+    [:div {:class "kc-billing"}
+     (dds/heading 1 (txt "料金・決済" "Billing") {:size "36"})
+     [:p {:class "kc-billing__lead"}
+      (txt "本人確認済みの無料研究枠はそのまま。有料枠は必要な分だけ、自動チャージなしで追加します。価格は米ドル・税別。"
+           "The free research allowance stays. Add paid capacity as you need it — no automatic top-up. USD, excluding tax.")]
+     [:p {:id "billing-status" :role "status" :class "ck-console__note"} ""]
+
+     ;; balance: one fact per tile, hidden until known
+     [:section {:class "ck-console__panel" :id "billing-panel-balance"}
+      [:h2 (txt "残高" "Balance")]
+      [:div {:id "billing-signed-out" :hidden true}
+       [:p {:class "ck-console__note"} (txt "残高と購入履歴はサインインすると表示されます。" "Sign in to see your balance and purchases.")]
+       (dds/row (dds/button (txt "サインイン" "Sign in") {:href sign-in-href :type :solid-fill}))]
+      [:dl {:class "kc-billing__balance" :id "billing-balances" :hidden true}
+       [:div {:class "kc-billing__tile"} [:dt "AI"] [:dd {:id "billing-balance-ai" :data-state "empty"} "—"]]
+       [:div {:class "kc-billing__tile"} [:dt (txt "保存容量" "Storage")] [:dd {:id "billing-balance-storage" :data-state "empty"} "—"]]
+       [:div {:class "kc-billing__tile"} [:dt (txt "保存超過分" "Excess storage")] [:dd {:id "billing-balance-excess" :data-state "empty"} "—"]]]
+      [:div {:id "billing-manage" :hidden true}
+       (dds/row (dds/button (txt "請求・解約の管理" "Manage billing and cancellation") {:id "billing-portal" :type :outline}))]]
+
+     ;; add credits: monthly / one-time as two views of one document
+     [:section {:class "ck-console__panel" :id "billing-panel-add"}
+      [:h2 (txt "クレジットを追加" "Add credits")]
+      [:ul {:class "kc-billing__kinds" :aria-label (txt "購入の種類" "Purchase type")}
+       [:li [:a {:href "#billing-monthly"} (txt "月額" "Monthly")]]
+       [:li [:a {:href "#billing-onetime"} (txt "都度" "One-time")]]]
+      [:h3 {:id "billing-monthly"} (txt "月額プラン" "Monthly plans")]
+      (into [:div {:class "kc-billing__plans"}] (map #(plan-card txt %) (concat platform monthly)))
+      [:h3 {:id "billing-onetime"} (txt "都度購入" "One-time")]
+      (into [:div {:class "kc-billing__plans"}] (map #(plan-card txt %) topups))
+      [:details [:summary (txt "単価と枠の考え方" "Rates and how allowances work")]
+       [:p (txt "1つの月額プランに token 利用枠と保存容量（GiB）が含まれます。超過保存は $0.20/GiB・月、追加推論は用途別クレジット（1 credit = $1）。自動チャージは無効です。"
+                "One monthly plan includes a token allowance and storage in GiB. Excess storage costs $0.20/GiB per month; extra inference uses scoped credits (1 credit = $1). Automatic top-up is off.")]
+       [:p (txt "推論の単価は入力 $0.90/1M tokens（キャッシュヒット $0.225/1M）、出力 $4.50/1M tokens。Pro の 12 credits は入力 600 万 + 出力 140 万 tokens に相当します（混合例）。"
+                "Inference is billed at $0.90 per 1M input tokens ($0.225 cached) and $4.50 per 1M output tokens. Pro's 12 credits cover, for example, 6 million input plus 1.4 million output tokens.")]
+       [:p (txt "月額枠は請求期間末に失効し、追加クレジットは 12 か月有効。残高不足で新しい有料処理は停止しますが、保存済みデータは自動削除しません。"
+                "Monthly allowances expire at the end of their billing period; top-up credits last 12 months. New paid work stops when funds run out; stored data is not deleted automatically.")]]]
+
+     [:section {:class "ck-console__panel" :id "billing-panel-enterprise"}
+      [:h2 "Enterprise"]
+      [:p {:class "ck-console__note"}
+       (txt "月額 $1,000 からの個別見積。" "Custom quotes from $1,000/month.")]
+      [:details [:summary (txt "含まれるもの" "What it covers")]
+       [:p (txt "年間コミット・用途別予算・組織の権限管理・監査ログ・専用推論と保管構成。専用 GPU 容量は月額 $6,000 以上・12 か月コミット。"
+                "Annual commitments, scoped budgets, organization permissions, audit logs, dedicated inference and storage. Reserved GPU capacity from $6,000/month with a 12-month commitment.")]]
+      (dds/row (dds/button (txt "問い合わせる" "Contact us") {:href "mailto:support@kotoba.cloud" :type :outline}))]]))

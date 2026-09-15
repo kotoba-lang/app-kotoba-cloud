@@ -23,7 +23,7 @@ reimplemented in-house without losing admission quality:
 | Layer | Component | Hosting |
 |---|---|---|
 | 1 document authenticity | Self Network proof (zk: government-ID issuance verified on-chain) + MRZ/checkdigit re-verification | Self edge (already coded: `create-session`/`verify-event` in research_providers.cljk) |
-| 2 biometric match | Self liveness+face proof (`proof_attributes` in the Svix event) + secondary face-embedding match | Self (primary), cross-check on Modal |
+| 2 biometric match | Self liveness+face proof (`proof_attributes` in the Svix event) + secondary face-embedding match | Self (primary), cross-check on the face service |
 | 3 AML/CTF screening | PEP/sanctions watchlists as **public data served from kotoba.cloud** + name/dob matcher | kotoba.cloud static data (security-data path) + authority-side matcher |
 | 4 duplicate-person resistance | Self `nullifier` (scoped, irreversible) consumed atomically per scope | research authority DO storage |
 
@@ -60,10 +60,10 @@ reimplemented in-house without losing admission quality:
   auto-clear; they route to the existing operator review
   (`RESEARCH_OPERATOR_SECRET` HMAC path, `clear-screening` op).
 
-### Image analysis on Modal (secondary biometric check)
+### Image analysis on the face service (secondary biometric check)
 
 - `cloud-murakumo/deploy/model-runtime/server.py` already runs an offline
-  ONNX runtime on Modal. A face-embedding model (e.g. an ArcFace-family ONNX
+  ONNX runtime on a private deployment. A face-embedding model (e.g. an ArcFace-family ONNX
   graph) is served as a second deployment of the same runtime
   (`MODEL_KIND=onnx`).
 - The authority sends the two crops (selfie + document portrait) that the
@@ -72,7 +72,7 @@ reimplemented in-house without losing admission quality:
   audit receipt. Threshold and model id are pinned in this ADR; a mismatch
   routes to operator review, never auto-clear.
 - This is a cross-check, not the primary gate: Self's zk proof is the
-  admissibility gate; Modal is defense-in-depth against Self flow
+  admissibility gate; the face service is defense-in-depth against Self flow
   misconfiguration.
 
 ### Wiring (authority changes)
@@ -108,7 +108,7 @@ reimplemented in-house without losing admission quality:
   matcher runs inside the authority (private), so watchlist hits are not
   disclosed publicly — only the snapshot id and digest are referenced.
 - Biometric images are still never stored by Kotoba Cloud; only Self sees
-  them, and Modal only sees derived crops/embeddings for the cross-check.
+  them, and the face service only sees derived crops/embeddings for the cross-check.
 - Review-required cases (PEP hit, embedding mismatch) go to the operator
   review path that already exists (`handle-review`, `require-operator!`).
 
@@ -121,5 +121,5 @@ reimplemented in-house without losing admission quality:
 3. Staging: create the Self flow, complete one verification, confirm the
    webhook applies the chain and the nullifier dedupe rejects a second
    registration with the same nullifier.
-4. Modal: pin the face model, verify embedding match on a fixture pair
+4. Face service: pin the face model, verify embedding match on a fixture pair
    (same person / different person) before wiring into the authority.

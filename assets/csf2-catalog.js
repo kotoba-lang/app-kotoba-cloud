@@ -63,6 +63,20 @@
     const rec=(data.products.find(x=>x['product/id']===pid)||{}).record;
     if(rec&&data.blocks[rec['/']])d.append(Object.assign(node('a','レコードCID（IPLD）'),{href:data.blocks[rec['/']].path,target:'_blank',rel:'noopener'}));
     d.hidden=false;
+    // report download: deterministic JSON snapshot of the selected product's coverage
+    const rep=$('report');rep.hidden=false;
+    const fnIds=fn=>subIds.filter(i=>i.split('.')[0]===fn);
+    rep.onclick=()=>{
+      const out={framework:'NIST CSF 2.0',source:'NIST CSWP 29',subcategoryCount:subIds.length,
+        product:{id:p['product/id'],name:p['product/name'],vendor:p['product/vendor'],category:p['product/category']},
+        coveredTotal:total,
+        coveredByFunction:Object.fromEntries(['GV','ID','PR','DE','RS','RC'].map(fn=>{const ids=fnIds(fn);return [fn,ids.filter(i=>covered.has(i)).length+'/'+ids.length];})),
+        supportedSubcategories:Object.fromEntries(subIds.filter(i=>covered.has(i)).map(i=>[i,subs[i]])),
+        productSource:p['product/source']};
+      const url=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
+      const a=Object.assign(document.createElement('a'),{href:url,download:'csf2-'+p['product/id']+'-coverage.json'});
+      a.click();URL.revokeObjectURL(url);
+    };
   }
   function select(pid){selected=pid;chart(pid);render();}
   $('search').oninput=render;$('kind').onchange=render;

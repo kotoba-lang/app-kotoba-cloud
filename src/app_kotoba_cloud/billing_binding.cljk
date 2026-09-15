@@ -1,0 +1,28 @@
+(ns app-kotoba-cloud.billing-binding
+  "The one place that names a principal's BillingAccount Durable Object and
+  says whether paid metering is switched on. billing-gateway (the public
+  billing routes) and research-gateway (the inference producer) both go
+  through here so the ledger a purchase funds and the ledger a completion
+  debits are the same object: mode + environment + principal.")
+
+(defn account
+  "POST `payload` to the principal's BillingAccount; the principal is added
+  to the body so the object never trusts a caller-supplied one."
+  [^js env principal path payload]
+  (let [^js binding (aget env "BILLING_ACCOUNTS")
+        stub (.get binding (.idFromName binding (str (aget env "BILLING_MODE") ":" (aget env "BILLING_ENVIRONMENT_ID") ":" principal)))]
+    (.fetch stub (str "https://billing.internal" path)
+            #js {:method "POST" :headers #js {"content-type" "application/json"}
+                 :body (js/JSON.stringify (clj->js (assoc payload :principal principal)))})))
+
+(defn metering-ready?
+  "Paid work may reserve and settle: both launch flags are on and the
+  account binding exists. Off means every completion stays on the free
+  quota — a purchased balance is never debited by a producer that was not
+  switched on."
+  [^js env]
+  (and (= "true" (aget env "BILLING_ENABLED"))
+       (= "true" (aget env "BILLING_METERING_READY"))
+       (some? (aget env "BILLING_ACCOUNTS"))
+       (string? (aget env "BILLING_MODE"))
+       (string? (aget env "BILLING_ENVIRONMENT_ID"))))

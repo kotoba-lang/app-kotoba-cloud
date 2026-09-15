@@ -15,11 +15,16 @@
         ;; fails with "Could not find namespace: jp-go-dds.core".
         io.github.kotoba-lang/jp-go-digital-design-system
         {:git/url "https://github.com/kotoba-lang/jp-go-digital-design-system.git"
-         :git/sha "94ffae44a8e248b196b7d0b8a692f0645c9d34b1"}
+         :git/sha "bcf526286f612ce1911ad139a35676793c4298b5"}
         ;; COPIED from deps.edn: chat_site/knowledge_site require cloud-kotoba-dds.
         io.github.kotoba-lang/cloud-kotoba-dds
         {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git"
-         :git/sha "01db80709df67183fb29c0b1bae585895276b137"}
+         :git/sha "ce8dd6463775f8fc2482dd5e461d8c31beebf24a"}
+        ;; COPIED from deps.edn: scripts/uiux-audit.cljk + uiux_audit_test.cljk
+        ;; require shinkansen.audit / shinkansen.coscientist.
+        io.github.kotoba-lang/shinkansen
+        {:git/url "https://github.com/kotoba-lang/shinkansen.git"
+         :git/sha "bc04afd5d3599ad1a03a0e7b72559139aa31f7e6"}
         ;; Transitive via jp-go-dds tokens (css.core): declared here because
         ;; nbb does not read the dependency's own deps.edn.
         io.github.kotoba-lang/css

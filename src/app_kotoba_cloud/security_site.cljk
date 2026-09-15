@@ -1,7 +1,10 @@
 (ns app-kotoba-cloud.security-site
   "Security public-data hub (vulnerabilities, techniques, groups, logs).
    Shell from the cloud-kotoba-dds catalog pattern; this file keeps the
-   card-grid results layout and the hub's own nav."
+   card-grid results layout and the hub's own nav. Copy in Japanese and
+   English (`txt`); the document is emitted per public locale by site.cljk
+   (body ja for :ja, en otherwise). assets/security-data.js answers in the
+   document's language (<html lang>)."
   (:require [cloud-kotoba-dds.catalog :as catalog]))
 
 (def css
@@ -14,38 +17,47 @@
   ".ck-catalog li{margin:var(--hig-spacing-3,10px) 0}"))
 
 (defn view
-  ([] (view false))
-  ([embedded?]
-   (catalog/page
-    {:title "セキュリティ公開データ"
-     :lead "脆弱性、攻撃手法、グループ、ログを、出典まで辿って調べる。"
-     :embedded? embedded?
-     :id "security-main"
-     :nav (catalog/breadcrumb
-          "公開データ"
-          [["チャット" "/ja/"]
-           ["百科" "https://wiki.kotobase.net/"]
-           ["このハブ" nil]
-           ["LLM向け利用案内" "/security-data/README.md"]])}
-    (catalog/status "security-summary" "データを読み込んでいます…")
-    (catalog/tools
-     {:search-id "security-search" :search-label "データを検索"
-      :search-placeholder "CVE、ATT&CK ID、名前で検索"
-      :select-id "security-kind" :select-label "データの種類"
-      :options [[:option {:value ""} "すべて"]
-                [:option {:value "vulnerability"} "脆弱性"]
-                [:option {:value "technique"} "攻撃手法"]
-                [:option {:value "actor-group"} "グループ"]
-                [:option {:value "attack-log"} "公開ログ"]
-                [:option {:value "standard"} "SCAP"]
-                [:option {:value "threat-model"} "脅威モデル"]]})
-    [:div {:id "security-results" :class "security-results"}]
-    (catalog/detail {:id "security-detail" :label "項目の詳細"})
-    [:details
-     [:summary "データの範囲・取得方法"]
-     [:p "初回スナップショットです。KEVの最新50件、ATT&CKの3グループと関連手法、OTRFの公開ラボログを収録。SCAPは仕様カタログで、評価エンジンや全チェック定義の配信ではありません。自動更新は未設定です。"]
-     [:p "出典付きの主張、観測ログ、分析用シナリオを区別します。KEVへの掲載だけで個別資産の脆弱性や攻撃者を判定しません。"]
-     [:nav [:a {:href "/security-data/index.json"} "IPLDマニフェスト"] [:a {:href "/security-data/graph.jsonld"} "Linked Data"] [:a {:href "/security-data/ontology.jsonld"} "オントロジー"] [:a {:href "/security-data/datoms.json"} "Datoms"] [:a {:href "/security-data/schema.edn"} "Datomicスキーマ"]]
-     [:p "IPLDのCIDを正本とし、JSON-LDとDatomic形式を同じデータから生成しています。HTTPS配信済みのブロックです。IPFSネットワークへの配布や百科の単一refへの登録は別工程です。"]
-     [:p [:a {:href "/security-data/MITRE-LICENSE.txt"} "MITRE ATT&CKの利用条件"] " · " [:a {:href "/security-data/OTRF-LICENSE.txt"} "OTRFの利用条件"]]]
-    [:script {:src "/js/security-data.js" :defer true}])))
+  "The hub for one locale (:ja / :en copy; the shell is the page's).
+   `embedded?` = inside the apex page (no page-level chrome)."
+  ([] (view :ja false))
+  ([locale embedded?]
+   (let [ja? (= :ja locale)
+         txt (fn [ja en] (if ja? ja en))]
+     (catalog/page
+      {:title (txt "セキュリティ公開データ" "Security public data")
+       :lead (txt "脆弱性、攻撃手法、グループ、ログを、出典まで辿って調べる。"
+                  "Vulnerabilities, techniques, groups and logs — each traceable to its source.")
+       :embedded? embedded?
+       :id "security-main"
+       :nav-label (txt "カタログ" "Catalog")
+       :nav (catalog/breadcrumb
+             (txt "公開データ" "Public data")
+             [[(txt "チャット" "Chat") "/"]
+              [(txt "百科" "Encyclopedia") "https://wiki.kotobase.net/"]
+              [(txt "このハブ" "This hub") nil]
+              [(txt "LLM向け利用案内" "Guide for LLMs") "/security-data/README.md"]])}
+      (catalog/status "security-summary" (txt "データを読み込んでいます…" "Loading the data…"))
+      (catalog/tools
+       {:search-id "security-search" :search-label (txt "データを検索" "Search the data")
+        :search-placeholder (txt "CVE、ATT&CK ID、名前で検索" "Search by CVE, ATT&CK id or name")
+        :select-id "security-kind" :select-label (txt "データの種類" "Kind of data")
+        :options [[:option {:value ""} (txt "すべて" "All")]
+                  [:option {:value "vulnerability"} (txt "脆弱性" "Vulnerabilities")]
+                  [:option {:value "technique"} (txt "攻撃手法" "Techniques")]
+                  [:option {:value "actor-group"} (txt "グループ" "Groups")]
+                  [:option {:value "attack-log"} (txt "公開ログ" "Public logs")]
+                  [:option {:value "standard"} "SCAP"]
+                  [:option {:value "threat-model"} (txt "脅威モデル" "Threat models")]]})
+      [:div {:id "security-results" :class "security-results"}]
+      (catalog/detail {:id "security-detail" :label (txt "項目の詳細" "Item details")})
+      [:details
+       [:summary (txt "データの範囲・取得方法" "Scope and how the data is collected")]
+       [:p (txt "初回スナップショットです。KEVの最新50件、ATT&CKの3グループと関連手法、OTRFの公開ラボログを収録。SCAPは仕様カタログで、評価エンジンや全チェック定義の配信ではありません。自動更新は未設定です。"
+                "A first snapshot: the 50 most recent KEV entries, three ATT&CK groups with their techniques, and OTRF's public lab logs. SCAP is a catalog of specifications, not an evaluation engine or the full set of check definitions. Automatic updates are not configured.")]
+       [:p (txt "出典付きの主張、観測ログ、分析用シナリオを区別します。KEVへの掲載だけで個別資産の脆弱性や攻撃者を判定しません。"
+                "Sourced claims, observed logs and analysis scenarios are kept apart. A KEV listing alone never decides that a particular asset is vulnerable or names an attacker.")]
+       [:nav [:a {:href "/security-data/index.json"} (txt "IPLDマニフェスト" "IPLD manifest")] [:a {:href "/security-data/graph.jsonld"} "Linked Data"] [:a {:href "/security-data/ontology.jsonld"} (txt "オントロジー" "Ontology")] [:a {:href "/security-data/datoms.json"} "Datoms"] [:a {:href "/security-data/schema.edn"} (txt "Datomicスキーマ" "Datomic schema")]]
+       [:p (txt "IPLDのCIDを正本とし、JSON-LDとDatomic形式を同じデータから生成しています。HTTPS配信済みのブロックです。IPFSネットワークへの配布や百科の単一refへの登録は別工程です。"
+                "The IPLD CIDs are the source of truth; the JSON-LD and Datomic forms are generated from the same data. The blocks are served over HTTPS. Distribution to the IPFS network and registration under the encyclopedia's single ref are separate steps.")]
+       [:p [:a {:href "/security-data/MITRE-LICENSE.txt"} (txt "MITRE ATT&CKの利用条件" "MITRE ATT&CK terms of use")] " · " [:a {:href "/security-data/OTRF-LICENSE.txt"} (txt "OTRFの利用条件" "OTRF terms of use")]]]
+      [:script {:src "/js/security-data.js" :defer true}]))))

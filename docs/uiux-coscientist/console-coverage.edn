@@ -1,0 +1,50 @@
+;; Console IA coverage against the owner-supplied reference console
+;; (15 screenshots, 2026-09-15). Append-only: one entry per measurement.
+;; :document  a real emitted document (or a fragment view of one) exists
+;; :data      the view shows live facts from an endpoint (or policy data the
+;;            authority enforces) — never a placeholder
+;; :action    a person can do the thing from the view
+;; :gap       what is missing and which side owns it (:backend = an endpoint
+;;            that does not exist yet; :consumer = a view not built yet)
+[{:measured-at "2026-09-15T09:30:00Z" :label "before round 3"
+  :shell {:sidebar-groups true :nav-badges false :top-bar false :credit-chip false
+          :setup-progress false :resume-banner false :account-chip false}
+  :destinations
+  {:dashboard  {:document false :data false :action false :gap [:backend "no usage/jobs list endpoint"]}
+   :requests   {:document false :data false :action false :gap [:backend "no jobs list endpoint (create/status by id only)"]}
+   :compliance {:document false :data "three cells on /account" :action false :gap [:consumer "no dedicated view"]}
+   :apps       {:document "/apps/" :data true :action true}
+   :api-keys   {:document "/account#account-panel-cli" :data false :action "issue (create-only)" :gap [:backend "no token list/revoke"]}
+   :byok       {:document false :data false :action false :gap [:backend "no BYOK surface"]}
+   :routing    {:document false :data false :action false :gap [:backend "no router concept"]}
+   :models     {:document "/#research-models (home section)" :data "static copy" :action false :gap [:consumer "no console view"]}
+   :insights   {:document "/docs/reference/billing-and-usage/ (docs)" :data false :action false :gap [:backend "no usage endpoint"]}
+   :prompts    {:document false :data false :action false :gap [:backend "no prompt library"]}
+   :guardrails {:document false :data "one cell on /account" :action false :gap [:consumer "no dedicated view"]}
+   :firewall   {:document false :data "one cell on /account" :action false :gap [:consumer "no dedicated view"]}
+   :members    {:document "/account#account-panel-org" :data true :action "create org"}
+   :billing    {:document "/billing/ (marketing shell)" :data "balance line after scripting" :action "select plan (10 greyed buttons until catalog)" :gap [:consumer "no console structure; history"]}
+   :logs       {:document false :data false :action false :gap [:backend "no request log endpoint"]}
+   :settings   {:document "/account" :data true :action "refresh" :gap [:backend "sign-in & security, data export/delete live on auth.kotoba.cloud"]}}}
+ {:measured-at "2026-09-15T10:40:00Z" :label "after round 3 (PR #149)"
+  :shell {:sidebar-groups true :nav-badges true :top-bar true :credit-chip "hydrated from /v1/billing/status"
+          :setup-progress "3 measurable steps (sign-in / verify / eligibility); a 4th 'first request' needs a jobs list"
+          :resume-banner "next step, hidden on /account (would repeat the panel)"
+          :account-chip "avatar initial / @user / workspace / menu"}
+  :destinations
+  {:dashboard  {:document false :data false :action false :gap [:backend "no usage/jobs list endpoint"]}
+   :requests   {:document false :data false :action false :gap [:backend "no jobs list endpoint"]}
+   :compliance {:document "/secure/#compliance" :data "policy data the authority enforces + live version check" :action false}
+   :apps       {:document "/apps/" :data true :action true}
+   :api-keys   {:document "/account#account-panel-cli" :data false :action "issue (create-only)" :gap [:backend "no token list/revoke"]}
+   :byok       {:document false :data false :action false :gap [:backend "no BYOK surface"]}
+   :routing    {:document false :data false :action false :gap [:backend "no router concept"]}
+   :models     {:document "/models/" :data "policy data + live availability and policy version (/v1/models)" :action false}
+   :insights   {:document "/docs/reference/billing-and-usage/ (docs)" :data false :action false :gap [:backend "no usage endpoint"]}
+   :prompts    {:document false :data false :action false :gap [:backend "no prompt library"]}
+   :guardrails {:document "/secure/#guardrails" :data "5 templates from the enforced policy + version check" :action false}
+   :firewall   {:document "/secure/#firewall" :data "tool policy + live observe mode" :action false}
+   :members    {:document "/account#account-panel-org" :data true :action "create org"}
+   :billing    {:document "/billing/ (console)" :data "balance tiles when signed in; catalog-gated plan buttons" :action "select plan / manage billing" :gap [:backend "no transaction history endpoint"]}
+   :logs       {:document false :data false :action false :gap [:backend "no request log endpoint"]}
+   :settings   {:document "/account" :data true :action "refresh" :gap [:backend "sign-in & security, data export/delete live on auth.kotoba.cloud"]}}}]

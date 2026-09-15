@@ -54,7 +54,7 @@
        [:div {:lang (if ja? "ja" "en")}
         (graph/view {:heading-level 2
                      :title (t "データベース・オントロジー管理" "Database & Ontology Workbench")
-                     :billing [:p [:a {:href (if ja? "/ja/billing/" "/billing/")} (t "Kotoba Cloud の料金・プラン設定" "Kotoba Cloud Billing & Plans")]]})]])
+                     :billing [:p [:a {:href "/billing/"} (t "Kotoba Cloud の料金・プラン設定" "Kotoba Cloud Billing & Plans")]]})]])
      [:script {:src "/js/graph-workbench.js" :defer true}]
      [:script {:src "/js/knowledge-host.js" :defer true}]]))
 

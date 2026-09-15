@@ -1,0 +1,168 @@
+(ns app-kotoba-cloud.shell-browser
+  "Hydration for the console chrome every sidebar document shares
+  (site.cljk console-topbar / setup-banner / app-sidebar foot):
+
+    - the account chip at the foot of the sidebar (avatar initial, @user,
+      workspace) with the account / sign-out menu;
+    - the setup-progress chip ('はじめる 1/3') and the resume banner naming
+      the next step (console/setup-progress — steps whose state cannot be
+      read never count);
+    - the credit chip (AI balance from /v1/billing/status).
+
+  Every element stays hidden until its fact is known: a chip with no number
+  is not shown. Signed-out pages show none of it — the sidebar's sign-in
+  control is the one entry. Also hydrates the two policy consoles
+  (/secure/, /models/) from their live endpoints."
+  (:require [app-kotoba-cloud.console :as console]
+            [kotoba.lang.text :as str]))
+
+(defn- el [id] (.getElementById js/document id))
+(defn- ja? [] (= "ja" (.-lang (.-documentElement js/document))))
+(defn- t [ja en] (if (ja?) ja en))
+(defn- show! [id] (when-let [x (el id)] (set! (.-hidden x) false)))
+(defn- hide! [id] (when-let [x (el id)] (set! (.-hidden x) true)))
+
+(defn- get-json [path]
+  (-> (js/fetch path #js {:credentials "same-origin" :headers #js {"accept" "application/json"}})
+      (.then (fn [r] (if (.-ok r)
+                       (-> (.json r) (.then #(assoc (js->clj % :keywordize-keys true) :httpOk true)))
+                       {:httpOk false :status (.-status r)})))
+      (.catch (fn [_] {:httpOk false}))))
+
+;; --- account chip -----------------------------------------------------------
+
+(defn- apex
+  "The apex origin when this document lives on another host (docs.kotoba.cloud
+   carries <meta name=kc-apex>); \"\" on the apex itself. Hrefs set at
+   runtime (setup chip / banner) are prefixed with it."
+  []
+  (or (some-> (.querySelector js/document "meta[name=\"kc-apex\"]") (.getAttribute "content")) ""))
+
+(defn account-chip!
+  "Reveal the sidebar's account chip (cloud-kotoba-dds.shell account-entry:
+   both states are in the document; cloudKotobaShell.hydrateSession fills
+   the username / workspace / the initial, hides the sign-in control, opens the
+   floating menu on the chip and closes it on Escape / outside). Sign-out is
+   this host's: POST /v1/logout, then home."
+  [nav username workspace]
+  (if-not (exists? js/cloudKotobaShell)
+    (js/console.error "shell-runtime-missing" "/js/shell.js did not load — the account entry stays signed-out")
+    (do
+      (.hydrateSession js/cloudKotobaShell nav #js {:name username :workspace workspace})
+      (when-let [sign-out (.querySelector nav "#kc-session-signout")]
+        (.addEventListener sign-out "click"
+                           (fn [_]
+                             (set! (.-disabled sign-out) true)
+                             (-> (js/fetch (str (apex) "/v1/logout") #js {:method "POST" :credentials "same-origin"
+                                                                         :headers #js {"accept" "application/json"}})
+                                 (.catch (fn [_] nil))
+                                 (.finally (fn [] (set! (.-href (.-location js/window)) (str (apex) "/")))))))))))
+
+;; --- setup progress + credits ------------------------------------------------
+
+(defn- render-setup! [state]
+  (let [{:keys [done total next]} (console/setup-progress state (if (ja?) :ja :en))]
+    (when-let [chip (el "kc-setup-chip")]
+      (set! (.-textContent chip) (t (str "はじめる " done "/" total) (str "Get started " done "/" total)))
+      (.setAttribute chip "data-state" (if next "pending" "done"))
+      (set! (.-href chip) (str (apex) (or (:href next) "/account")))
+      (show! "kc-setup-chip"))
+    (if next
+      (do (when-let [txt (el "kc-setup-banner-text")]
+            (set! (.-textContent txt) (t (str "セットアップを続ける — 次: " (:label next))
+                                         (str "Resume setup — next: " (:label next)))))
+          (when-let [link (el "kc-setup-banner-link")] (set! (.-href link) (str (apex) (:href next))))
+          ;; not on the page the step lives on: the banner would repeat the
+          ;; panel right under it
+          (when-not (or (str/starts-with? (.-pathname js/location) "/account")
+                        ;; the console names itself: its locale variants are
+                        ;; emitted under /<locale>/account/ (served in place
+                        ;; at /account by the Worker; at their own path by a
+                        ;; static harness)
+                        (some? (.getElementById js/document "account-console")))
+            (show! "kc-setup-banner")))
+      (hide! "kc-setup-banner"))))
+
+(defn- render-credit! [billing]
+  (when (and (:httpOk billing) (sequential? (:balances billing)))
+    (let [ai (first (filter #(= "ai" (:scope %)) (:balances billing)))
+          micro (:availableMicroUSD ai)]
+      (when (number? micro)
+        (when-let [chip (el "kc-credit-chip")]
+          (set! (.-textContent chip) (str "$" (.toFixed (/ micro 1000000) 2)))
+          (set! (.-title chip) (t "AI クレジット残高" "AI credit balance"))
+          (show! "kc-credit-chip"))))))
+
+(defn hydrate-shell!
+  "Runs on every document that carries the console top bar."
+  []
+  (when (el "kc-setup-chip")
+    (-> (get-json "/v1/session")
+        (.then (fn [s]
+                 (if-not (and (:httpOk s) (:valid s))
+                   nil
+                   ;; /v1/session already answers the viewer model
+                   ;; (worker route-session → session/viewer-model): username
+                   ;; is on the payload, no second derivation in the browser
+                   (let [username (:username s)]
+                     (when (and username (el "kc-session-nav-side"))
+                       (account-chip! (el "kc-session-nav-side") username (t "個人" "Personal")))
+                     (-> (js/Promise.all #js [(get-json "/v1/research/ekyc/status")
+                                              (get-json "/v1/research/status")
+                                              (get-json "/v1/billing/status")])
+                         (.then (fn [results]
+                                  (let [[ekyc research billing] (js->clj results)]
+                                    (render-setup! {:signed-in? true
+                                                    :ekyc (when (:httpOk ekyc) (:status ekyc))
+                                                    :eligible? (when (:httpOk research) (= "eligible" (:status research)))})
+                                    (render-credit! billing)))))))))
+        (.catch (fn [_] nil)))))
+
+;; --- /secure/ -------------------------------------------------------------------
+
+(defn hydrate-secure! []
+  (when (el "secure-status")
+    (-> (get-json "/v1/secure")
+        (.then (fn [r]
+                 (if-not (:httpOk r)
+                   (set! (.-textContent (el "secure-status")) (t "実行中の規則の版を確認できませんでした。" "Could not read the running policy versions."))
+                   (let [pairs [["secure-guardrails-version" (get-in r [:guardrails :version])]
+                                ["secure-firewall-version" (get-in r [:firewall :version])]
+                                ["secure-compliance-version" (get-in r [:compliance :version])]]
+                         mismatched (filter (fn [[id live]] (not= live (.-textContent (el id)))) pairs)]
+                     (when-let [chips (el "secure-observe-mode")]
+                       (set! (.-innerHTML chips)
+                             (str "<span class=\"ck-console__badge\" data-state=\"" (if (get-in r [:firewall :observeMode]) "action" "ok") "\">"
+                                  (t (if (get-in r [:firewall :observeMode]) "観測モード: オン（記録のみ）" "観測モード: オフ（拒否を実行）")
+                                     (if (get-in r [:firewall :observeMode]) "Observe mode: on (record only)" "Observe mode: off (denies enforced)"))
+                                  "</span>"))
+                       (set! (.-hidden chips) false))
+                     (set! (.-textContent (el "secure-status"))
+                           (if (empty? mismatched)
+                             (t "実行中の規則と一致しています。" "Matches the running policy.")
+                             (t (str "表示と実行中の版が異なります: " (str/join ", " (map second mismatched)) "。再読み込みしてください。")
+                                (str "Rendered and running versions differ: " (str/join ", " (map second mismatched)) ". Reload.")))))))))))
+
+;; --- /models/ -----------------------------------------------------------------
+
+(defn hydrate-models! []
+  (when (el "models-status")
+    (-> (get-json "/v1/models")
+        (.then (fn [r]
+                 (if-not (:httpOk r)
+                   (set! (.-textContent (el "models-status")) (t "提供状態を取得できませんでした。" "Could not read model availability."))
+                   (do
+                     (doseq [m (:data r)]
+                       (when-let [cell (.querySelector js/document (str "[data-model-availability=\"" (:id m) "\"]"))]
+                         (.setAttribute cell "data-state" "value")
+                         (set! (.-textContent cell)
+                               (case (:availability m)
+                                 "upstream-tested-access-gated" (t "提供中（許可されたリクエストのみ）" "Serving (admitted requests only)")
+                                 "route-configured" (t "提供中" "Serving")
+                                 "route-key-not-configured" (t "未接続（接続キー未設定）" "Not connected (route key not configured)")
+                                 (str (:availability m))))))
+                     (doseq [cell (array-seq (.querySelectorAll js/document "[data-model-availability][data-state=empty]"))]
+                       (.setAttribute cell "data-state" "error")
+                       (set! (.-textContent cell) (t "一覧にありません" "Not listed")))
+                     (set! (.-textContent (el "models-status"))
+                           (t (str "ポリシー版 " (:policyVersion r)) (str "Policy version " (:policyVersion r)))))))))))

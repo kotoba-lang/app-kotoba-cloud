@@ -10,7 +10,7 @@
    cloud-kotoba-dds.catalog/css (concatenated in site.cljk)."
   (str
   ".csf2-chart{display:grid;gap:var(--hig-spacing-2,8px);margin:var(--hig-spacing-4,16px) 0 var(--hig-spacing-5,20px)}.csf2-row{display:grid;grid-template-columns:5.5em 1fr 4.5em;align-items:center;gap:var(--hig-spacing-2,8px)}"
-  ".csf2-fn{font-size:var(--hig-text-footnote1-font-size,.85rem);color:var(--hig-color-secondary-label)}.csf2-count{font-variant-numeric:tabular-nums;color:var(--hig-color-label);font-size:var(--hig-text-footnote1-font-size,.85rem);text-align:right}"
+  ".csf2-fn{font-size:var(--hig-text-footnote-font-size,.85rem);color:var(--hig-color-secondary-label)}.csf2-count{font-variant-numeric:tabular-nums;color:var(--hig-color-label);font-size:var(--hig-text-footnote-font-size,.85rem);text-align:right}"
   ".csf2-bar{height:12px;border-radius:var(--hig-radius-capsule,999px);border:1px solid var(--hig-color-separator);background:var(--hig-color-tertiary-system-background);overflow:hidden}.csf2-fill{height:100%;min-width:2px;border-radius:var(--hig-radius-capsule,999px);transition:width .2s}"
   "@media(prefers-reduced-motion:reduce){.csf2-fill{transition:none}}"))
 
@@ -22,8 +22,8 @@
      :lead "全世界のサイバーセキュリティ製品から、使っている（導入を検討している）製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをその製品がサポートするかを機能別チャートで表示します。"
        :nav (catalog/breadcrumb
           "カタログ"
-          [["ホーム" "/ja/"]
-           ["セキュリティ公開データ" "/ja/security/"]
+          [["ホーム" "/"]
+           ["セキュリティ公開データ" "/security/"]
            ["このカタログ" nil]])
      :embedded? embedded?
      :id "csf2-main"}
@@ -38,7 +38,8 @@
      [:section {:id "csf2-coverage" :aria-live "polite"}]
      [:div {:id "csf2-chart" :class "csf2-chart" :role "img" :aria-label "機能別サブカテゴリカバー率"}]
      (catalog/chips {:id "csf2-chips"})
-     (catalog/detail {:id "csf2-detail" :label "製品の詳細"}))
+     (catalog/detail {:id "csf2-detail" :label "製品の詳細"})
+     [:button {:id "csf2-report" :type "button" :hidden true} "カバレッジレポートをダウンロード（JSON）"])
     (catalog/about
      {:summary "このカタログについて"
       :links [[:a {:href "/security-data/csf2/index.json"} "IPLD インデックス"]

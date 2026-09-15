@@ -32,7 +32,10 @@
                     "kotoba library inspect" "耐量子署名は任意ではありません"]]
       (is (str/includes? html needle) needle))
     (is (str/includes? html "hreflang=\"en\""))
-    (is (str/includes? html "href=\"/ja/\""))
+    ;; the language switch is ?lang= on the same route; no /<locale>/ path
+    ;; is linked (owner direction 2026-09-15)
+    (is (str/includes? html "href=\"?lang=ja\""))
+    (is (not (str/includes? html "href=\"/ja/\"")))
     (is (str/includes? html "data-language-selector"))
     (is (str/includes? html "src=\"/js/language-selector.js\""))
     (is (= 1 (count (re-seq #"<nav" html))))
@@ -57,7 +60,7 @@
             href-of (fn [url] (str "href=\"" url "\""))]
         (is (= sign-in (str "https://auth.kotoba.cloud/sign-in?return_to="
                             (if (= locale :ja)
-                              "https%3A%2F%2Fkotoba.cloud%2Fja%2F"
+                              "https%3A%2F%2Fkotoba.cloud%2F%3Flang%3Dja"
                               "https%3A%2F%2Fkotoba.cloud%2F"))))
         (is (str/includes? html (href-of profile/identity-href)))
         (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
@@ -95,7 +98,9 @@
     (is (not (re-find #"font-family:(?!var\()" site/app-css)))))
 
 (deftest localized-not-found-pages-are-finite-documents
-  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/ja/\""]
+  ;; the way home is locale-free on both variants: the edge negotiates the
+  ;; variant by cookie (shinkansen.locale); /ja/ would be a 301 hop
+  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/\""]
                                  [:en "That entrance does not exist." "href=\"/\""]]]
     (let [html (site/not-found-html locale)]
       (is (str/includes? html "404 / NOT FOUND"))
@@ -112,13 +117,14 @@
     (is (= "Kotoba Labs Inc" site/operator-name))
     (is (= "support@kotoba.cloud" site/public-contact-email))
     (is (= "請求があった場合、法令に従い遅滞なく開示します" site/legal-disclosure)))
-  (testing "legal routes follow English-first apex paths"
+  (testing "legal routes are locale-free; the ja variant is self-canonical at ?lang=ja"
     (is (= "/legal/" (get-in site/copy [:en :legal-path])))
     (is (= "/legal/tokushoho/" (get-in site/copy [:en :tokushoho-path])))
-    (is (= "/ja/legal/" (get-in site/copy [:ja :legal-path])))
-    (is (= "/ja/legal/tokushoho/" (get-in site/copy [:ja :tokushoho-path])))
-    (is (str/includes? (site/legal-html :en) "https://kotoba.cloud/legal/"))
-    (is (str/includes? (site/legal-html :ja) "https://kotoba.cloud/ja/legal/")))
+    (is (= "/legal/" (get-in site/copy [:ja :legal-path])))
+    (is (= "/legal/tokushoho/" (get-in site/copy [:ja :tokushoho-path])))
+    (is (str/includes? (site/legal-html :en) "rel=\"canonical\" href=\"https://kotoba.cloud/legal/\""))
+    (is (str/includes? (site/legal-html :ja) "rel=\"canonical\" href=\"https://kotoba.cloud/legal/?lang=ja\""))
+    (is (str/includes? (site/legal-html :ja) "hreflang=\"en\" href=\"https://kotoba.cloud/legal/\"")))
   (testing "every public HTML document names the operator and the support inbox"
     (doseq [html public-html-pages]
       (is (str/includes? html "Kotoba Labs Inc"))
@@ -177,7 +183,9 @@
                    :identity-waiting :identity-done :signed-in-action
                    :boundary-heading :boundary-body :note]]
         (is (str/includes? html (get t key)) (str locale " " key)))
-      (is (str/includes? html (str "rel=\"canonical\" href=\"https://kotoba.cloud/" (name locale) "/\"")))
+      ;; one locale-free route; a non-English variant is self-canonical at
+      ;; ?lang=<locale> (no /<locale>/ path fork, owner direction 2026-09-15)
+      (is (str/includes? html (str "rel=\"canonical\" href=\"https://kotoba.cloud/?lang=" (name locale) "\"")))
       (is (str/includes? html "lang=\"en\" dir=\"ltr\""))
       (doseq [loc site/supported-locales]
         (is (str/includes? html (str "hreflang=\"" (name loc) "\""))))
@@ -190,7 +198,10 @@
       (is (str/includes? html "Enterprise"))
       (is (not (str/includes? html "https://kotobase.net/signup")))
       (is (not (str/includes? html "https://murakumo.cloud/portal/#store")))
-      (is (str/includes? html "data-billing-sku=\"pro\" disabled"))
+      ;; a plan button is hidden until the catalog says checkout is enabled —
+      ;; never a greyed 'checking' control (shinkansen.audit :idle-disabled)
+      (is (re-find #"data-billing-sku=\"pro\" hidden" html))
+      (is (not (str/includes? html "disabled")))
       (is (not (str/includes? html "sk_live_"))))))
 
 (deftest home-is-a-shared-conversation-workspace
@@ -210,11 +221,38 @@
 
 (deftest unified-chrome-covers-formerly-bare-pages
   ;; ADR site-layout: every page ships header/footer/nav (IA unification).
+  ;; The chrome is the marketing header OR the app sidebar (both are the
+  ;; shared shell); CSS is external since abc2c4f, so a class name only
+  ;; proves presence when it is in the markup.
   (doseq [html [(site/account-html) (site/identity-html) (site/admin-html)
                 (site/csf2-html) (site/crypto-html)]]
-    (is (str/includes? html "kc-header"))
+    (is (or (str/includes? html "kc-header") (str/includes? html "class=\"kc-sb\"")))
     (is (str/includes? html "kc-footer"))
     (is (str/includes? html "<nav"))))
+
+(deftest security-services-page-ships-the-suite
+  (let [html (site/security-services-html)]
+    (testing "document-head scripts are present (hydration contract)"
+      (is (str/includes? html "src=\"/js/session.js\""))
+      (is (str/includes? html "src=\"/js/language-selector.js\""))
+      (is (str/includes? html "freebuff-tag.js")))
+    (testing "shared chrome with the app sidebar, current item highlighted"
+      (is (str/includes? html "kc-footer"))
+      (is (str/includes? html "kc-sb"))
+      (is (str/includes? html "data-current=\"true\""))
+      (is (str/includes? html "href=\"/security/services/\"")))
+    (testing "the four services render with their capability rows"
+      (doseq [needle ["CTEM" "DAST" "SAST" "VM" "aggregation-ledger"
+                      "finding-id" "ledger keys: cpe, cve"]]
+        (is (str/includes? html needle) needle))
+      (is (= 4 (count (re-seq #"data-service=" html))))
+      (is (str/includes? html "id=\"vm-ledger-flow\"")))))
+
+(deftest apps-grid-links-the-security-services-from-the-one-def
+  (let [html (site/apps-html :ja)]
+    (doseq [id ["security-ctem" "security-dast" "security-sast" "security-vm"]]
+      (is (str/includes? html (str "data-app=\"" id "\"")) id))
+    (is (<= 4 (count (re-seq #"href=\"/security/services/\"" html))))))
 
 (deftest header-links-cross-page-documents
   (let [html (site/page-html :ja)]
@@ -225,6 +263,6 @@
 (deftest account-console-carries-agent-onboarding
   ;; PAT issuance section: 1-click local IDE/CLI onboarding.
   (let [html (site/account-html)]
-    (is (str/includes? html "kc-header"))
+    (is (str/includes? html "class=\"kc-sb\""))
     (is (str/includes? html "noindex"))
     (is (str/includes? html "接続トークン"))))

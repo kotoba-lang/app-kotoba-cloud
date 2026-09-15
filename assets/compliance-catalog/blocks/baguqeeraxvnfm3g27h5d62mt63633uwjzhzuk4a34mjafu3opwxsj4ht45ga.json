@@ -1,0 +1,1 @@
+{"categoryId":"api-sec","complianceFits":["pci-dss-40"],"id":"kong-gateway-oss","name":"Kong Gateway (OSS + Konnect)","pricingMode":"public-list","pricingNote":"open source gateway free; Konnect/Enterprise has public per-node/per-VP tiers","pricingUrl":"https://konghq.com/products/kong-gateway","provider":"Kong","providerHq":"US"}
