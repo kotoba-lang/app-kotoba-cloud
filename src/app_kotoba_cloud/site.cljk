@@ -72,6 +72,10 @@
     :skip "本文へ移動" :home-label "Kotoba Cloud ホーム"
     :nav-architecture "構成" :nav-libraries "ライブラリ公開" :nav-label "主要ナビゲーション"
     :nav-account "アカウント" :nav-security "セキュリティ"
+    :nav-models "モデル" :nav-researchers "研究者登録" :nav-billing "料金・決済"
+    :menu-models "モデル" :menu-register "研究者登録" :menu-billing "料金・決済"
+    :menu-account "アカウント" :menu-security "セキュリティ" :menu-apps "アプリ"
+    :menu-label "アプリメニュー"
     :language-label "表示言語" :hero-eyebrow "CONTROLLED EXECUTION"
     :headline "AIが書くソフトウェアを、制御された実行へ。"
     :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
@@ -179,6 +183,10 @@
     :skip "Skip to content" :home-label "Kotoba Cloud home"
     :nav-architecture "Architecture" :nav-libraries "Publish libraries" :nav-label "Primary navigation"
     :nav-account "Account" :nav-security "Security"
+    :nav-models "Models" :nav-researchers "Researchers" :nav-billing "Billing"
+    :menu-models "Models" :menu-register "Researchers" :menu-billing "Billing"
+    :menu-account "Account" :menu-security "Security" :menu-apps "Apps"
+    :menu-label "App menu"
     :language-label "Display language" :hero-eyebrow "CONTROLLED EXECUTION"
     :headline "Controlled execution for AI-generated software."
     :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
@@ -287,7 +295,7 @@
    ".kc-header__inner{min-height:4.5rem;display:flex;align-items:center;justify-content:space-between;gap:var(--hig-spacing-4);}"
    ".kc-wordmark{display:flex;align-items:center;gap:var(--hig-spacing-3);color:var(--hig-color-label);font-weight:700;text-decoration:none;letter-spacing:.04em;}"
    ".kc-mark{inline-size:2rem;block-size:2rem;display:grid;place-items:center;border:2px solid var(--hig-color-tint);border-radius:var(--hig-radius-xs);color:var(--hig-color-tint);font-weight:700;}"
-   ".kc-nav{display:flex;align-items:center;gap:var(--hig-spacing-4);}"
+   ".kc-nav{display:flex;align-items:center;gap:var(--hig-spacing-4);}"".kc-app-menu{position:relative;}.kc-app-menu summary{display:inline-flex;align-items:center;gap:var(--hig-spacing-2);min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-system-background);color:var(--hig-color-label);font:inherit;font-weight:700;cursor:pointer;list-style:none;white-space:nowrap;}.kc-app-menu summary::-webkit-details-marker{display:none;}.kc-app-menu__icon{font-size:1.15rem;line-height:1;}.kc-app-menu__label{font-size:var(--hig-text-caption1-font-size);}.kc-app-menu__panel{position:absolute;inset-inline-end:0;top:calc(100% + var(--hig-spacing-2));z-index:40;min-inline-size:13rem;display:grid;padding:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-system-background);box-shadow:0 8px 24px rgb(0 0 0 / 12%);}.kc-app-menu__panel a{display:flex;align-items:center;min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;white-space:nowrap;}.kc-app-menu__panel a:hover{background:var(--hig-color-secondary-system-background);}.kc-app-menu[open] .kc-app-menu__panel{display:grid;}.kc-app-menu:not([open]) .kc-app-menu__panel{display:none;}.kc-header--compact .kc-header__inner{min-height:3.5rem;}.kc-header--compact .kc-nav{display:none;}@media(max-width:64rem){.kc-app-menu{margin-inline-start:auto;}}@media(max-width:48rem){.kc-app-menu__label{display:none;}.kc-header--compact .kc-wordmark__text{display:none;}"
    ".kc-nav>a{color:var(--hig-color-label);font-weight:700;text-underline-offset:.25em;}"
    ".kc-nav>a,.kc-nav .dads-menu-list-box__opener,.kc-nav .dads-button{white-space:nowrap;}"
    ;; 48-64rem: the header cannot fit every item unwrapped. The two anchor
@@ -391,6 +399,23 @@
 (defn contact-mailto []
   [:a {:href (str "mailto:" public-contact-email)} public-contact-email])
 
+(defn app-menu
+  "OpenRouter-style single dropdown menu over the compact app header.
+   Every destination is a real document (no anchor-only items). Items are
+   listed in nav copy order; the app surface owns only the container."
+  [locale t]
+  [:details {:id "kc-app-menu" :class "kc-app-menu"}
+   [:summary {:aria-label (:menu-label t)}
+    [:span {:class "kc-app-menu__icon" :aria-hidden "true"} "≡"]
+    [:span {:class "kc-app-menu__label"} (:menu-label t)]]
+   [:nav {:class "kc-app-menu__panel" :aria-label (:menu-label t)}
+    [:a {:href (str (:path t) "#research-models")} (:menu-models t)]
+    [:a {:href (str (:path t) "#research-register")} (:menu-register t)]
+    [:a {:href "/billing/"} (:menu-billing t)]
+    [:a {:href "/account"} (:menu-account t)]
+    [:a {:href "/security/csf2/"} (:menu-security t)]
+    [:a {:href "/apps/"} (:menu-apps t)]]])
+
 (defn site-header
   ([locale t]
    (site-header locale t {}))
@@ -403,17 +428,19 @@
        [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]]
       (when nav
         [:nav {:class "kc-nav" :aria-label (:nav-label t)}
-         [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-models")} (if (= locale :ja) "モデル" "Models")]
-         [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (if (= locale :ja) "研究者登録" "Researchers")]
-         [:a {:class "kc-nav__secondary" :href "/billing/"} (if (= locale :ja) "料金・決済" "Billing")]
+         [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-models")} (:nav-models t)]
+         [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (:nav-researchers t)]
+         [:a {:class "kc-nav__secondary" :href "/billing/"} (:nav-billing t)]
          [:a {:class "kc-nav__secondary" :href "/account"} (:nav-account t)]
-         [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]])
+         [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]
+         [:a {:class "kc-nav__secondary" :href "/apps/"} (:menu-apps t)]])
       (language-links locale (:language-label t)
                       {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
       ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
        ;; ADR-2609071000); passkeys, wallets and recovery phrases remain.
-       (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
+       (app-menu locale t)
+      (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
                                      :href (passkey-href locale)})])]))
 
 (defn site-footer [t]
@@ -752,7 +779,10 @@
 (defn view [locale]
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :href "#main"} (:skip t)]
-     (site-header locale t)
+     ;; The app chat surface keeps the compact chrome: wordmark + app menu +
+     ;; session button only — the cross-page nav lives in the app menu
+     ;; (OpenRouter-style) instead of crowding the chat workspace.
+     (site-header locale t {:nav false})
      (chat-site/view locale (passkey-href locale))
      (knowledge-site/view locale)
      [:div {:id "security-view" :hidden true} (security-site/view true)]
