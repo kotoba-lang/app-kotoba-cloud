@@ -1,8 +1,17 @@
 (ns app-kotoba-cloud.locale
   "Origin locale negotiation shared with kotobase.net.
 
-  Order: path > kb_locale cookie > Accept-Language > request.cf.country > en.
-  Country never selects jv or su; those stay path, cookie, or Accept-Language."
+  Order: path > ?lang= query > kb_locale cookie > Accept-Language >
+  request.cf.country > en. Country never selects jv or su; those stay path,
+  query, cookie, or Accept-Language.
+
+  The public URL of a document is locale-free (shinkansen.locale: one route,
+  the edge negotiates). The language switch is `?lang=<locale>` on the SAME
+  route — served directly (200, the variant) with the choice persisted as
+  kb_locale; the JS-off path needs no client script. An explicit locale
+  PREFIX (/ja/billing/) is compatibility only: 301 to the locale-free route
+  with the cookie set (owner direction 2026-09-15: the paths are no longer
+  needed)."
   (:require [app-kotoba-cloud.public-locales :as locales]
             [kotoba.lang.text :as str]))
 
@@ -110,10 +119,19 @@
                  (not (country-never loc)))
         loc))))
 
+(def query-param "lang")
+
+(defn query-locale
+  "The `?lang=` choice of the language switch. A value outside the public
+  catalog is ignored (fail-closed) — never trusted, never persisted."
+  [value]
+  (when (string? value) (parse-locale value)))
+
 (defn negotiate
-  "path > cookie > Accept-Language > country > en."
-  [{:keys [path cookie accept-language country]}]
+  "path > ?lang= query > cookie > Accept-Language > country > en."
+  [{:keys [path query cookie accept-language country]}]
   (or (path-locale path)
+      (query-locale query)
       (parse-locale cookie)
       (accept-language-locale accept-language)
       (country-locale country)
@@ -147,16 +165,24 @@
             tail (if (str/blank? tail) "/" tail)]
         (when-not (shared-path? tail) tail)))))
 
+(def variant-roots
+  "Content roots that have per-locale emit variants (site.cljk -main writes
+  public/<locale>/<root>/…): the shared chrome pages. The apex is a variant
+  by itself. Measured live 2026-09-15: /blog/ and /apps/ were emitted under
+  /ja/ but absent here, so a Japanese reader got English at /blog/ while
+  /ja/blog/ 301'd to it — test/worker-smoke.mjs now derives this set from
+  the emit tree and fails when they drift."
+  ["billing" "legal" "security" "csf2" "docs" "blog" "apps"])
+
 (defn- forkable-path?
-  "Content paths that have per-locale emit variants: the landing apex and the
-  shared chrome pages (billing, legal, security, csf2, docs, 404). Shared
-  infrastructure namespaces are never forked."
+  "Content paths that have per-locale emit variants: the landing apex and
+  variant-roots. Shared infrastructure namespaces are never forked."
   [path]
   (and (not (shared-path? path))
        (or (apex-path? path)
            (some (fn [seg]
                    (str/starts-with? path (str "/" seg)))
-                 ["billing" "legal" "security" "csf2" "docs"]))))
+                 variant-roots))))
 
 (defn serve-path
   "The emit-directory asset path to serve for a locale-free URL. /billing/ with
@@ -177,15 +203,22 @@
   serving (shinkansen.locale contract): one locale-free URL per document. A
   weaker signal than the path never redirects — the Worker rewrites the asset
   path to the negotiated emit directory in place (variant fallback: root doc).
+  `?lang=<locale>` (the language switch) is served directly as that variant
+  with the choice persisted as kb_locale — one request, no redirect hop.
   An explicit locale prefix is canonicalized away with a 301 (its variant is
   reachable at the locale-free path); the choice is persisted as kb_locale."
-  [{:keys [path] :as opts}]
+  [{:keys [path query] :as opts}]
   (let [from-path (path-locale path)
+        from-query (query-locale query)
         locale (negotiate opts)]
     (cond
       from-path {:locale from-path
                  :set-cookie? true
                  :canonical (canonical-path path)}
+      from-query {:locale from-query
+                  :source :query
+                  :set-cookie? true
+                  :serve (serve-path path from-query)}
       :else {:locale locale
              :set-cookie? (and (apex-path? path) (not= locale :en))
              :serve (serve-path path locale)})))
@@ -195,16 +228,20 @@
        "; Path=/; Max-Age=31536000; SameSite=Lax; Secure"))
 
 (def language-cookie-script
-  "Persists an explicit language-selector choice as kb_locale."
+  "Persists an explicit language-selector choice as kb_locale (the
+  shinkansen.locale contract: the switch writes the cookie client-side; the
+  Worker writes the same cookie on the `?lang=` response for the JS-off
+  path). The choice is the href's `lang` query — a locale-prefixed href is
+  read for compatibility only."
   (str
    "(()=>{'use strict';"
    "document.addEventListener('click',event=>{"
    "const item=event.target.closest('[data-language-selector-item]');"
    "if(!item)return;"
    "const href=item.getAttribute('href')||'';"
-   "const path=href.replace(/^https?:\\/\\/[^/]+/,'');"
-   "const seg=(path.split('/').filter(Boolean)[0]||'en');"
-   "const locale=seg==='zh'?'zh-Hans':seg;"
+   "const url=new URL(href,location.href);"
+   "const seg=(url.pathname.split('/').filter(Boolean)[0]||'en');"
+   "const locale=url.searchParams.get('" query-param "')||(seg==='zh'?'zh-Hans':seg);"
    "document.cookie='" cookie-name "='+encodeURIComponent(locale)"
    "+'; Path=/; Max-Age=31536000; SameSite=Lax; Secure';"
    "});"

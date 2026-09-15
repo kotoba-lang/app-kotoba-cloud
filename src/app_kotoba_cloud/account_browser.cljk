@@ -357,7 +357,10 @@
       (let [wanted (.get (.-searchParams (js/URL. (.-href js/location))) "sso")]
         (when (and wanted (some #(= wanted (:handle %)) orgs)) (set! (.-value sel) wanted))))
     (if (empty? orgs)
-      (do (state! "account-org-sso-state" :empty)
+      ;; a known fact ("no organization yet") is a :value, not :empty —
+      ;; :empty is "nothing said yet" and the browser arm refuses a cell
+      ;; left there after hydration (test/account-browser.cljk)
+      (do (state! "account-org-sso-state" :value)
           (say! "account-org-sso-state" (t "組織を作成すると設定できます。" "Create an organization first."))
           (hide! "account-org-sso-admin") (hide! "account-org-sso-member"))
       (load-sso-status!))))
