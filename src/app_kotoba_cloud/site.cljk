@@ -922,6 +922,16 @@
               "/docs/integrations/"
               (fn [_ja?] (docs-site/overview-view locale)))))
 
+(defn docs-ref-html [id]
+  (fn [locale]
+    (let [entry (first (filter #(= (:id %) id) docs-site/ref-pages))
+          title (if (and entry (fn? (:title entry))) ((:title entry) (= locale :ja))
+                  (str (:name entry " ") "— Kotoba Cloud"))]
+      (docs-page locale
+                 (fn [_] title)
+                 (str "/docs/reference/" id "/")
+                 (fn [_] (docs-site/ref-view id locale))))))
+
 (defn docs-integration-html [id]
   (fn [locale]
     (docs-page locale
@@ -1241,6 +1251,25 @@
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
       ;; docs: integrations overview + one page per client (orcarouter pattern)
+      (spit-file (node-path/join root "docs" "reference" "index.html")
+                 (docs-page :en (fn [_] "API reference — Kotoba Cloud") "/docs/reference/"
+                            (fn [ja?]
+                              (into [:ul {:class "kc-docs__list"}]
+                                    (for [r docs-site/ref-pages]
+                                      [:li [:strong (:name r)]
+                                       [:p (if ja? (:desc-ja r) (:desc-en r))]
+                                       [:a {:href (str "/docs/reference/" (:id r) "/")} "Open"]])))))
+      (spit-file (node-path/join root "ja" "docs" "reference" "index.html")
+                 (docs-page :ja (fn [_] "API リファレンス — Kotoba Cloud") "/ja/docs/reference/"
+                            (fn [ja?]
+                              (into [:ul {:class "kc-docs__list"}]
+                                    (for [r docs-site/ref-pages]
+                                      [:li [:strong (:name r)]
+                                       [:p (if ja? (:desc-ja r) (:desc-en r))]
+                                       [:a {:href (str "/docs/reference/" (:id r) "/")} "開く"]])))))
+      (doseq [r docs-site/ref-pages]
+        (spit-file (node-path/join root "docs" "reference" (:id r) "index.html") ((docs-ref-html (:id r)) :en))
+        (spit-file (node-path/join root "ja" "docs" "reference" (:id r) "index.html") ((docs-ref-html (:id r)) :ja)))
       (spit-file (node-path/join root "docs" "integrations" "index.html") (docs-integrations-html :en))
       (spit-file (node-path/join root "ja" "docs" "integrations" "index.html") (docs-integrations-html :ja))
       (doseq [c docs-site/clients]

@@ -837,7 +837,7 @@
                                       :body "{}"}))
             (.then (fn [r]
                      (if-not (.-ok r)
-                       (json-response {:error "registry-authority-error" :status (.-status r)})
+                       (json-response org-registry/registry)
                        (.then (.json r)
                               (fn [doc] (json-response (js->clj doc :keywordize-keys true)))))))
             (.catch (fn [_] (json-response org-registry/registry))))
@@ -869,9 +869,11 @@
                                   (let [doc (js->clj d :keywordize-keys true)
                                         entry (some (fn [o] (when (= handle (:handle o)) o))
                                                     (:organizations doc))]
-                                    (js/Response. (str (:log entry) "\n")
-                                                  #js {:status 200
-                                                       :headers #js {"content-type" "application/jsonl; charset=utf-8"
+                                    (js/Response. (str (or (:log entry) (:log doc)) "\n")
+                                                  #js {:status (if (or (:log entry) (:log doc)) 200 404)
+                                                       :headers #js {"content-type" (if (or (:log entry) (:log doc))
+                                                                                      "application/jsonl; charset=utf-8"
+                                                                                      "application/json")
                                                                      "cache-control" "public, max-age=3600"}}))))))))
           (json-response {:error {:code "not-found"}} 404)))
 
