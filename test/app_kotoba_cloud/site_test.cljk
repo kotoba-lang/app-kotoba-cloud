@@ -60,7 +60,7 @@
             href-of (fn [url] (str "href=\"" url "\""))]
         (is (= sign-in (str "https://auth.kotoba.cloud/sign-in?return_to="
                             (if (= locale :ja)
-                              "https%3A%2F%2Fkotoba.cloud%2Fja%2F"
+                              "https%3A%2F%2Fkotoba.cloud%2F%3Flang%3Dja"
                               "https%3A%2F%2Fkotoba.cloud%2F"))))
         (is (str/includes? html (href-of profile/identity-href)))
         (is (= 1 (count (re-seq #"href=\"https://auth\.kotoba\.cloud/\"" html))))
