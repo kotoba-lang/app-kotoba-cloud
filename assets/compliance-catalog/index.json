@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T19:38:10.570Z",
+ "generatedAt": "2026-09-15T19:45:24.741Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
@@ -3395,8 +3395,15 @@
    "pricingMode": "quote-based",
    "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m769-web-pricelist.html",
    "pricingNote": "quote-based; ja_jp 製品ページの「価格を見る」は価格表/見積フォームへの誘導 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access.html も 200。",
+   "complianceFits": [
+    "iso-27001",
+    "soc2",
+    "pci-dss-40",
+    "fedramp"
+   ],
+   "complianceNote": "Trend Micro Trust Center コンプライアンス頁 https://www.trendmicro.com/ja_jp/about/trust-center/compliance.html (HTTP 200 確認 2026-09-16): ISO/IEC 27001:2022・SOC 2 Type II は社全体, PCI DSS 認定サービスプロバイダは TrendAI Vision One, FedRAMP は TrendAI Vision One for Government (marketplace.fedramp.gov/products/FR2226231529)。ZTSA は Vision One プラットフォームのサービスのためスコープは間接的。",
    "record": {
-    "/": "baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a"
+    "/": "baguqeeray4lcpdm5ifelooksksfcsac5p63p6ufmxy72aawhewfvqhfdhbfa"
    }
   },
   {
@@ -3408,8 +3415,15 @@
    "pricingMode": "quote-based",
    "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m646-web-vision-one-price-infomation.html",
    "pricingNote": "quote-based; ja_jp 製品ページの価格案内は Vision One 価格情報フォーム経由 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access/ai.html も 200。",
+   "complianceFits": [
+    "iso-27001",
+    "soc2",
+    "pci-dss-40",
+    "fedramp"
+   ],
+   "complianceNote": "Trend Micro Trust Center コンプライアンス頁 https://www.trendmicro.com/ja_jp/about/trust-center/compliance.html (HTTP 200 確認 2026-09-16): ISO/IEC 27001:2022・SOC 2 Type II は社全体, PCI DSS 認定サービスプロバイダは TrendAI Vision One, FedRAMP は TrendAI Vision One for Government (marketplace.fedramp.gov/products/FR2226231529)。AI Secure Access は Vision One プラットフォームのサービスのためスコープは間接的。",
    "record": {
-    "/": "baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a"
+    "/": "baguqeeravk2ww3jsaabqzll4qpxwhe3akouksyxt3xy6tvskxdqlpozbfx6a"
    }
   },
   {
@@ -8092,14 +8106,14 @@
    "bytes": 386,
    "codec": "dag-json"
   },
-  "baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a": {
-   "path": "/compliance-data/compliance/blocks/baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a.json",
-   "bytes": 557,
+  "baguqeeray4lcpdm5ifelooksksfcsac5p63p6ufmxy72aawhewfvqhfdhbfa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeray4lcpdm5ifelooksksfcsac5p63p6ufmxy72aawhewfvqhfdhbfa.json",
+   "bytes": 1094,
    "codec": "dag-json"
   },
-  "baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a": {
-   "path": "/compliance-data/compliance/blocks/baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a.json",
-   "bytes": 548,
+  "baguqeeravk2ww3jsaabqzll4qpxwhe3akouksyxt3xy6tvskxdqlpozbfx6a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeravk2ww3jsaabqzll4qpxwhe3akouksyxt3xy6tvskxdqlpozbfx6a.json",
+   "bytes": 1097,
    "codec": "dag-json"
   },
   "baguqeerak5hpyhilpuelggxhoknbeialv2emg47l54mzx5enz57xwlb4rsla": {
@@ -9397,13 +9411,13 @@
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera4b5h5uflc2qoorh3bh5wghggt3tf7b5egwv4ux5mj34mowostqea": {
-   "path": "/compliance-data/compliance/blocks/baguqeera4b5h5uflc2qoorh3bh5wghggt3tf7b5egwv4ux5mj34mowostqea.json",
-   "bytes": 266815,
+  "baguqeerahqa2sbmowgu63j6eouaekmts2nbqojdow53tcn7nqn4maim7pyca": {
+   "path": "/compliance-data/compliance/blocks/baguqeerahqa2sbmowgu63j6eouaekmts2nbqojdow53tcn7nqn4maim7pyca.json",
+   "bytes": 267903,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera4b5h5uflc2qoorh3bh5wghggt3tf7b5egwv4ux5mj34mowostqea"
+  "/": "baguqeerahqa2sbmowgu63j6eouaekmts2nbqojdow53tcn7nqn4maim7pyca"
  }
 }
