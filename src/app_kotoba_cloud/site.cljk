@@ -948,6 +948,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :else x))]
       (walk node))))
 
+(defn- console-body
+  "A console body authored in ja / en, placed in a document of `locale`: the
+   body itself for :ja and :en, wrapped in lang=en for every other public
+   locale so assistive tech reads it in the right language (the shell
+   around it is in the document's locale)."
+  [locale body]
+  (if (contains? #{:ja :en} locale) body [:div {:lang "en"} body]))
+
+(defn- body-locale [locale] (if (= locale :ja) :ja :en))
+
 (defn view [locale]
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :href "#main"} (:skip t)]
@@ -961,7 +971,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ;; the landing is the chat, which is not a nav destination: no item is current
      (app-sidebar locale t nil)
      (knowledge-site/view locale)
-     [:div {:id "security-view" :hidden true} (security-site/view true)]
+     [:div {:id "security-view" :hidden true}
+      (console-body locale (security-site/view (body-locale locale) true))]
      [:span {:id "kc-session-labels" :hidden true
              :data-signed-in-action (:signed-in-action t)
              :data-signed-in-status (:signed-in-status t)
@@ -1128,10 +1139,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
     (str/replace (str "<html lang=\"" lang "\">")
                  (str "<html lang=\"" lang "\" dir=\"rtl\">")))))
 
-(defn security-html []
-     (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
+(defn security-html
+  "The security public-data hub, one document per public locale (the hub's
+   copy is ja / en; assets/security-data.js answers in <html lang>)."
+  ([] (security-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "セキュリティ公開データ — Kotoba Cloud" "Security public data — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
                    :extra-css (str tokens/bridge-css dds-catalog/css security-site/css)}
-      (security-site/view)))
+      (console-body locale (security-site/view (body-locale locale) false))))))
 
 (defn csf2-html []
      (site-layout {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
@@ -1183,19 +1200,28 @@ body:has(.kc-sb){padding-inline-start:15rem}
                    :extra-css research-site/css}
       (admin-site/section :ja)))
 
-(defn identity-html []
-     ;; Identity route is Stripe-Identity-only. The first-party browser capture
-     ;; console (identity-site / identity-browser / identity-gateway) stays in
-     ;; the repo as a tested component but is not rendered or linked today.
-     (site-layout {:title "本人確認 — Kotoba Cloud" :lang "ja"
+(defn identity-html
+  "Identity route is Stripe-Identity-only. The first-party browser capture
+   console (identity-site / identity-browser / identity-gateway) stays in
+   the repo as a tested component but is not rendered or linked today.
+   One document per public locale (copy ja / en)."
+  ([] (identity-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)
+         txt (fn [ja en] (if ja? ja en))]
+     (site-layout {:title (txt "本人確認 — Kotoba Cloud" "Identity verification — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
                    :robots "noindex"
                    :extra-css research-site/css}
-      (dds/container
-       (dds/heading 1 "本人確認は Stripe Identity 経路のみ" {:size "36"})
-       [:p "kotoba.cloud の本人確認は Stripe Identity（verify.stripe.com）のみを提供しています。書類と顔写真は Stripe にのみ送られ、kotoba.cloud は本人確認の状態・有効期限・証跡参照のみを保持します。"]
-       [:p "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"]
-       (dds/row (dds/button "研究者登録（Stripe Identity）" {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
-                (dds/button "登録ガイド" {:href "https://kotoba.cloud/llms.txt" :type :outline})))))
+      (console-body locale
+       (dds/container
+        (dds/heading 1 (txt "本人確認は Stripe Identity 経路のみ" "Identity verification runs through Stripe Identity only") {:size "36"})
+        [:p (txt "kotoba.cloud の本人確認は Stripe Identity（verify.stripe.com）のみを提供しています。書類と顔写真は Stripe にのみ送られ、kotoba.cloud は本人確認の状態・有効期限・証跡参照のみを保持します。"
+                 "kotoba.cloud verifies identity through Stripe Identity (verify.stripe.com) only. Documents and the face image go to Stripe alone; kotoba.cloud keeps the verification status, its expiry and evidence references.")]
+        [:p (txt "自社ブラウザ撮影・担当者審査による本人確認コンソールはコンポーネントとして整備・保管されていますが、現在は公開・受付していません。"
+                 "A first-party console (browser capture, operator review) is maintained as a tested component but is not published or accepting requests today.")]
+        (dds/row (dds/button (txt "研究者登録（Stripe Identity）" "Researcher registration (Stripe Identity)") {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
+                 (dds/button (txt "登録ガイド" "Registration guide") {:href "https://kotoba.cloud/llms.txt" :type :outline}))))))))
 
 (defn account-html
   "Account console: session, identity verification, research eligibility,
@@ -1233,22 +1259,34 @@ body:has(.kc-sb){padding-inline-start:15rem}
                   :extra-css (str dds-console/css billing-site/css)}
      (billing-site/section (if ja? :ja :en) (passkey-href (if ja? :ja :en))))))
 
-(defn secure-html []
-  ;; SECURE: guardrails / firewall / compliance — one document, three views,
-  ;; rendered from the policy the authority enforces (secure-site).
-  (site-layout {:title "セキュリティ管理 — Kotoba Cloud" :lang "ja"
-                :description "研究環境の実行時制御 — ガードレール、ファイアウォール、コンプライアンスの規則と版。"
-                :sidebar? true :current "/secure/"
-                :extra-css (str dds-console/css secure-site/css)}
-   (secure-site/section)))
+(defn secure-html
+  "SECURE: guardrails / firewall / compliance — one document, three views,
+   rendered from the policy the authority enforces (secure-site). One
+   document per public locale, negotiated like /account."
+  ([] (secure-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "セキュリティ管理 — Kotoba Cloud" "Security controls — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
+                   :description (if ja? "研究環境の実行時制御 — ガードレール、ファイアウォール、コンプライアンスの規則と版。"
+                                    "Runtime controls of the research environment — guardrail, firewall and compliance rules and their versions.")
+                   :sidebar? true :current "/secure/"
+                   :extra-css (str dds-console/css secure-site/css)}
+      (console-body locale (secure-site/section (body-locale locale)))))))
 
-(defn models-html []
-  ;; MANAGE › モデル: the admitted research models, limits and conditions.
-  (site-layout {:title "モデル — Kotoba Cloud" :lang "ja"
-                :description "研究 API で選べるモデル、無料枠、許可の条件。"
-                :sidebar? true :current "/models/"
-                :extra-css (str dds-console/css models-site/css)}
-   (models-site/section)))
+(defn models-html
+  "MANAGE › Models: the admitted research models, limits and conditions.
+   One document per public locale, negotiated like /account."
+  ([] (models-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "モデル — Kotoba Cloud" "Models — Kotoba Cloud")
+                   :lang (:html-lang t) :locale locale
+                   :description (if ja? "研究 API で選べるモデル、無料枠、許可の条件。"
+                                    "The research API's models, the free allowance and the conditions of admission.")
+                   :sidebar? true :current "/models/"
+                   :extra-css (str dds-console/css models-site/css)}
+      (console-body locale (models-site/section (body-locale locale)))))))
 
 (defn docs-page
   "Shared chrome for a docs page — the shared site-layout WITH the app
@@ -1306,14 +1344,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
                  (docs-site/client-view id (if ja? :ja :en))))))
 
 (defn security-services-html
+  "One document per public locale (the view's copy is ja / en)."
   ([] (security-services-html :ja))
   ([locale]
-   (site-layout {:title "セキュリティサービス — Kotoba Cloud"
-                 :description "First-party security services: CTEM, DAST, SAST feed the VM vulnerability ledger (wvme)."
-                 :lang "ja"
-                 :sidebar? true :current "/security/services/"
-                  :extra-css security-services-site/css}
-    (security-services-site/view locale))))
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "セキュリティサービス — Kotoba Cloud" "Security services — Kotoba Cloud")
+                   :description "First-party security services: CTEM, DAST, SAST feed the VM vulnerability ledger (wvme)."
+                   :lang (:html-lang t) :locale locale
+                   :sidebar? true :current "/security/services/"
+                   :extra-css security-services-site/css}
+      (console-body locale (security-services-site/view (body-locale locale)))))))
 
 (defn apps-html
   ([] (apps-html :en))
@@ -1511,6 +1551,19 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (fs/mkdirSync (node-path/dirname path) #js {:recursive true})
   (fs/writeFileSync path content))
 
+(defn- spit-locale-variants!
+  "One console document per public locale at `rel` (e.g. \"secure\"):
+   the locale-free emit is English, /en/ its prefixed address, every other
+   locale under its directory — the shape locale/variant-roots negotiates
+   (cookie, ?lang=, Accept-Language). Measured 2026-09-15 in Chrome:
+   /secure/ /models/ /security/ /security/services/ /identity/ answered in
+   Japanese to an English reader because each was one ja emit."
+  [root rel html-fn]
+  (spit-file (node-path/join root rel "index.html") (html-fn :en))
+  (spit-file (node-path/join root "en" rel "index.html") (html-fn :en))
+  (doseq [locale supported-locales :when (not= locale :en)]
+    (spit-file (node-path/join root (name locale) rel "index.html") (html-fn locale))))
+
 
 (defn- copy-file [src target]
   (fs/mkdirSync (node-path/dirname target) #js {:recursive true})
@@ -1605,8 +1658,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (let [headers (node-path/join "assets" "_headers")]
         (when (fs/existsSync headers)
           (copy-file headers (node-path/join root "_headers"))))
-            (let [out (node-path/join root "identity" "index.html")]
-        (spit-file out (identity-html)))
+      (spit-locale-variants! root "identity" identity-html)
       ;; the account console: one variant per public locale (en at the
       ;; locale-free root, the rest under their locale directory)
       (spit-file (node-path/join root "account" "index.html") (account-html :en))
@@ -1625,8 +1677,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
                   target (node-path/join root rel)]
               (copy-file source target)))))
       (copy-file (node-path/join "assets" "security-data.js") (node-path/join js-dir "security-data.js"))
-      (doseq [path ["security/index.html" "ja/security/index.html" "security-data/index.html"]]
-        (spit-file (node-path/join root path) (security-html)))
+      (spit-locale-variants! root "security" security-html)
+      (spit-locale-variants! root "security-data" security-html)
       (doseq [path ["csf2/index.html" "security/csf2/index.html" "ja/security/csf2/index.html"]]
         (spit-file (node-path/join root path) (csf2-html)))
       (doseq [source (fs-walk-files (node-path/join "assets" "csf2-catalog"))]
@@ -1644,8 +1696,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (copy-file (node-path/join "assets" "norbert-chat.js") (node-path/join js-dir "norbert-chat.js"))
       (spit-file (node-path/join root "apps" "index.html") (apps-html :en))
       (spit-file (node-path/join root "ja" "apps" "index.html") (apps-html :ja))
-      (spit-file (node-path/join root "security" "services" "index.html") (security-services-html :ja))
-      (spit-file (node-path/join root "ja" "security" "services" "index.html") (security-services-html :ja))
+      (spit-locale-variants! root (node-path/join "security" "services") security-services-html)
       (spit-file (node-path/join root "security" "aup" "index.html") (aup-html :en))
       (spit-file (node-path/join root "ja" "security" "aup" "index.html") (aup-html :ja))
       (spit-file (node-path/join root "crypto" "index.html") (crypto-html))
@@ -1677,8 +1728,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
       ;; docs: integrations overview + one page per client
       ;; console documents rendered from policy data (2026-09-15 round 3)
-      (spit-file (node-path/join root "secure" "index.html") (secure-html))
-      (spit-file (node-path/join root "models" "index.html") (models-html))
+      (spit-locale-variants! root "secure" secure-html)
+      (spit-locale-variants! root "models" models-html)
       ;; /docs/ landing — the document the sidebar links (2026-09-15)
       (spit-file (node-path/join root "docs" "index.html") (docs-index-html :en))
       (spit-file (node-path/join root "ja" "docs" "index.html") (docs-index-html :ja))

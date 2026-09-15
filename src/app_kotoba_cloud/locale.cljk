@@ -141,12 +141,12 @@
   "URL namespaces that are locale-independent infrastructure (never rewritten
   and never canonicalized): admin, JS, MCP descriptors, the asset planes, and
   the API/versioned prefixes. The account console is NOT one of them any
-  more: it is emitted per locale (site.cljk account-html) and negotiated like
+  more (nor is /identity, 2026-09-15, for the same reason): it is emitted per locale (site.cljk account-html) and negotiated like
   /billing/ — measured 2026-09-15: /account?lang=en answered the Japanese
   document because \"account\" was listed here and the Worker fetched the
   one emit directly."
   #{"admin" "js" "css" "assets" "ipfs" "ipns" "v1" ".well-known"
-    ".well-known-templated" "identity" "mcp.json" "favicon.ico" "robots.txt"
+    ".well-known-templated" "mcp.json" "favicon.ico" "robots.txt"
     "sitemap.xml" "og.png" "llms.txt" "llms-full.txt" "agent-quickstart.md"
     "ekyc.md" "public-locale-coverage.json"})
 
@@ -176,7 +176,10 @@
   /ja/ but absent here, so a Japanese reader got English at /blog/ while
   /ja/blog/ 301'd to it — test/worker-smoke.mjs now derives this set from
   the emit tree and fails when they drift."
-  ["billing" "legal" "security" "csf2" "docs" "blog" "apps" "account"])
+  ["billing" "legal" "security" "csf2" "docs" "blog" "apps" "account"
+   ;; 2026-09-15 (owner, driven in Chrome): the remaining console documents
+   ;; that answered in Japanese to an English reader
+   "secure" "models" "identity" "security-data"])
 
 (defn- forkable-path?
   "Content paths that have per-locale emit variants: the landing apex and
