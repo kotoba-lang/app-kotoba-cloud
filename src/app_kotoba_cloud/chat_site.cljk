@@ -31,7 +31,7 @@
               (t "私たちの想い" "Our purpose")])
            (chat/message-list {:id "norbert-messages" :aria-label (t "メッセージ" "Messages")}))
          (chat/composer {:id "norbert-form"}
-           (chat/prompt {:id "norbert-prompt" :maxlength 24000 :required true :aria-label (t "メッセージ" "Message") :placeholder (t "コードや調べたいことを入力" "Enter code or a research question")})
+           (chat/prompt {:id "norbert-prompt" :maxlength 128000 :required true :aria-label (t "メッセージ" "Message") :placeholder (t "コードや調べたいことを入力" "Enter code or a research question")})
            (chat/composer-actions {}
              [:span {:id "norbert-usage"}]
              [:button {:type "submit" :id "norbert-send" :class "dads-button" :data-type "solid-fill"} (t "送信 ↑" "Send ↑")])

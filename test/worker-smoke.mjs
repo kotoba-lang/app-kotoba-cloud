@@ -694,7 +694,7 @@ assert.equal(eligibleStatusBody.trust.score, 60);
 assert.deepEqual(eligibleStatusBody.trust.routes, ['web-reviewed']);
 assert.equal(eligibleStatusBody.trust.evidenceRef, undefined);
 assert.match(eligibleStatus.headers.get("cache-control"), /no-store/);
-for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 9999 }]) {
+for (const extra of [{ principalId: "another" }, { model: "other" }, { tools: [] }, { stream: true }, { max_tokens: 40000 }]) {
   assert.equal((await route(researchRequest("/v1/chat/completions", { ...researchBody, ...extra }), researchEnv)).status, 400);
 }
 const beforeDenials = researchCalls.filter(c => c.path === "/complete").length;
@@ -766,8 +766,10 @@ assert.equal((await route(researchRequest("/v1/research/applications", applicati
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verified: true }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse" }), researchEnv)).status, 400);
 assert.equal((await route(researchRequest("/v1/research/applications", { ...application, verificationMode: "reuse", issuer: "trusted", reference: "existing-record" }), researchEnv)).status, 202);
+// The completion body cap is 1 MiB (128k input characters, JSON-escaped and
+// UTF-8 encoded); a streamed body past it is cut off at 413, never buffered.
 const overLimitStream = new ReadableStream({ start(controller) {
-  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(100000) + '"')); controller.close();
+  controller.enqueue(new TextEncoder().encode('"' + 'a'.repeat(1048600) + '"')); controller.close();
 } });
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", duplex: "half", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" },
@@ -972,12 +974,61 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
   assert.equal(lastCreate.body.request.scopeId, "owned");
   assert.equal(lastCreate.body.request.messages[0].role, "system");
   assert.equal(lastCreate.body.request.temperature, undefined);
-  // tools/stream/n rejections and unknown keys stay closed on the bearer path.
-  for (const bad of [{ tools: [{ type: "function" }] }, { stream: true }, { n: 2 }, { unknown_key: 1 }]) {
+  // n and unknown keys stay closed on the bearer path; the ceilings are
+  // 128,000 input characters and 32,768 output tokens (owner 2026-09-15),
+  // and the boundary itself passes.
+  for (const bad of [{ n: 2 }, { unknown_key: 1 }, { max_tokens: 32769 }, { max_completion_tokens: 32769 },
+    { messages: [{ role: "user", content: "x".repeat(128001) }] }]) {
     assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
       method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
       body: JSON.stringify({ ...openaiBody, ...bad })
-    }), bearerPatEnv)).status, 400);
+    }), bearerPatEnv)).status, 400, JSON.stringify(Object.keys(bad)));
+  }
+  // An agent client's body: tools list, stream: true, max_completion_tokens,
+  // stream_options, a 100k-character system prompt. Tools are dropped, the
+  // alias becomes max_tokens, and the answer is a one-chunk SSE emulation.
+  {
+    const savedForAgent = structuredClone(researchRecord);
+    researchRecord.continuous.sessionRef = agentSessionRef;
+    researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+    const agentBody = { model: researchModel, stream: true, stream_options: { include_usage: true },
+      max_completion_tokens: 32768, tools: [{ type: "function", function: { name: "read_file", parameters: {} } }],
+      tool_choice: "auto", parallel_tool_calls: true, user: "hermes",
+      messages: [{ role: "system", content: "s".repeat(100000) }, { role: "user", content: "Say OK." }] };
+    const sse = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+      method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+      body: JSON.stringify(agentBody)
+    }), bearerPatEnv);
+    researchRecord = savedForAgent;
+    const sseText = await sse.text();
+    assert.equal(sse.status, 200, sseText);
+    assert.match(sse.headers.get("content-type"), /^text\/event-stream/);
+    const frames = sseText.split("\n\n").filter(Boolean);
+    assert.equal(frames.length, 3, sseText);
+    const chunk1 = JSON.parse(frames[0].replace(/^data: /, ""));
+    const chunk2 = JSON.parse(frames[1].replace(/^data: /, ""));
+    assert.equal(chunk1.object, "chat.completion.chunk");
+    assert.equal(chunk1.choices[0].delta.content, "Check ownership before returning the record.");
+    assert.equal(chunk1.choices[0].finish_reason, null);
+    assert.equal(chunk2.choices[0].finish_reason, "stop");
+    assert.equal(frames[2], "data: [DONE]");
+    const agentCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+    assert.equal(agentCreate.body.request.max_tokens, 32768);
+    assert.equal(agentCreate.body.request.tools, undefined);
+    assert.equal(agentCreate.body.request.stream, undefined);
+    assert.equal(agentCreate.body.request.messages[0].content.length, 100000);
+    // stream: false stays a JSON body
+    const savedForJson = structuredClone(researchRecord);
+    researchRecord.continuous.sessionRef = agentSessionRef;
+    researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+    const plain = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+      method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ ...agentBody, stream: false, messages: [{ role: "user", content: "Say OK again." }] })
+    }), bearerPatEnv);
+    researchRecord = savedForJson;
+    assert.equal(plain.status, 200);
+    assert.match(plain.headers.get("content-type"), /^application\/json/);
+    assert.equal((await plain.json()).object, "chat.completion");
   }
   // Cookie path stays strict: OpenAI-only body without task/scopeId → 400.
   assert.equal((await route(researchRequest("/v1/chat/completions", { model: researchModel,
