@@ -2,10 +2,14 @@
   "Compliance & vulnerability-product catalog (worldwide): frameworks,
    product categories, providers and pricing. Shell from the
    cloud-kotoba-dds catalog pattern; this file keeps the callout and copy."
-  (:require [cloud-kotoba-dds.catalog :as catalog]))
+  (:require [cloud-kotoba-dds.catalog :as catalog]
+            [app-kotoba-cloud.security-fit :as security-fit]
+            [jp-go-dds.core :as dds]
+            [clojure.string :as clojure.string]))
 
 (def css
-  (str ".kc-comp-row{list-style:none;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);margin-bottom:var(--hig-spacing-2)}
+  (str ".kcp-fit{margin-top:var(--hig-spacing-6);display:grid;gap:var(--hig-spacing-3)}\n.kcp-fit__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--hig-spacing-2);font-size:var(--hig-text-body-font-size,1rem)}\n.kcp-fit__list li{padding:var(--hig-spacing-2) 0;border-block-start:1px solid var(--hig-color-separator)}\n.kcp-fit__controls{font-family:var(--hig-font-mono,var(--hig-font-mono));font-size:var(--hig-text-caption2-font-size);color:var(--hig-color-secondary-label)}\n"
+       ".kc-comp-row{list-style:none;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);margin-bottom:var(--hig-spacing-2)}
 .kc-comp-row__btn{all:unset;display:block;inline-size:100%;padding:var(--hig-spacing-3) var(--hig-spacing-4);cursor:pointer}
 .kc-comp-row__btn:hover{background:var(--hig-color-secondary-system-background)}
 .kc-comp-row__name{display:block;font-weight:600}
@@ -41,4 +45,19 @@
      {:summary "このカタログについて"
       :links [[:a {:href "/compliance-data/compliance/index.json"} "IPLD インデックス"]]
       :footnote "データはコード生成による content-addressed block（IPLD形式）として公開されています。商標・製品名は各所有者に帰属します。価格・適合情報は各ベンダーの公開ページに基づく収集データで、各レコードに出典URLを付けています。価格は変更されることがあるため、購入判断の前に必ず公式ページで最新情報を確認してください。掲載は網羅を主張するものではなく、代表的なカテゴリの代表的なプロバイダのスナップショットです。"})
+    [:section {:id "compliance-fit" :class "kcp-fit"}
+     (dds/heading 2 "第一次セキュリティサービスのコンプライアンス適合（Fit Finder）" {:size "24"})
+     [:p "kotoba.cloud の第一次セキュリティサービス（CTEM・DAST・SAST・VM）が、コミット済みカタログのカテゴリを経由してどの基準コントロールに対応するかの決定論的マッピングです（サービス → カテゴリ → コントロールの推移的展開、AI 不使用）。コントロールレベルの展開は NIST CSF 2.0 に対してコミット済みです。API からは "
+      [:code "GET /v1/security/compliance-fit?framework=nist-csf-20"]
+      " でも同じデータが取得できます。"]
+     [:ul {:class "kcp-fit__list"}
+      (map (fn [{:keys [service categories controls]}]
+             [:li [:strong (clojure.string/upper-case service)] " → "
+              (clojure.string/join "・" categories)
+              (when (seq controls)
+                (list " → " [:span {:class "kcp-fit__controls"}
+                             (str (count controls) " コントロール（" (clojure.string/join " " controls) "）")]))])
+           (:services (security-fit/fit "nist-csf-20")))]
+     [:p {:class "kc-comp-footnote"}
+      "このセクションと API は同じ正本定義（app-kotoba-cloud.security-fit）から描画されます。対応は「カテゴリがコントロールに対処する」ことの表明であり、個別の認証・監査の適合証明ではありません。"]]
     [:script {:src "/js/compliance-catalog.js" :defer true}])))

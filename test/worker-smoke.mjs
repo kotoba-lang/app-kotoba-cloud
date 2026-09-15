@@ -1355,3 +1355,85 @@ console.log('Scoped database session exchange and header isolation passed');
   const denied=await route(new Request('https://kotoba.cloud/v1/security/services',{method:'POST'}),env);
   assert.equal(denied.status,405);
 }
+
+{
+  // VM ledger API: deterministic, stateless aggregation on the edge.
+  const good=[{findingId:'xss-reflected',service:'dast',asset:'https://api.example.com/login',
+    severity:'high',evidence:{kind:'request-response',cve:'CVE-2026-1234',cpe:'cpe:2.3:a:acme:gw'},
+    firstSeen:'2026-08-01',lastSeen:'2026-09-10'},
+    {findingId:'sqli-blind',service:'sast',asset:'https://api.example.com/login',
+    severity:'low',evidence:{kind:'taint-path'},firstSeen:'2026-09-02',lastSeen:'2026-09-02'}];
+  const payload=JSON.stringify(good.map(f=>({finding_id:f.findingId,service:f.service,asset:f.asset,
+    severity:f.severity,evidence:f.evidence,first_seen:f.firstSeen,last_seen:f.lastSeen})));
+  const post=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:payload}),env);
+  assert.equal(post.status,200);
+  const postBody=await post.json();
+  assert.equal(postBody.ok,true);
+  assert.equal(postBody.accepted,2);
+  assert.equal(postBody.ledger.schema,'kotoba.security/vm-ledger-v1');
+  assert.equal(postBody.ledger.counts.vulnerabilities,2);
+  assert.equal(postBody.ledger.counts.assets,1);
+  // deterministic scoring sample: high + dast + request-response = 72
+  const xss=postBody.ledger.assets[0].vulnerabilities.find(v=>v['finding-id']==='xss-reflected');
+  assert.equal(xss.score,72);
+  assert.equal(xss.status,'open');
+  assert.equal(xss['evidence-refs'].cve,'CVE-2026-1234');
+  assert.ok(xss['first-seen']&&xss['last-seen']);
+  // malformed finding -> 400 with error code
+  const bad=JSON.stringify([{finding_id:'x',service:'dast',asset:'a',severity:'catastrophic',
+    evidence:{},first_seen:'2026-09-01',last_seen:'2026-09-01'}]);
+  const badRes=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:bad}),env);
+  assert.equal(badRes.status,400);
+  assert.equal((await badRes.json()).error.code,'invalid-finding');
+  const badPayload=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:'{"nope":1}'}),env);
+  assert.equal(badPayload.status,400);
+  assert.equal((await badPayload.json()).error.code,'invalid-findings-payload');
+  // GET ledger endpoint: empty ledger is 200 with the same scoring metadata
+  const getLedger=await route(new Request('https://kotoba.cloud/v1/security/vulnerabilities'),env);
+  assert.equal(getLedger.status,200);
+  const getBody=await getLedger.json();
+  assert.equal(getBody.ledger.schema,'kotoba.security/vm-ledger-v1');
+  assert.equal(getBody.ledger.counts.vulnerabilities,0);
+  assert.ok(getBody.ledger.scoring.formula);
+  const qLedger=await route(new Request('https://kotoba.cloud/v1/security/vulnerabilities?findings='
+    +encodeURIComponent(payload)),env);
+  assert.equal(qLedger.status,200);
+  const qBody=await qLedger.json();
+  assert.equal(qBody.ledger.counts.vulnerabilities,2);
+  const qXss=qBody.ledger.assets[0].vulnerabilities.find(v=>v['finding-id']==='xss-reflected');
+  assert.equal(qXss.score,72);
+  // findings POST without JSON content-type -> 415
+  const noCt=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',body:'[]'}),env);
+  assert.equal(noCt.status,415);
+}
+
+{
+  // Compliance Fit Finder: deterministic service -> category -> control fit.
+  const fit=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit?framework=nist-csf-20'),env);
+  assert.equal(fit.status,200);
+  const fitBody=await fit.json();
+  assert.equal(fitBody.ok,true);
+  assert.equal(fitBody.framework.id,'nist-csf-20');
+  assert.equal(fitBody.framework.controlMapping,'committed');
+  assert.deepEqual(fitBody.services.map(s=>s.service).sort(),['ctem','dast','sast','vm']);
+  const vm=fitBody.services.find(s=>s.service==='vm');
+  assert.ok(vm.categories.includes('vm-scanner'));
+  assert.ok(vm.controls.length>0);
+  assert.ok(fitBody.allControls.length>0);
+  const fitPath=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/nist-csf-20'),env);
+  assert.equal(fitPath.status,200);
+  const fitPathBody=await fitPath.json();
+  assert.equal(fitPathBody.framework.id,'nist-csf-20');
+  // unknown framework -> 404 with error code + committed list
+  const unknown=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/iso-99999'),env);
+  assert.equal(unknown.status,404);
+  const unknownBody=await unknown.json();
+  assert.equal(unknownBody.error.code,'unknown-framework');
+  assert.ok(unknownBody.error.committed.includes('nist-csf-20'));
+  // missing framework param -> 400
+  const missing=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit'),env);
+  assert.equal(missing.status,400);
+}
