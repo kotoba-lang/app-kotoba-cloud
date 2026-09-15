@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T19:45:24.741Z",
+ "generatedAt": "2026-09-15T20:02:00.579Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 45,
- "productCount": 372,
+ "productCount": 373,
  "ontology": {
   "nodes": 45,
-  "claims": 4024,
+  "claims": 4036,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeraybcst3arns3njtponbqaaohjoc4ca5llynxre322nm6xu36j5vba"
+   "/": "baguqeerazs6xada7ukunjrr7p5r2nkyql6hd7dqrw5qkxxmxvy5khlvjdxpa"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -7323,6 +7323,19 @@
    }
   },
   {
+   "id": "trend-vision-one-xdr-networks",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Vision One XDR for Networks",
+   "categoryId": "edr-xdr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/detection-response.html",
+   "pricingNote": "quote-based; ja_jp 製品ページに公開価格はなく、購入・更新/お問い合わせ経由 (ページ HTTP 200, verified 2026-09-16)",
+   "record": {
+    "/": "baguqeeraqfdxze7bn3uiz6rcrhmwu7y4kwd3zj3wgqkriklfsuycjskfsr7a"
+   }
+  },
+  {
    "id": "trend-file-security",
    "provider": "Trend Micro",
    "providerHq": "JP",
@@ -9356,6 +9369,11 @@
    "bytes": 377,
    "codec": "dag-json"
   },
+  "baguqeeraqfdxze7bn3uiz6rcrhmwu7y4kwd3zj3wgqkriklfsuycjskfsr7a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraqfdxze7bn3uiz6rcrhmwu7y4kwd3zj3wgqkriklfsuycjskfsr7a.json",
+   "bytes": 435,
+   "codec": "dag-json"
+  },
   "baguqeerahdglfqqtgoviulstt7v5ayvgfkr7l7wy7cj7sbkljxwra6biiw4a": {
    "path": "/compliance-data/compliance/blocks/baguqeerahdglfqqtgoviulstt7v5ayvgfkr7l7wy7cj7sbkljxwra6biiw4a.json",
    "bytes": 493,
@@ -9406,18 +9424,18 @@
    "bytes": 723,
    "codec": "dag-json"
   },
-  "baguqeeraybcst3arns3njtponbqaaohjoc4ca5llynxre322nm6xu36j5vba": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraybcst3arns3njtponbqaaohjoc4ca5llynxre322nm6xu36j5vba.json",
+  "baguqeerazs6xada7ukunjrr7p5r2nkyql6hd7dqrw5qkxxmxvy5khlvjdxpa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerazs6xada7ukunjrr7p5r2nkyql6hd7dqrw5qkxxmxvy5khlvjdxpa.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerahqa2sbmowgu63j6eouaekmts2nbqojdow53tcn7nqn4maim7pyca": {
-   "path": "/compliance-data/compliance/blocks/baguqeerahqa2sbmowgu63j6eouaekmts2nbqojdow53tcn7nqn4maim7pyca.json",
-   "bytes": 267903,
+  "baguqeera6zixkyacnhgrgsvdarvja4odzn3rdqh5njqm7a3vs4474faao2za": {
+   "path": "/compliance-data/compliance/blocks/baguqeera6zixkyacnhgrgsvdarvja4odzn3rdqh5njqm7a3vs4474faao2za.json",
+   "bytes": 268626,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerahqa2sbmowgu63j6eouaekmts2nbqojdow53tcn7nqn4maim7pyca"
+  "/": "baguqeera6zixkyacnhgrgsvdarvja4odzn3rdqh5njqm7a3vs4474faao2za"
  }
 }
