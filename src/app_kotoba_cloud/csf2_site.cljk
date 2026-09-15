@@ -1,54 +1,49 @@
 (ns app-kotoba-cloud.csf2-site
   "NIST CSF 2.0 security-product catalog: pick a product, see which CSF 2.0
-   subcategories it supports. Static page over sourced IPLD-style data.")
+   subcategories it supports. Static page over sourced IPLD-style data.
+   Shell, tools, list, chips and detail come from the cloud-kotoba-dds
+   catalog pattern; this file keeps the catalog's coverage chart and copy."
+  (:require [cloud-kotoba-dds.catalog :as catalog]))
+
 (def css
-  ".csf2-page{max-width:1100px;margin:auto;padding:20px}.csf2-page h1{font-size:clamp(26px,5vw,38px)}
-.csf2-tools{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}.csf2-tools input,.csf2-tools select{min-height:44px;padding:10px;border:1px solid var(--hig-color-separator);border-radius:8px;font:inherit}.csf2-tools input{flex:1;min-width:180px}
-.csf2-grid{display:grid;grid-template-columns:minmax(240px,1fr) minmax(280px,1.4fr);gap:20px}
-@media(max-width:760px){.csf2-grid{grid-template-columns:1fr}}
-.csf2-list{display:grid;gap:8px}.csf2-list button{text-align:left;padding:10px;border:1px solid var(--hig-color-separator);border-radius:8px;background:var(--hig-color-secondary-system-background);font:inherit;cursor:pointer}
-.csf2-list button[aria-pressed=true]{border-color:var(--hig-color-tint);outline:2px solid var(--hig-color-tint)}
-.csf2-list small{display:block;color:var(--hig-color-secondary-label);font-weight:400}
-.csf2-chart{display:grid;gap:6px;margin:12px 0}.csf2-row{display:grid;grid-template-columns:5.5em 1fr 4em;align-items:center;gap:8px}
-.csf2-fn{font-size:.85rem;color:var(--hig-color-secondary-label)}.csf2-count{font-variant-numeric:tabular-nums;font-size:.85rem;text-align:right}
-.csf2-bar{height:10px;border-radius:999px;background:var(--hig-color-tertiary-system-background);overflow:hidden}.csf2-fill{height:100%;border-radius:999px;transition:width .2s}
-@media(prefers-reduced-motion:reduce){.csf2-fill{transition:none}}
-.csf2-chips{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0}.csf2-chip{font-size:.7rem;font-variant-numeric:tabular-nums;padding:2px 6px;border-radius:6px;border:1px solid var(--hig-color-separator);color:var(--hig-color-secondary-label)}
-.csf2-chip--on{background:var(--hig-color-tint);color:var(--hig-color-label);border-color:var(--hig-color-tint);cursor:pointer;font-weight:600}
-.csf2-detail{border:1px solid var(--hig-color-separator);border-radius:12px;padding:16px;margin-top:12px}
-.csf2-page a{overflow-wrap:anywhere}
-.csf2-page :focus-visible{outline:3px solid var(--hig-color-tint);outline-offset:3px}
-.csf2-footnote{color:var(--hig-color-secondary-label);font-size:.8rem}")
+  "Chart-only CSS. Shell/tools/list/chips/detail come from
+   cloud-kotoba-dds.catalog/css (concatenated in site.cljk)."
+  (str
+  ".csf2-chart{display:grid;gap:var(--hig-spacing-2,8px);margin:var(--hig-spacing-4,16px) 0 var(--hig-spacing-5,20px)}.csf2-row{display:grid;grid-template-columns:5.5em 1fr 4.5em;align-items:center;gap:var(--hig-spacing-2,8px)}"
+  ".csf2-fn{font-size:var(--hig-text-footnote1-font-size,.85rem);color:var(--hig-color-secondary-label)}.csf2-count{font-variant-numeric:tabular-nums;color:var(--hig-color-label);font-size:var(--hig-text-footnote1-font-size,.85rem);text-align:right}"
+  ".csf2-bar{height:12px;border-radius:var(--hig-radius-capsule,999px);border:1px solid var(--hig-color-separator);background:var(--hig-color-tertiary-system-background);overflow:hidden}.csf2-fill{height:100%;min-width:2px;border-radius:var(--hig-radius-capsule,999px);transition:width .2s}"
+  "@media(prefers-reduced-motion:reduce){.csf2-fill{transition:none}}"))
 
 (defn view
   ([] (view false))
   ([embedded?]
-   [:main {:class "csf2-page" :id "csf2-main"}
-    [:nav {:aria-label "カタログ"}
-     [:a {:href "/ja/"} "← ホーム"]
-     [:a {:href "/ja/security/"} "セキュリティ公開データ"]]
-    [(if embedded? :h2 :h1) "セキュリティ製品 × NIST CSF 2.0 カタログ"]
-    [:p "全世界のサイバーセキュリティ製品から、使っている（導入を検討している）製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをその製品がサポートするかを機能別チャートで表示します。"]
-    [:p {:id "csf2-summary" :role "status"} "データを読み込んでいます…"]
-    [:div {:class "csf2-tools"}
-     [:input {:id "csf2-search" :type "search" :aria-label "製品を検索" :placeholder "製品名・ベンダー・カテゴリで検索"}]
-     [:select {:id "csf2-kind" :aria-label "製品カテゴリ"}
-      [:option {:value ""} "すべてのカテゴリ"]]]
-    [:div {:class "csf2-grid"}
-     [:div {:id "csf2-results" :class "csf2-list" :aria-label "製品一覧"}]
-     [:div
-      [:section {:id "csf2-coverage" :aria-live "polite"}]
-      [:div {:id "csf2-chart" :class "csf2-chart" :role "img" :aria-label "機能別サブカテゴリカバー率"}]
-      [:div {:id "csf2-chips" :class "csf2-chips"}]
-      [:section {:id "csf2-detail" :class "csf2-detail" :hidden true :aria-label "製品の詳細"}]]]
-    [:details
-     [:summary "このカタログについて"]
-     [:p "CSF 2.0 のサブカテゴリ定義は NIST CSWP 29（2024-02-26 公表）の本文から抽出した正本テキストです。製品のマッピングは各ベンダーの公開文書に基づく代表 capability の主張であり、第三者検証や認定の代わりではありません。マッピングの正否は各製品の公開資料で確認してください。"]
-     [:nav
-      [:a {:href "/security-data/csf2/index.json"} "IPLD インデックス"]
-      " · "
-      [:a {:href "/security-data/csf2/subcategories.json"} "サブカテゴリ定義"]
-      " · "
-      [:a {:href "/security-data/csf2/products.json"} "製品レコード"]]
-     [:p {:class "csf2-footnote"} "NIST Cybersecurity Framework 2.0 の利用条件は NIST の公表物に従います。製品名・ベンダー名は各所有者の商標です。"]]
-    [:script {:src "/js/csf2-catalog.js" :defer true}]]))
+   (catalog/page
+    {:title "セキュリティ製品 × NIST CSF 2.0 カタログ"
+     :lead "全世界のサイバーセキュリティ製品から、使っている（導入を検討している）製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをその製品がサポートするかを機能別チャートで表示します。"
+       :nav (catalog/breadcrumb
+          "カタログ"
+          [["ホーム" "/"]
+           ["セキュリティ公開データ" "/security/"]
+           ["このカタログ" nil]])
+     :embedded? embedded?
+     :id "csf2-main"}
+    (catalog/status "csf2-summary" "データを読み込んでいます…")
+    (catalog/tools
+     {:search-id "csf2-search" :search-label "製品を検索"
+      :search-placeholder "製品名・ベンダー・カテゴリで検索"
+      :select-id "csf2-kind" :select-label "製品カテゴリ"
+      :options [[:option {:value ""} "すべてのカテゴリ"]]})
+    (catalog/grid
+     {:list-id "csf2-results" :list-label "製品一覧"}
+     [:section {:id "csf2-coverage" :aria-live "polite"}]
+     [:div {:id "csf2-chart" :class "csf2-chart" :role "img" :aria-label "機能別サブカテゴリカバー率"}]
+     (catalog/chips {:id "csf2-chips"})
+     (catalog/detail {:id "csf2-detail" :label "製品の詳細"})
+     [:button {:id "csf2-report" :type "button" :hidden true} "カバレッジレポートをダウンロード（JSON）"])
+    (catalog/about
+     {:summary "このカタログについて"
+      :links [[:a {:href "/security-data/csf2/index.json"} "IPLD インデックス"]
+              [:a {:href "/security-data/csf2/subcategories.json"} "サブカテゴリ定義"]
+              [:a {:href "/security-data/csf2/products.json"} "製品レコード"]]
+      :footnote "NIST Cybersecurity Framework 2.0 の利用条件は NIST の公表物に従います。製品名・ベンダー名は各所有者の商標です。CSF 2.0 のサブカテゴリ定義は NIST CSWP 29（2024-02-26 公表）の本文から抽出した正本テキストです。製品のマッピングは各ベンダーの公開文書に基づく代表 capability の主張であり、第三者検証や認定の代わりではありません。マッピングの正否は各製品の公開資料で確認してください。"})
+    [:script {:src "/js/csf2-catalog.js" :defer true}])))

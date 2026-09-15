@@ -1,0 +1,1 @@
+{"categoryId":"cspm","complianceFits":["cis-controls","hipaa-security-rule","nist-csf-20","soc2"],"id":"aws-security-hub","name":"AWS Security Hub","pricingMode":"public-list","pricingNote":"public usage-based pricing (per security check/control event)","pricingUrl":"https://aws.amazon.com/security-hub/pricing/","provider":"Amazon Web Services","providerHq":"US"}

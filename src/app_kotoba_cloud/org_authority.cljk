@@ -2,10 +2,14 @@
   "Private organization authority (ADR-2609141633). Runs as a Durable Object in
   the private kotoba-research-authority Worker; the public control plane reaches
   it only through a service binding. It owns the organization signing key pair
-  (Ed25519, generated on first create) and the membership roster with per-member
-  status. It does not mint webvh identifiers: handle reservation and the webvh
-  document stay operator-side until /v1/org/create wires the issuance script."
-  (:require [kotoba.lang.text :as str]))
+  (Ed25519, generated on first create), the membership roster with per-member
+  status, and mints the organization's did:webvh genesis log at create."
+  (:require [kotoba.lang.text :as str]
+            [didwebvh.entry :as entry]
+            [didwebvh.signer :as vh-signer]
+            [biscuit.token :as bt]
+            [ed25519.sign :as ed]
+            [app-kotoba-cloud.org-registry :as org-registry]))
 
 (def schema-version "kotoba-org-membership-2026-09-v1")
 (def roles #{"owner" "admin" "member" "billing"})
@@ -20,21 +24,57 @@
 
 (defn- text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))
 
+(defn- unquote-str
+  ;; Legacy rows carry stringified values; unwrap one level of quoting/encoding.
+  [v]
+  (cond
+    (map? v) (kwmap v)
+    (vector? v) (mapv unquote-str v)
+    (and (string? v) (= 34 (int (first v)))) (deep-parse v)
+    (and (string? v) (= 123 (int (first v)))) (deep-parse v)
+    :else v))
+
+(defn- kwmap [m]
+  ;; cljs js->clj ignores :keywordize-keys; keywordize map keys explicitly.
+  (into {} (map (fn [[k v]] [(if (and (string? k) (re-find #"^[a-zA-Z][a-zA-Z0-9-]*$" k)) (keyword k) k)
+                             (unquote-str v)]) m)))
+
+(defn- deep-parse*
+  ([x] (deep-parse* x 8))
+  ([x n]
+   (if (and (pos? n) (string? x))
+     (try (deep-parse* (js/JSON.parse x) (dec n)) (catch :default x))
+     x)))
+
+(defn- deep-parse [x] (deep-parse* x))
+
 (defn- decode [x]
-  (if (or (nil? x) (undefined? x)) nil (js->clj x :keywordize-keys true)))
+  (if (or (nil? x) (undefined? x)) nil (kwmap (js->clj (deep-parse x)))))
 
 (defn- load-org! [storage handle]
   (-> (js-invoke storage "get" (str "org:" handle)) (.then decode)))
 
 (defn- save-org! [storage handle org]
-  (js-invoke storage "put" (str "org:" handle) (js/JSON.stringify (clj->js org))))
+  (let [doc (js/JSON.stringify (clj->js org))]
+    (-> (js-invoke storage "put" (str "org:" handle) doc)
+        (.then (fn [_]
+                 (-> (js-invoke storage "get" "org-index")
+                     (.then (fn [raw]
+                              (let [index (js->clj (js/JSON.parse (or raw "{}")) :keywordize-keys true)
+                                    next-index (assoc index handle (:createdAt org))]
+                                (js-invoke storage "put" "org-index" (js/JSON.stringify (clj->js next-index))))))))))))
 
 (defn- all-orgs! [storage]
-  (-> (js-invoke storage "list" #js {:prefix "org:"})
-      (.then (fn [listing]
-               (js/Promise.all
-                (map (fn [k] (-> (js-invoke storage "get" k) (.then decode)))
-                     (array-seq (or (.-keys listing) []))))))))
+  ;; Index-based scan: save-org! maintains "org-index" (handle -> createdAt), so
+  ;; enumeration never depends on the DO list() response shape.
+  (-> (js-invoke storage "get" "org-index")
+      (.then (fn [raw]
+               (let [index (kwmap (js->clj (js/JSON.parse (or raw "{}"))))]
+                 (js/Promise.all
+                  (map (fn [handle] (-> (js-invoke storage "get" (str "org:" (if (keyword? handle) (name handle) handle)))
+                                        
+                                        (.then decode)))
+                       (keys index))))))))
 
 (defn- org-for-member [orgs principal-id]
   (some (fn [org]
@@ -64,6 +104,120 @@
                       :type "KotobaOrgStatusList"}
    :credentialSubject {:id member-principal :org (:did org) :role role :handle (:handle org)}})
 
+;; --- VC proof (Data Integrity over canonical JSON) --------------------------
+(defn- b64url [buf]
+  (let [bytes (js/Uint8Array. buf)]
+    (-> (js/btoa (apply str (map char (array-seq bytes))))
+        (.replaceAll "+" "-") (.replaceAll "/" "_") (.replace #"=+$" ""))))
+
+(defn- b64url-decode [s]
+  (let [s (-> s (.replaceAll "-" "+") (.replaceAll "_" "/"))
+        pad (mod (count s) 4)
+        s (if (= 0 pad) s (str s (apply str (repeat (- 4 pad) "="))))]
+    (vec (map #(bit-and (int %) 0xff) (.atob js/globalThis s)))))
+
+(defn- mint-biscuit-authority! [org member-principal role member-next-public-key]
+  ;; Root block signed with the org key (pure-RFC8032 over its raw private key
+  ;; from the stored JWK `d`). Carries the member fact; the member attenuates
+  ;; offline with their own key — the org never sees it.
+  (let [d (b64url-decode (:d (js->clj (js/JSON.parse (:privateJwk org)) :keywordize-keys true)))
+        sk (ed/secret-key! d)
+        pub (vh-signer/multikey (:public sk))]
+    (bt/authority
+     {:facts (list (list 'org (:did org))
+                   (list 'member member-principal role))
+      :next-public-key member-next-public-key
+      :root-private-key d
+      :sign-fn (fn [_private-key payload] (vec (ed/sign sk payload)))})))
+
+(defn- import-signing-key! [private-jwk]
+  (.importKey (.-subtle js/crypto) "jwk" (js/JSON.parse private-jwk)
+              (clj->js {:name "Ed25519"}) false #js ["sign"]))
+
+(defn- sign-vc! [org vc]
+  ;; Deterministic construction: membership-vc builds the map with a fixed key
+  ;; order, so JSON.stringify(vc-without-proof) is the canonical form.
+  (let [payload (js/JSON.stringify (clj->js (dissoc vc :proof)))]
+    (-> (import-signing-key! (:privateJwk org))
+        (.then (fn [key]
+                 (.sign (.-subtle js/crypto) (clj->js {:name "Ed25519"})
+                        key (.encode (js/TextEncoder.) payload))))
+        (.then (fn [sig]
+                 (assoc vc :proof
+                        {:type "DataIntegrityProof"
+                         :cryptosuite "eddsa-jcs-2022"
+                         :verificationMethod (str (:did org) "#key-1")
+                         :proofPurpose "assertionMethod"
+                         :jws (b64url sig)}))))))
+
+(defn- verify-vc! [org vc]
+  ;; Byte-compare: re-sign the proof-less form with the org's stored key and
+  ;; compare to the presented jws. A tampered subject/role/issuer fails here.
+  (if-not (:proof vc)
+    (js/Promise.resolve false)
+    (let [presented (:jws (:proof vc))
+          payload (js/JSON.stringify (clj->js (dissoc vc :proof)))]
+      (-> (import-signing-key! (:privateJwk org))
+          (.then (fn [key]
+                   (.sign (.-subtle js/crypto) (clj->js {:name "Ed25519"})
+                          key (.encode (js/TextEncoder.) payload))))
+          (.then (fn [sig] (= presented (b64url sig))))
+          (.catch (fn [_] false))))))
+
+;; --- webvh genesis (ADR-2609141633 layer 1) ---------------------------------
+;; The update key is generated from a fresh 32-byte seed held only long enough
+;; to sign the genesis entry; the seed is NOT persisted (pre-rotation via
+;; nextKeyHashes is the recovery path, as in the root log). Witnesses are the
+;; fleet's standard five, matching kotoba.cloud's own root log.
+(def witness-ids
+  ["did:key:z6MknGZkCR98UzhYRRPbyhgWDyAA7PVECo5cxyTjFBs3bnje"
+   "did:key:z6MkpLgbFtPAXb9hk8dc2YvBwon8eLP6SY6RDr1huqBhK5MT"
+   "did:key:z6MkqugHi3ogacJzSTRXER5e9ZQBPCX4CXKDJdP2YEytidfn"
+   "did:key:z6Mkr9TzzqnyQH3GhHJdYq9H4HYvqe8MTDhdzFtfPNfYEUtt"
+   "did:key:z6Mkn6sbjuho8t6VJxdpjfKDvEHcmnNgKjTxFX3gxd16cZgE"])
+
+(defn- random-seed! []
+  (let [a (js/Uint8Array. 32)]
+    (js/crypto.getRandomValues a)
+    (array-seq a)))
+
+(defn- mint-genesis! [did-domain handle]
+  (let [seed (random-seed!)
+        signer (vh-signer/from-seed seed)
+        version-time (str (subs (.toISOString (js/Date.)) 0 19) "Z")
+        {:keys [parameters state]}
+        {:parameters {"method" "did:webvh:1.0"
+                      "scid" "{SCID}"
+                      "updateKeys" [(:multikey signer)]
+                      "nextKeyHashes" []
+                      "portable" true
+                      "witness" {"threshold" 2
+                                 "witnesses" (mapv (fn [id] {"id" id}) witness-ids)}}
+         :state {"@context" ["https://www.w3.org/ns/did/v1"
+                             "https://w3id.org/security/multikey/v1"
+                             "https://w3id.org/security/data-integrity/v2"]
+                 "id" "{SCID}"
+                 "alsoKnownAs" [(str "https://" handle)]
+                 "controller" [(:did-key signer)]
+                 "verificationMethod"
+                 [{"id" (str "{SCID}#" (:multikey signer))
+                   "type" "Multikey"
+                   "controller" "{SCID}"
+                   "publicKeyMultibase" (:multikey signer)}]
+                 "authentication" [(str "{SCID}#" (:multikey signer))]
+                 "assertionMethod" [(str "{SCID}#" (:multikey signer))]}}]
+    (-> (entry/sign-async (entry/genesis {:version-time version-time
+                                          :parameters parameters
+                                          :state state})
+                          {:multikey (:multikey signer) :sign-fn (:sign-fn signer)})
+        ;; the seed dies with this closure — only the public log persists
+        (.then (fn [signed]
+                 (let [scid (subs (get signed "versionId") 2)]
+                   {:log (js/JSON.stringify signed)
+                    :scid scid
+                    :did (str "did:webvh:" scid ":" did-domain)
+                    :update-key-multikey (:multikey signer)}))))))
+
 (defn- handle-create [storage body now]
   (let [handle (str (:handle body))]
     (cond
@@ -77,26 +231,36 @@
       (-> (load-org! storage handle)
           (.then (fn [existing]
                    (if existing
-                     (response {:error "org-handle-taken"} 409)
-                     (-> (generate-signing-key!)
-                         (.then (fn [[public-jwk private-jwk]]
-                                  (let [org {:did (str "did:webvh:com-"
-                                                       (subs handle 0 (.lastIndexOf handle "."))
-                                                       ":" handle)
-                                             :handle handle
-                                             :publicJwk (select-keys (js->clj public-jwk :keywordize-keys true) [:kty :crv :x])
-                                             :privateJwk (js/JSON.stringify private-jwk)
-                                             :members [{:principalId (:principalId body)
-                                                        :role (:role body)
-                                                        :status "active"
-                                                        :issuedAt now}]
-                                             :createdAt now}]
-                                    (-> (save-org! storage handle org)
-                                        (.then (fn [_]
-                                                 (response {:orgDid (:did org) :handle handle
-                                                            :ownerPrincipal (:principalId body)
-                                                            :schemaVersion schema-version}
-                                                           200)))))))))))))))
+                     (-> (save-org! storage handle existing)
+                         (.then (fn [_] (response {:error "org-handle-taken"} 409))))
+                     ;; Mint the real did:webvh genesis log first: the DID and
+                     ;; its SCID come from the signed entry, not from string
+                     ;; assembly (ADR-2609141633 layer 1).
+                     (-> (mint-genesis! handle handle)
+                         (.then (fn [minted]
+                                  (-> (generate-signing-key!)
+                                      (.then (fn [[public-jwk private-jwk]]
+                                               (let [org {:did (:did minted)
+                                                          :handle handle
+                                                          :webvhLog (:log minted)
+                                                          :scid (:scid minted)
+                                                          :updateKeyMultikey (:update-key-multikey minted)
+                                                          :publicJwk (select-keys (js->clj public-jwk :keywordize-keys true) [:kty :crv :x])
+                                                          :privateJwk (js/JSON.stringify private-jwk)
+                                                          :members [{:principalId (:principalId body)
+                                                                     :role (:role body)
+                                                                     :status "active"
+                                                                     :issuedAt now}]
+                                                          :createdAt now}]
+                                                 (-> (save-org! storage handle org)
+                                                     (.then (fn [_] (js-invoke storage "get" "org-index")))
+                                                     (.then (fn [idxRaw]
+                                                              (response {:orgDid (:did org) :handle handle
+                                                                         :scid (:scid minted)
+                                                                         :webvhLog (:log minted)
+                                                                                                                                     :ownerPrincipal (:principalId body)
+                                                                         :schemaVersion schema-version}
+                                                                        200))))))))))))))))))
 
 (defn- handle-delegate [storage body now]
   (cond
@@ -124,10 +288,22 @@
                            org (update org :members conj member)]
                        (-> (save-org! storage (:handle org) org)
                            (.then (fn [_]
-                                    (response {:orgDid (:did org) :handle (:handle org)
-                                               :member member
-                                               :membership (membership-vc org (:memberPrincipalId body) (:role body))}
-                                              200))))))))))))
+                                    ;; The membership VC is issued with a Data
+                                    ;; Integrity proof signed by the org key.
+                                    (sign-vc! org (membership-vc org (:memberPrincipalId body) (:role body)))))
+                           (.then (fn [vc]
+                                    (if (text? (:memberNextPublicKey body) 200)
+                                      (let [tok (mint-biscuit-authority! org (:memberPrincipalId body) (:role body)
+                                                                         (:memberNextPublicKey body))]
+                                        (response {:orgDid (:did org) :handle (:handle org)
+                                                   :member member
+                                                   :membership vc
+                                                   :biscuit (pr-str tok)}
+                                                  200))
+                                      (response {:orgDid (:did org) :handle (:handle org)
+                                                 :member member
+                                                 :membership vc}
+                                                200))))))))))))
 
 (defn- handle-revoke [storage body now]
   (if-not (text? (:principalId body) 256)
@@ -189,6 +365,73 @@
                                                  :role (:role member) :tenantId (:tenantId body)
                                                  :bound (nil? bound)} 200)))))))))))))
 
+(def handle-didlog (fn [storage body]
+  ;; Public: a did:webvh log is published for anyone to resolve (ADR layer 1).
+  (let [handle (:handle body)]
+    (if-not (and (string? handle) (re-find handle-pattern handle))
+      (js/Promise.resolve (response {:error "invalid-org-handle"} 400))
+      (-> (load-org! storage handle)
+          (.then (fn [org]
+                   (cond
+                     (nil? org) (response {:error "org-unknown"} 404)
+                     :else (response {:did (:did org) :scid (:scid org)
+                                      :log (:webvhLog org)
+                                      :publishedAt (:createdAt org)}
+                                     200)))))))))
+
+(defn- handle-verify [storage body]
+  ;; Third-party presentation path: anyone holding a membership VC can have it
+  ;; verified — signature via the org's stored key, subject/issuer binding, and
+  ;; live roster status. No session required beyond the binding hop.
+  (let [vc (:credential body)]
+    (if-not (and (map? vc) (string? (get-in (js->clj (:credential body) :keywordize-keys true) [:credentialSubject :org])))
+      (js/Promise.resolve (response {:error "invalid-org-verify"} 400))
+      (let [v (js->clj (:credential body) :keywordize-keys true)
+            org-handle (get-in v [:credentialSubject :handle])]
+        (-> (load-org! storage org-handle)
+            (.then (fn [org]
+                     (cond
+                       (nil? org) (response {:verified false :reason "org-unknown"} 404)
+                       (not= (:did org) (:issuer v)) (response {:verified false :reason "issuer-mismatch"} 400)
+                       (not= (:did org) (get-in v [:credentialSubject :org])) (response {:verified false :reason "org-mismatch"} 400)
+                       :else
+                       (-> (verify-vc! org v)
+                           (.then (fn [sig-ok?]
+                                    (let [member (some #(when (= (get-in v [:credentialSubject :id]) (:principalId %)) %)
+                                                       (:members org))]
+                                      (response {:verified (and sig-ok? member (= "active" (:status member)))
+                                                 :reason (cond
+                                                           (not sig-ok?) "signature-invalid"
+                                                           (nil? member) "not-on-roster"
+                                                           (not= "active" (:status member)) "revoked"
+                                                           :else nil)
+                                                 :role (:role member)}
+                                                200))))))))))))))
+
+(defn- handle-registry [storage _body _now]
+  ;; Returns the COMPLETE registry document (static policy + live organization
+  ;; projection). The worker serializes this verbatim — no edge-side merging,
+  ;; so keyword-vs-JS-object pitfalls stay on this side of the binding.
+  (-> (all-orgs! storage)
+      (.then (fn [orgs]
+               (let [orgs (vec orgs)]
+               (response
+                (assoc org-registry/registry
+                       :organizations
+                       (vec (for [org orgs
+                                   :when (map? org)]
+                              {:orgDid (:did org) :handle (:handle org)
+                               :scid (:scid org)
+                               :log (:webvhLog org)
+                               :didLog (str "/.well-known/kotoba-org-dids/" (:handle org) "/did.jsonl")
+                               :members (count (:members org))
+                               :createdAt (:createdAt org)}))
+                       :statusLists
+                       (vec (for [org orgs]
+                              {:id (str "https://kotoba.cloud/.well-known/kotoba-org-status/"
+                                        (:handle org) "/v1")})))
+                 200))))))
+
 (defn- handle-status [storage body]
   (if-not (text? (:principalId body) 256)
     (js/Promise.resolve (response {:error "invalid-org-status"} 400))
@@ -212,12 +455,21 @@
     "/revoke" handle-revoke
     "/status" handle-status
     "/authorize" handle-authorize
+    "/verify" handle-verify
+    "/didlog" handle-didlog
+    "/registry" handle-registry
     nil))
 
 (defn- handle [state env path body]
   (let [storage (aget state "storage") now (.now js/Date)]
     (if-let [op (route-op path)]
-      (op storage body now)
+      (cond
+        ;; arity-3 handlers take (storage body now)
+        (contains? #{handle-create handle-delegate handle-revoke handle-authorize handle-registry} op)
+        (op storage body now)
+        (contains? #{handle-didlog handle-verify handle-status} op)
+        (op storage body)
+        :else (op storage))
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 
 (deftype OrgAuthority [^js state env]

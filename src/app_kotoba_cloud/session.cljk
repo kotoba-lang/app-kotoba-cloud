@@ -7,6 +7,7 @@
 (def cookie-name "gftd_session")
 (def funnel-cookie-name "kc_funnel")
 (def viewer-url (str profile/identity-origin "/v1/session"))
+(def identity-logout-url (str profile/identity-origin "/v1/logout"))
 (def apex-sign-in-paths #{"/sign-in" "/login" "/signin"})
 
 (defn passkey-href

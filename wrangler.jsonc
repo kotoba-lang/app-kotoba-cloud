@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kotoba-cloud-control-plane",
   "main": "build/worker.js",
+  "account_id": "4da88288dc30d9ee257f319d3c33ecf0",
   "compatibility_date": "2026-09-01",
   "workers_dev": false,
   "assets": {

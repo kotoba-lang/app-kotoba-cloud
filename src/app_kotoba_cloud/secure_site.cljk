@@ -1,0 +1,107 @@
+(ns app-kotoba-cloud.secure-site
+  "The SECURE console — one document, three views (guardrails / firewall /
+  compliance) addressed by fragment, rendered from the SAME policy data the
+  research authority enforces (app-kotoba-cloud.secure). Nothing here is
+  typed twice: the tables are the defs. The browser only confirms that the
+  running policy versions (/v1/secure) equal the rendered ones and shows
+  the firewall's observe mode; there are no mutations on this surface
+  (rules are pinned policy data, not user settings — secure.cljk).
+
+  Reference IA (OrcaRouter Guardrails / Firewall / Compliance): title +
+  one-line meaning, a local view switch, tables with explicit columns, an
+  honest note that coverage is runtime controls, not a certification."
+  (:require [jp-go-dds.core :as dds]
+            [kotoba.lang.text :as str]
+            [app-kotoba-cloud.secure :as secure]
+            [cloud-kotoba-dds.console :as console]))
+
+(def css
+  (str
+   ".kc-secure{display:grid;gap:var(--hig-spacing-4);max-inline-size:64rem}"
+   ".kc-secure__lead{max-inline-size:48rem;color:var(--hig-color-secondary-label)}"
+   ".kc-secure__views{display:flex;flex-wrap:wrap;gap:var(--hig-spacing-2);padding:0;margin:0;list-style:none;border-block-end:1px solid var(--hig-color-separator)}"
+   ".kc-secure__views a{display:inline-flex;align-items:center;min-height:2.75rem;padding:0 var(--hig-spacing-3);border-block-end:3px solid transparent;color:var(--hig-color-label);font-weight:700;text-decoration:none}"
+   ".kc-secure__views a:hover{border-color:var(--hig-color-separator)}"
+   ".kc-secure section:target .kc-secure__title,.kc-secure__views a:target{color:var(--hig-color-tint)}"
+   ".kc-secure__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--hig-spacing-3)}"
+   ".kc-secure__head h2{margin:0}"
+   ".kc-secure__version{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);color:var(--hig-color-secondary-label)}"
+   ".kc-secure table{inline-size:100%;border-collapse:collapse;font-size:var(--hig-text-footnote1-font-size)}"
+   ".kc-secure th{text-align:start;font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);font-weight:700;letter-spacing:.06em;color:var(--hig-color-secondary-label);padding:var(--hig-spacing-2) var(--hig-spacing-3);border-block-end:1px solid var(--hig-color-separator)}"
+   ".kc-secure td{padding:var(--hig-spacing-3);border-block-end:1px solid var(--hig-color-separator);vertical-align:top}"
+   ".kc-secure code{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size)}"
+   ".kc-secure__table{overflow-x:auto}"
+   ".kc-secure__chips{display:flex;flex-wrap:wrap;gap:var(--hig-spacing-2)}"))
+
+(def views
+  [{:id "guardrails" :ja "ガードレール" :en "Guardrails"}
+   {:id "firewall" :ja "ファイアウォール" :en "Firewall"}
+   {:id "compliance" :ja "コンプライアンス" :en "Compliance"}])
+
+(defn- action-badge [action]
+  (console/badge (case action "block" "ブロック" "redact" "マスク" "flag" "フラグ" action)
+                 {:state (case action "block" :error "redact" :action "flag" :off :off)}))
+
+(defn- rung-badge [rung]
+  (console/badge (case rung "identity" "本人確認済み" "contracted" "契約済み" "card" "カード認証" rung)
+                 {:state (if (= rung "contracted") :action :ok)}))
+
+(defn guardrails-view []
+  [:section {:id "guardrails" :class "ck-console__panel"}
+   [:div {:class "kc-secure__head"}
+    [:h2 {:class "kc-secure__title"} "ガードレール"]
+    [:span {:class "kc-secure__version" :id "secure-guardrails-version"} secure/guardrail-version]]
+   [:p {:class "kc-secure__lead"} "全リクエストの本文に適用されるコンテンツポリシー。判定は決定論的で、ブロックはクォータより先にジョブを拒否します。"]
+   [:div {:class "kc-secure__table"}
+    [:table
+     [:thead [:tr [:th "名前"] [:th "動作"] [:th "説明"] [:th "パターン"]]]
+     (into [:tbody]
+           (for [{:keys [id action description patterns]} secure/guardrail-templates]
+             [:tr [:td [:code id]] [:td (action-badge action)] [:td description]
+              [:td (str (count patterns) " 件")]]))]]])
+
+(defn firewall-view []
+  [:section {:id "firewall" :class "ck-console__panel"}
+   [:div {:class "kc-secure__head"}
+    [:h2 {:class "kc-secure__title"} "ファイアウォール"]
+    [:span {:class "kc-secure__version" :id "secure-firewall-version"} secure/firewall-version]]
+   [:p {:class "kc-secure__lead"} "エージェントが使えるタスクツールと、必要な信頼段階。段階に届かない呼び出しは拒否されます（観測モードでは記録のみ）。"]
+   ;; observe mode is runtime state, not policy data: hidden until /v1/secure answers
+   [:div {:class "kc-secure__chips" :id "secure-observe-mode" :hidden true}]
+   [:div {:class "kc-secure__table"}
+    [:table
+     [:thead [:tr [:th "ツール"] [:th "必要な段階"] [:th "開いているタスク"]]]
+     (into [:tbody]
+           (for [[tool {:keys [minRung tasks]}] secure/tool-policy]
+             [:tr [:td [:code (name tool)]] [:td (rung-badge minRung)]
+              [:td (if (seq tasks) (str/join ", " tasks) "—（既定で拒否）")]]))]]])
+
+(defn compliance-view []
+  (let [{:keys [frameworks auditLogRetentionDays dataResidency zeroDataRetention note]} secure/compliance-state]
+    [:section {:id "compliance" :class "ck-console__panel"}
+     [:div {:class "kc-secure__head"}
+      [:h2 {:class "kc-secure__title"} "コンプライアンス"]
+      [:span {:class "kc-secure__version" :id "secure-compliance-version"} secure/compliance-version]]
+     [:p {:class "kc-secure__lead"} note]
+     [:div {:class "kc-secure__table"}
+      [:table
+       [:thead [:tr [:th "フレームワーク"] [:th "地域"] [:th "自動制御"]]]
+       (into [:tbody]
+             (for [{:keys [label region controls]} frameworks]
+               [:tr [:td label] [:td region]
+                [:td (into [:span {:class "kc-secure__chips"}]
+                           (map #(console/badge % {:state :ok}) controls))]]))]]
+     (console/cell "監査ログの保持" (str auditLogRetentionDays " 日") {:state :value})
+     (console/cell "データ所在地" (if (= "unspecified" dataResidency) "未指定" dataResidency) {:state :value})
+     (console/cell "ゼロデータ保持" (if (= "designed-for-zdr" zeroDataRetention) "設計上対応（有効化は契約時）" zeroDataRetention) {:state :value})]))
+
+(defn section []
+  [:div {:class "kc-secure"}
+   (dds/heading 1 "セキュリティ管理" {:size "36"})
+   [:p {:class "kc-secure__lead"} "研究環境の実行時制御 — 表示している規則は、リクエストを許可する側が実際に評価している規則そのものです。"]
+   [:p {:id "secure-status" :role "status" :class "ck-console__note"} ""]
+   (into [:ul {:class "kc-secure__views" :aria-label "セキュリティ管理の表示"}]
+         (for [{:keys [id ja]} views] [:li [:a {:href (str "#" id)} ja]]))
+   (guardrails-view)
+   (firewall-view)
+   (compliance-view)])

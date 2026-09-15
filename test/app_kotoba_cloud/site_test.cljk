@@ -95,7 +95,9 @@
     (is (not (re-find #"font-family:(?!var\()" site/app-css)))))
 
 (deftest localized-not-found-pages-are-finite-documents
-  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/ja/\""]
+  ;; the way home is locale-free on both variants: the edge negotiates the
+  ;; variant by cookie (shinkansen.locale); /ja/ would be a 301 hop
+  (doseq [[locale heading href] [[:ja "その入口はありません。" "href=\"/\""]
                                  [:en "That entrance does not exist." "href=\"/\""]]]
     (let [html (site/not-found-html locale)]
       (is (str/includes? html "404 / NOT FOUND"))
@@ -190,7 +192,10 @@
       (is (str/includes? html "Enterprise"))
       (is (not (str/includes? html "https://kotobase.net/signup")))
       (is (not (str/includes? html "https://murakumo.cloud/portal/#store")))
-      (is (str/includes? html "data-billing-sku=\"pro\" disabled"))
+      ;; a plan button is hidden until the catalog says checkout is enabled —
+      ;; never a greyed 'checking' control (shinkansen.audit :idle-disabled)
+      (is (re-find #"data-billing-sku=\"pro\" hidden" html))
+      (is (not (str/includes? html "disabled")))
       (is (not (str/includes? html "sk_live_"))))))
 
 (deftest home-is-a-shared-conversation-workspace
@@ -207,3 +212,51 @@
     (is (str/includes? html "/ekyc.md"))
     (is (not (str/includes? html "id=\"identity-console\"")))
     (is (not (str/includes? html "norbert-form")))))
+
+(deftest unified-chrome-covers-formerly-bare-pages
+  ;; ADR site-layout: every page ships header/footer/nav (IA unification).
+  ;; The chrome is the marketing header OR the app sidebar (both are the
+  ;; shared shell); CSS is external since abc2c4f, so a class name only
+  ;; proves presence when it is in the markup.
+  (doseq [html [(site/account-html) (site/identity-html) (site/admin-html)
+                (site/csf2-html) (site/crypto-html)]]
+    (is (or (str/includes? html "kc-header") (str/includes? html "class=\"kc-sb\"")))
+    (is (str/includes? html "kc-footer"))
+    (is (str/includes? html "<nav"))))
+
+(deftest security-services-page-ships-the-suite
+  (let [html (site/security-services-html)]
+    (testing "document-head scripts are present (hydration contract)"
+      (is (str/includes? html "src=\"/js/session.js\""))
+      (is (str/includes? html "src=\"/js/language-selector.js\""))
+      (is (str/includes? html "freebuff-tag.js")))
+    (testing "shared chrome with the app sidebar, current item highlighted"
+      (is (str/includes? html "kc-footer"))
+      (is (str/includes? html "kc-sb"))
+      (is (str/includes? html "data-current=\"true\""))
+      (is (str/includes? html "href=\"/security/services/\"")))
+    (testing "the four services render with their capability rows"
+      (doseq [needle ["CTEM" "DAST" "SAST" "VM" "aggregation-ledger"
+                      "finding-id" "ledger keys: cpe, cve"]]
+        (is (str/includes? html needle) needle))
+      (is (= 4 (count (re-seq #"data-service=" html))))
+      (is (str/includes? html "id=\"vm-ledger-flow\"")))))
+
+(deftest apps-grid-links-the-security-services-from-the-one-def
+  (let [html (site/apps-html :ja)]
+    (doseq [id ["security-ctem" "security-dast" "security-sast" "security-vm"]]
+      (is (str/includes? html (str "data-app=\"" id "\"")) id))
+    (is (<= 4 (count (re-seq #"href=\"/security/services/\"" html))))))
+
+(deftest header-links-cross-page-documents
+  (let [html (site/page-html :ja)]
+    (is (str/includes? html "href=\"/account\""))
+    (is (str/includes? html "href=\"/security/csf2/\""))
+    (is (or (str/includes? html "href=\"/billing/\"") (str/includes? html "href=\"/ja/billing/\"")))))
+
+(deftest account-console-carries-agent-onboarding
+  ;; PAT issuance section: 1-click local IDE/CLI onboarding.
+  (let [html (site/account-html)]
+    (is (str/includes? html "class=\"kc-sb\""))
+    (is (str/includes? html "noindex"))
+    (is (str/includes? html "接続トークン"))))

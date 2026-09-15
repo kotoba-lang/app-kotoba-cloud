@@ -1,22 +1,53 @@
 (ns app-kotoba-cloud.billing
   "Versioned prices and measurement contracts. Money is integer micro-USD.")
-(def version "2026-09-14-v2")
+(def version "2026-09-15-v5")
 (def plans
   [{:sku "pro" :name "Pro" :scope "platform" :cents 2000 :credits 12 :gib 20}
+   {:sku "team" :name "Team" :scope "platform" :cents 15000 :credits 60 :gib 50 :seats 6}
    {:sku "max" :name "Max" :scope "platform" :cents 10000 :credits 60 :gib 100}
    {:sku "ultra" :name "Ultra" :scope "platform" :cents 20000 :credits 120 :gib 250}
-   {:sku "ai-credits-25" :name "AI Credits 25" :scope "ai" :cents 2500 :credits 25 :topup true}
-   {:sku "storage-credits-25" :name "Database Credits 25" :scope "storage" :cents 2500 :credits 25 :topup true}])
+   ;; OrcaRouter-style credits-monthly tiers: the monthly plan purchases a
+   ;; credits balance with a bonus that rises with commitment. Credits never
+   ;; expire, the plan renews each period, cancel any time (terms surfaced on
+   ;; the billing page). scope credits = fungible across ai+storage meters.
+   {:sku "credits-50" :name "Credits 50" :scope "credits" :cents 5000
+    :credits 51 :bonusPercent 2 :monthly true}
+   {:sku "credits-100" :name "Credits 100" :scope "credits" :cents 10000
+    :credits 103 :bonusPercent 3 :monthly true}
+   {:sku "credits-500" :name "Credits 500" :scope "credits" :cents 50000
+    :credits 525 :bonusPercent 5 :monthly true}
+   {:sku "credits-1000" :name "Credits 1000" :scope "credits" :cents 100000
+    :credits 1100 :bonusPercent 10 :monthly true}
+   {:sku "ai-credits-25" :name "AI Credits $25" :scope "ai" :cents 2500 :credits 25 :topup true}
+   {:sku "storage-credits-25" :name "Storage Credits $25" :scope "storage" :cents 2500 :credits 25 :topup true}])
+
+(def credits-terms
+  {:autoCharge false :creditsExpire false :cancelAnyTime true
+   :renewal "monthly" :note "Auto-charged each period, cancel anytime, credits never expire."})
 (defn plan [sku] (first (filter #(= sku (:sku %)) plans)))
-(def rates {:input-per-million 600000 :cached-input-per-million 150000
-            :output-per-million 2400000 :storage-gib-month 200000
+(def rates {:input-per-million 900000 :cached-input-per-million 225000
+            :output-per-million 4500000 :storage-gib-month 200000
             :egress-gib 90000 :query-vcpu-hour 60000})
 (def catalog {:version version :currency "usd" :status "sandbox-proposal"
               :creditValueUSD 1 :plans plans :ratesMicroUSD rates
               :free {:identityRequired true :existingResearchQuotaUnchanged true :storageGiB 1}
-              :enterprise {:minimumMonthlyUSD 1000 :quoteRequired true :postpaidDefault false}
+              :enterprise {:minimumMonthlyUSD 1000 :quoteRequired true :postpaidDefault false
+                           ;; Reserved capacity: a dedicated B200-class GPU pool quoted per
+                           ;; contract. Requires an annual commitment; minimum monthly covers
+                           ;; the always-on cost floor so an unused reservation cannot
+                           ;; strand us with idle GPU spend.
+                           :reservedCapacity {:gpuClass "b200" :minimumMonthlyUSD 6000
+                                              :commitmentMonths 12 :quoteRequired true}}
               :subscriptionScope "platform" :includedBalances ["ai" "storage.capacity"]
-              :automaticTopup false :taxIncluded false})
+              :automaticTopup false :taxIncluded false
+              ;; Storage is priced in stored GiB-months, not abstract credits:
+              ;; 1 credit = $1 = 5 GiB stored for one month.
+              :storageUSDPerGiBMonth (/ (:storage-gib-month rates) 1000000)
+              :aiTopupCreditsPerUSD 1
+              :platform {:pro {:usd 20 :aiCredits 12 :storageGiB 20}
+                         :team {:usd 150 :aiCredits 60 :storageGiB 50 :seats 6}
+                         :max {:usd 100 :aiCredits 60 :storageGiB 100}
+                         :ultra {:usd 200 :aiCredits 120 :storageGiB 250}}})
 (defn natural? [x] (and (integer? x) (<= 0 x 1000000000000)))
 (defn token-event [receipt customer]
   (let [{:keys [requestId model inputTokens cachedInputTokens outputTokens occurredAt]} receipt]
@@ -56,9 +87,10 @@
        :credits (:credits p) :gib (:gib p) :start start :end end})))
 
 (defn allowance-grants
-  "Fan out one paid subscription line into independently replay-safe balances."
+  "Fan out one paid subscription line into independently replay-safe balances.
+  platform and credits scopes are both fungible across ai + storage meters."
   [line]
-  (if (= "platform" (:scope line))
+  (if (contains? #{"platform" "credits"} (:scope line))
     [(-> line (assoc :id (str (:id line) ":ai") :scope "ai") (dissoc :gib))
      (-> line (assoc :id (str (:id line) ":storage") :scope "storage") (dissoc :credits))]
     [line]))

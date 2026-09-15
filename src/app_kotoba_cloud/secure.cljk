@@ -1,0 +1,121 @@
+(ns app-kotoba-cloud.secure
+  "OrcaRouter-style SECURE surfaces: Guardrails (content policy enforced on
+  every request), Firewall (which task tools a principal may call), and
+  Compliance (framework coverage + audit-log retention + would-block events).
+
+  These run INSIDE the private research authority (request admission path):
+  rules are pinned policy data, evaluation is deterministic, matches are
+  recorded as evidence receipts — never as free-text logs. The edge only
+  displays the state the authority returns; the browser cannot write rules.
+  Block actions take precedence: a blocked match refuses the job and the
+  refusal receipt is durable."
+  (:require [clojure.string :as str]
+            [app-kotoba-cloud.research :as research-policy]))
+
+;; --- Guardrails: content policy on every request ----------------------------
+;; Deterministic keyword/regex checks over the request text. No model in the
+;; loop for the deny decision (a model may add a veto later, never a clear).
+(def guardrail-version "kotoba-guardrails-2026-09-v1")
+
+(def guardrail-templates
+  [{:id "csam-block" :action "block"
+    :description "CSAM references are refused on every request (AUP strictly-prohibited)."
+    :patterns ["child sexual abuse material" "CSAM" "child pornograph"]}
+   {:id "cbrn-block" :action "block"
+    :description "CBRN/WMD uplift requests are refused on every request (AUP strictly-prohibited)."
+    :patterns ["biological weapon" "chemical weapon" "radiological dispersal"
+               "nuclear weapon design" "nerve agent synthesis"]}
+   {:id "fraud-block" :action "block"
+    :description "Fraud-as-a-service asks are refused (AUP strictly-prohibited)."
+    :patterns ["fraud as a service" "mass phishing kit deployment" "stolen card dump"]}
+   {:id "secret-hygiene" :action "redact"
+    :description "Live credential shapes in the prompt are masked before the model sees them."
+    :patterns ["(?i)sk-[a-zA-Z0-9]{20,}" "(?i)AKIA[0-9A-Z]{16}" "(?i)-----BEGIN (RSA |EC )?PRIVATE KEY-----"]}
+   {:id "pii-passkeys" :action "flag"
+    :description "References to passkeys/private keys are flagged for review, never blocked."
+    :patterns ["(?i)passkey seed" "(?i)recovery phrase"]}])
+
+(defn- rule-matches?
+  "True when any pattern finds in the request text. regex: patterns are
+  pre-fixed with (?i) inline; literal patterns are substring matches."
+  [pattern text]
+  (boolean
+   (try
+     (if (or (re-find #"\(\?i\)" pattern) (re-find #"\[" pattern))
+       (re-find (re-pattern pattern) text)
+       (str/includes? (str/lower-case text)
+                                 (str/lower-case pattern)))
+     (catch :default _ false))))
+
+(defn evaluate-guardrails
+  "Returns {:verdict allow|block :matches [{ruleId action ruleIndex}]}
+  over the flattened request messages. Deterministic; never invents."
+  [messages]
+  (let [text (reduce str " " (mapcat (fn [m] [(str (:content m))]) (or messages [])))
+        matches (for [[i rule] (map-indexed vector guardrail-templates)
+                      :when (some #(rule-matches? % text) (:patterns rule))]
+                  {:ruleId (:id rule) :action (:action rule) :ruleIndex i})]
+    {:verdict (if (some #(= "block" (:action %)) matches) "block" "allow")
+     :matches (vec matches)}))
+
+(defn redact-secrets
+  "Masks secret-shaped substrings before upstream dispatch (rule id
+  secret-hygiene). Returns the masked text; the original never persists."
+  [text]
+  (reduce (fn [acc pattern]
+            (try
+              (str/replace acc (re-pattern pattern) "[REDACTED]")
+              (catch :default _ acc)))
+          (str text)
+          (:patterns (some #(when (= "secret-hygiene" (:id %)) %) guardrail-templates))))
+
+;; --- Firewall: which tools a principal may call ------------------------------
+;; The research surface has a closed task toolset; the firewall says which
+;; tools a record's rungs/scope admit. Observe mode records would-block.
+(def firewall-version "kotoba-firewall-2026-09-v1")
+
+(def tool-policy
+  {:code-review {:minRung "identity" :tasks ["code-review"]}
+   :vulnerability-triage {:minRung "identity" :tasks ["vulnerability-triage"]}
+   :remediation {:minRung "identity" :tasks ["remediation"]}
+   ;; Offensive-band tools stay closed until the contracted rung exists on
+   ;; the record — the default is deny even in observe mode.
+   :payload-crafting {:minRung "contracted" :tasks []}
+   :c2-tooling {:minRung "contracted" :tasks []}})
+
+(defn firewall-decision
+  "Deterministic allow/deny for one tool call. observe-only surfaces the same
+  decision without enforcing it (the caller logs, then proceeds)."
+  [record task now]
+  (let [task (keyword task)
+        pol (or (get tool-policy task) {:minRung :none :tasks []})
+        reached (research-policy/reached-rung record now)
+        rung-order [:none :card :identity :business :contracted]
+        idx (fn [r] (first (keep-indexed (fn [i x] (when (= x r) i)) rung-order)))
+        task-open? (or (some #{task} (:tasks pol))
+                       (some #{(name task)} (:tasks pol)))]
+    {:tool (name task)
+     :decision (if (and task-open? (>= (idx reached) (idx (:minRung pol)))) "allow" "deny")
+     :observeOnly false
+     :firewallVersion firewall-version}))
+
+(def compliance-version "kotoba-compliance-2026-09-v1")
+
+(def compliance-state
+  {:version compliance-version
+   :note "Coverage = automated runtime controls only — not a certification."
+   :frameworks
+   [{:id "apci" :label "APPI" :region "JP"
+     :controls ["prompt-pii-redaction" "audit-log-retention" "screening-evidence-receipts"]}
+    {:id "pci_dss" :label "PCI DSS 4.0" :region "Global"
+     :controls ["card-data-never-stored" "secret-hygiene-redaction" "audit-log-retention"]}
+    {:id "owasp_llm" :label "OWASP LLM Top-10" :region "Global"
+     :controls ["guardrails-csam-cbrn" "firewall-task-deny" "deterministic-policy-engine"]}
+    {:id "nist_ai_rmf" :label "NIST AI RMF" :region "US"
+     :controls ["session-projection-uncalibrated" "assurance-ladder-evidence"]}]
+   :auditLogRetentionDays 180
+   :dataResidency "unspecified"
+   :zeroDataRetention "designed-for-zdr"})
+
+(defn compliance-snapshot []
+  compliance-state)

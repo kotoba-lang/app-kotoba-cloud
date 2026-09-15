@@ -1,34 +1,26 @@
 (ns app-kotoba-cloud.crypto-site
-  "Crypto-asset fraud-response catalog: worldwide exchange registry with abuse
-   contacts + national reporting procedures. Static page over sourced data.")
+  "Crypto-asset fraud response catalog (exchanges, report windows,
+   country procedures). Shell from the cloud-kotoba-dds catalog pattern;
+   this file keeps the catalog's callout and copy."
+  (:require [cloud-kotoba-dds.catalog :as catalog]))
+
 (def css
-  ".kcc-page{max-width:1100px;margin:auto;padding:20px}.kcc-page h1{font-size:clamp(26px,5vw,38px)}
-.kcc-tabs{display:flex;gap:8px;margin:16px 0 8px}.kcc-tab{padding:8px 14px;border:1px solid var(--hig-color-separator);border-radius:999px;background:var(--hig-color-secondary-system-background);font:inherit;cursor:pointer}
-.kcc-tab[aria-pressed=true]{border-color:var(--hig-color-tint);outline:2px solid var(--hig-color-tint);font-weight:600}
-.kcc-tools{display:flex;gap:10px;margin:12px 0}.kcc-tools input{flex:1;min-height:44px;padding:10px;border:1px solid var(--hig-color-separator);border-radius:8px;font:inherit}
-.kcc-grid{display:grid;grid-template-columns:minmax(240px,1fr) minmax(280px,1.4fr);gap:20px}
-@media(max-width:760px){.kcc-grid{grid-template-columns:1fr}}
-.kcc-list{display:grid;gap:8px;align-content:start}.kcc-list button{text-align:left;padding:10px;border:1px solid var(--hig-color-separator);border-radius:8px;background:var(--hig-color-secondary-system-background);font:inherit;cursor:pointer}
-.kcc-list button[aria-pressed=true]{border-color:var(--hig-color-tint);outline:2px solid var(--hig-color-tint)}
-.kcc-list small{display:block;color:var(--hig-color-secondary-label);font-weight:400}
-.kcc-detail{border:1px solid var(--hig-color-separator);border-radius:12px;padding:16px;margin-top:12px;align-self:start}
-.kcc-detail h3{margin-top:0}.kcc-detail h4{margin-bottom:4px}
-.kcc-detail ol{padding-left:1.4em;line-height:1.7}
-.kcc-page a{overflow-wrap:anywhere}
-.kcc-page :focus-visible{outline:3px solid var(--hig-color-tint);outline-offset:3px}
-.kcc-footnote{color:var(--hig-color-secondary-label);font-size:.8rem}
-.kcc-callout{border-left:4px solid var(--hig-color-tint);padding:10px 14px;background:var(--hig-color-secondary-system-background);border-radius:0 8px 8px 0;margin:12px 0}")
+  "Pattern owns the shell. Nothing catalog-specific is left here.")
 
 (defn view
   ([] (view false))
   ([embedded?]
-   [:main {:class "kcc-page" :id "kcc-main"}
-    [:nav {:aria-label "カタログ"}
-     [:a {:href "/ja/"} "← ホーム"]
-     [:a {:href "/ja/security/"} "セキュリティ公開データ"]]
-    [(if embedded? :h2 :h1) "暗号資産詐欺対応カタログ（取引所・通報窓口・各国手順）"]
-    [:p "全世界の暗号資産取引所の情報とセキュリティ通報窓口、そして国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログです。被害に遭った疑いがある場合は、まず下の注意書きをお読みください。"]
-    [:div {:class "kcc-callout"}
+   (catalog/page
+    {:title "暗号資産詐欺対応カタログ（取引所・通報窓口・各国手順）"
+     :lead "全世界の暗号資産取引所の情報とセキュリティ通報窓口、そして国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログです。被害に遭った疑いがある場合は、まず下の注意書きをお読みください。"
+       :nav (catalog/breadcrumb
+          "カタログ"
+          [["ホーム" "/"]
+           ["セキュリティ公開データ" "/security/"]
+           ["このカタログ" nil]])
+     :embedded? embedded?
+     :id "kcc-main"}
+    (catalog/callout
      [:strong "被害の可能性があるときは："]
      " 日本国内では、まず "
      [:a {:href "https://www.npa.go.jp/cyber/" :target "_blank" :rel "noopener"} "警察相談専用電話（#9110）"]
@@ -36,22 +28,19 @@
      [:a {:href "https://www.npa.go.jp/" :target "_blank" :rel "noopener"} "都道府県警察サイバー犯罪相談窓口"]
      " に相談し、取引所には直ちにアカウント凍結（不正アクセスの申告）を依頼してください。金融機関からの送金がある場合は "
      [:a {:href "https://www.fude.or.jp/" :target "_blank" :rel "noopener"} "振り込み詐欺・送金犯罪被害者救援センター"]
-     " への相談も有効です。早通報ほど資金冻结・回収の可能性が上がります。"]
-    [:p {:id "kcc-summary" :role "status"} "データを読み込んでいます…"]
-    [:div {:id "kcc-tabs" :class "kcc-tabs" :role "tablist" :aria-label "カタログ種別"}]
-    [:div {:class "kcc-tools"}
-     [:input {:id "kcc-search" :type "search" :aria-label "検索" :placeholder "取引所名・国・規制当局／国名・窓口名で検索"}]]
-    [:div {:class "kcc-grid"}
-     [:div {:id "kcc-results" :class "kcc-list" :aria-label "一覧"}]
-     [:div {:id "kcc-detail" :class "kcc-detail" :hidden true :aria-label "詳細"}]]
-    [:details
-     [:summary "このカタログについて"]
-     [:p "掲載内容は各取引所・機関の公開情報（公式サイト・規制当局の公開登録簿等）に基づく収集データで、各レコードに出典URLを付けています。通報窓口・手続きは変更されることがあるため、実行前に必ず出典の公式ページで最新情報を確認してください。このカタログは法的助言や捜査の代わりではありません。"]
-     [:nav
-      [:a {:href "/crypto-data/crypto/index.json"} "IPLD インデックス"]
-      " · "
-      [:a {:href "/crypto-data/crypto/exchanges.json"} "取引所レコード"]
-      " · "
-      [:a {:href "/crypto-data/crypto/procedures.json"} "通報手順レコード"]]
-     [:p {:class "kcc-footnote"} "データはコード生成による content-addressed block（IPLD形式）として公開されています。商標・名称は各所有者に帰属します。"]]
-    [:script {:src "/js/crypto-catalog.js" :defer true}]]))
+     " への相談も有効です。早通報ほど資金冻结・回収の可能性が上がります。")
+    (catalog/status "kcc-summary" "データを読み込んでいます…")
+    (catalog/tabs {:id "kcc-tabs" :label "カタログ種別"})
+    (catalog/tools
+     {:search-id "kcc-search" :search-label "検索"
+      :search-placeholder "取引所名・国・規制当局／国名・窓口名で検索"})
+    (catalog/grid
+     {:list-id "kcc-results" :list-label "一覧"}
+     (catalog/detail {:id "kcc-detail" :label "詳細"}))
+    (catalog/about
+     {:summary "このカタログについて"
+      :links [[:a {:href "/crypto-data/crypto/index.json"} "IPLD インデックス"]
+              [:a {:href "/crypto-data/crypto/exchanges.json"} "取引所レコード"]
+              [:a {:href "/crypto-data/crypto/procedures.json"} "通報手順レコード"]]
+      :footnote "データはコード生成による content-addressed block（IPLD形式）として公開されています。商標・名称は各所有者に帰属します。掲載内容は各取引所・機関の公開情報（公式サイト・規制当局の公開登録簿等）に基づく収集データで、各レコードに出典URLを付けています。通報窓口・手続きは変更されることがあるため、実行前に必ず出典の公式ページで最新情報を確認してください。このカタログは法的助言や捜査の代わりではありません。"})
+    [:script {:src "/js/crypto-catalog.js" :defer true}])))

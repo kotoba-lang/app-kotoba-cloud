@@ -1,0 +1,39 @@
+(ns app-kotoba-cloud.security-fit-test
+  (:require [app-kotoba-cloud.security-fit :as fit]
+            [app-kotoba-cloud.security-services :as sec]
+            [clojure.string :as str]
+            [clojure.test :refer [deftest is testing]]))
+
+(def csf-catalog-ids
+  "The committed CSF 2.0 catalog subcategory ids (SSOT). Read from the
+  tracked asset so the fit mapping cannot drift into invented ids."
+  (let [fs (js/require "fs")
+        raw (.toString (.readFileSync fs "assets/csf2-catalog/subcategories.json"))]
+    (set (js->clj (js/Object.keys (js/JSON.parse raw))))))
+
+(deftest fit-is-deterministic-and-committed-bounded
+  (testing "nist-csf-20 expands transitively to controls"
+    (let [f (fit/fit "nist-csf-20")]
+      (is f)
+      (is (= "committed" (:controlMapping (:framework f))))
+      (is (= 4 (count (:services f))))
+      (is (every? seq (:controls f)))
+      (is (seq (:allControls f)))
+      (is (= f (fit/fit "nist-csf-20")) "deterministic repeat")))
+  (testing "every mapped CSF id exists in the committed CSF 2.0 catalog"
+    (doseq [[_ controls] fit/category-controls
+            id controls]
+      (is (contains? csf-catalog-ids id) (str "unknown CSF id: " id))))
+  (testing "unknown framework is nil; missing param pattern returns nil"
+    (is (nil? (fit/fit "iso-99999")))
+    (is (nil? (fit/fit nil))))
+  (testing "other committed frameworks return the mapping without controls"
+    (let [f (fit/fit "iso-27001")]
+      (is f)
+      (is (= "not-committed" (:controlMapping (:framework f))))
+      (is (every? nil? (map :controls (:services f)))))))
+
+(deftest services-come-from-the-canonical-suite-def
+  (testing "every fit service id is one of the four canonical services"
+    (doseq [svc (map :service (:services (fit/fit "nist-csf-20")))]
+      (is (some #(= (name (:id %)) svc) sec/security-services)))))

@@ -1,0 +1,1 @@
+{"categoryId":"waf","complianceFits":["iso-27001","pci-dss-40","soc2"],"id":"alicloud-waf","name":"Alibaba Cloud Web Application Firewall","pricingMode":"public-list","pricingNote":"public list from about $50/month (basic edition); higher tiers quote-based","pricingUrl":"https://www.alibabacloud.com/product/waf","provider":"Alibaba Cloud","providerHq":"CN"}

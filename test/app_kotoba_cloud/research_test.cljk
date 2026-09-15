@@ -67,6 +67,30 @@
                 (assoc request :messages [{:role "user" :content (apply str (repeat 24001 "a"))}])]]
     (is (not (r/completion? body)))))
 
+(deftest openai-compatible-shape-is-strict-but-server-derived
+  (let [base {:model r/model-id :messages [{:role "user" :content "Review my code."}]}]
+    (is (r/completion-openai-compatible? base))
+    (is (r/completion-openai-compatible? (assoc base :max_tokens 2048)))
+    (is (r/completion-openai-compatible? (assoc base :temperature 0.2)))
+    (is (r/completion-openai-compatible? (assoc base :stream false :n 1 :tools [])))
+    (is (r/completion-openai-compatible?
+         (assoc base :messages [{:role "system" :content "You review code."}
+                                {:role "user" :content "Review my code."}])))
+    (doseq [bad [(assoc base :model "other")
+                 (assoc base :stream true)
+                 (assoc base :tools [{:type "function"}])
+                 (assoc base :n 2)
+                 (assoc base :unknown-key "x")
+                 (assoc base :max_tokens 2049)
+                 (assoc base :task "bogus-task")
+                 (assoc base :scopeId "")
+                 (assoc base :messages [])
+                 (assoc base :messages [{:role "assistant" :content "hi"}])
+                 (assoc base :messages [{:role "user" :content (apply str (repeat 24001 "a"))}])
+                 (assoc base :messages [{:role "system" :content "sys"}
+                                        {:role "system" :content "again"}])]]
+      (is (not (r/completion-openai-compatible? bad))))))
+
 (deftest applications-never-accept-self-attested-approval
   (let [application {:verificationMode "new" :policyVersion r/policy-version
                      :purpose "Review owned code" :scope "My private repository"
@@ -76,3 +100,38 @@
     (is (not (r/application? (assoc application :consent false))))
     (is (not (r/application? (assoc application :verificationMode "reuse"))))
     (is (r/application? (assoc application :verificationMode "reuse" :issuer "trusted" :reference "case-1")))))
+(deftest card-rung-unlocks-the-free-allowance-before-identity
+  ;; Owner decision: a saved card unlocks the free research allowance
+  ;; immediately; identity verification and governance checks come after and
+  ;; raise the ceiling.
+  (is (= 102400 (:defaultTokensPerDay (r/rung-by-id :card))))
+  (is (= "code-review" (:grantsBand (r/rung-by-id :card))))
+  (let [card-record {:principalId "principal-a" :policyVersion r/policy-version :status "active"
+                     :cardVerification {:status "verified" :evidenceRef "seti-evidence"
+                                        :verifiedAt (- now 1000) :expiresAt (+ now 86400000)}}]
+    (is (= :card (r/reached-rung card-record now)))
+    (is (= 102400 (:tokensPerDay (r/rung-allowance card-record now)))))
+  ;; Identity rung inherits above the card and raises the ceiling.
+  (is (> (:ceilingTokensPerDay (r/rung-by-id :identity))
+         (:ceilingTokensPerDay (r/rung-by-id :card))))
+  (is (= :identity (r/reached-rung
+                    {:cardVerification {:status "verified" :evidenceRef "c" :verifiedAt (- now 1000) :expiresAt (+ now 86400000)}
+                     :ekyc {:status "verified" :evidenceRef "i" :verifiedAt (- now 1000) :expiresAt (+ now 86400000)}}
+                    now)))
+  ;; Governance rungs sit above identity.
+  (is (< (:level (r/rung-by-id :identity)) (:level (r/rung-by-id :business))))
+  (is (< (:level (r/rung-by-id :business)) (:level (r/rung-by-id :contracted))))
+  ;; No evidence → nothing.
+  (is (= :none (r/reached-rung {} now)))
+  (is (= 0 (:tokensPerDay (r/rung-allowance {} now)))))
+
+(deftest server-never-executes-tools
+  ;; Owner decision: tool calls and command execution are never performed
+  ;; server-side; the model returns text only and tool use stays user-local.
+  (is (r/completion-openai-compatible? {:model r/model-id :messages [{:role "user" :content "hi"}]}))
+  (is (r/completion-openai-compatible? {:model r/model-id :messages [{:role "user" :content "hi"}] :tools []}))
+  (is (not (r/completion-openai-compatible?
+            {:model r/model-id :messages [{:role "user" :content "hi"}]
+             :tools [{:type "function" :function {:name "run_shell"}}]})))
+  (is (some #{:localExecution} (keys r/acceptable-use-policy)))
+  (is (some #(re-find #"never executes tools" %) (:points (:localExecution r/acceptable-use-policy)))))

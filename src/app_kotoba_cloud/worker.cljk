@@ -8,6 +8,8 @@
             [app-kotoba-cloud.funnel :as funnel]
             [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.research :as research]
+            [app-kotoba-cloud.security-services :as security-services]
+            [app-kotoba-cloud.security-fit :as security-fit]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
@@ -17,14 +19,15 @@
             [app-kotoba-cloud.rootkey :as rootkey]
             [app-kotoba-cloud.pqc :as pqc]
             [app-kotoba-cloud.session :as session]
+            [app-kotoba-cloud.pat :as pat]
+            [app-kotoba-cloud.csp :as csp]
             [goog.object :as gobj]))
 
 (def security-headers
   ;; connect-src stays 'self' for first-party funnel POSTs. freebuff.com is
   ;; allowed only so a measured bfcid can load the vendor tag. No OpenAI Ads
   ;; host is listed.
-  {"content-security-policy"
-   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+  {"content-security-policy" csp/public-document
    "cross-origin-opener-policy" "same-origin"
    "referrer-policy" "no-referrer"
    "x-content-type-options" "nosniff"
@@ -225,6 +228,74 @@
                (let [model (or viewer {:valid false})]
                  (emit-signup-completed! request env model)
                  (session-response model))))))
+
+(defn- route-logout
+  "Same-origin sign-out proxy. The authn cookie (gftd_session) is issued for
+  the apex (kotoba.cloud), but the page CSP keeps connect-src 'self', so the
+  browser cannot POST auth.kotoba.cloud/v1/logout directly. Forward the
+  session cookie to the authn worker's POST /v1/logout and pass the
+  clearing Set-Cookie back untouched."
+  [request]
+  (if-let [token (session/cookie-value (.get (.-headers request) "cookie")
+                                       session/cookie-name)]
+    (-> (js/fetch (str session/identity-logout-url)
+                  #js {:method "POST"
+                       :headers #js {"accept" "application/json"
+                                     "cookie" (str session/cookie-name "=" token)}})
+        (.then (fn [upstream]
+                 (let [headers (js/Headers.)]
+                   (.set headers "cache-control" "no-store, private")
+                   (.set headers "content-type" "application/json")
+                   (let [set-cookie (or (.get upstream "set-cookie") (.get upstream "Set-Cookie"))]
+                     (when set-cookie (.append headers "set-cookie" set-cookie)))
+                   (js/Response. (js/JSON.stringify #js {:ok true})
+                                 #js {:status (.-status upstream) :headers headers}))))
+        (.catch (fn [_]
+                  (js/Response. (js/JSON.stringify #js {:ok false})
+                                #js {:status 502
+                                     :headers #js {"content-type" "application/json"
+                                                   "cache-control" "no-store"}}))))
+    (js/Response. (js/JSON.stringify #js {:ok false :error "session-required"})
+                  #js {:status 401
+                       :headers #js {"content-type" "application/json"
+                                     "cache-control" "no-store"}})))
+
+(defn- route-api-token
+  "Same-origin POST that issues a stateless personal API token (PAT) for local
+  CLI/IDE agents. Signed-in viewer required. The token is HMAC-backed (see
+  app-kotoba-cloud.pat) and returned exactly once; it is never logged and
+  never accepted in query strings. Fail closed when PAT_SIGNING_SECRET is
+  absent. Optional JSON body: {\"label\": \"...\"} (<= 64 chars, display only)."
+  [request env viewer]
+  (let [origin (.get (.-headers request) "origin")
+        content-type (or (.get (.-headers request) "content-type") "")
+        secret (aget env pat/secret-name)]
+    (cond
+      (not (contains? research-gateway/origins origin))
+      (private-json-response {:ok false :error "invalid-origin"} 403)
+
+      (not (.startsWith content-type "application/json"))
+      (private-json-response {:ok false :error "content-type-required"} 415)
+
+      (not (string? secret))
+      (private-json-response {:ok false :error "pat-not-configured"} 503)
+
+      :else
+      (-> (.text request)
+          (.then (fn [text]
+                   (let [body (try (js->clj (js/JSON.parse text) :keywordize-keys true)
+                                   (catch :default _ nil))
+                         label (:label body)]
+                     (if (and (some? label)
+                              (or (not (string? label)) (> (count label) 64)))
+                       (private-json-response {:ok false :error "invalid-token-label"} 400)
+                       (-> (pat/issue (:principalId viewer) secret)
+                           (.then (fn [token]
+                                    (private-json-response
+                                     {:ok true :token token
+                                      :label (when (seq label) label)
+                                      :note "This token is shown once. Store it now. Revocation is by rotating the signing secret — contact support@kotoba.cloud."
+                                      :issuedAt (.toISOString (js/Date.))}))))))))))))
 
 (def publication-schema
   "https://kotoba.cloud/schemas/library-publication-request/v3")
@@ -528,9 +599,14 @@
   (or (when-let [cf (gobj/get request "cf")] (gobj/get cf "country"))
       (.get (.-headers request) "cf-ipcountry")))
 
-(defn- locale-redirect [location]
-  (redirect location {"cache-control" "private, no-store"
-                      "vary" "Accept-Language, Cookie, CF-IPCountry"}))
+(defn- locale-redirect
+  ([location]
+   (locale-redirect location 302))
+  ([location status]
+   (response "" status "text/plain; charset=utf-8"
+             (merge {"location" location
+                     "cache-control" "private, no-store"
+                     "vary" "Accept-Language, Cookie, CF-IPCountry"}))))
 
 (defn- route-static [request env path]
   (let [url (js/URL. (.-url request))
@@ -541,20 +617,37 @@
                    :accept-language (.get (.-headers request) "accept-language")
                    :country (request-country request)})]
     (if-let [target (:redirect decision)]
-      (locale-redirect (str target (.-search url)))
-      (-> (.fetch ^js (gobj/get env "ASSETS") request)
-          (.then (fn [asset]
-                   (with-security-headers
-                    asset
-                    (cond-> {"vary" (when (locale/apex-path? path)
-                                      "Accept-Language, Cookie, CF-IPCountry")}
-                      (or (locale/apex-path? path)
-                          (= path (locale/locale-path (:locale decision))))
-                      (assoc "content-security-policy"
-                             (.replace (get security-headers "content-security-policy")
-                                       "connect-src 'self'" "connect-src 'self' https://api.kotoba.cloud"))
-                      (:set-cookie? decision)
-                      (assoc "set-cookie" (locale/cookie-header (:locale decision)))))))))))
+      (locale-redirect (str target (.-search url)) 302)
+      (let [canonical (:canonical decision)
+            asset-path (or (:serve decision) path)]
+        (-> (if (= asset-path path)
+              (.fetch ^js (gobj/get env "ASSETS") request)
+              (let [asset-url (js/URL. (.-url request))]
+                (set! (.-pathname asset-url) asset-path)
+                (.fetch ^js (gobj/get env "ASSETS")
+                        (js/Request. (str asset-url) request))))
+            (.then (fn [asset]
+                     ;; Variant miss → serve the locale-free document in place.
+                     (if (and (not= asset-path path)
+                              (= (.-status asset) 404))
+                       (.fetch ^js (gobj/get env "ASSETS") request)
+                       asset)))
+            (.then (fn [asset]
+                     (if (and canonical (not= (.-status asset) 404))
+                       (let [r (locale-redirect (str canonical (.-search url)) 301)]
+                         (.set (.-headers r) "set-cookie"
+                               (locale/cookie-header (:locale decision)))
+                         r)
+                       (with-security-headers
+                        asset
+                        (cond-> {"vary" "Accept-Language, Cookie, CF-IPCountry"}
+                          (or (locale/apex-path? path)
+                              (= path (locale/locale-path (:locale decision))))
+                          (assoc "content-security-policy"
+                                 (.replace (get security-headers "content-security-policy")
+                                           "connect-src 'self'" "connect-src 'self' https://api.kotoba.cloud"))
+                          (:set-cookie? decision)
+                          (assoc "set-cookie" (locale/cookie-header (:locale decision)))))))))))))
 
 (defn- boot-error [error status]
   (response (js/JSON.stringify (clj->js {:ok false :error error}))
@@ -609,6 +702,89 @@
       :else
       (boot-error "not-found" 404))))
 
+(defn- normalize-finding
+  "Coerce JSON-decoded finding fields to the shapes the ledger validates
+  against: snake_case JSON keys become the schema's kebab keys, and string
+  values for :service/:severity become keywords."
+  [f]
+  (let [f (cond-> f
+            (contains? f :finding_id) (assoc :finding-id (get f :finding_id))
+            (contains? f :first_seen) (assoc :first-seen (get f :first_seen))
+            (contains? f :last_seen) (assoc :last-seen (get f :last_seen)))]
+    (cond-> f
+      (string? (:service f)) (update :service keyword)
+      (string? (:severity f)) (update :severity keyword))))
+
+(defn- parse-findings-payload
+  "Accepts a bare JSON array or {findings:[...]}. Returns [ok findings]."
+  [body]
+  (cond
+    (vector? body) [true body]
+    (and (map? body) (vector? (:findings body))) [true (:findings body)]
+    :else [false nil]))
+
+(defn- route-security-findings [request]
+  (let [content-type (or (.get (.-headers request) "content-type") "")]
+    (if-not (.startsWith content-type "application/json")
+      (private-json-response {:ok false :error {:code "content-type-required"}} 415)
+      (-> (.text request)
+          (.then
+           (fn [text]
+             (let [body (js->clj (js/JSON.parse text) :keywordize-keys true)
+                   [ok? findings] (parse-findings-payload body)
+                   normalized (mapv normalize-finding (or findings []))
+                   first-bad (when ok?
+                               (some (fn [[i f]] (when-let [err (security-services/finding-error f)]
+                                                   (assoc err :index i)))
+                                     (map-indexed vector normalized)))]
+               (cond
+                 (not ok?)
+                 (private-json-response
+                  {:ok false :error {:code "invalid-findings-payload"
+                                     :hint "submit a JSON array or a {findings: [...]} object"}} 400)
+
+                 first-bad
+                 (private-json-response
+                  {:ok false :error {:code "invalid-finding"
+                                     :index (:index first-bad)
+                                     :field (:field first-bad)
+                                     :reason (:code first-bad)}} 400)
+
+                 :else
+                 (private-json-response
+                  (merge {:ok true :accepted (count normalized)}
+                         {:ledger (security-services/build-ledger normalized)}))))))))))
+
+(defn- route-security-vulnerabilities [request]
+  (let [raw (.get (.-searchParams (js/URL. (.-url request))) "findings")]
+    (if (not raw)
+      (private-json-response
+       (merge {:ok true :accepted 0}
+              {:ledger (security-services/build-ledger nil)}))
+      (-> (js/Promise.resolve nil)
+          (.then
+           (fn [_]
+             (let [body (js->clj (js/JSON.parse raw) :keywordize-keys true)
+                   [ok? findings] (parse-findings-payload body)
+                   normalized (mapv normalize-finding (or findings []))
+                   first-bad (when ok?
+                               (some (fn [[i f]] (when-let [err (security-services/finding-error f)]
+                                                   (assoc err :index i)))
+                                     (map-indexed vector normalized)))]
+               (cond
+                 (not ok?)
+                 (private-json-response {:ok false :error {:code "invalid-findings-payload"}} 400)
+                 first-bad
+                 (private-json-response
+                  {:ok false :error {:code "invalid-finding"
+                                     :index (:index first-bad)
+                                     :field (:field first-bad)
+                                     :reason (:code first-bad)}} 400)
+                 :else
+                 (private-json-response
+                  (merge {:ok true :accepted (count normalized)}
+                         {:ledger (security-services/build-ledger normalized)}))))))))))
+
 (defn route [request ^js env]
   (let [url (js/URL. (.-url request))
         path (.-pathname url)
@@ -643,7 +819,7 @@
         (#{"/" "/admin/" "/index.html"} path)
         (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/admin/") request))
             (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                             "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                                             "content-security-policy" csp/admin-document
                                              "x-robots-tag" "noindex"
                                              "referrer-policy" "no-referrer"})))
 
@@ -668,7 +844,7 @@
       (and (contains? #{"/identity" "/identity/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/identity/") request))
           (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                           "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                                           "content-security-policy" csp/identity-document
                                            "permissions-policy" "camera=(self), microphone=(), geolocation=(), payment=()"})))
 
       (contains? org-gateway/paths path)
@@ -677,7 +853,7 @@
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
           (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                           "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"})))
+                                           "content-security-policy" csp/account-document})))
 
       (contains? research-gateway/paths path)
       (research-gateway/route request env fetch-viewer private-json-response)
@@ -708,6 +884,30 @@
                  "/ja/#knowledge/overview"
                  "/#knowledge/overview"))
 
+      (and (= path "/v1/logout") (= method "POST"))
+      (route-logout request)
+
+      ;; Personal API token issuance (local CLI/IDE agents). Same-origin POST,
+      ;; signed-in viewer, BEFORE the GET/HEAD 405 gate.
+      (and (= path "/v1/account/api-token") (= method "POST"))
+      (-> (fetch-viewer request)
+          (.then (fn [viewer]
+                   (if-not (:valid viewer)
+                     (private-json-response {:ok false :error "sign-in-required"} 401)
+                     (route-api-token request env viewer)))))
+
+      ;; VM ledger API (PR: security-apps). Deterministic, stateless: POST
+      ;; /v1/security/findings validates the submitted finding records and
+      ;; returns the deduped scored ledger computed from the body itself;
+      ;; GET /v1/security/vulnerabilities computes the same ledger from an
+      ;; optional ?findings= JSON param. POST routes MUST precede the
+      ;; 405 catch-all below.
+      (and (= path "/v1/security/findings") (= method "POST"))
+      (route-security-findings request)
+
+      (and (= path "/v1/security/vulnerabilities") (#{"GET" "HEAD"} method))
+      (route-security-vulnerabilities request)
+
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
 
@@ -723,7 +923,93 @@
       ;; Organization trust registry (ADR-2609141633). Static content, but
       ;; served by the edge so the smoke environment (no file assets) sees it.
       (= path "/.well-known/kotoba-org-registry.json")
-      (json-response org-registry/registry)
+      ;; The private authority returns the COMPLETE registry document (static
+      ;; policy + live orgs). Pass it through verbatim; if the authority is
+      ;; unreachable, serve the static policy document — never an error page.
+      (if-let [org-binding (aget env "ORG_AUTHORITY")]
+        (-> (.fetch org-binding
+                    (js/Request. "https://org.internal/registry"
+                                 #js {:method "POST" :redirect "manual"
+                                      :signal (js/AbortSignal.timeout 15000)
+                                      :headers #js {"content-type" "application/json"}
+                                      :body "{}"}))
+            (.then (fn [r]
+                     (if-not (.-ok r)
+                       (json-response org-registry/registry)
+                       (.then (.json r)
+                              (fn [doc] (json-response (js->clj doc :keywordize-keys true)))))))
+            (.catch (fn [_] (json-response org-registry/registry))))
+        (json-response org-registry/registry))
+
+      ;; Public did:webvh log per organization (ADR-2609141633). The path shape
+      ;; matches the did:webvh URL transform for com-<handle>.kotoba.cloud.
+      (and (.startsWith path "/.well-known/kotoba-org-dids/") (= method "GET"))
+      (let [prefix "/.well-known/kotoba-org-dids/"
+            handle (subs path (count prefix))
+            ;; did:webvh URL transform: <domain>/did.jsonl — the log file is
+            ;; part of the path, not the handle.
+            handle (if (.endsWith handle "/did.jsonl")
+                     (subs handle 0 (- (count handle) 10))
+                     handle)
+            org-binding (aget env "ORG_AUTHORITY")]
+        (if (and org-binding (re-find #"^com-[a-z0-9][a-z0-9-]{2,62}\.kotoba\.cloud$" handle))
+          (-> (.fetch org-binding
+                      (js/Request. "https://org.internal/registry"
+                                   #js {:method "POST" :redirect "manual"
+                                        :signal (js/AbortSignal.timeout 15000)
+                                        :headers #js {"content-type" "application/json"}
+                                        :body (js/JSON.stringify (clj->js {:handle handle}))}))
+              (.then (fn [r]
+                       (if-not (.-ok r)
+                         (json-response {:error {:code "org-did-not-found"}} 404)
+                         (.then (.json r)
+                                (fn [d]
+                                  (let [doc (js->clj d :keywordize-keys true)
+                                        entry (some (fn [o] (when (= handle (:handle o)) o))
+                                                    (:organizations doc))]
+                                    (js/Response. (str (or (:log entry) (:log doc)) "\n")
+                                                  #js {:status (if (or (:log entry) (:log doc)) 200 404)
+                                                       :headers #js {"content-type" (if (or (:log entry) (:log doc))
+                                                                                      "application/jsonl; charset=utf-8"
+                                                                                      "application/json")
+                                                                     "cache-control" "public, max-age=3600"}}))))))))
+          (json-response {:error {:code "not-found"}} 404)))
+
+      ;; SECURE surface (orcarouter pattern): public metadata of the runtime
+      ;; controls — guardrail templates, firewall tool map, compliance coverage.
+      ;; Read-only; the authority enforces, the edge only describes.
+      ;; Security-services suite catalog (describing only): the edge serves
+      ;; the ONE canonical def; any enforcement stays on the private
+      ;; authority.
+      (= path "/v1/security/services")
+      (json-response security-services/security-services)
+
+      ;; Compliance Fit Finder (deterministic, no AI): transitive
+      ;; service -> catalog-category -> framework-control expansion over the
+      ;; committed compliance-catalog fit mapping. Query-param or path form.
+      (and (= path "/v1/security/compliance-fit") (#{"GET" "HEAD"} method))
+      (let [fw (.get (.-searchParams (js/URL. (.-url request))) "framework")
+            fit (when fw (security-fit/fit fw))]
+        (if fit
+          (json-response (merge {:ok true} fit))
+          (json-response {:ok false
+                          :error {:code "unknown-framework"
+                                  :framework fw
+                                  :committed (vec security-fit/frameworks)}}
+                         (if fw 404 400))))
+
+      (.startsWith path "/v1/security/compliance-fit/")
+      (let [fw (subs path (count "/v1/security/compliance-fit/"))
+            fit (security-fit/fit fw)]
+        (if fit
+          (json-response (merge {:ok true} fit))
+          (json-response {:ok false
+                          :error {:code "unknown-framework"
+                                  :framework fw
+                                  :committed (vec security-fit/frameworks)}} 404)))
+
+      (= path "/v1/secure")
+      (json-response research/secure-profile)
 
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})

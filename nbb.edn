@@ -19,4 +19,14 @@
         ;; COPIED from deps.edn: chat_site/knowledge_site require cloud-kotoba-dds.
         io.github.kotoba-lang/cloud-kotoba-dds
         {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git"
-         :git/sha "502053418e9df99f167d3da8a5953edb1a73fc7e"}}}
+         :git/sha "01db80709df67183fb29c0b1bae585895276b137"}
+        ;; COPIED from deps.edn: scripts/uiux-audit.cljk + uiux_audit_test.cljk
+        ;; require shinkansen.audit / shinkansen.coscientist.
+        io.github.kotoba-lang/shinkansen
+        {:git/url "https://github.com/kotoba-lang/shinkansen.git"
+         :git/sha "fe17ddfa96f50cdeadcd491cd4b622af16762fa8"}
+        ;; Transitive via jp-go-dds tokens (css.core): declared here because
+        ;; nbb does not read the dependency's own deps.edn.
+        io.github.kotoba-lang/css
+        {:git/url "https://github.com/kotoba-lang/css.git"
+         :git/sha "6eda5ee28ec177b9e09fdbee92c55a050b18cf7d"}}}

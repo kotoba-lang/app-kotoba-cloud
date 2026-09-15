@@ -34,4 +34,13 @@ for(const p of index.products){
 assert.equal(index['source/framework'].document, 'NIST CSWP 29');
 assert.equal(index['source/framework'].subcategoryCount, 106);
 
+// surface: report download wired in page + script
+const page=readFileSync('src/app_kotoba_cloud/csf2_site.cljk','utf8');
+const js=readFileSync('assets/csf2-catalog.js','utf8');
+assert.ok(page.includes('"csf2-report"'), 'report button present in page markup');
+assert.ok(page.includes('カバレッジレポートをダウンロード'), 'report button copy');
+assert.ok(js.includes("getElementById('csf2-'+id)") && js.includes("$('report')"), 'script wires report button');
+assert.ok(js.includes('supportedSubcategories'), 'report includes covered subcategory detail');
+assert.ok(js.includes("-coverage.json"), 'download filename names the product');
+
 console.log('csf2 catalog tests passed:', index.products.length, 'products,', Object.keys(subs).length, 'subcategories');

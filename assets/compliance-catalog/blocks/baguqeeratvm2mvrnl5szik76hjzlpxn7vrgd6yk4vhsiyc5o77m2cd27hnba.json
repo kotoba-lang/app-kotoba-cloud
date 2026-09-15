@@ -1,0 +1,1 @@
+{"categoryId":"secrets","complianceFits":["fedramp","iso-27001","nist-csf-20","pci-dss-40","soc2"],"id":"aws-secrets-manager","name":"AWS Secrets Manager","pricingMode":"public-list","pricingNote":"about $0.40/secret/month plus API call charges as published","pricingUrl":"https://aws.amazon.com/secrets-manager/pricing/","provider":"AWS","providerHq":"US"}

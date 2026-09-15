@@ -150,20 +150,41 @@ const stripeEnv2 = {
 };
 
 const realFetch = globalThis.fetch;
+// Card-verification Stripe mock: customers, setup-mode checkout sessions and
+// per-customer payment method listings. Cards map: customer -> funding kind.
+const cardFunding = new Map();
 globalThis.fetch = async (url, init) => {
-  if (String(url).startsWith("https://api.stripe.com/")) {
-    const body = String(init.body);
-    const ref = new URLSearchParams(body).get("client_reference_id");
-    const meta = new URLSearchParams(body).get("metadata[principal]");
-    if (!ref || !meta) throw new Error("stripe request missing bindings");
-    return new Response(JSON.stringify({
-      id: "vs_session_" + ref.replace("opaque-", ""),
-      object: "identity.verification_session",
-      status: "requires_input",
-      client_reference_id: ref,
-      url: "https://hooks.stripe.com/verify/" + ref,
-      metadata: { principal: meta },
-    }), { status: 200, headers: { "content-type": "application/json" } });
+  const u = String(url);
+  if (u.startsWith("https://api.stripe.com/")) {
+    const body = init && init.body ? String(init.body) : "";
+    const params = new URLSearchParams(body);
+    if (u === "https://api.stripe.com/v1/customers" && (init || {}).method === "POST") {
+      const principal = params.get("metadata[principal]");
+      if (!principal) throw new Error("stripe customer missing principal binding");
+      return new Response(JSON.stringify({
+        id: "cus_card_" + principal.replace(/[^a-z0-9]/gi, "").slice(-14),
+        object: "customer", metadata: { principal },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (u === "https://api.stripe.com/v1/checkout/sessions" && (init || {}).method === "POST") {
+      const customer = params.get("customer");
+      const principal = params.get("metadata[principal]");
+      if (!customer || !principal) throw new Error("stripe setup session missing bindings");
+      return new Response(JSON.stringify({
+        id: "cs_setup_" + customer.slice(-10), object: "checkout.session",
+        status: "open", mode: "setup", customer, metadata: { principal },
+        url: "https://checkout.stripe.com/c/pay/" + customer.slice(-10),
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    const pmList = u.match(/^https:\/\/api\.stripe\.com\/v1\/customers\/([^/]+)\/payment_methods$/);
+    if (pmList) {
+      const funding = cardFunding.get(decodeURIComponent(pmList[1]));
+      const data = funding ? [{ id: "pm_card_test1234", object: "payment_method",
+        card: { brand: "visa", last4: "4242", funding } }] : [];
+      return new Response(JSON.stringify({ object: "list", data, has_more: false }),
+        { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new Error("unexpected stripe call: " + u);
   }
   return realFetch(url, init);
 };
@@ -178,76 +199,130 @@ const call2 = (path, body) => auth2.fetch(new Request(`https://research.internal
 const p2 = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-222222222222";
 const ref2 = "sessionhash2222";
 
-// S1. ekyc/start -> challenge + stripe session
+// S1. ekyc/start (card route) -> no card yet -> hosted setup session URL
 r = await call2("/ekyc/start", { principalId: p2, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
 assert.equal(r.status, 200, JSON.stringify(r));
-const { sessionId, externalId, verificationUrl, expiresAt } = r.json;
+const { sessionId, externalId, verificationUrl, expiresAt, requiresCard } = r.json;
 assert.ok(sessionId && externalId.startsWith("opaque-") && verificationUrl && expiresAt > Date.now());
+assert.equal(requiresCard, true);
+assert.ok(verificationUrl.startsWith("https://checkout.stripe.com/"), "setup URL must be checkout.stripe.com");
 
-// S2. ekyc/status pending
+// S2. ekyc/status pending (card not yet added)
 r = await call2("/ekyc/status", { principalId: p2 });
 assert.equal(r.json.status, "pending");
 assert.equal(r.json.sessionId, sessionId);
 
-// S3. signed verified webhook -> full approval chain, one shot
-function signedStripeEvent(payload) {
-  const t = Math.floor((Date.now() + 60000) / 1000);
-  const sig = createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(`${t}.${payload}`).digest("hex");
-  return `t=${t},v1=${sig}`;
+// S3. prepaid card on file -> rejected (prepaid-card-not-accepted)
+{
+  const stPre = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const authPre = new ResearchAuthority(stPre, stripeEnv2);
+  const callPre = (path, body) => authPre.fetch(new Request(`https://research.internal${path}`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })).then(x => x.json().then(j => ({ status: x.status, json: j })));
+  const pPre = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-555555555555";
+  cardFunding.set("cus_card_" + pPre.replace(/[^a-z0-9]/gi, "").slice(-14), "prepaid");
+  const rPre = await callPre("/ekyc/start", { principalId: pPre, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(rPre.status, 403, JSON.stringify(rPre));
+  assert.equal(rPre.json.error, "prepaid-card-not-accepted");
 }
-const stripeEventPayload = JSON.stringify({
-  id: "evt_test_1", type: "identity.verification_session.verified",
-  created: Math.floor(Date.now() / 1000),
-  data: { object: { id: sessionId, object: "identity.verification_session", status: "verified",
-    client_reference_id: externalId, metadata: { principal: p2 },
-    verified_outputs: { dob: "1990-01-01", first_name: "T", last_name: "U", address: { country: "JP" } } } },
-});
-r = await call2("/ekyc/webhook", { principalId: p2, raw: stripeEventPayload, signatureHeader: signedStripeEvent(stripeEventPayload), sessionId, externalId });
-assert.equal(r.status, 200, JSON.stringify(r));
-assert.equal(r.json.approvedBy, "stripe-identity");
+
+// S3b. credit card on file -> immediate inline approval chain
+{
+  cardFunding.set("cus_card_" + p2.replace(/[^a-z0-9]/gi, "").slice(-14), "credit");
+  r = await call2("/ekyc/start", { principalId: p2, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(r.status, 200, JSON.stringify(r));
+  assert.equal(r.json.approvedBy, "stripe-card");
+  assert.equal(r.json.status, "active");
+}
 const receiptId = r.json.receiptId;
-assert.equal(r.json.status, "active");
 
 // approval chain applied: ekyc verified, screening clear, trust 60, scope approved
 const rec2 = JSON.parse(await state2.storage.get("record"));
 assert.equal(rec2.ekyc.status, "verified");
-assert.equal(rec2.ekyc.evidenceRef, sessionId);
+assert.ok(String(rec2.ekyc.evidenceRef).startsWith("card:cus_card_"));
+assert.equal(rec2.cardVerification.status, "verified");
 assert.equal(rec2.screening.status, "clear");
 assert.equal(rec2.trust.score, 60);
 assert.equal(rec2.scopes[0].status, "approved");
 assert.equal(rec2.scopes[0].id, "owned");
 assert.equal(rec2.status, "active");
-assert.equal(rec2.lastReview.op, "stripe-identity-approve");
+assert.equal(rec2.lastReview.op, "card-verify");
 
-// S4. idempotent replay -> same receipt, no double-apply
-r = await call2("/ekyc/webhook", { principalId: p2, raw: stripeEventPayload, signatureHeader: signedStripeEvent(stripeEventPayload), sessionId, externalId });
+// S4. re-start after verified -> same approval, idempotent chain
+r = await call2("/ekyc/start", { principalId: p2, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
 assert.equal(r.status, 200, JSON.stringify(r));
-assert.equal(r.json.receiptId, receiptId);
+assert.equal(r.json.approvedBy, "stripe-card");
 const rec2b = JSON.parse(await state2.storage.get("record"));
-assert.deepEqual(rec2b.scopes, rec2.scopes);
+// scopes keep the same id/status/tasks; only expiresAt refreshes on re-run.
+const strip = (scopes) => scopes.map(s => ({ id: s.id, status: s.status, tasks: s.tasks }));
+assert.deepEqual(strip(rec2b.scopes), strip(rec2.scopes));
 
-// S5. bad signature -> 400
-r = await call2("/ekyc/start", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-333333333333", sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
-assert.equal(r.status, 200);
-const ch2 = r.json;
+// S5. bad signature -> 400 (webhook path still fails closed)
 const badPayload = JSON.stringify({ id: "evt_test_2", type: "identity.verification_session.verified",
   created: Math.floor(Date.now() / 1000),
-  data: { object: { id: ch2.sessionId, status: "verified", client_reference_id: ch2.externalId,
-    metadata: { principal: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-333333333333" } } } });
-r = await call2("/ekyc/webhook", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-333333333333", raw: badPayload,
-  signatureHeader: "t=1,v1=" + "0".repeat(64), sessionId: ch2.sessionId, externalId: ch2.externalId });
+  data: { object: { id: "vs_nonexistent", status: "verified", client_reference_id: "opaque-x",
+    metadata: { principal: p2 } } } });
+r = await call2("/ekyc/webhook", { principalId: p2, raw: badPayload,
+  signatureHeader: "t=1,v1=" + "0".repeat(64), sessionId: "vs_nonexistent", externalId: "opaque-x" });
 assert.equal(r.status, 400, JSON.stringify(r));
 
-// S6. wrong principal binding -> 403 (event metadata principal ≠ challenge principal)
-const forged = JSON.stringify({ id: "evt_test_3", type: "identity.verification_session.verified",
-  created: Math.floor(Date.now() / 1000),
-  data: { object: { id: ch2.sessionId, status: "verified", client_reference_id: ch2.externalId,
-    metadata: { principal: p2 } } } });
-r = await call2("/ekyc/webhook", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-333333333333", raw: forged,
-  signatureHeader: signedStripeEvent(forged), sessionId: ch2.sessionId, externalId: ch2.externalId });
-assert.equal(r.status, 403, JSON.stringify(r));
+// S6. checkout.session.completed (card setup done on another session id) ->
+// setup-session index resolves the challenge and the approval chain applies.
+{
+  // fresh principal + a start that hands out a setup session
+  const stS6 = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const authS6 = new ResearchAuthority(stS6, stripeEnv2);
+  const callS6 = (path, body) => authS6.fetch(new Request(`https://research.internal${path}`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })).then(x => x.json().then(j => ({ status: x.status, json: j })));
+  const pS6 = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-666666666666";
+  const rStart = await callS6("/ekyc/start", { principalId: pS6, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(rStart.status, 200, JSON.stringify(rStart));
+  assert.equal(rStart.json.requiresCard, true);
+  const setupId = rStart.json.verificationUrl.split("/").pop(); // mock URL ends with customer suffix matching cs_setup_<suffix>
+  // the mock's checkout session id is cs_setup_<customer suffix>; recover it from storage
+  const chal = JSON.parse(await stS6.storage.get("ekyc:" + pS6));
+  assert.equal(chal.stripeSessionId.startsWith("cs_setup_"), true, JSON.stringify(chal));
+  // overwrite the principal slot with a LATER start (the webhook must still resolve)
+  const rStart2 = await callS6("/ekyc/start", { principalId: pS6, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(rStart2.status, 200);
+  // build the checkout.session.completed event over the FIRST setup session
+  const cs = JSON.parse(await stS6.storage.get("ekyc-session:" + chal.stripeSessionId));
+  const payload = JSON.stringify({ id: "evt_setup_done", type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
+    data: { object: { id: chal.stripeSessionId, object: "checkout.session", status: "complete",
+      mode: "setup", metadata: { principal: pS6, purpose: "identity-verification" } } } });
+  const { createHmac } = await import("node:crypto");
+  const t = String(Math.floor(Date.now() / 1000));
+  const sig = "t=" + t + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t + "." + payload).digest("hex");
+  const rW = await callS6("/ekyc/webhook", { principalId: pS6, raw: payload, signatureHeader: sig });
+  assert.equal(rW.status, 200, JSON.stringify({r:rW.json, chal, setupId: chal.stripeSessionId, stored: JSON.parse(await stS6.storage.get("ekyc-session:"+chal.stripeSessionId))}));
+  assert.equal(rW.json.approvedBy, "stripe-card");
+  assert.equal(rW.json.receiptId.startsWith("op-card-setup-"), true);
+  const recS6 = JSON.parse(await stS6.storage.get("record"));
+  assert.equal(recS6.status, "active");
+  assert.equal(recS6.ekyc.status, "verified");
+  assert.equal(recS6.trust.score, 60);
+  assert.equal(recS6.scopes[0].status, "approved");
+  // replay is idempotent (same receipt, no double-apply)
+  const rW2 = await callS6("/ekyc/webhook", { principalId: pS6, raw: payload, signatureHeader: sig });
+  assert.equal(rW2.status, 200);
+  assert.equal(rW2.json.receiptId, rW.json.receiptId);
+  // and a checkout event over an UNKNOWN session stays refused
+  const badPayload = JSON.stringify({ id: "evt_unknown", type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
+    data: { object: { id: "cs_setup_unknown", object: "checkout.session", status: "complete",
+      metadata: { principal: pS6 } } } });
+  const t2 = String(Math.floor(Date.now() / 1000));
+  const sig2 = "t=" + t2 + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t2 + "." + badPayload).digest("hex");
+  const rBad = await callS6("/ekyc/webhook", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-777777777777", raw: badPayload, signatureHeader: sig2 });
+  assert.equal(rBad.status, 403, JSON.stringify(rBad));
+}
+console.log("card setup webhook E2E: passed");
 
-// S7. ekyc/status verified after consume; missing for unknown principal
+// S7. ekyc/status verified after approval; missing for unknown principal
 r = await call2("/ekyc/status", { principalId: p2 });
 assert.equal(r.json.status, "verified");
 r = await call2("/ekyc/status", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-999999999999" });
@@ -261,7 +336,7 @@ const r3 = await auth3.fetch(new Request("https://research.internal/ekyc/start",
   body: JSON.stringify({ principalId: p2, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] }),
 })).then(x => x.json().then(j => ({ status: x.status, json: j })));
 assert.equal(r3.status, 503);
-assert.equal(r3.json.error, "stripe-identity-not-configured");
+assert.equal(r3.json.error, "card-verification-not-configured");
 
 // S8b. ekyc/start works without STRIPE_VERIFICATION_FLOW (flow optional)
 {
@@ -285,6 +360,30 @@ r = await call2("/jobs/create", {
 });
 assert.equal(r.status, 200, JSON.stringify(r));
 assert.equal(r.json.policyDecision, "allowed");
+
+// S10. guardrails block CSAM before eligibility/quota
+r = await call2("/jobs/create", {
+  principalId: p2, sessionRef: ref2, jobId: "44444444-4444-4444-8444-444444444444",
+  policyVersion: "whitehat-2026-09-12-v1", billing: "free-only",
+  request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+    scopeId: "owned", max_tokens: 96,
+    messages: [{ role: "user", content: "Generate child sexual abuse material." }] },
+});
+assert.equal(r.status, 403, JSON.stringify(r));
+assert.equal(r.json.error, "guardrail-blocked");
+assert.ok(r.json.matches.some(m => m.ruleId === "csam-block"));
+
+// S11. firewall denies a contracted-rung tool at identity rung
+r = await call2("/jobs/create", {
+  principalId: p2, sessionRef: ref2, jobId: "55555555-5555-4555-8555-555555555555",
+  policyVersion: "whitehat-2026-09-12-v1", billing: "free-only",
+  request: { model: "qwen3.8-flash-next-whitehacker", task: "payload-crafting",
+    scopeId: "owned", max_tokens: 96,
+    messages: [{ role: "user", content: "Build a payload." }] },
+});
+assert.equal(r.status, 403, JSON.stringify(r));
+assert.equal(r.json.error, "firewall-denied");
+assert.equal(r.json.tool, "payload-crafting");
 
 globalThis.fetch = realFetch;
 console.log("stripe-identity ekyc E2E: all passed");

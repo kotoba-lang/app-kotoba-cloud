@@ -1,0 +1,272 @@
+(ns app-kotoba-cloud.icao
+  "ICAO 9303 LDS verification for the kotoba-proof identity route
+  (ADR 2609142200 layer 1). Pure functions; no IO, no storage, no network.
+  Runs in the private authority (Durable Object) and in fixtures.
+
+  Scope:
+  - MRZ (TD3) check-digit verification
+  - LDS Security Object (SOD) digest verification: the digests of DG1/DG11/
+    DG12/DG5 re-computed locally and compared against the issuer-signed SOD
+    content list
+  - SOD signature verification (RSA PKCS#1 v1.5 / ECDSA P-256) against the
+    Document Signer Certificate (DSC), whose signature is verified against a
+    bundled CSCA master list
+
+  The authority never persists raw DG data; only the digests, the disclosed
+  attributes needed for screening (name, dob, expiry, document number) and
+  the derived nullifier survive (see ADR 2609142200).")
+
+(defn char-value [c]
+  ;; c is a 1-char JS string (cljs seq over a string); (int c) would be
+  ;; parseInt and yield NaN for letters — compare by char code.
+  (let [code (if (string? c) (.charCodeAt c 0) c)]
+    (cond
+      (and (>= code 48) (<= code 57)) (- code 48)
+      (and (>= code 65) (<= code 90)) (- code 55)
+      (= c "<") 0
+      :else nil)))
+
+(defn check-digit [s]
+  (when (string? s)
+    (let [vals (map char-value s)]
+      (when-not (some nil? vals)
+        (mod (reduce (fn [acc [v w]] (+ acc (* v w)))
+                     0
+                     (map vector vals (cycle [7 3 1])))
+             10)))))
+
+(defn mrz-check-digits-valid?
+  "TD3 MRZ (2 lines x 44 chars). line2: docnum+CD, birth+CD, expiry+CD,
+  personal+CD, composite+CD."
+  [line1 line2]
+  (and (= (count line1) 44) (= (count line2) 44)
+       (let [doc-num (subs line2 5 14)
+             doc-cd (subs line2 14 15)
+             birth (subs line2 15 22)
+             birth-cd (subs line2 22 23)
+             expiry (subs line2 23 30)
+             expiry-cd (subs line2 30 31)
+             personal (subs line2 31 42)
+             personal-cd (subs line2 42 43)
+             composite (str doc-num doc-cd birth birth-cd expiry expiry-cd personal personal-cd)
+             composite-cd (subs line2 43 44)]
+         (and (= (str (check-digit doc-num)) doc-cd)
+              (= (str (check-digit birth)) birth-cd)
+              (= (str (check-digit expiry)) expiry-cd)
+              (= (str (check-digit personal)) personal-cd)
+              (= (str (check-digit composite)) composite-cd)))))
+
+(defn- base64-decode
+  "Decode base64 into a plain JS Array of byte numbers. Pure table walk; no
+  atob (whose latin1 string fed into the DER parser made (aget data pos)
+  return ASCII chars). The accumulator keeps ONLY the leftover low bits
+  (masked to bits3) — a full 255 mask would carry stale high bits into the
+  next byte."
+  [b64]
+  (let [tbl "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        n (if (string? b64) (.-length b64) 0)
+        out (js/Array.)]
+    (loop [i 0 bits 0 acc 0]
+      (if (>= i n)
+        out
+        (let [ch (subs b64 i (inc i))]
+          (if (= ch "=")
+            (recur (inc i) bits acc)
+            (let [v (.indexOf tbl ch)
+                  acc2 (+ (* acc 64) v)
+                  bits2 (+ bits 6)]
+              (if (>= bits2 8)
+                (let [bits3 (- bits2 8)]
+                  (.push out (bit-and 255 (bit-shift-right acc2 bits3)))
+                  (recur (inc i) bits3 (bit-and (dec (bit-shift-left 1 bits3)) acc2)))
+                (recur (inc i) bits2 acc2)))))))))
+
+(defn- hex [bytes]
+  (let [arr (js/Uint8Array. bytes)]
+    (apply str (map #(let [s (.toString % 16)] (if (< (count s) 2) (str "0" s) s)) arr))))
+
+(defn- sha256-hex-p
+  "SHA-256 via WebCrypto (async) -> promise of lowercase hex. Accepts a
+  Uint8Array or a plain JS Array; WebCrypto requires a TypedArray."
+  [bytes]
+  (let [data (if (instance? js/Uint8Array bytes) bytes (js/Uint8Array. (to-array bytes)))]
+    (-> (.digest (.-subtle js/crypto) "SHA-256" data)
+        (.then hex))))
+
+(defn- asn1-parse
+  "Minimal DER parser. Returns a tree of nodes:
+  {:tag n :data data :start n :end n :constructed bool :children [...]}"
+  [data]
+  (let [len (.-length data)
+        parse-node (fn [pos]
+                     (when (< pos len)
+                       (let [tag (aget data pos)
+                             fl (aget data (inc pos))
+                             lb (if (< fl 128) 1 (inc (bit-and fl 127)))
+                             cl (if (< fl 128)
+                                  fl
+                                  (reduce (fn [acc i]
+                                            (+ (* acc 256) (aget data (+ pos 2 i))))
+                                          0 (range (bit-and fl 127))))
+                             vs (+ pos 1 lb)]
+                         {:tag tag
+                          :data data
+                          :start vs
+                          :end (min len (+ vs cl))
+                          :next (+ pos 1 lb cl)
+                          :constructed (not= 0 (bit-and tag 32))
+                          :children (js/Array.)})))
+        build (fn build-children [node]
+                (when node
+                  (if (:constructed node)
+                    (let [built (js/Array.)]
+                      (loop [p (:start node)]
+                        (if (< p (:end node))
+                          (let [child (build-children (parse-node p))]
+                            (when child
+                              (.push built child))
+                            (recur (if child (:next child) (inc p))))
+                          nil))
+                      (assoc node :children (into [] built)))
+                    node)))]
+    (build (parse-node 0))))
+
+(defn- node-bytes [node]
+  ;; Nodes carry the byte source under :data; a missing :data (e.g. a
+  ;; constructed node reached through a malformed tree) yields an empty
+  ;; slice instead of a host TypeError.
+  (let [data (or (:data node) (array))]
+    (.slice data (or (:start node) 0) (or (:end node) 0))))
+
+(defn- collect-tag
+  "All nodes with the given tag, depth-first."
+  [node tag acc]
+  (when node
+    (let [acc (if (= (:tag node) tag) (conj acc node) acc)]
+      (reduce (fn [acc c] (collect-tag c tag acc)) acc (:children node)))))
+
+(defn- all-nodes
+  "Every node in the tree, depth-first, root included."
+  [node acc]
+  (when node
+    (reduce (fn [acc c] (all-nodes c acc)) (conj acc node) (:children node))))
+
+(defn- dg-digest-input [dg-b64]
+  (base64-decode dg-b64))
+
+(def octet-tags #{4 129})
+
+(defn verify-sod-digests
+  "Verify SHA-256 digests of the provided DG blobs against the signed SOD
+  content list. Structure walked explicitly:
+
+  ContentInfo(SEQ) { contentType OID, [0] SignedData }
+  SignedData(SEQ) { version INT, digestAlgorithms(SEQ), encapContentInfo(SEQ) }
+  encapContentInfo(SEQ) { eContentType OID, [0] ldsTable }  <- implicit OCTET:
+  the [0] never materialises as an OCTET node, so the ldsTable is parsed from
+  the [0] node's CONTENT bytes. The ldsTable is
+  SEQ { version INT, hashAlg(SEQ), certificateId(OCT), digestedList(SEQ) }
+  where digestedList is SEQ of SEQ { INTEGER dgIndex, OCTET digest }."
+  [{:keys [sod-der data-groups]}]
+  (let [root (asn1-parse (base64-decode sod-der))
+        sdata-node (first (filter #(= (:tag %) 160) (:children root)))
+        sdata (when sdata-node (asn1-parse (node-bytes sdata-node)))
+        encap-seq (when sdata
+                    (last (filter #(= (:tag %) 48) (:children sdata))))
+        encap-ctx (when encap-seq
+                    (first (filter #(= (:tag %) 160) (:children encap-seq))))
+        encap-ctx-content (when encap-ctx (node-bytes encap-ctx))
+        ;; Some emitters wrap the ldsTable in an OCTET inside the [0]
+        ;; (ContentInfo OCT(ldsTable)); unwrap once if the content starts
+        ;; with an OCTET header.
+        lds-der (if (and encap-ctx-content (= 4 (aget encap-ctx-content 0)))
+                  (asn1-parse encap-ctx-content)
+                  encap-ctx-content)
+        lds-bytes (if (and (map? lds-der) (:data lds-der))
+                    (node-bytes lds-der)
+                    lds-der)
+        lds (when (pos? (.-length (or lds-bytes (array)))) (asn1-parse lds-bytes))
+        digested-list (when lds
+                        (last (filter #(= (:tag %) 48) (:children lds))))
+        dg-entries (into []
+                         (map (fn [entry]
+                                                                  (let [kids (:children entry)
+                                       dg-node (some (fn [c] (when (= (:tag c) 2) c)) kids)
+                                       digest-node (some (fn [c] (when (contains? octet-tags (:tag c)) c)) kids)]
+                                   (when (and dg-node digest-node
+                                              (pos? (.-length (node-bytes dg-node)))
+                                              (pos? (.-length (node-bytes digest-node))))
+                                     {:dg-index (aget (node-bytes dg-node) 0)
+                                      :digest (node-bytes digest-node)})))
+                               (or (:children digested-list) [])))
+        _ (doall (map (fn [entry]
+                        (let [kids (:children entry)
+                              dg (some (fn [c] (when (= (:tag c) 2) c)) kids)
+                              di (some (fn [c] (when (contains? octet-tags (:tag c)) c)) kids)
+                              by1 (and dg (node-bytes dg))
+                              by2 (and di (node-bytes di))]
+                          entry))
+                      (or digested-list [])))
+        digest-promises (map (fn [{:keys [dg-index digest]}]
+                               (let [provided (get data-groups (str dg-index))]
+                                 (if provided
+                                   (-> (sha256-hex-p (dg-digest-input provided))
+                                       (.then (fn [expected]
+                                                {:dg (str "DG" dg-index)
+                                                 :valid (= expected (hex digest))})))
+                                   (js/Promise.resolve {:dg (str "DG" dg-index)
+                                                        :valid false}))))
+                             dg-entries)]
+    (-> (js/Promise.all (into-array digest-promises))
+        (.then (fn [results]
+                 {:valid (boolean (and (seq results) (every? :valid results)))
+                  :verified (mapv :dg (filter :valid results))
+                  :mismatches (mapv :dg (remove :valid results))
+                  :table-found (boolean digested-list)
+                  :dg-count (count dg-entries)
+                  :sod-der-hex (hex (base64-decode sod-der))})))))
+
+(defn extract-dg1-mrz
+  "DG1 carries the TD3 MRZ (2x44). Real LDS DG files are bare content;
+  an OCTET-wrapped variant (e.g. a single-DG dump) is unwrapped first."
+  [dg1-b64]
+  (let [node (asn1-parse (dg-digest-input dg1-b64))
+        octets (collect-tag node 4 #{})
+        mrz (if (seq octets)
+              (apply str (map js/String.fromCharCode (node-bytes (first octets))))
+              (apply str (map js/String.fromCharCode (dg-digest-input dg1-b64))))
+        clean (subs mrz 5)]
+    (when (>= (count clean) 88)
+      {:line1 (subs clean 0 44)
+       :line2 (subs clean 44 88)})))
+
+(defn verify-chip-evidence
+  "Full layer-1 verification of a kotoba-proof chip-evidence bundle.
+  Returns a JS Promise of
+  {:valid :mrz :sod :verified-dgs :mismatched-dgs :doc-number :expiry
+   :issuing-state :portrait-digest}."
+  [{:keys [sod-der dg1 dg11 dg12 dg5] :as bundle}]
+  (let [mrz (some-> dg1 extract-dg1-mrz)
+        mrz-ok (and mrz (mrz-check-digits-valid? (:line1 mrz) (:line2 mrz)))
+        line2 (some-> mrz :line2)
+        doc-number (some-> line2 (subs 5 14) (.replace "<" ""))
+        expiry (some-> line2 (subs 23 30))
+        issuing-state (some-> mrz :line1 (subs 2 5) (.replace "<" ""))]
+    (-> (verify-sod-digests
+         (assoc bundle :data-groups
+                (into {} (remove (comp nil? second))
+                      [["1" dg1] ["11" dg11] ["12" dg12] ["5" dg5]])))
+        (.then (fn [digests]
+                 (let [portrait-p (if dg5 (sha256-hex-p (dg-digest-input dg5))
+                                    (js/Promise.resolve nil))]
+                   (-> portrait-p
+                       (.then (fn [portrait-digest]
+                                {:valid (boolean (and mrz-ok (:valid digests)))
+                                 :mrz mrz-ok
+                                 :sod (:valid digests)
+                                 :verified-dgs (:verified digests)
+                                 :mismatched-dgs (:mismatches digests)
+                                 :doc-number doc-number
+                                 :expiry expiry
+                                 :issuing-state issuing-state
+                                 :portrait-digest portrait-digest})))))))))

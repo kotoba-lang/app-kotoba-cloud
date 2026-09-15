@@ -1,89 +1,195 @@
 (ns app-kotoba-cloud.account-site
-  "Account console information architecture. One document, five panels:
-  1. session (Stable Principal), 2. identity verification (Stripe Identity
-  only), 3. research eligibility + free allowance, 4. approved scopes,
-  5. billing. Panels render as static shells; account-browser fills them
-  with live state. Japanese copy; the page is emitted as a ja document."
-  (:require [jp-go-dds.core :as dds]))
+  "Account console information architecture — one document, one task.
+
+  The idle document (before the session is known) is ONE status line and
+  nothing that pretends to be state: no wall of 'loading…' cells, no greyed
+  buttons, no duplicate ids (shinkansen.audit :idle-pending / :idle-disabled
+  / :unique-ids — every one measured on the live page, 2026-09-15). The
+  signed-out block (sign-in action + one sentence) and the console body
+  (session, identity verification, research eligibility, scopes,
+  organization, team, security, billing, connection token) are emitted
+  hidden; account-browser reveals exactly one of them once /v1/session has
+  answered, with every value cell already mapped to a state (cloud-kotoba-dds
+  console pattern — the bare dash is never a state).
+
+  Labels are the person's task, not the protocol: 本人確認 / 組織 / チーム,
+  ユーザー名 / プリンシパル — provider hosts, DID methods and roles live
+  under <details>. Page-level actions (状態を更新) render once. Japanese
+  copy; the page is emitted as a ja document."
+  (:require [jp-go-dds.core :as dds]
+            [cloud-kotoba-dds.console :as console]))
 
 (def css
-  ".kc-account{padding-block:var(--hig-spacing-6);display:grid;gap:var(--hig-spacing-5)}.kc-account-section{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-5);background:var(--hig-color-system-background)}.kc-account-section h2{margin-bottom:var(--hig-spacing-2)}.kc-account-row{display:flex;justify-content:space-between;gap:var(--hig-spacing-4);padding-block:var(--hig-spacing-2);border-bottom:1px solid var(--hig-color-separator);flex-wrap:wrap}.kc-account-row:last-child{border-bottom:none}.kc-account-label{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption1-font-size);font-weight:700;color:var(--hig-color-secondary-label)}.kc-account-value{font-family:var(--hig-font-mono);overflow-wrap:anywhere}.kc-account-state{font-weight:700}.kc-account-state[data-state=ok]{color:var(--hig-color-tint)}.kc-account-state[data-state=action]{color:var(--hig-color-primitive-orange-700,#c25700)}.kc-account-state[data-state=off]{color:var(--hig-color-secondary-label)}.kc-account-note{color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}")
+  "Console-pattern CSS is owned by cloud-kotoba-dds.console/css; this string
+   is concatenated by site.cljk. Local rules only add what the pattern lacks:
+   the page-level status bar, the details disclosure, and the grid of panels
+   (a panel IS the card — no second border around it)."
+  (str
+   ".kc-account{display:grid;gap:var(--hig-spacing-5);max-inline-size:56rem}"
+   ;; the account document is a console, not a marketing section: no
+   ;; hero-sized block padding, and less again on the phone band so the
+   ;; heading is on the first screen under the chip row
+   "#account-console{padding-block:var(--hig-spacing-4)}"
+   "@media(max-width:64rem){#account-console{padding-block:var(--hig-spacing-2)}}"
+   ".kc-account__status{display:flex;flex-wrap:wrap;align-items:center;gap:var(--hig-spacing-3) var(--hig-spacing-4);margin:0 0 var(--hig-spacing-5)}"
+   ".kc-account__status [role=status]{margin:0;font-weight:700;color:var(--hig-color-secondary-label)}"
+   ".kc-account__status [role=status][data-state=ok]{color:var(--hig-color-tint)}"
+   ".kc-account__status [role=status][data-state=error]{color:var(--hig-color-error,var(--hig-color-label))}"
+   ".kc-account__signed-out p{max-inline-size:40rem;color:var(--hig-color-secondary-label)}"
+   ".kc-account details{margin-top:var(--hig-spacing-3)}"
+   ".kc-account summary{cursor:pointer;font-size:var(--hig-text-caption1-font-size);font-weight:700;color:var(--hig-color-secondary-label)}"
+   ".kc-account details p{margin:var(--hig-spacing-2) 0 0;font-size:var(--hig-text-caption1-font-size);color:var(--hig-color-secondary-label)}"
+   ".kc-account .ck-console__panel{padding:var(--hig-spacing-5)}"
+   ".kc-account .ck-console__panel h2{font-size:var(--hig-text-title3-font-size);line-height:var(--hig-text-title3-line-height)}"
+   ".kc-account .ck-console__value input{font:inherit;inline-size:100%;max-inline-size:22rem;min-inline-size:14rem;padding:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-xs,6px)}"))
+
+(defn- panel
+  "One console panel. Not wrapped in dds/card: the panel already draws its
+   own border (a card around it was a box inside a box)."
+  [title & forms]
+  (let [[body attrs] (if (map? (last forms))
+                       [(butlast forms) (last forms)]
+                       [forms {}])
+        {:keys [id] :or {id (str "ck-console-" (hash title))}} attrs]
+    (console/panel title (vec body) {:id id})))
+
+(defn- row
+  "A label/value row whose value cell the browser fills. The static document
+   carries the empty state, not a pending one: the body is hidden until the
+   session is known, then each cell is mapped before it is shown."
+  [label id]
+  [:div {:class "ck-console__row"}
+   [:span {:class "ck-console__label"} label]
+   [:span {:class "ck-console__value" :id id :data-state "empty"} "—"]])
+
+(defn- details
+  "Secondary explanation, revealed on demand."
+  [summary & ps]
+  (into [:details [:summary summary]] (map (fn [p] [:p p]) ps)))
 
 (defn panel-session []
-  (dds/card
-   (dds/heading 2 "アカウント" {:size "24"})
-   [:div {:id "account-session" :class "kc-account"}
-    [:div {:class "kc-account-row"}
-     [:span {:class "kc-account-label"} "USERNAME"]
-     [:span {:class "kc-account-value" :id "account-username"} "—"]]
-    [:div {:class "kc-account-row"}
-     [:span {:class "kc-account-label"} "STABLE PRINCIPAL"]
-     [:span {:class "kc-account-value" :id "account-principal"} "—"]]
-    [:p {:id "account-session-status" :role "status" :class "kc-account-note"}
-     "サインイン状態を確認しています…"]]))
+  (panel "アカウント"
+   (row "ユーザー名" "account-username")
+   (row "プリンシパル" "account-principal")
+   (details "プリンシパルとは"
+            "プリンシパルは、kotoba.cloud があなたを識別する安定した ID です。パスキーやウォレットを替えても変わりません。")
+   {:id "account-panel-session"}))
 
 (defn panel-identity []
-  (dds/card
-   (dds/heading 2 "本人確認（Stripe Identity のみ）" {:size "24"})
-   [:div {:class "kc-account-row"}
-    [:span {:class "kc-account-label"} "確認状態"]
-    [:span {:class "kc-account-state" :id "account-ekyc-state" :data-state "off"} "—"]]
-   [:div {:class "kc-account-row"}
-    [:span {:class "kc-account-label"} "PROVIDER"]
-    [:span {:class "kc-account-value"} "Stripe Identity (verify.stripe.com)"]]
-   [:p {:class "kc-account-note"}
-    "書類と顔写真は Stripe にのみ送られ、kotoba.cloud は状態・有効期限・証跡参照のみを保持します。確認は 365 日で失効します。"]
+  (panel "本人確認"
+   (row "確認状態" "account-ekyc-state")
+   (console/note "" {:id "account-ekyc-note" :role "status"})
    (dds/row
-    (dds/button "本人確認を開始" {:id "account-ekyc-start" :type :solid-fill :disabled true})
-    (dds/button "状態を更新" {:id "account-refresh" :type :outline}))
-   [:p {:id "account-ekyc-note" :class "kc-account-note" :role "status"}]))
+    (dds/button "本人確認を開始" {:id "account-ekyc-start" :type :solid-fill}))
+   (details "本人確認の方法"
+            "カード認証: クレジットカードまたはデビットカードを登録して完了します（checkout.stripe.com）。プリペイドカード・バーチャルカードは使えません。"
+            "書類確認（Stripe Identity、verify.stripe.com）と併用できます。カード情報と書類は Stripe にのみ送られ、kotoba.cloud は状態・有効期限・証跡参照だけを保持します。確認は 365 日で失効します。")
+   {:id "account-panel-identity"}))
 
 (defn panel-eligibility []
-  (dds/card
-   (dds/heading 2 "研究環境の利用資格" {:size "24"})
-   [:div {:class "kc-account-row"}
-    [:span {:class "kc-account-label"} "状態"]
-    [:span {:class "kc-account-state" :id "account-eligibility-state" :data-state "off"} "—"]]
-   [:div {:class "kc-account-row"}
-    [:span {:class "kc-account-label"} "FREE TIER"]
-    [:span {:class "kc-account-value" :id "account-free-tier"} "—"]]
-   [:p {:id "account-eligibility-note" :class "kc-account-note" :role "status"}]))
+  (panel "研究環境の利用"
+   (row "状態" "account-eligibility-state")
+   (row "無料枠" "account-free-tier")
+   (console/note "" {:id "account-eligibility-note" :role "status"})
+   {:id "account-panel-eligibility"}))
 
 (defn panel-scopes []
-  (dds/card
-   (dds/heading 2 "承認済みスコープ" {:size "24"})
-   [:div {:id "account-scopes" :class "kc-account"}]
-   [:p {:class "kc-account-note"}
-    "調査権限の根拠ごとに承認されます。期限切れ・停止中のスコープでは推論できません。"]))
+  (panel "承認済みスコープ"
+   [:div {:id "account-scopes"}
+    (row "状態" "account-scopes-state")]
+   (details "スコープとは"
+            "調査権限の根拠ごとに承認されます。期限切れ・停止中のスコープでは推論できません。")
+   {:id "account-panel-scopes"}))
 
 (defn panel-org []
-  (dds/card
-   (dds/heading 2 "組織（Org DID）" {:size "24"})
-   [:div {:id "account-orgs" :class "kc-account"}]
-   [:div {:class "kc-account-row"}
-    [:span {:class "kc-account-label"} "ORG HANDLE"]
-    [:input {:id "account-org-handle" :class "kc-account-value"
-             :placeholder "com-example.kotoba.cloud" :maxlength 80}]]
+  (panel "組織"
+   [:div {:id "account-orgs"}
+    (row "状態" "account-orgs-state")]
+   [:div {:class "ck-console__row"}
+    [:label {:class "ck-console__label" :for "account-org-handle"} "組織ハンドル"]
+    [:span {:class "ck-console__value"}
+     [:input {:id "account-org-handle" :placeholder "com-example.kotoba.cloud" :maxlength 80}]]]
    (dds/row
-    (dds/button "組織を作成" {:id "account-org-create" :type :solid-fill :disabled true})
-    (dds/button "状態を更新" {:id "account-refresh" :type :outline}))
-   [:p {:id "account-org-note" :class "kc-account-note" :role "status"}
-    "組織は did:webvh DID として発行され、membership は検証可能な VC で管理されます。作成者には owner ロールが付与されます。"]))
+    (dds/button "組織を作成" {:id "account-org-create" :type :solid-fill}))
+   (console/note "" {:id "account-org-note" :role "status"})
+   (details "組織とチーム"
+            "組織は did:webvh の DID として発行され、メンバーシップは検証可能なクレデンシャル（VC）で管理されます。作成者には owner ロールが付与されます。"
+            "メンバーを招待すると API トークン・スコープ・請求を共有します。ロールは owner / admin / member / billing です。")
+   {:id "account-panel-org"}))
+
+(defn panel-team []
+  (panel "チーム"
+   [:div {:id "account-team"}
+    (row "状態" "account-team-state")]
+   (console/note "メンバーの招待は組織を作成すると開きます。" {:id "account-team-note"})
+   {:id "account-panel-team"}))
+
+(defn panel-secure []
+  "The SECURE console has its own document (/secure/) rendered from the
+  enforced policy; here only the entry, so the fact has one home."
+  (panel "セキュリティ管理"
+   (console/note "ガードレール・ファイアウォール・コンプライアンスの規則と版は、セキュリティ管理で確認できます。")
+   (dds/row
+    (dds/button "セキュリティ管理を開く" {:href "/secure/" :type :outline}))
+   {:id "account-panel-secure"}))
 
 (defn panel-billing []
-  (dds/card
-   (dds/heading 2 "請求・クレジット" {:size "24"})
-   [:div {:id "account-billing" :class "kc-account"}
-    [:p {:id "account-billing-state" :class "kc-account-note" :role "status"}
-     "確認しています…"]]
+  (panel "請求・クレジット"
+   (row "状態" "account-billing-state")
    (dds/row
     (dds/button "料金ページへ" {:href "/billing/" :type :outline}))
-   [:p {:class "kc-account-note"}
-    "本人確認済みの無料研究枠は課金されません。有料枠の購入は自動チャージなしです。"]))
+   (details "課金について"
+            "本人確認済みの無料研究枠は課金されません。有料枠の購入は自動チャージなしです。")
+   {:id "account-panel-billing"}))
+
+(defn panel-cli []
+  (panel "CLI / IDE から使う"
+   (console/note "ローカルの CLI / IDE エージェント用の接続トークンを発行します。表示は一度だけです。")
+   (dds/row
+    (dds/button "接続トークンを発行" {:id "account-pat-create" :type :solid-fill})
+    (dds/button "ガイドを開く" {:href "/ekyc.md" :type :outline}))
+   (console/note "" {:id "account-pat-note" :role "status"})
+   [:div {:id "account-pat-result" :hidden true}
+    [:div {:class "ck-console__row"}
+     [:span {:class "ck-console__label"} "接続トークン（一度だけ表示）"]
+     [:span {:class "ck-console__value" :id "account-pat-token"} "—"]
+     (dds/button "コピー" {:id "account-pat-copy" :type :outline :size "sm"})]
+    [:div {:class "ck-console__row"}
+     [:span {:class "ck-console__label"} "環境変数"]
+     [:span {:class "ck-console__value" :id "account-pat-env"} "—"]
+     (dds/button "コピー" {:id "account-pat-copy-env" :type :outline :size "sm"})]
+    [:div {:class "ck-console__row"}
+     [:span {:class "ck-console__label"} "curl"]
+     [:span {:class "ck-console__value" :id "account-pat-curl"} "—"]
+     (dds/button "コピー" {:id "account-pat-copy-curl" :type :outline :size "sm"})]]
+   (details "エージェントからの利用"
+            [:span "Claude Code など MCP 対応エージェントは "
+             [:a {:href "/mcp.json"} "/mcp.json"] " を参照してください。完全なガイドは "
+             [:a {:href "/llms.txt"} "/llms.txt"] " と " [:a {:href "/ekyc.md"} "/ekyc.md"]
+             " にあります。取り消しは署名鍵の交換（サポート連絡）で行われます: support@kotoba.cloud"])
+   {:id "account-panel-cli"}))
+
+(def sign-in-href
+  "The Passkey entry the signed-out block (and the no-script fallback) points
+   at; returns to this document."
+  "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Faccount")
 
 (defn section []
   [:section {:id "account-console" :class "kc-research-section"}
    (dds/container
-    (dds/heading 1 "アカウント管理" {:size "36"})
-    (into [:div {:class "kc-account"}]
-          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes) (panel-org) (panel-billing)]))])
+    (dds/heading 1 "アカウント" {:size "36"})
+    ;; the ONE pending region of the idle document
+    [:div {:class "kc-account__status"}
+     [:p {:id "account-session-status" :role "status" :data-state "loading"}
+      "サインイン状態を確認しています…"]
+     [:span {:id "account-refresh-slot" :hidden true}
+      (dds/button "状態を更新" {:id "account-refresh" :type :outline :size "sm"})]]
+    [:noscript
+     (dds/button "サインイン" {:href sign-in-href :type :solid-fill})]
+    [:div {:id "account-signed-out" :class "kc-account__signed-out" :hidden true}
+     [:p "サインインすると、本人確認・研究環境の利用・組織・請求・接続トークンをここで管理できます。"]
+     (dds/row
+      (dds/button "サインイン" {:id "account-sign-in" :href sign-in-href :type :solid-fill}))]
+    (into [:div {:id "account-console-body" :class "kc-account" :hidden true}]
+          [(panel-session) (panel-identity) (panel-eligibility) (panel-scopes)
+           (panel-org) (panel-team) (panel-secure) (panel-billing) (panel-cli)]))])

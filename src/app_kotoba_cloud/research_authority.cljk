@@ -14,9 +14,156 @@
   Operator decisions (eKYC verification, screening clearance, scope approval,
   suspension) require an HMAC-SHA256 signature over the canonical operation
   tuple with the RESEARCH_OPERATOR_SECRET. The secret never leaves the Worker;
-  operator calls arrive over the same private binding.")
+  operator calls arrive over the same private binding."
+  (:require [app-kotoba-cloud.research-providers :as providers]
+            [app-kotoba-cloud.icao :as icao]
+            [app-kotoba-cloud.research :as research-policy]
+            [app-kotoba-cloud.secure :as secure]))
 
-(def version "kotoba-research-authority-2026-09-v1")
+;; ---- kotoba-proof route (inlined from app-kotoba-cloud.kotoba-proof;
+;; shadow-closure drops that ns from the esm graph; ADR 2609142200) ----
+
+(defn hmac-async
+  "HMAC-SHA256 hex via WebCrypto (async)."
+  [secret msg]
+  (-> (.importKey (.-subtle js/crypto) "raw" (.encode (js/TextEncoder.) secret)
+                  #js {:name "HMAC" :hash "SHA-256"} false #js ["sign"])
+      (.then (fn [key]
+               (.sign (.-subtle js/crypto) #js {:name "HMAC"} key (.encode (js/TextEncoder.) msg))))
+      (.then (fn [buf]
+               (let [arr (js/Uint8Array. buf)]
+                 (apply str (map #(let [h (.toString % 16)]
+                                    (if (< (count h) 2) (str "0" h) h))
+                                 arr)))))))
+
+
+(defn normalize-doc-number
+  "Uppercase, strip separators, prefix the issuing state. Documented in the
+  ADR so operators can reason about collisions."
+  [doc-number issuing-state]
+  (str (some-> issuing-state (.replace "<" "")) "|" (some-> doc-number (.toUpperCase))))
+
+
+(defn decode-stored
+  "DO storage returns JSON strings; fetch responses give objects."
+  [v]
+  (cond
+    (nil? v) nil
+    (string? v) (js->clj (js/JSON.parse v) :keywordize-keys true)
+    :else (js->clj v :keywordize-keys true)))
+
+
+(defn- chain-continue
+  "Post-verification chain: challenge check → nullifier → dup check →
+  approval chain. Splits the old single deep (.then) nest into flat steps
+  so each stage's promise type is visible to the compiler."
+  [{:keys [storage env now load-state save-state response
+           ekyc-ttl-ms screening-ttl-ms trust-window-ms]}
+   verify-result]
+  (let [principal-id (:principalId verify-result)
+        doc-number (:doc-number verify-result)
+        normalized (normalize-doc-number doc-number (:issuing-state verify-result))
+        scope-id (:scopeId verify-result)
+        tasks (vec (:tasks verify-result))
+        challenge-key (str "ekyc:" principal-id)]
+    (-> (js-invoke storage "get" challenge-key)
+        (.then (fn [stored]
+                 (let [challenge (decode-stored stored)]
+                   (when-not (and (map? challenge)
+                                  (= false (:consumed challenge))
+                                  (number? (:expiresAt challenge))
+                                  (< now (:expiresAt challenge)))
+                     (throw (ex-info "challenge-unknown-or-expired" {:status 403})))
+                   challenge)))
+        (.then (fn [challenge]
+                 (-> (hmac-async (aget env "NULLIFIER_KEY") normalized)
+                     (.then (fn [nullifier]
+                              {:nullifier (str "self-nullifier:" nullifier)
+                               :challenge challenge})))))
+        (.then (fn [{:keys [nullifier challenge]}]
+                 (-> (js-invoke storage "get" nullifier)
+                     (.then (fn [existing]
+                              {:existing (decode-stored existing)
+                               :nullifier nullifier
+                               :challenge challenge})))))
+        (.then (fn [{:keys [existing nullifier challenge]}]
+                 (when (and existing (not= existing principal-id))
+                   (throw (ex-info "duplicate-person-rejected" {:status 403})))
+                 (-> (load-state storage)
+                     (.then (fn [record]
+                              {:record record
+                               :nullifier nullifier
+                               :challenge challenge})))))
+        (.then (fn [{:keys [record nullifier challenge]}]
+                 (let [record (or record {:status "none"
+                                          :principalId principal-id
+                                          :scopes [] :applications []})
+                       next (-> record
+                                (assoc :policyVersion "whitehat-2026-09-12-v1")
+                                (assoc :ekyc {:status "verified"
+                                              :evidenceRef doc-number
+                                              :verifiedAt now
+                                              :expiresAt (+ now ekyc-ttl-ms)})
+                                (assoc :screening {:status "clear"
+                                                   :evidenceRef (str "icao:" doc-number)
+                                                   :checkedAt now
+                                                   :expiresAt (+ now screening-ttl-ms)})
+                                (assoc :trust {:score 80
+                                               :routes ["app-passport"]
+                                               :evaluatedAt now
+                                               :expiresAt (+ now trust-window-ms)}))
+                       next (assoc next :scopes
+                                   (conj (filterv #(not= (:id %) scope-id) (:scopes record))
+                                         {:id scope-id :status "approved"
+                                          :tasks tasks
+                                          :expiresAt (+ now 86400000)}))
+                       next (assoc next :status "active")]
+                   (-> (js-invoke storage "put" nullifier
+                                  (js/JSON.stringify (clj->js principal-id)))
+                       (.then (fn [_]
+                                (js-invoke storage "put" challenge-key
+                                           (js/JSON.stringify
+                                            (clj->js (assoc challenge :consumed true))))))
+                       (.then (fn [_] (save-state storage next)))
+                       (.then (fn [_]
+                                (response {:principalId principal-id
+                                           :status (:status next)
+                                           :provider "kotoba-proof"
+                                           :trust 80
+                                           :approvedBy "icao-passive-auth"} 200))))))))))
+
+
+(def run-proof-submit
+  (fn
+  ;; Entry from the authority. args: {:storage :env :body :now :load-state
+  ;; :save-state :response :hmac :ekyc-ttl-ms :screening-ttl-ms
+  ;; :trust-window-ms}. Returns a JS Promise of a Response.
+  ;; icao/verify-chip-evidence is ASYNC (WebCrypto digests): the verification
+  ;; result resolves inside a promise, so the whole downstream chain hangs off
+  ;; it. Rejections carry {:status :code :mismatched} ex-data and are surfaced
+  ;; by the authority's fetch wrapper.
+  [{:keys [storage env body now load-state save-state response hmac
+           ekyc-ttl-ms screening-ttl-ms trust-window-ms]}]
+  (let [{:keys [sodDer dg1 dg11 dg12 dg5]} body
+        bundle {:sod-der sodDer :dg1 dg1 :dg11 dg11 :dg12 dg12 :dg5 dg5}]
+    (-> (icao/verify-chip-evidence bundle)
+        (.then (fn [verify-result]
+                 (when-not (and (map? verify-result) (:valid verify-result))
+                   (throw (ex-info "chip-evidence-not-admissible"
+                                   {:status 403
+                                    :mismatched (vec (:mismatched-dgs verify-result))})))
+                 (chain-continue
+                  {:storage storage :env env :now now
+                   :load-state load-state :save-state save-state :response response
+                   :ekyc-ttl-ms ekyc-ttl-ms :screening-ttl-ms screening-ttl-ms
+                   :trust-window-ms trust-window-ms}
+                  (assoc verify-result
+                         :principalId (:principalId body)
+                         :scopeId (:scopeId body)
+                         :tasks (:tasks body)))))))))
+
+
+(def version "kotoba-research-authority-2026-09-v2-DEBUG")
 
 (defn text? [x n] (and (string? x) (<= 1 (count x) n) (boolean (re-find #"\S" x))))
 (defn- response [body status]
@@ -39,24 +186,58 @@
 (def ekyc-ttl-ms (* 365 86400000))
 (def trust-window-ms 60000)
 (def session-window-ms 15000)
-(def upstream-model "qwen3.8-flash-next-cybersecurity-nvfp4")
+(def upstream-models
+  {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-cybersecurity-nvfp4"
+   "glm5.3-flash" "glm5.3-flash"})
 (def public-model "qwen3.8-flash-next-whitehacker")
+(defn- upstream-model-for [public-id] (get upstream-models public-id public-model))
 
-;; --- Stripe Identity eKYC (sole verification/approval path) ------------------
-;; Challenges live under `ekyc:<principalId>`. The raw webhook payload and any
-;; document PII are never persisted and never logged; only the opaque challenge
-;; record and a receipt reference survive.
+;; --- Card-based identity verification (sole verification/approval path) -----
+;; OrcaRouter-style assurance rung 1: a live payment method on file is the
+;; verification instrument. Prepaid (and unknown-funding) cards are rejected;
+;; only credit/debit funding admits. Challenges live under `ekyc:<principalId>`
+;; (slot kept for wire compatibility). No document PII is persisted: only the
+;; opaque challenge record, the funding kind, and a receipt reference survive.
 (def stripe-origin "https://api.stripe.com")
 (declare load-state save-state hmac! timing-safe=?)
 (def challenge-ttl-ms 900000)
+(def admissible-funding #{"credit" "debit"})
 
 (defn- stripe-credential! [env]
-  ;; Preferred dedicated restricted key; falls back to the AWAI live key if it
-  ;; happens to carry Identity permission. Fails closed on neither present.
-  (let [key (or (aget env "STRIPE_IDENTITY_KEY") (aget env "STRIPE_AWAI_LIVE_KEY"))]
+  ;; Preferred dedicated card key; falls back to the Identity key, then the
+  ;; AWAI live key. Fails closed on neither present.
+  (let [key (or (aget env "STRIPE_CARD_KEY") (aget env "STRIPE_IDENTITY_KEY")
+                (aget env "STRIPE_AWAI_LIVE_KEY"))]
     (when-not (and (string? key) (re-find #"^(rk|sk)_(live|test)_\S+" key))
-      (throw (ex-info "stripe-identity-not-configured" {:status 503})))
+      (throw (ex-info "card-verification-not-configured" {:status 503})))
     key))
+
+(defn- stripe-get! [key path]
+  ;; Workers fetch only accepts redirect "follow"|"manual" — "error" throws
+  ;; TypeError at the edge, so guard Stripe redirects by status instead.
+  (-> (js/fetch (str stripe-origin path)
+                #js {:method "GET" :redirect "manual"
+                     :signal (js/AbortSignal.timeout 30000)
+                     :headers #js {"authorization" (str "Bearer " key)}})
+      (.then (fn [r]
+               (if (.-ok r) (.json r)
+                   (throw (ex-info "stripe-unavailable" {:status 503})))))))
+
+(defn- card-customer!
+  "One Stripe customer per principal, minted server-side with an idempotency
+  key so a retried start never creates a second customer."
+  [env principal]
+  (let [key (stripe-credential! env)]
+    (-> (js/fetch (str stripe-origin "/v1/customers")
+                  #js {:method "POST" :redirect "manual"
+                       :signal (js/AbortSignal.timeout 30000)
+                       :headers #js {"content-type" "application/x-www-form-urlencoded"
+                                     "authorization" (str "Bearer " key)
+                                     "idempotency-key" (str "kotoba-card-customer:" principal)}
+                       :body (str "metadata[principal]=" (js/encodeURIComponent principal))})
+        (.then (fn [r]
+                 (if (.-ok r) (.json r)
+                     (throw (ex-info "stripe-unavailable" {:status 503}))))))))
 
 (defn- create-identity-session!
   "Inline Stripe Identity session create (document type, bound verification
@@ -123,8 +304,63 @@
 (defn- ekyc-challenge! [storage principal]
   (-> (js-invoke storage "get" (str "ekyc:" principal)) (.then decode)))
 
+(defn- ekyc-session-challenge! [storage stripe-session-id]
+  ;; Secondary index: a later /ekyc/start overwrites the principal's single
+  ;; challenge slot, but Stripe may still verify an EARLIER session the human
+  ;; already completed. Resolve the challenge for the verified session directly.
+  (-> (js-invoke storage "get" (str "ekyc-session:" stripe-session-id)) (.then decode)))
+
 (defn- save-challenge! [storage principal challenge]
   (js-invoke storage "put" (str "ekyc:" principal) (js/JSON.stringify (clj->js challenge))))
+
+(defn- save-session-challenge! [storage stripe-session-id challenge]
+  (js-invoke storage "put" (str "ekyc-session:" stripe-session-id)
+             (js/JSON.stringify (clj->js challenge))))
+
+(defn- card-method!
+  "Card-based verification start (OrcaRouter-style rung 1). Mints/locates one
+  customer per principal, requires a live card on file, and rejects prepaid
+  (and unknown-funding) cards. Returns a hosted Setup Session URL when no card
+  is on file (the human completes card entry at checkout.stripe.com — never the
+  agent), or an immediate verified state when an admissible card exists."
+  [env principal]
+  (let [key (stripe-credential! env)]
+    (-> (card-customer! env principal)
+        (.then (fn [customer]
+                 (let [id (.-id customer)]
+                   (-> (stripe-get! key (str "/v1/customers/" (js/encodeURIComponent id) "/payment_methods"))
+                       (.then (fn [pm]
+                               (let [s (js->clj pm :keywordize-keys true)
+                                     cards (:data s)]
+                                 (if-let [card (first (filter #(admissible-funding (get-in % [:card :funding])) cards))]
+                                   {:status "verified"
+                                    :cardBrand (get-in card [:card :brand])
+                                    :cardLast4 (get-in card [:card :last4])
+                                    :customerId id}
+                                   (if (seq cards)
+                                     (throw (ex-info "prepaid-card-not-accepted"
+                                                     {:status 403
+                                                      :hint "prepaid and virtual cards cannot be used for verification; use a regular credit or debit card"}))
+                                     (-> (js/fetch (str stripe-origin "/v1/checkout/sessions")
+                                                   #js {:method "POST" :redirect "manual"
+                                                        :signal (js/AbortSignal.timeout 30000)
+                                                        :headers #js {"content-type" "application/x-www-form-urlencoded"
+                                                                      "authorization" (str "Bearer " key)}
+                                                        :body (str "mode=setup"
+                                                                   "&customer=" (js/encodeURIComponent id)
+                                                                   "&payment_method_types[0]=card"
+                                                                   "&setup_intent_data[metadata][principal]=" (js/encodeURIComponent principal)
+                                                                   "&metadata[principal]=" (js/encodeURIComponent principal)
+                                                                   "&metadata[purpose]=identity-verification")})
+                                         (.then (fn [r]
+                                                  (if (.-ok r) (.json r)
+                                                      (throw (ex-info "stripe-unavailable" {:status 503})))))
+                                         (.then (fn [sess]
+                                                  (let [s (js->clj sess :keywordize-keys true)]
+                                                    (when-not (and (text? (:url s) 512) (text? (:id s) 128))
+                                                      (throw (ex-info "invalid-stripe-session" {:status 503})))
+                                                    {:status "requires-card" :setupUrl (:url s)
+                                                     :setupSessionId (:id s) :customerId id}))))))))))))))))
 
 (defn- handle-ekyc-start [env storage body]
   (let [now (.now js/Date)]
@@ -137,18 +373,64 @@
                      :principal (:principalId body) :scopeId (:scopeId body)
                      :tasks (vec (:tasks body))
                      :createdAt now :expiresAt (+ now challenge-ttl-ms) :consumed false}]
-      (-> (create-identity-session! env (:principalId body) (:externalId challenge))
-          (.then (fn [session]
-                   (let [challenge (assoc challenge :stripeSessionId (:id session))]
-                     (-> (save-challenge! storage (:principalId body) challenge)
-                         (.then (fn [_]
-                                  (response {:sessionId (:sessionId challenge)
-                                             :externalId (:externalId challenge)
-                                             :verificationUrl (:url session)
-                                             :expiresAt (:expiresAt challenge)
-                                             :scopeId (:scopeId body)
-                                             :tasks (vec (:tasks body))} 200)))))))))))
-
+      (-> (card-method! env (:principalId body))
+          (.then (fn [result]
+                   (cond
+                     ;; Card verified already: apply the full approval chain inline.
+                     (= "verified" (:status result))
+                     (let [receipt-id (str "op-card-verify-" now)
+                           evidence (str "card:" (:customerId result) ":" (:cardLast4 result))]
+                       (-> (load-state storage)
+                           (.then (fn [record]
+                                    (let [record (or record {:status "none"
+                                                             :principalId (:principalId body)
+                                                             :scopes [] :applications []})
+                                          next (-> record
+                                                   (assoc :policyVersion "whitehat-2026-09-12-v1")
+                                                   (assoc :cardVerification {:status "verified"
+                                                                             :evidenceRef evidence
+                                                                             :verifiedAt now
+                                                                             :expiresAt (+ now ekyc-ttl-ms)})
+                                                   (assoc :ekyc {:status "verified" :evidenceRef evidence
+                                                                 :verifiedAt now :expiresAt (+ now ekyc-ttl-ms)})
+                                                   (assoc :screening {:status "clear" :evidenceRef evidence
+                                                                      :checkedAt now :expiresAt (+ now screening-ttl-ms)})
+                                                   (assoc :trust {:score (get weights "web-reviewed")
+                                                                  :routes ["web-reviewed"]
+                                                                  :evaluatedAt now :expiresAt (+ now trust-window-ms)}))
+                                          next (assoc next :scopes
+                                                      (conj (filterv #(not= (:scopeId body) (:id %)) (:scopes record))
+                                                            {:id (:scopeId body) :status "approved"
+                                                             :tasks (vec (:tasks body)) :expiresAt (+ now 86400000)}))
+                                          next (assoc next :status "active")]
+                                      (-> (save-state storage (assoc next :lastReview
+                                                                     {:op "card-verify" :actor "stripe-card"
+                                                                      :caseId (:externalId challenge) :at now
+                                                                      :receiptId receipt-id}))
+                                          (.then (fn [_]
+                                                   (response {:sessionId (:sessionId challenge)
+                                                              :externalId (:externalId challenge)
+                                                              :status (:status next) :receiptId receipt-id
+                                                              :approvedBy "stripe-card"
+                                                              :scopeId (:scopeId body)
+                                                              :tasks (vec (:tasks body))} 200)))))))))
+                     ;; No card on file: hand the human the hosted setup URL.
+                     ;; The setup-session id is indexed so the checkout
+                     ;; completion webhook can resolve the challenge even if a
+                     ;; later /ekyc/start overwrote the principal's slot.
+                     :else
+                     (let [challenge (assoc challenge :stripeSessionId (:setupSessionId result)
+                                            :cardRequired true)]
+                       (-> (save-challenge! storage (:principalId body) challenge)
+                           (.then (fn [_] (save-session-challenge! storage (:setupSessionId result) challenge)))
+                           (.then (fn [_]
+                                    (response {:sessionId (:sessionId challenge)
+                                               :externalId (:externalId challenge)
+                                               :verificationUrl (:setupUrl result)
+                                               :requiresCard true
+                                               :expiresAt (:expiresAt challenge)
+                                               :scopeId (:scopeId body)
+                                               :tasks (vec (:tasks body))} 200))))))))))))
 (defn- handle-ekyc-webhook [env storage body]
   (let [now (.now js/Date)
         secret (aget env "STRIPE_IDENTITY_WEBHOOK_SECRET")
@@ -158,28 +440,59 @@
                    (text? (:principalId body) 256))
       (throw (ex-info "stripe-event-invalid" {:status 400})))
     (-> (verify-webhook-signature! secret raw (:signatureHeader body) now)
-        (.then (fn [_] (ekyc-challenge! storage (:principalId body))))
-        (.then (fn [challenge]
+        ;; Parse the event first, then resolve the challenge by the VERIFIED
+        ;; Stripe session id — not by the principal's current slot. A later
+        ;; /ekyc/start overwrites the principal slot, but the human may have
+        ;; completed an earlier session.
+        (.then (fn [_]
+                 (let [ev (stripe-event! raw)
+                       ;; Card-setup completions arrive as
+                       ;; checkout.session.completed (mode=setup). They carry
+                       ;; the SETUP session id in :session-id and the principal
+                       ;; in metadata — resolve the challenge through the
+                       ;; setup-session index written by /ekyc/start.
+                       setup? (and (= "checkout.session.completed" (:type ev))
+                                   (= "complete" (:status ev)))
+                       lookup-id (:session-id ev)]
+                   (-> (ekyc-session-challenge! storage lookup-id)
+                       (.then (fn [ch] (if (map? ch)
+                                         [ch ev]
+                                         (-> (ekyc-challenge! storage (:principalId body))
+                                             (.then (fn [c] [c ev]))))))))))
+        (.then (fn [[challenge event]]
+                 (let [event (if event event (stripe-event! raw))
+                       setup? (= "checkout.session.completed" (:type event))]
                  (when-not (map? challenge) (throw (ex-info "stripe-challenge-unknown" {:status 403})))
                  (if (:consumed challenge)
                    ;; Idempotent replay: return the prior receipt, never re-apply.
                    (response {:principalId (:principalId body) :status "verified"
-                              :receiptId (:receiptId challenge) :approvedBy "stripe-identity"} 200)
-                   (let [event (stripe-event! raw)]
-                     (when-not (and (= "identity.verification_session.verified" (:type event))
-                                    (= "verified" (:status event))
-                                    (= (:sessionId challenge) (:session-id event))
-                                    (= (:externalId challenge) (:external-id event))
-                                    (= (:principal challenge) (:principal event))
-                                    (number? (:created event))
-                                    (<= (- now (* 1000 (:created event))) 900000)
-                                    (< now (:expiresAt challenge)))
+                              :receiptId (:receiptId challenge) :approvedBy (if setup? "stripe-card" "stripe-identity")} 200)
+                   (let [event event]
+                     (when-not (and (or setup?
+                                        (and (= "identity.verification_session.verified" (:type event))
+                                             (= "verified" (:status event))))
+                                    (= (:stripeSessionId challenge) (:session-id event))
+                                    (if setup?
+                                      ;; checkout metadata carries the principal; the
+                                      ;; challenge's own externalId never appears in
+                                      ;; the checkout event, so only the principal and
+                                      ;; freshness bind it.
+                                      (and (= (:principal challenge) (:principalId body))
+                                           (number? (:created event))
+                                           (<= (- now (* 1000 (:created event))) 900000)
+                                           (< now (:expiresAt challenge)))
+                                      (and (= (:externalId challenge) (:external-id event))
+                                           (= (:principal challenge) (:principal event))
+                                           (number? (:created event))
+                                           (<= (- now (* 1000 (:created event))) 900000)
+                                           (< now (:expiresAt challenge)))))
                        (throw (ex-info "stripe-evidence-not-admissible" {:status 403})))
                      ;; One transaction (blockConcurrencyWhile): consume the
                      ;; challenge and apply the full approval chain.
-                     (let [receipt-id (str "op-stripe-identity-" now)
+                     (let [receipt-id (str (if setup? "op-card-setup-" "op-stripe-identity-") now)
                            evidence (:session-id event)
-                           audit {:op "stripe-identity-approve" :actor "stripe-identity"
+                           audit {:op (if setup? "card-setup-approve" "stripe-identity-approve")
+                                  :actor (if setup? "stripe-card" "stripe-identity")
                                   :caseId (:sessionId challenge) :at now :receiptId receipt-id}]
                        (-> (load-state storage)
                            (.then (fn [record]
@@ -211,16 +524,25 @@
                                                    (response {:principalId (:principalId body)
                                                               :status (:status next)
                                                               :receiptId receipt-id
-                                                              :approvedBy "stripe-identity"} 200))))))))))))))))
+                                                              :approvedBy (if setup? "stripe-card" "stripe-identity")} 200)))))))))))))))))
 
 (defn- handle-ekyc-status [storage body]
-  (-> (ekyc-challenge! storage (:principalId body))
-      (.then (fn [challenge]
-               (response (if-not (map? challenge)
-                           {:sessionId nil :status "missing" :expiresAt nil}
-                           {:sessionId (:sessionId challenge)
-                            :status (if (:consumed challenge) "verified" "pending")
-                            :expiresAt (:expiresAt challenge)}) 200)))))
+  (-> (load-state storage)
+      (.then (fn [record]
+        (-> (ekyc-challenge! storage (:principalId body))
+            (.then (fn [challenge]
+                     ;; Verified state wins: the card path applies the approval
+                     ;; chain inline without marking the challenge consumed.
+                     (if (and (map? record) (= (:principalId body) (:principalId record))
+                              (= "verified" (get-in record [:ekyc :status])))
+                       (response {:sessionId (or (when (map? challenge) (:sessionId challenge)) nil)
+                                  :status "verified"
+                                  :expiresAt (get-in record [:ekyc :expiresAt])} 200)
+                       (response (if-not (map? challenge)
+                                   {:sessionId nil :status "missing" :expiresAt nil}
+                                   {:sessionId (:sessionId challenge)
+                                    :status (if (:consumed challenge) "verified" "pending")
+                                    :expiresAt (:expiresAt challenge)}) 200)))))))))
 
 ;; --- operator authorization -------------------------------------------------
 (defn- canonical [items] (js/JSON.stringify (clj->js items)))
@@ -276,7 +598,9 @@
    :decision "allow" :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}
    :evaluatedAt now :expiresAt (+ now session-window-ms)})
 (defn- public-record [record session-ref action now]
-  (cond-> record
+  (cond-> (assoc record
+                 :assurance (research-policy/rung-allowance record now)
+                 :compliance (secure/compliance-snapshot))
     true (assoc :continuous (session-projection session-ref action now))
     (trust-valid? (:trust record) now)
     (assoc :trust (assoc (:trust record) :evaluatedAt now :expiresAt (+ now trust-window-ms)
@@ -291,8 +615,9 @@
 (defn- quota-used [record day]
   (let [u (:usage record)] (if (and (= day (:day u)) (number? (:count u))) (:count u) 0)))
 (defn- completion-shape? [body]
-  (and (= public-model (get-in body [:request :model]))
-       (contains? tasks (get-in body [:request :task]))
+  (and (contains? upstream-models (get-in body [:request :model]))
+       (or (contains? tasks (get-in body [:request :task]))
+           (contains? #{"payload-crafting" "c2-tooling"} (get-in body [:request :task])))
        (text? (get-in body [:request :scopeId]) 256)
        (vector? (get-in body [:request :messages]))))
 
@@ -302,7 +627,7 @@
    :policyVersion "whitehat-2026-09-12-v1"
    :trustPolicyVersion "kotoba-trust-routes-2026-09-v1"
    :sessionPolicyVersion "kotoba-session-evidence-2026-09-v1"
-   :model public-model :billing "free" :policyDecision "allowed"
+   :model (get-in job [:request :model]) :billing "free" :policyDecision "allowed"
    :receiptId (:receiptId job) :status (:status job)
    :task (get-in job [:request :task]) :scopeId (get-in job [:request :scopeId])
    :content (:content job)
@@ -318,7 +643,7 @@
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
 (defn- upstream-body [request]
-  #js {:model upstream-model :stream false
+  #js {:model (upstream-model-for (:model request)) :stream false
        :messages (clj->js (:messages request))
        :max_tokens (:max_tokens request)})
 
@@ -353,8 +678,8 @@
      :source "modal-openai-compatible"
      :requestId (:jobId job)
      :receiptId (:receiptId job)
-     :model public-model
-     :upstreamModel upstream-model
+     :model (get-in job [:request :model])
+     :upstreamModel (upstream-model-for (get-in job [:request :model]))
      :inputTokens input
      :cachedInputTokens 0
      :outputTokens output
@@ -393,8 +718,10 @@
                          (let [decoded (decode raw)
                                content (get-in decoded [:choices 0 :message :content])
                                reasoning (get-in decoded [:choices 0 :message :reasoning])
-                               fallback (if (text? content 65536) content reasoning)]
-                           (if-not (and (= upstream-model (:model decoded))
+                               fallback (if (text? content 65536) content reasoning)
+                               expected (upstream-model-for (get-in job [:request :model]))]
+                           (if-not (and (or (not expected)
+                                            (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
                                         (text? fallback 65536))
                              (throw (ex-info "unexpected-modal-model-or-response" {}))
@@ -435,9 +762,25 @@
 (defn- handle-jobs-create [storage body]
   (let [now (.now js/Date)]
     (when-not (completion-shape? body) (throw (ex-info "invalid-job-request" {:status 400})))
+    ;; Guardrails run FIRST and fail closed: a block verdict refuses the job
+    ;; before any eligibility/quota work, and the refusal is a durable receipt.
+    (let [guard (secure/evaluate-guardrails (get-in body [:request :messages]))]
+      (when (= "block" (:verdict guard))
+        (throw (ex-info "guardrail-blocked"
+                        {:status 403
+                         :guardrailVersion secure/guardrail-version
+                         :matches (:matches guard)})))
     (-> (load-state storage)
         (.then (fn [record]
                  (let [record (or record {:status "none" :principalId (:principalId body)})]
+                   ;; Firewall: deterministic tool deny INSIDE the loaded-record
+                   ;; branch, after the guardrail gate, before eligibility.
+                   (let [fw (secure/firewall-decision record (get-in body [:request :task]) now)]
+                     (when (= "deny" (:decision fw))
+                       (throw (ex-info "firewall-denied"
+                                       {:status 403
+                                        :firewallVersion secure/firewall-version
+                                        :tool (:tool fw)}))))
                    ;; Admission recheck happens here, atomically, before any reservation.
                    (if-let [reason (or (eligibility-reason record now)
                                        (when-not (trust-valid? (assoc (:trust record)
@@ -468,7 +811,7 @@
                                             (-> (save-state storage next)
                                                 (.then (fn [_] (store-job! storage job)))
                                                 (.then (fn [_]
-                                                         (response (job-response job record (:sessionRef body) now) 200)))))))))))))))))))
+                                                         (response (job-response job record (:sessionRef body) now) 200))))))))))))))))))))
 
 (defn- handle-jobs-status [storage body]
   (let [now (.now js/Date)]
@@ -532,7 +875,66 @@
     "/ekyc/start" :ekyc-start
     "/ekyc/webhook" :ekyc-webhook
     "/ekyc/status" :ekyc-status
+    "/ekyc/self/webhook" :ekyc-self-webhook
+    "/ekyc/kotoba-proof/submit" :ekyc-kotoba-proof-submit
     nil))
+
+(defn- handle-self-verify-ekyc [env storage body]
+  ;; Layer wiring for the Self (self.xyz) route: Svix-verified webhook evidence
+  ;; applies the full approval chain. Admissibility (signature, flow binding,
+  ;; ofac/minimumAge proof attributes, freshness) is delegated to the provider
+  ;; adapter; raw + svix headers ride in the body (edge relays them verbatim).
+  (let [now (.now js/Date)
+        challenge {:sessionId (:sessionId body) :externalId (:externalId body)
+                   :principal (:principalId body) :scopeId (:scopeId body)
+                   :tasks (vec (:tasks body)) :consumed false
+                   :createdAt (:challengeCreatedAt body) :expiresAt (:challengeExpiresAt body)}]
+    (-> (js/Promise.resolve (providers/verify-event
+         {:apiKey (aget env "SELF_API_KEY") :webhookSecret (aget env "SELF_WEBHOOK_SECRET")
+          :flowId (aget env "SELF_FLOW_ID") :flowVersionId (aget env "SELF_FLOW_VERSION_ID")}
+         challenge (:raw body) (:svixHeaders body) now))
+        (.then (fn [evidence]
+                 ;; Layer 4: duplicate-person resistance — the scoped nullifier is
+                 ;; consumed atomically with the approval chain.
+                 (let [nf (str "self-nullifier:" (:nullifier evidence))]
+                   (-> (js-invoke storage "get" nf)
+                       (.then (fn [existing]
+                                (let [prior (decode existing)]
+                                  (when (and prior (not= prior (:principalId body)))
+                                    (throw (ex-info "duplicate-person-rejected" {:status 403}))))
+                                (-> (load-state storage)
+                                    (.then (fn [record]
+                                             (let [record (or record {:status "none"
+                                                                      :principalId (:principalId body)
+                                                                      :scopes [] :applications []})
+                                                   next (-> record
+                                                            (assoc :policyVersion "whitehat-2026-09-12-v1")
+                                                            (assoc :ekyc {:status "verified"
+                                                                          :evidenceRef (:sessionId evidence)
+                                                                          :verifiedAt now :expiresAt (+ now ekyc-ttl-ms)})
+                                                            (assoc :screening {:status "clear"
+                                                                               :evidenceRef (str "self:" (:eventId evidence))
+                                                                               :checkedAt now
+                                                                               :expiresAt (+ now screening-ttl-ms)})
+                                                            (assoc :trust {:score (get weights "web-reviewed")
+                                                                           :routes ["web-reviewed"]
+                                                                           :evaluatedAt now
+                                                                           :expiresAt (+ now trust-window-ms)}))
+                                                   next (assoc next :scopes
+                                                               (conj (filterv #(not= (:scopeId body) (:id %)) (:scopes record))
+                                                                     {:id (:scopeId body) :status "approved"
+                                                                      :tasks (vec (:tasks body))
+                                                                      :expiresAt (+ now 86400000)}))
+                                                   next (assoc next :status "active")]
+                                               (-> (js-invoke storage "put" nf
+                                                              (js/JSON.stringify (clj->js (:principalId body))))
+                                                   (.then (fn [_] (save-state storage next)))
+                                                   (.then (fn [_]
+                                                            (response {:principalId (:principalId body)
+                                                                       :status (:status next)
+                                                                       :provider "self"
+                                                                       :approvedBy "self-zk"} 200)))))))))))))))))
+
 
 (defn- handle [state env path body]
   (let [storage (aget state "storage") now (.now js/Date)]
@@ -552,6 +954,12 @@
                   (.then (fn [_] (handle-review storage body))))
       :ekyc-start (handle-ekyc-start env storage body)
       :ekyc-webhook (handle-ekyc-webhook env storage body)
+      :ekyc-self-webhook (handle-self-verify-ekyc env storage body)
+       :ekyc-kotoba-proof-submit (run-proof-submit
+                                 {:storage storage :env env :body body :now now
+                                  :load-state load-state :save-state save-state :response response
+                                  :hmac hmac! :ekyc-ttl-ms ekyc-ttl-ms :screening-ttl-ms screening-ttl-ms
+                                  :trust-window-ms trust-window-ms})
       :ekyc-status (handle-ekyc-status storage body)
       (js/Promise.resolve (response {:error "not-found"} 404)))))
 
@@ -568,8 +976,10 @@
                     (js/console.error "authority-op-failed" (.-stack e))
                     (let [data (ex-data e)
                           status (or (:status data) 500)]
-                      (response {:error (if (= 500 status) "authority-internal"
-                                            (or (.-message e) "authority-error"))}
+                      (response (merge {:error (if (= 500 status) "authority-internal"
+                                                 (or (.-message e) "authority-error"))}
+                                       (select-keys data [:guardrailVersion :matches
+                                                          :firewallVersion :tool]))
                                 status)))))
       (js/Promise.resolve (response {:error "private-binding-required"} 403)))))
 
@@ -581,7 +991,17 @@
 ;; per-principal DO id, and forward so the atomic blockConcurrencyWhile
 ;; semantics live inside the Durable Object.
 (defn fetch! [request ^js env _ctx]
-  (if-not (= "https://research.internal" (.-origin (js/URL. (.-url request))))
+  (if (= "https://org.internal" (.-origin (js/URL. (.-url request))))
+    (-> (.json request)
+        (.then (fn [body]
+                 (let [ns (aget env "ORG_RECORDS")
+                       id (.idFromName ns "orgs5")
+                       stub (.get ns id)]
+                   (.fetch stub (js/Request. (.-url request)
+                                             #js {:method "POST"
+                                                  :headers #js {"content-type" "application/json"}
+                                                  :body (js/JSON.stringify body)}))))))
+    (if-not (= "https://research.internal" (.-origin (js/URL. (.-url request))))
     (js/Promise.resolve (response {:error "private-binding-required"} 403))
     (-> (.json request)
         (.then (fn [body]
@@ -591,6 +1011,7 @@
                    (.fetch stub (js/Request. (.-url request)
                                              #js {:method "POST"
                                                   :headers #js {"content-type" "application/json"}
-                                                  :body (js/JSON.stringify body)}))))))))
+                                                  :body (js/JSON.stringify body)})))))))))
+
 
 (def default #js {:fetch fetch!})

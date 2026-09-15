@@ -1,0 +1,1 @@
+{"categoryId":"container","complianceFits":["cis-controls"],"id":"aqua-trivy-operator","name":"Trivy Operator (K8s)","pricingMode":"public-list","pricingNote":"free open source Kubernetes security operator","pricingUrl":"https://github.com/aquasecurity/trivy-operator","provider":"Aqua Security","providerHq":"IL"}

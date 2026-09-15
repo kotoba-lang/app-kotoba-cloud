@@ -1,0 +1,186 @@
+#!/usr/bin/env kbb
+;; Real-browser pass over the /account document (owner direction 2026-09-15,
+;; the kaizen loop's browser arm). Serves ./public statically, intercepts the
+;; Worker API with fixtures, and asserts the three states the static audit
+;; cannot see: signed-out (one status line + the sign-in action, console
+;; hidden), signed-in (console revealed, every cell mapped to a state, no
+;; cell left pending, no duplicate-id dead button), and the layout at
+;; 390 / 768 / 1440 (no horizontal overflow; content starts within the first
+;; screen on the phone band; the fixed nav sits at inline-start 0 on
+;; desktop). Screenshots land in ACCOUNT_SHOTS when set.
+;;
+;;   kbb --backend sci test/account-browser.cljk        (after npm run build)
+;;
+;; Same shape as test/graph-workbench-browser.cljk: node + playwright driven
+;; from kbb, the static server is a child process of this script.
+(ns account-browser
+  (:require ["node:child_process" :as cp]
+            ["node:process" :as proc]
+            ["node:fs" :as fs]))
+
+(def port 8849)
+
+(def script
+  (str "
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/junkawasaki/github/com-junkawasaki/node_modules/playwright');
+const base='http://127.0.0.1:" port "';
+const shots=process.env.ACCOUNT_SHOTS||'';
+(async()=>{
+ const browser=await chromium.launch({headless:true,channel:'chrome'});
+ const errors=[];
+ const fixture=(signedIn)=>async (page)=>{
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.route('https://**/*',route=>route.abort());
+  await page.route('**/v1/session',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(signedIn?{valid:true,username:'hanako',principalId:'urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-111111111111'}:{valid:false})}));
+  await page.route('**/v1/research/ekyc/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'missing'})}));
+  await page.route('**/v1/research/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ineligible',reason:'verification-required',freeTier:{requestsPerDay:50,maxOutputTokens:4096},scopes:[]})}));
+  await page.route('**/v1/org/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({organizations:[]})}));
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:false})}));
+ };
+ const dupIds=()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)};
+ // --- signed out -------------------------------------------------------
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(false)(page);
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>document.getElementById('account-session-status').dataset.state!=='loading');
+  const s=await page.evaluate(()=>({status:document.getElementById('account-session-status').textContent,
+    signedOutVisible:!document.getElementById('account-signed-out').hidden,
+    bodyHidden:document.getElementById('account-console-body').hidden,
+    signIn:document.getElementById('account-sign-in').getAttribute('href'),
+    pending:document.querySelectorAll('[data-state=loading]').length}));
+  if(s.status!=='サインインしていません。')throw Error('signed-out status: '+s.status);
+  if(!s.signedOutVisible||!s.bodyHidden)throw Error('signed-out reveal wrong '+JSON.stringify(s));
+  if(!/auth\\.kotoba\\.cloud\\/sign-in/.test(s.signIn))throw Error('sign-in href '+s.signIn);
+  if(s.pending!==0)throw Error('pending cells after session known: '+s.pending);
+  if(shots)await page.screenshot({path:shots+'/account-signed-out-1440.png',fullPage:true});
+  await page.close();
+ }
+ // --- signed in ---------------------------------------------------------
+ for(const width of [390,768,1440]){
+  const page=await browser.newPage({viewport:{width,height:width<800?844:900}});
+  await fixture(true)(page);
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>document.getElementById('account-session-status').dataset.state==='ok');
+  await page.waitForFunction(()=>document.querySelectorAll('#account-console-body [data-state=loading]').length===0,null,{timeout:5000});
+  const s=await page.evaluate(()=>{
+    const cells=[...document.querySelectorAll('#account-console-body .ck-console__value[data-state]')].map(e=>[e.id||e.textContent.trim(),e.dataset.state]);
+    const sb=document.querySelector('.kc-sb'); const r=sb.getBoundingClientRect();
+    const main=document.querySelector('main').getBoundingClientRect();
+    return {status:document.getElementById('account-session-status').textContent,
+      bodyVisible:!document.getElementById('account-console-body').hidden,
+      signedOutHidden:document.getElementById('account-signed-out').hidden,
+      refreshVisible:!document.getElementById('account-refresh-slot').hidden,
+      username:document.getElementById('account-username').textContent,
+      ekyc:document.getElementById('account-ekyc-state').textContent,
+      billing:document.getElementById('account-billing-state').dataset.state,
+      cells, dup:(()=>{const m={};document.querySelectorAll('[id]').forEach(e=>{m[e.id]=(m[e.id]||0)+1});return Object.entries(m).filter(([k,v])=>v>1)})(),
+      disabled:[...document.querySelectorAll('button[disabled]')].filter(b=>b.offsetParent!==null).map(b=>b.id),
+      iw:innerWidth, scrollW:document.documentElement.scrollWidth,
+      sbPos:getComputedStyle(sb).position, sbLeft:r.left, sbTop:r.top, sbH:r.height, sbW:r.width,
+      mainTop:main.top, mainLeft:main.left, h1Top:document.querySelector('h1').getBoundingClientRect().top,
+      brandH:Math.round(document.querySelector('.kc-sb__brand img').getBoundingClientRect().height)};
+  });
+  console.log('layout',width,JSON.stringify({iw:s.iw,scrollW:s.scrollW,sb:[s.sbPos,s.sbLeft,s.sbTop,s.sbW,s.sbH],mainTop:s.mainTop,mainLeft:s.mainLeft,h1Top:s.h1Top}));
+  if(!s.bodyVisible||!s.signedOutHidden||!s.refreshVisible)throw Error('signed-in reveal wrong '+JSON.stringify(s));
+  if(s.username!=='@hanako')throw Error('username '+s.username);
+  if(s.ekyc!=='未確認')throw Error('ekyc '+s.ekyc);
+  if(s.billing!=='value')throw Error('billing cell state '+s.billing);
+  const bad=s.cells.filter(([,st])=>st==='loading'||st==='empty');
+  if(bad.length)throw Error('cells not mapped: '+JSON.stringify(bad));
+  if(s.dup.length)throw Error('duplicate ids '+JSON.stringify(s.dup));
+  if(s.disabled.length)throw Error('disabled without reason '+JSON.stringify(s.disabled));
+  if(s.scrollW>s.iw)throw Error('horizontal overflow at '+width+': '+s.scrollW);
+  if(width>=1440){ if(s.sbPos!=='fixed'||s.sbLeft!==0)throw Error('desktop sidebar not anchored: '+s.sbPos+' '+s.sbLeft);
+    if(s.sbW>s.mainLeft)throw Error('desktop sidebar ('+s.sbW+'px) overlaps main (starts at '+s.mainLeft+'px)');
+    if(s.mainLeft<240||s.mainLeft>300)throw Error('desktop main offset '+s.mainLeft); }
+  else { if(s.sbH>60)throw Error('phone nav is '+s.sbH+'px tall');
+    if(s.sbW>s.iw)throw Error('phone nav is wider than the viewport ('+s.sbW+'px): the chip row must scroll inside it, not overflow it');
+    if(s.brandH<16||s.brandH>28)throw Error('brand mark on the chip row is '+s.brandH+'px tall');
+    if(s.h1Top>220)throw Error('content starts at '+s.h1Top+'px on '+width+' (chip row + top bar + padding must leave the heading well inside the first screen)'); }
+  if(shots)await page.screenshot({path:shots+'/account-signed-in-'+width+'.png',fullPage:true});
+  await page.close();
+ }
+ console.log('block shell');
+ // --- console shell on /account (signed in): setup chip, account chip ----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  await page.goto(base+'/account/');
+  await page.waitForFunction(()=>!document.getElementById('kc-setup-chip').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({chip:document.getElementById('kc-setup-chip').textContent,state:document.getElementById('kc-setup-chip').dataset.state,
+    chipHref:document.getElementById('kc-setup-chip').getAttribute('href'),
+    bannerHidden:document.getElementById('kc-setup-banner').hidden,
+    creditHidden:document.getElementById('kc-credit-chip').hidden,
+    foot:document.getElementById('kc-session-nav-side').textContent.replace(/\\s+/g,' ').trim(),
+    brand:(()=>{const i=document.querySelector('.kc-sb__brand img');const r=i.getBoundingClientRect();return {loaded:i.complete&&i.naturalWidth>0,left:Math.round(r.left),top:Math.round(r.top),h:Math.round(r.height)}})(),
+    section:document.querySelector('.kc-topbar__section').textContent.replace(/\\s+/g,' ').trim()}));
+  if(s.chip!=='はじめる 1/3')throw Error('setup chip '+s.chip);
+  if(s.state!=='pending'||!/account-panel-identity/.test(s.chipHref))throw Error('setup chip next '+JSON.stringify(s));
+  if(!s.bannerHidden)throw Error('banner must not repeat the panel on /account');
+  if(!s.creditHidden)throw Error('credit chip shown without a balance');
+  if(!/@hanako/.test(s.foot)||!/個人/.test(s.foot))throw Error('account chip '+s.foot);
+  if(s.section!=='アカウント')throw Error('section '+s.section);
+  if(!s.brand.loaded||s.brand.left>32||s.brand.top>40||s.brand.h<20||s.brand.h>40)throw Error('brand mark not top-left / not loaded '+JSON.stringify(s.brand));
+  await page.close();
+ }
+ console.log('block secure');
+ // --- /secure/: rendered from policy, versions confirmed, observe mode -----
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  await fixture(true)(page);
+  await page.route('**/v1/secure',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({guardrails:{version:'kotoba-guardrails-2026-09-v1'},firewall:{version:'kotoba-firewall-2026-09-v1',observeMode:false},compliance:{version:'kotoba-compliance-2026-09-v1'}})}));
+  await page.goto(base+'/secure/');
+  await page.waitForFunction(()=>!document.getElementById('secure-observe-mode').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({status:document.getElementById('secure-status').textContent,
+    observe:document.getElementById('secure-observe-mode').textContent,
+    rows:document.querySelectorAll('#guardrails tbody tr').length,
+    tools:document.querySelectorAll('#firewall tbody tr').length,
+    bannerHidden:document.getElementById('kc-setup-banner').hidden,
+    banner:document.getElementById('kc-setup-banner-text').textContent}));
+  if(s.rows!==5||s.tools!==5)throw Error('policy tables '+JSON.stringify(s));
+  if(!/観測モード: オフ/.test(s.observe))throw Error('observe chip '+s.observe);
+  if(!/一致/.test(s.status))throw Error('version status '+s.status);
+  if(s.bannerHidden||!/本人確認/.test(s.banner))throw Error('resume banner on a non-account page '+JSON.stringify(s));
+  await page.close();
+ }
+ console.log('block billing');
+ // --- /billing/ signed out: sign-in block, no greyed buttons ----------------
+ {
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  await fixture(false)(page);
+  await page.route('**/v1/billing/status',r=>r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'sign-in-required'})}));
+  await page.route('**/v1/billing/catalog',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({checkoutEnabled:false,mode:'test'})}));
+  await page.goto(base+'/billing/');
+  await page.waitForFunction(()=>!document.getElementById('billing-signed-out').hidden,null,{timeout:5000});
+  const s=await page.evaluate(()=>({disabled:document.querySelectorAll('button[disabled]').length,
+    visibleButtons:[...document.querySelectorAll('[data-billing-sku]')].filter(b=>!b.hidden).length,
+    balancesHidden:document.getElementById('billing-balances').hidden,
+    status:document.getElementById('billing-status').textContent,
+    scrollW:document.documentElement.scrollWidth,iw:innerWidth}));
+  if(s.disabled!==0||s.visibleButtons!==0)throw Error('billing idle controls '+JSON.stringify(s));
+  if(!s.balancesHidden)throw Error('balances shown while signed out');
+  if(!/検証中|pending/.test(s.status))throw Error('billing status '+s.status);
+  if(s.scrollW>s.iw)throw Error('billing overflow at 390');
+  await page.close();
+ }
+ if(errors.length)throw Error(JSON.stringify(errors));
+ console.log('PASS account browser: signed-out, signed-in cells mapped, no dup ids, layout 390/768/1440, console shell, /secure/, /billing/');
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
+"))
+
+(defn -main []
+  (when-not (fs/existsSync "public/js/session.js")
+    (.error js/console "REFUSED: public/js/session.js is missing — run npm run build first (this is exactly the deploy failure the audit exists for)")
+    (.exit proc 2))
+  (let [server (cp/spawn "python3" #js ["-m" "http.server" (str port) "--bind" "127.0.0.1" "--directory" "public"]
+                         #js {:stdio "ignore"})]
+    (js/setTimeout
+     (fn []
+       (let [r (cp/spawnSync "node" #js ["-e" script] #js {:stdio "inherit"})]
+         (.kill server)
+         (.exit proc (or (.-status r) 1))))
+     800)))
+
+(-main)

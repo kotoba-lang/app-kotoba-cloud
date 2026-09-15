@@ -36,12 +36,12 @@
     const wrap=$('chart');wrap.replaceChildren();
     for(const fn of ['GV','ID','PR','DE','RS','RC']){
       const ids=byFn[fn]||[];const cov=ids.filter(i=>covered.has(i)).length;
-      const row=node('div','csf2-row');
-      const label=node('span','csf2-fn');label.textContent=fns[fn]+' '+fn;
-      const bar=node('div','csf2-bar');const fill=node('div','csf2-fill');
+      const row=node('div');row.className='csf2-row';
+      const label=node('span');label.className='csf2-fn';label.textContent=fns[fn]+' '+fn;
+      const bar=node('div');bar.className='csf2-bar';const fill=node('div');fill.className='csf2-fill';
       fill.style.width=(ids.length?Math.round(cov/ids.length*100):0)+'%';fill.style.background=fnColors[fn];
       bar.append(fill);
-      const count=node('span','csf2-count');count.textContent=cov+'/'+ids.length;
+      const count=node('span');count.className='csf2-count';count.textContent=cov+'/'+ids.length;
       row.append(label,bar,count);wrap.append(row);
     }
     const total=subIds.filter(i=>covered.has(i)).length;
@@ -50,7 +50,7 @@
     const chips=$('chips');chips.replaceChildren();
     for(const id of subIds){
       const c=node('span',id);
-      c.className='csf2-chip'+(covered.has(id)?' csf2-chip--on':'');
+      c.className='ck-catalog__chip';if(covered.has(id))c.setAttribute('aria-pressed','true');
       c.title=subs[id];
       if(covered.has(id))c.onclick=()=>{const d=$('detail');d.replaceChildren(node('strong',id),node('p',subs[id]));d.hidden=false;};
       chips.append(c);
@@ -63,6 +63,20 @@
     const rec=(data.products.find(x=>x['product/id']===pid)||{}).record;
     if(rec&&data.blocks[rec['/']])d.append(Object.assign(node('a','レコードCID（IPLD）'),{href:data.blocks[rec['/']].path,target:'_blank',rel:'noopener'}));
     d.hidden=false;
+    // report download: deterministic JSON snapshot of the selected product's coverage
+    const rep=$('report');rep.hidden=false;
+    const fnIds=fn=>subIds.filter(i=>i.split('.')[0]===fn);
+    rep.onclick=()=>{
+      const out={framework:'NIST CSF 2.0',source:'NIST CSWP 29',subcategoryCount:subIds.length,
+        product:{id:p['product/id'],name:p['product/name'],vendor:p['product/vendor'],category:p['product/category']},
+        coveredTotal:total,
+        coveredByFunction:Object.fromEntries(['GV','ID','PR','DE','RS','RC'].map(fn=>{const ids=fnIds(fn);return [fn,ids.filter(i=>covered.has(i)).length+'/'+ids.length];})),
+        supportedSubcategories:Object.fromEntries(subIds.filter(i=>covered.has(i)).map(i=>[i,subs[i]])),
+        productSource:p['product/source']};
+      const url=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
+      const a=Object.assign(document.createElement('a'),{href:url,download:'csf2-'+p['product/id']+'-coverage.json'});
+      a.click();URL.revokeObjectURL(url);
+    };
   }
   function select(pid){selected=pid;chart(pid);render();}
   $('search').oninput=render;$('kind').onchange=render;

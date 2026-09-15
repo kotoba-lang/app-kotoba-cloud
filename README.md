@@ -144,6 +144,47 @@ Deploy only after those checks pass:
 npm run deploy
 ```
 
+### Console IA
+
+The sidebar, the top bar's section label and the setup steps all derive from
+ONE table, `app-kotoba-cloud.console/groups` (views are data; the nav is
+generated — a destination added there cannot be forgotten in the nav, and a
+destination that does not resolve fails the build). Console documents:
+`/account`, `/billing/`, `/secure/` (guardrails / firewall / compliance,
+rendered from the policy the authority enforces), `/models/`, `/apps/`,
+`/docs/`. Every chip in the chrome (credit, setup progress, account) is
+hidden until its fact is known. Coverage against the reference console is
+recorded in `docs/uiux-coscientist/console-coverage.edn`.
+
+### UI/UX document contract (shinkansen.audit) — the kaizen loop
+
+Every emitted document is scored by `shinkansen.audit` (13 deterministic
+axes, each seeded from a failure measured on the live `/account` page on
+2026-09-15 — `/js/session.js` 404 in production, duplicate ids, twelve
+"loading…" cells, three nav entries for one page, 1,100px of nav before the
+content on a phone, a fixed sidebar with no inline anchor). Findings are
+named with WHY; unmeasurable axes are refused, never passed.
+
+```bash
+npm run audit:uiux                       # after npm run build: floor 80, exit 1 below, exit 2 refused
+kbb --backend sci scripts/uiux-audit.cljk --only /account/          # one document, all findings
+kbb --backend sci scripts/uiux-audit.cljk --iteration 3             # append docs/uiux-coscientist/iteration-03.{edn,md}
+npm run test:account-browser             # real browser: signed-out / signed-in / 390-768-1440 (after build)
+```
+
+`npm run deploy` runs the audit between the build and `wrangler deploy` —
+`:assets-resolve` is the only place a deploy from a tree that lacks the
+browser bundle is caught. Four axes are **hard** (fail regardless of the
+floor, because they are breakage rather than degradation): `assets-resolve`,
+`links-resolve` (every same-origin `<a href>` must be an emitted document or
+a Worker route — `/docs/` was linked from 75 documents and never emitted),
+`unique-ids`, `csp-allows-assets` (the policy in `app-kotoba-cloud.csp` is
+what the Worker serves and what the audit reads). `docs/uiux-coscientist/` is the append-only
+measurement record (Generate → Reflect → Rank → Evolve → Meta per
+iteration, plus the per-axis delta from the previous one — the roadmap is
+a prediction, the delta is the proof). `uiux_audit_test.cljk` pins the
+`/account` contract at 100 and proves the gate falls on a broken document.
+
 Locale smoke after render + Worker:
 
 - `GET /id/` is `200` with `lang=id`; `/jv/`, `/su/`, `/he/`, `/it/`,

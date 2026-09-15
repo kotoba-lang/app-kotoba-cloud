@@ -7,7 +7,19 @@
 (defn ja? [] (= "ja" (.-lang (.-documentElement js/document))))
 (defn t [ja en] (if (ja?) ja en))
 (defn say! [id s] (when-let [x (el id)] (set! (.-textContent x) s)))
-(defn state! [id kind] (when-let [x (el id)] (.setAttribute x "data-state" kind)))
+(defn state! [id kind]
+  (when-let [x (el id)]
+    (.setAttribute x "data-state" (name kind))
+    ;; loading/error/empty get their default text from the console pattern;
+    ;; only :value/:ok callers pass explicit text afterwards via say!.
+    (set! (.-textContent x)
+          (case kind
+            :loading "読み込んでいます…"
+            :error "読み込めませんでした。更新してください。"
+            :empty "—"
+            (.-textContent x)))))
+(defn show! [id] (when-let [x (el id)] (set! (.-hidden x) false)))
+(defn hide! [id] (when-let [x (el id)] (set! (.-hidden x) true)))
 (defn abbreviate [v]
   (if (and (string? v) (> (count v) 24)) (str (subs v 0 12) "…" (subs v (- (count v) 8))) (or v "—")))
 
@@ -20,7 +32,7 @@
        (.catch (fn [_] {:httpOk false})))))
 
 (def reason-label
-  {"verification-required" (t "本人確認が未完了です。上の Stripe Identity から開始してください。" "Identity verification is incomplete. Start it above via Stripe Identity.")
+  {"verification-required" (t "本人確認が未完了です。上の「本人確認」から開始してください。" "Identity verification is incomplete. Start it in 本人確認 above.")
    "verification-expired" (t "本人確認の有効期限が切れました。再確認してください。" "Identity verification has expired. Re-verify.")
    "trust-route-required" (t "有効な信頼経路がありません。本人確認をやり直してください。" "No current trust route. Restart verification.")
    "screening-expired" (t "AML/CTF 照合の有効期限が切れました。再審査をお待ちください。" "AML/CTF screening has expired. Re-review is required.")
@@ -30,15 +42,40 @@
    "identity-mismatch" (t "記録された principal と一致しません。サポートに連絡してください。" "Principal mismatch. Contact support.")
    "eligible" (t "利用資格があります。無料枠で研究できます。" "Eligible. Your free allowance is available.")})
 
-(defn render-session [payload]
-  (if (and payload (:valid payload))
-    (do (say! "account-username" (str "@" (:username payload)))
+(defn render-session
+  "The one status line of the document, then exactly one of the two hidden
+  blocks is revealed: the signed-out action or the console body. A failed
+  /v1/session read is an error, not a signed-out state (say so, offer retry)."
+  [payload]
+  (cond
+    (and payload (:valid payload))
+    (do (state! "account-session-status" :ok)
+        (say! "account-session-status" (t (str "サインイン済み: @" (:username payload))
+                                          (str "Signed in as @" (:username payload))))
+        (state! "account-username" :value)
+        (say! "account-username" (str "@" (:username payload)))
+        (state! "account-principal" :value)
         (say! "account-principal" (abbreviate (:principalId payload)))
-        (say! "account-session-status" (t "サインイン済み。" "Signed in."))
+        (hide! "account-signed-out")
+        (show! "account-console-body")
+        (show! "account-refresh-slot")
         true)
-    (do (say! "account-username" "—")
-        (say! "account-principal" "—")
+
+    (and payload (:httpOk payload))
+    (do (state! "account-session-status" :empty)
         (say! "account-session-status" (t "サインインしていません。" "Not signed in."))
+        (hide! "account-console-body")
+        (hide! "account-refresh-slot")
+        (show! "account-signed-out")
+        false)
+
+    :else
+    (do (state! "account-session-status" :error)
+        (say! "account-session-status" (t "サインイン状態を確認できませんでした。更新してください。"
+                                          "Could not check the sign-in state. Refresh."))
+        (hide! "account-console-body")
+        (hide! "account-signed-out")
+        (show! "account-refresh-slot")
         false)))
 
 (defn render-ekyc [r]
@@ -48,36 +85,47 @@
                  (= "missing" (:status r)) "missing"
                  :else "pending")]
     (case status
-      "verified" (do (state! "account-ekyc-state" "ok")
+      "verified" (do (state! "account-ekyc-state" :ok)
                      (say! "account-ekyc-state" (t "確認済み" "Verified"))
                      (say! "account-ekyc-note" (t "本人確認は完了しています。" "Verification is complete."))
-                     (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true)))
-      "pending" (do (state! "account-ekyc-state" "action")
+                     ;; nothing left to do here — hide the action, never grey it
+                     (when-let [b (el "account-ekyc-start")] (set! (.-hidden b) true)))
+      "pending" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "確認中" "Pending"))
-                    (say! "account-ekyc-note" (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。" "Approval happens automatically when Stripe completes. Refresh this page to see the change."))
-                    (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true)))
-      "missing" (do (state! "account-ekyc-state" "action")
+                    (say! "account-ekyc-note" (t "Stripe での確認が完了すると自動承認されます。この画面で状態が変わります。カード登録を中断した場合は下のボタンから再開できます。" "Approval happens automatically when Stripe completes. Refresh this page to see the change. If you left the card entry midway, resume below."))
+                    ;; A pending challenge means a setup session may still be
+                    ;; open — re-running start mints a fresh one (or verifies
+                    ;; inline once the card is on file), so keep the button
+                    ;; enabled as the resume affordance.
+                    (when-let [b (el "account-ekyc-start")]
+                      (set! (.-hidden b) false)
+                      (set! (.-disabled b) false)
+                      (set! (.-textContent b) (t "カードを登録・再開" "Add or resume card"))))
+      "missing" (do (state! "account-ekyc-state" :action)
                     (say! "account-ekyc-state" (t "未確認" "Not verified"))
-                    (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) false))
-                    (say! "account-ekyc-note" (t "開始すると Stripe の確認画面（verify.stripe.com）へ移動します。" "Starting moves you to the Stripe check at verify.stripe.com.")))
-      (do (state! "account-ekyc-state" "off")
+                    (when-let [b (el "account-ekyc-start")] (set! (.-hidden b) false) (set! (.-disabled b) false))
+                    (say! "account-ekyc-note" (t "開始すると Stripe の確認画面へ移動します（カード未登録なら checkout.stripe.com でカード登録、書類確認は verify.stripe.com）。" "Starting moves you to the Stripe check (card setup at checkout.stripe.com when no card is on file, documents at verify.stripe.com).")))
+      (do (state! "account-ekyc-state" :error)
           (say! "account-ekyc-state" (t "確認不可" "Unavailable"))
-          (when-let [b (el "account-ekyc-start")] (set! (.-disabled b) true))
+          ;; the reason sits beside the greyed button
+          (when-let [b (el "account-ekyc-start")] (set! (.-hidden b) false) (set! (.-disabled b) true))
           (say! "account-ekyc-note" (t "本人確認サービスに接続できません。時間をおいて更新してください。" "Verification service is unavailable. Refresh later."))))))
 
 (defn render-eligibility [r]
   (let [status (:status r) reason (:reason r)]
     (if (and (:httpOk r) (= "eligible" status))
-      (do (state! "account-eligibility-state" "ok")
+      (do (state! "account-eligibility-state" :ok)
           (say! "account-eligibility-state" (t "利用可能" "Eligible"))
           (say! "account-eligibility-note" (get reason-label "eligible")))
-      (do (state! "account-eligibility-state" "action")
+      (do (state! "account-eligibility-state" :action)
           (say! "account-eligibility-state" (t "保留" "Pending"))
           (say! "account-eligibility-note" (get reason-label (or reason "review-required")))))
-    (when-let [ft (:freeTier r)]
-      (say! "account-free-tier"
-            (t (str (:requestsPerDay ft) " 件/日 · 出力最大 " (:maxOutputTokens ft) " tokens")
-               (str (:requestsPerDay ft) " req/day · up to " (:maxOutputTokens ft) " output tokens"))))))
+    (if-let [ft (:freeTier r)]
+      (do (state! "account-free-tier" :value)
+          (say! "account-free-tier"
+                (t (str (:requestsPerDay ft) " 件/日 · 出力最大 " (:maxOutputTokens ft) " tokens")
+                   (str (:requestsPerDay ft) " req/day · up to " (:maxOutputTokens ft) " output tokens"))))
+      (state! "account-free-tier" (if (:httpOk r) :empty :error)))))
 
 (defn render-scopes [scopes]
   (let [host (el "account-scopes")]
@@ -85,22 +133,41 @@
       (.replaceChildren host)
       (if (empty? scopes)
         (let [p (.createElement js/document "p")]
-          (set! (.-className p) "kc-account-note")
+          (set! (.-className p) "ck-console__note")
           (set! (.-textContent p) (t "承認済みスコープはまだありません。研究者登録後に申請してください。" "No approved scopes yet. Apply after researcher registration."))
           (.append host p))
         (doseq [s scopes]
           (let [row (.createElement js/document "div")]
-            (set! (.-className row) "kc-account-row")
+            (set! (.-className row) "ck-console__row")
             (set! (.-textContent row)
                   (str (:id s) " · " (:status s) " · " (str/join ", " (:tasks s))))
             (.append host row)))))))
 
 (defn render-billing [r]
+  (state! "account-billing-state" (if (:httpOk r) :value :error))
   (say! "account-billing-state"
         (cond
           (not (:httpOk r)) (t "請求サービスに接続できません。" "Billing service unavailable.")
           (:checkoutEnabled r) (t "有料枠の購入・管理は料金ページから行えます。" "Purchases and management are on the plans page.")
           :else (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet."))))
+
+(defn render-team [r]
+  (let [host (el "account-team")]
+    (when host
+      (.replaceChildren host)
+      (if (and (:httpOk r) (seq (:organizations r)))
+        (doseq [o (:organizations r)]
+          (let [row (.createElement js/document "div")]
+            (set! (.-className row) "ck-console__row")
+            (set! (.-textContent row)
+                  (str (:handle o) " · role " (:role o) " · " (str/join ", " (or (:memberRoles o) []))))
+            (.append host row)))
+        (let [p (.createElement js/document "p")]
+          (set! (.-className p) "ck-console__note")
+          (set! (.-textContent p)
+                (t "チームはありません。組織を作成すると owner ロールが付与され、メンバーを招待できます。"
+                   "No team yet. Create an organization to become owner and invite members."))
+          (.append host p))))))
 
 (defn render-orgs [r]
   (let [host (el "account-orgs")]
@@ -109,12 +176,12 @@
       (if (and (:httpOk r) (seq (:organizations r)))
         (doseq [o (:organizations r)]
           (let [row (.createElement js/document "div")]
-            (set! (.-className row) "kc-account-row")
+            (set! (.-className row) "ck-console__row")
             (set! (.-textContent row)
                   (str (:handle o) " · " (:role o) " · " (:status o) " · " (:orgDid o)))
             (.append host row)))
         (let [p (.createElement js/document "p")]
-          (set! (.-className p) "kc-account-note")
+          (set! (.-className p) "ck-console__note")
           (set! (.-textContent p)
                 (t "所属する組織はまだありません。ハンドルを入力して作成してください。"
                    "No organizations yet. Enter a handle to create one."))
@@ -153,31 +220,80 @@
                    (set! (.-location js/window) (:verificationUrl r))
                    (do (say! "account-ekyc-note"
                              (case (get-in r [:error :code])
-                               "stripe-identity-not-configured" (t "本人確認サービスは一時的に利用できません。時間をおいて再試行してください。" "Verification is temporarily unavailable. Try again later.")
+                               "card-verification-not-configured" (t "本人確認サービスは一時的に利用できません。時間をおいて再試行してください。" "Verification is temporarily unavailable. Try again later.")
+                               "prepaid-card-not-accepted" (t "プリペイドカード・バーチャルカードは本人確認に使えません。クレジットカードまたはデビットカードを登録してください。" "Prepaid and virtual cards cannot be used for verification. Add a regular credit or debit card.")
                                "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
                                (t "開始できませんでした。状態を更新してください。" "Could not start. Refresh and retry.")))
                        (set! (.-disabled b) false))))))
         ))
 
+(defn render-pat [r]
+  (let [result (el "account-pat-result")
+        note (el "account-pat-note")]
+    (when result
+      (if (and (:httpOk r) (:token r))
+        (let [token (:token r)
+              env-line (str "KOTOBA_API_BASE=https://api.kotoba.cloud KOTOBA_API_TOKEN=" token)
+              curl-line (str "curl -s -H 'Authorization: Bearer " token
+                             "' https://api.kotoba.cloud/v1/research/status")]
+          (say! "account-pat-token" token)
+          (say! "account-pat-env" env-line)
+          (say! "account-pat-curl" curl-line)
+          (set! (.-hidden result) false)
+          (when-let [b (el "account-pat-create")] (set! (.-disabled b) true))
+          (when note (set! (.-textContent note)
+                           (t "トークンをコピーして保存してください。この画面を離れると二度と表示されません。"
+                              "Copy and store the token now. It is never shown again.")))
+          (doseq [[button-id text] [["account-pat-copy" token]
+                                    ["account-pat-copy-env" env-line]
+                                    ["account-pat-copy-curl" curl-line]]]
+            (when-let [b (el button-id)]
+              (.addEventListener b "click"
+                                 (fn [] (.writeText (.-clipboard js/navigator) text)
+                                   (when note (set! (.-textContent note)
+                                                    (t "コピーしました。" "Copied."))))))))
+        (do (when note (set! (.-textContent note)
+                             (case (get-in r [:error :code])
+                               "pat-not-configured" (t "トークン発行はまだ有効化されていません。しばらく待ってから再試行してください。"
+                                                       "Token issuance is not enabled yet. Try again later.")
+                               "invalid-origin" (t "同じページから発行してください。" "Issue it from this page.")
+                               "content-type-required" (t "同じページから発行してください。" "Issue it from this page.")
+                               "sign-in-required" (t "先にサインインしてください。" "Sign in first.")
+                               (t "発行できませんでした。状態を更新してください。" "Could not issue. Refresh and retry.")))))))))
+
+(defn create-pat! []
+  (when-let [b (el "account-pat-create")]
+    (set! (.-disabled b) true)
+    (-> (api "/v1/account/api-token" {:label "cli"})
+        (.then (fn [r]
+                 (render-pat r)
+                 (when-not (and (:httpOk r) (:token r))
+                   (set! (.-disabled b) false)))))))
+
 (defn refresh! []
+  (state! "account-session-status" :loading)
+  (say! "account-session-status" (t "サインイン状態を確認しています…" "Checking sign-in state…"))
   (-> (api "/v1/session")
       (.then render-session)
       (.then (fn [signed-in?]
-               (if-not signed-in?
-                 (do (render-ekyc {:httpOk false})
-                     (render-eligibility {:httpOk false})
-                     (render-scopes [])
-                     (render-orgs {:httpOk false})
-                     (render-billing {:httpOk false}))
-                 (do (-> (api "/v1/research/ekyc/status") (.then render-ekyc))
-                     (-> (api "/v1/research/status")
-                         (.then (fn [r] (render-eligibility r) (render-scopes (:scopes r [])))))
-                     (-> (api "/v1/org/status" {}) (.then render-orgs))
-                     (-> (api "/v1/billing/status") (.then render-billing))))))))
+               (when signed-in?
+                 ;; the body is visible now: each cell is pending until its
+                 ;; fetch answers, and every fetch maps to one cell state
+                 (doseq [id ["account-ekyc-state" "account-eligibility-state" "account-free-tier"
+                             "account-scopes-state" "account-orgs-state" "account-team-state"
+                             "account-billing-state"]]
+                   (state! id :loading))
+                 (-> (api "/v1/research/ekyc/status") (.then render-ekyc))
+                 (-> (api "/v1/research/status")
+                     (.then (fn [r] (render-eligibility r) (render-scopes (:scopes r [])))))
+                 (-> (api "/v1/org/status" {})
+                     (.then (fn [r] (render-orgs r) (render-team r))))
+                 (-> (api "/v1/billing/status") (.then render-billing)))))))
 
 (defn init! []
   (when (el "account-console")
     (when-let [b (el "account-refresh")] (.addEventListener b "click" refresh!))
     (when-let [b (el "account-ekyc-start")] (.addEventListener b "click" start-ekyc!))
     (when-let [b (el "account-org-create")] (.addEventListener b "click" create-org!))
+    (when-let [b (el "account-pat-create")] (.addEventListener b "click" create-pat!))
     (refresh!)))

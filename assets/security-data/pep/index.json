@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "corpus": "pep",
+  "snapshot": {
+    "upstreamDataset": "jp_shugiin",
+    "upstreamVersion": "20260902052902-esi",
+    "artifactUrl": "https://data.opensanctions.org/artifacts/jp_shugiin/20260902052902-esi/entities.ftm.json"
+  },
+  "artifactChecksum": "5142406b13cde45574269db0dcac89468ce3e423",
+  "persons": 465,
+  "datoms": 3720,
+  "sha256": "e9aad75e4f0d8b41d2b665722b26cc2cff936e052144efac17e2a816ce938301",
+  "license": "OpenSanctions data is CC BY-NC 4.0 (non-commercial); commercial use requires a data license from OpenSanctions",
+  "files": [
+    "persons.datoms.json",
+    "schema.edn"
+  ]
+}

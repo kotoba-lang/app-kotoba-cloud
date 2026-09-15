@@ -22,7 +22,7 @@
      :note "Read-only evidence search/context; CORS-open. Not an MCP protocol endpoint: plain GET JSON the agent can wrap."}
     :research
     {:transport "http"
-     :auth "browser-session"
+     :auth "bearer-pat or browser-session"
      :endpoints
      {:status "https://api.kotoba.cloud/v1/research/status"
       :ekycStart "https://api.kotoba.cloud/v1/research/ekyc/start"
@@ -31,7 +31,8 @@
       :job "https://api.kotoba.cloud/v1/research/job?jobId=<uuid>"
       :models "https://kotoba.cloud/v1/models"}
      :sessionSetup
-     ["Sign in at https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
+     ["CLI/IDE agents: sign in at https://kotoba.cloud/account and issue a personal API token once (接続トークンを発行), then use Authorization: Bearer kc_pat_... with no Origin header"
+      "Browser agents: sign in at https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2F"
       "POST /v1/research/ekyc/start {\"scopeId\":\"owned\",\"tasks\":[\"code-review\"]} then the account holder completes https://verify.stripe.com (agents never do)"
       "Approval is automatic on the Stripe webhook; poll /v1/research/status until eligible"]}}
    :tools
