@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T08:11:05.565Z",
+ "generatedAt": "2026-09-15T09:23:51.901Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 350,
+ "productCount": 363,
  "ontology": {
   "nodes": 44,
-  "claims": 3833,
+  "claims": 3958,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya"
+   "/": "baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -2855,6 +2855,45 @@
    }
   },
   {
+   "id": "trend-container-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Container Security",
+   "categoryId": "container",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; product page offers a 'Get pricing' CTA with no public list pricing (en_us page HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-container-image-security.html",
+   "record": {
+    "/": "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba"
+   }
+  },
+  {
+   "id": "trend-industrial-network-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Industrial Network Security",
+   "categoryId": "ot-ics",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; no public list pricing on the ja_jp product page (HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/iot/industrial-network-security.html",
+   "record": {
+    "/": "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a"
+   }
+  },
+  {
+   "id": "trend-data-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Vision One Data Security",
+   "categoryId": "dspm",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; ja_jp 製品ページに公開価格はなく、CTA は無料体験/お問い合わせのみ (ページ HTTP 200, verified 2026-09-15) — 購入/見積は Trend Micro またはパートナー経由。",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/data-security",
+   "record": {
+    "/": "baguqeeradrjbklbvzpwth5b6n3becbfbxhepd23mnd5feaius3ajuq5kwbwa"
+   }
+  },
+  {
    "id": "armis",
    "provider": "Armis",
    "providerHq": "US",
@@ -3329,6 +3368,32 @@
    }
   },
   {
+   "id": "trend-zero-trust-secure-access",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Zero Trust Secure Access (ZTSA)",
+   "categoryId": "ztna",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m769-web-pricelist.html",
+   "pricingNote": "quote-based; ja_jp 製品ページの「価格を見る」は価格表/見積フォームへの誘導 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access.html も 200。",
+   "record": {
+    "/": "baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a"
+   }
+  },
+  {
+   "id": "trend-ai-secure-access",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro AI Secure Access",
+   "categoryId": "ztna",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m646-web-vision-one-price-infomation.html",
+   "pricingNote": "quote-based; ja_jp 製品ページの価格案内は Vision One 価格情報フォーム経由 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access/ai.html も 200。",
+   "record": {
+    "/": "baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a"
+   }
+  },
+  {
    "id": "trend-micro-email-security",
    "provider": "Trend Micro",
    "providerHq": "JP",
@@ -3765,6 +3830,40 @@
    ],
    "record": {
     "/": "baguqeeraxbqiit6aqd45hlo2oqfrtauzghfghkx7jpwhl5vjm3b5soyvtcoa"
+   }
+  },
+  {
+   "id": "trend-tippingpoint-tps",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI TippingPoint Threat Protection System",
+   "categoryId": "nac",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/tipping-point.html",
+   "pricingNote": "Appliance/subscription sold via quote; no TippingPoint line items on the Trend Micro JP public price list (checked 2026-09-15).",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeera2yveek3e25dv7tzqqpmypusnt655zeq6ihsjjbs75rqo22zc6zqa"
+   }
+  },
+  {
+   "id": "trend-tippingpoint-sms",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI TippingPoint Security Management System",
+   "categoryId": "nac",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/intrusion-prevention/centralized-management-response.html",
+   "pricingNote": "Centralized management for TippingPoint deployments, sold via quote; no line items on the Trend Micro JP public price list (checked 2026-09-15).",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ],
+   "record": {
+    "/": "baguqeeraox5333wj7jgict6qpenuefb3n27jtf5zze7lun3cz7n3ndx6tbva"
    }
   },
   {
@@ -4678,6 +4777,32 @@
    "pricingNote": "quote-based; per-workload/endpoint subscription via quote",
    "record": {
     "/": "baguqeerai757upytk3mpk3oee6ijwtt4m2p3otk2mwuu3cc6oj2gwlk6fo6a"
+   }
+  },
+  {
+   "id": "trend-identity-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Identity Security (ITDR)",
+   "categoryId": "itdr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/identity-security",
+   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here)",
+   "record": {
+    "/": "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka"
+   }
+  },
+  {
+   "id": "trend-threat-intelligence",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Threat Intelligence (TrendAI Vision One)",
+   "categoryId": "ti",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/threat-intelligence",
+   "pricingNote": "quote-based; no public list pricing — sales contact via the product page. https://www.trendmicro.com/ja_jp/business/products/threat-intelligence.html 301-redirects to this TrendAI (JP) product page (verified 200, 2026-09-15).",
+   "record": {
+    "/": "baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa"
    }
   },
   {
@@ -7116,6 +7241,58 @@
    "record": {
     "/": "baguqeerapiog3354wp2vmiavi4kd6utfrap7xwbxgubfqfdgirve3ahcxiva"
    }
+  },
+  {
+   "id": "trend-deep-discovery-inspector",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Deep Discovery Inspector",
+   "categoryId": "ndr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
+   "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)",
+   "record": {
+    "/": "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a"
+   }
+  },
+  {
+   "id": "trend-file-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Vision One File Security",
+   "categoryId": "sandbox",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-file-storage-security.html",
+   "pricingNote": "quote-based; S3/NAS/file-server malware-scan service sold via AWS Marketplace/reseller quote (no dedicated pricing page; product page links /ja_jp/buy/license/trsl-package/price-list.html, HTTP 200)",
+   "record": {
+    "/": "baguqeerahdglfqqtgoviulstt7v5ayvgfkr7l7wy7cj7sbkljxwra6biiw4a"
+   }
+  },
+  {
+   "id": "trend-security-operations",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Security Operations (SecOps)",
+   "categoryId": "siem",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/security-operations",
+   "pricingNote": "quote-based; no public pricing on the JP product page (trendmicro.com/ja_jp/business/products/security-operations.html 301-redirects to trendaisecurity.com/ja/platform/security-operations, verified HTTP 200 on 2026-09-15); XDR + Agentic SIEM + SOAR integrated SOC platform (TrendAI Vision One Security Operations)",
+   "record": {
+    "/": "baguqeera4dpbmzznbihg4iyaokogarfrdvocjh3jz6ajvfgu2cpjaaikrcna"
+   }
+  },
+  {
+   "id": "trend-security-expert-services",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Security Expert Services",
+   "categoryId": "ddil-forensics",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/support-services.html",
+   "pricingNote": "quote-based; JP product page (verified HTTP 200 on 2026-09-15) lists expert support services incl. incident-time support (インシデント時の支援) with no public pricing",
+   "record": {
+    "/": "baguqeeraphdckj7pxdev2h4mdd6vtdkbvzjwxic373zzqyir5luqx5qk6dha"
+   }
   }
  ],
  "blocks": {
@@ -7604,6 +7781,21 @@
    "bytes": 298,
    "codec": "dag-json"
   },
+  "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba.json",
+   "bytes": 489,
+   "codec": "dag-json"
+  },
+  "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a.json",
+   "bytes": 458,
+   "codec": "dag-json"
+  },
+  "baguqeeradrjbklbvzpwth5b6n3becbfbxhepd23mnd5feaius3ajuq5kwbwa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradrjbklbvzpwth5b6n3becbfbxhepd23mnd5feaius3ajuq5kwbwa.json",
+   "bytes": 465,
+   "codec": "dag-json"
+  },
   "baguqeeragufypmasxwnelwifdaknfstfnn3rnldhu2a5w4rod7do3u7fguoa": {
    "path": "/compliance-data/compliance/blocks/baguqeeragufypmasxwnelwifdaknfstfnn3rnldhu2a5w4rod7do3u7fguoa.json",
    "bytes": 280,
@@ -7744,6 +7936,16 @@
    "bytes": 386,
    "codec": "dag-json"
   },
+  "baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeratctysxoz2pf244nngnmflll7ptuerny5qtatfryojaoxj4eqya2a.json",
+   "bytes": 557,
+   "codec": "dag-json"
+  },
+  "baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerao45r3luajpmq4xgzw73pk4wwycmujwsdql7olike47yoveo5ie3a.json",
+   "bytes": 548,
+   "codec": "dag-json"
+  },
   "baguqeerak5hpyhilpuelggxhoknbeialv2emg47l54mzx5enz57xwlb4rsla": {
    "path": "/compliance-data/compliance/blocks/baguqeerak5hpyhilpuelggxhoknbeialv2emg47l54mzx5enz57xwlb4rsla.json",
    "bytes": 354,
@@ -7872,6 +8074,16 @@
   "baguqeeraxbqiit6aqd45hlo2oqfrtauzghfghkx7jpwhl5vjm3b5soyvtcoa": {
    "path": "/compliance-data/compliance/blocks/baguqeeraxbqiit6aqd45hlo2oqfrtauzghfghkx7jpwhl5vjm3b5soyvtcoa.json",
    "bytes": 267,
+   "codec": "dag-json"
+  },
+  "baguqeera2yveek3e25dv7tzqqpmypusnt655zeq6ihsjjbs75rqo22zc6zqa": {
+   "path": "/compliance-data/compliance/blocks/baguqeera2yveek3e25dv7tzqqpmypusnt655zeq6ihsjjbs75rqo22zc6zqa.json",
+   "bytes": 458,
+   "codec": "dag-json"
+  },
+  "baguqeeraox5333wj7jgict6qpenuefb3n27jtf5zze7lun3cz7n3ndx6tbva": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraox5333wj7jgict6qpenuefb3n27jtf5zze7lun3cz7n3ndx6tbva.json",
+   "bytes": 516,
    "codec": "dag-json"
   },
   "baguqeerac6cdndegs3t7wjrab2bizuws567lagtcwseh3v7geclzmuwpfapa": {
@@ -8152,6 +8364,16 @@
   "baguqeerai757upytk3mpk3oee6ijwtt4m2p3otk2mwuu3cc6oj2gwlk6fo6a": {
    "path": "/compliance-data/compliance/blocks/baguqeerai757upytk3mpk3oee6ijwtt4m2p3otk2mwuu3cc6oj2gwlk6fo6a.json",
    "bytes": 279,
+   "codec": "dag-json"
+  },
+  "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka": {
+   "path": "/compliance-data/compliance/blocks/baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka.json",
+   "bytes": 438,
+   "codec": "dag-json"
+  },
+  "baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa.json",
+   "bytes": 508,
    "codec": "dag-json"
   },
   "baguqeera6wtfni7ufszgug5tmrwcbrt4izco77tyqwgcbopa77j7lufcoq5a": {
@@ -8949,18 +9171,38 @@
    "bytes": 264,
    "codec": "dag-json"
   },
-  "baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya": {
-   "path": "/compliance-data/compliance/blocks/baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya.json",
+  "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a.json",
+   "bytes": 377,
+   "codec": "dag-json"
+  },
+  "baguqeerahdglfqqtgoviulstt7v5ayvgfkr7l7wy7cj7sbkljxwra6biiw4a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerahdglfqqtgoviulstt7v5ayvgfkr7l7wy7cj7sbkljxwra6biiw4a.json",
+   "bytes": 493,
+   "codec": "dag-json"
+  },
+  "baguqeera4dpbmzznbihg4iyaokogarfrdvocjh3jz6ajvfgu2cpjaaikrcna": {
+   "path": "/compliance-data/compliance/blocks/baguqeera4dpbmzznbihg4iyaokogarfrdvocjh3jz6ajvfgu2cpjaaikrcna.json",
+   "bytes": 584,
+   "codec": "dag-json"
+  },
+  "baguqeeraphdckj7pxdev2h4mdd6vtdkbvzjwxic373zzqyir5luqx5qk6dha": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraphdckj7pxdev2h4mdd6vtdkbvzjwxic373zzqyir5luqx5qk6dha.json",
+   "bytes": 467,
+   "codec": "dag-json"
+  },
+  "baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa": {
-   "path": "/compliance-data/compliance/blocks/baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa.json",
-   "bytes": 249282,
+  "baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja": {
+   "path": "/compliance-data/compliance/blocks/baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja.json",
+   "bytes": 259384,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa"
+  "/": "baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja"
  }
 }

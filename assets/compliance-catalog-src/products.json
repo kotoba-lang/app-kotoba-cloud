@@ -1118,6 +1118,36 @@
    ]
   },
   {
+   "id": "trend-container-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Container Security",
+   "categoryId": "container",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; product page offers a 'Get pricing' CTA with no public list pricing (en_us page HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-container-image-security.html"
+  },
+  {
+   "id": "trend-industrial-network-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Industrial Network Security",
+   "categoryId": "ot-ics",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; no public list pricing on the ja_jp product page (HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/iot/industrial-network-security.html"
+  },
+  {
+   "id": "trend-data-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Vision One Data Security",
+   "categoryId": "dspm",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; ja_jp 製品ページに公開価格はなく、CTA は無料体験/お問い合わせのみ (ページ HTTP 200, verified 2026-09-15) — 購入/見積は Trend Micro またはパートナー経由。",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/data-security"
+  },
+  {
    "id": "armis",
    "provider": "Armis",
    "providerHq": "US",
@@ -1508,6 +1538,26 @@
    ]
   },
   {
+   "id": "trend-zero-trust-secure-access",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Zero Trust Secure Access (ZTSA)",
+   "categoryId": "ztna",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m769-web-pricelist.html",
+   "pricingNote": "quote-based; ja_jp 製品ページの「価格を見る」は価格表/見積フォームへの誘導 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access.html も 200。"
+  },
+  {
+   "id": "trend-ai-secure-access",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro AI Secure Access",
+   "categoryId": "ztna",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://resources.trendmicro.com/jp-docdownload-form-m646-web-vision-one-price-infomation.html",
+   "pricingNote": "quote-based; ja_jp 製品ページの価格案内は Vision One 価格情報フォーム経由 (フォーム URL HTTP 200 確認 2026-09-15)。製品ページ https://www.trendmicro.com/ja_jp/business/products/network/zero-trust-secure-access/ai.html も 200。"
+  },
+  {
    "id": "trend-micro-email-security",
    "provider": "Trend Micro",
    "providerHq": "JP",
@@ -1863,6 +1913,34 @@
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.fortinet.com/products/network-access-control",
    "pricingNote": "quote-based",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ]
+  },
+  {
+   "id": "trend-tippingpoint-tps",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI TippingPoint Threat Protection System",
+   "categoryId": "nac",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/tipping-point.html",
+   "pricingNote": "Appliance/subscription sold via quote; no TippingPoint line items on the Trend Micro JP public price list (checked 2026-09-15).",
+   "complianceFits": [
+    "iso-27001",
+    "nist-csf-20"
+   ]
+  },
+  {
+   "id": "trend-tippingpoint-sms",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI TippingPoint Security Management System",
+   "categoryId": "nac",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/network/intrusion-prevention/centralized-management-response.html",
+   "pricingNote": "Centralized management for TippingPoint deployments, sold via quote; no line items on the Trend Micro JP public price list (checked 2026-09-15).",
    "complianceFits": [
     "iso-27001",
     "nist-csf-20"
@@ -2612,6 +2690,26 @@
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.trendmicro.com",
    "pricingNote": "quote-based; per-workload/endpoint subscription via quote"
+  },
+  {
+   "id": "trend-identity-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Identity Security (ITDR)",
+   "categoryId": "itdr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/identity-security",
+   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here)"
+  },
+  {
+   "id": "trend-threat-intelligence",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Threat Intelligence (TrendAI Vision One)",
+   "categoryId": "ti",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/threat-intelligence",
+   "pricingNote": "quote-based; no public list pricing — sales contact via the product page. https://www.trendmicro.com/ja_jp/business/products/threat-intelligence.html 301-redirects to this TrendAI (JP) product page (verified 200, 2026-09-15)."
   },
   {
    "id": "checkpoint-harmony-endpoint",
@@ -4572,6 +4670,46 @@
    "pricingMode": "quote-based",
    "pricingNote": "国内診断サービス、見積り。",
    "pricingUrl": "https://www.arax.co.jp/"
+  },
+  {
+   "id": "trend-deep-discovery-inspector",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Deep Discovery Inspector",
+   "categoryId": "ndr",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
+   "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)"
+  },
+  {
+   "id": "trend-file-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Vision One File Security",
+   "categoryId": "sandbox",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-file-storage-security.html",
+   "pricingNote": "quote-based; S3/NAS/file-server malware-scan service sold via AWS Marketplace/reseller quote (no dedicated pricing page; product page links /ja_jp/buy/license/trsl-package/price-list.html, HTTP 200)"
+  },
+  {
+   "id": "trend-security-operations",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Security Operations (SecOps)",
+   "categoryId": "siem",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/security-operations",
+   "pricingNote": "quote-based; no public pricing on the JP product page (trendmicro.com/ja_jp/business/products/security-operations.html 301-redirects to trendaisecurity.com/ja/platform/security-operations, verified HTTP 200 on 2026-09-15); XDR + Agentic SIEM + SOAR integrated SOC platform (TrendAI Vision One Security Operations)"
+  },
+  {
+   "id": "trend-security-expert-services",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Security Expert Services",
+   "categoryId": "ddil-forensics",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/support-services.html",
+   "pricingNote": "quote-based; JP product page (verified HTTP 200 on 2026-09-15) lists expert support services incl. incident-time support (インシデント時の支援) with no public pricing"
   }
  ]
 }

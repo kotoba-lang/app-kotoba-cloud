@@ -2,7 +2,11 @@
   "Blog surface for kotoba.cloud: a security-research thinktank feed.
    Articles are authored data — assets/blog/posts.edn — rendered to static
    documents by site/-main. The site owns no article text; the observatory
-   bot appends posts as data and the render emits them."
+   bot appends posts as data and the render emits them.
+   Localization: every post carries :title-ja/:title-en/:summary-*/:body-*
+   as the base pair; any number of additional languages may be supplied in
+   :i18n {<locale-keyword> {:title :summary :body}}. Missing languages fall
+   back to English (locale-negotiated documents stay addressable)."
   (:require [jp-go-dds.core :as dds]))
 
 (def css
@@ -20,14 +24,55 @@
 .kc-blog__back{display:inline-block;margin-bottom:var(--hig-spacing-3);font-weight:600;text-decoration:none;color:var(--hig-color-label)}
 .kc-blog__back:hover{text-decoration:underline}")
 
+(defn locale-prefix
+  "URL prefix for a locale: English is canonical (no prefix), every other
+   locale lives under /<locale>/ (the same convention as the emit dirs)."
+  [locale]
+  (if (= locale :en) "" (str "/" (name locale))))
+
+(defn post-title
+  [post locale]
+  (or (get-in post [:i18n (keyword (name locale)) :title])
+      (if (= locale :ja) (:title-ja post) (:title-en post))))
+
+(defn post-summary
+  [post locale]
+  (or (get-in post [:i18n (keyword (name locale)) :summary])
+      (if (= locale :ja) (:summary-ja post) (:summary-en post))))
+
+(defn post-body
+  "Vector of paragraph strings for the locale, English fallback last."
+  [post locale]
+  (or (get-in post [:i18n (keyword (name locale)) :body])
+      (if (= locale :ja) (:body-ja post) (:body-en post))))
+
+(defn post-lang
+  "HTML lang for an article document: the requested locale when a real
+   translation exists, else English."
+  [post locale]
+  (if (or (= locale :en) (contains? (:i18n post) (keyword (name locale))))
+    (name locale) "en"))
+
 (defn- tag-chip [tag]
   [:span {:class "kc-blog__tag"} (name tag)])
+
+(defn post-href
+  "Article URL in the requested locale; posts without a real translation
+   link to the canonical English document (the localized index still lists
+   them, but never at a 404)."
+  [post locale]
+  (let [pref (locale-prefix locale)]
+    (if (or (= locale :en) (= locale :ja)
+            (contains? (:i18n post) (keyword (name locale))))
+      (str pref "/blog/" (:slug post) "/")
+      (str "/blog/" (:slug post) "/"))))
 
 (defn list-view
   "Index of published articles, newest first (the caller sorts)."
   [locale posts]
   (let [ja? (= locale :ja)
-        t (fn [ja en] (if ja? ja en))]
+        t (fn [ja en] (if ja? ja en))
+        pref (locale-prefix locale)]
     (dds/container
      (dds/heading 1 (t "セキュリティ観測ブログ" "Security Observatory Blog") {:size "36"})
      [:p {:class "kc-blog__lead"}
@@ -42,19 +87,20 @@
                  [:time {:datetime (:date p)} (:date p)]
                  (map tag-chip (:tags p))]
                 [:div {:class "kc-blog__title"}
-                 [:a {:href (str "/blog/" (:slug p) "/")} (if ja? (:title-ja p) (:title-en p))]]
-                [:p {:class "kc-blog__summary"} (if ja? (:summary-ja p) (:summary-en p))]]))))))
+                 [:a {:href (post-href p locale)} (post-title p locale)]]
+                [:p {:class "kc-blog__summary"} (post-summary p locale)]]))))))
 
 (defn article-view
   "One article document. Body is a vector of paragraph strings."
   [locale post]
   (let [ja? (= locale :ja)
-        t (fn [ja en] (if ja? ja en))]
+        t (fn [ja en] (if ja? ja en))
+        pref (locale-prefix locale)]
     (dds/container
-     [:article {:class "kc-blog__article"}
-      [:a {:class "kc-blog__back" :href "/blog/"} (t "← ブログ一覧" "← All articles")]
+     [:article {:class "kc-blog__article" :lang (post-lang post locale)}
+      [:a {:class "kc-blog__back" :href (str pref "/blog/")} (t "← ブログ一覧" "← All articles")]
       [:div {:class "kc-blog__meta"}
        [:time {:datetime (:date post)} (:date post)]
        (map tag-chip (:tags post))]
-      (dds/heading 1 (if ja? (:title-ja post) (:title-en post)) {:size "32"})
-      (into [:div] (map (fn [para] [:p para]) (if ja? (:body-ja post) (:body-en post))))])))
+      (dds/heading 1 (post-title post locale) {:size "32"})
+      (into [:div] (map (fn [para] [:p para]) (post-body post locale)))])))
