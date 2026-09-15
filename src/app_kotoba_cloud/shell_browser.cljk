@@ -19,6 +19,18 @@
 (defn- el [id] (.getElementById js/document id))
 (defn- ja? [] (= "ja" (.-lang (.-documentElement js/document))))
 (defn- t [ja en] (if (ja?) ja en))
+
+(defn- copy
+  "A console-chrome string in the document's own locale: site.cljk emits
+   console-locales/browser-keys on #kc-console-copy as data-<key> (22
+   public locales). `fallback` is the English of the key for a document
+   emitted before that span existed."
+  [key fallback]
+  (or (some-> (el "kc-console-copy") (.getAttribute (str "data-" key)))
+      fallback))
+
+(defn- fill [s vars]
+  (reduce (fn [acc [k v]] (.replace acc (str "{" k "}") (str v))) s vars))
 (defn- show! [id] (when-let [x (el id)] (set! (.-hidden x) false)))
 (defn- hide! [id] (when-let [x (el id)] (set! (.-hidden x) true)))
 
@@ -61,16 +73,18 @@
 ;; --- setup progress + credits ------------------------------------------------
 
 (defn- render-setup! [state]
-  (let [{:keys [done total next]} (console/setup-progress state (if (ja?) :ja :en))]
+  (let [{:keys [done total next]} (console/setup-progress
+                                    state
+                                    ;; the step labels in the document's locale
+                                    (fn [k] (copy (name k) (name k))))]
     (when-let [chip (el "kc-setup-chip")]
-      (set! (.-textContent chip) (t (str "はじめる " done "/" total) (str "Get started " done "/" total)))
+      (set! (.-textContent chip) (fill (copy "setup-progress" "Get started {done}/{total}") {"done" done "total" total}))
       (.setAttribute chip "data-state" (if next "pending" "done"))
       (set! (.-href chip) (str (apex) (or (:href next) "/account")))
       (show! "kc-setup-chip"))
     (if next
       (do (when-let [txt (el "kc-setup-banner-text")]
-            (set! (.-textContent txt) (t (str "セットアップを続ける — 次: " (:label next))
-                                         (str "Resume setup — next: " (:label next)))))
+            (set! (.-textContent txt) (fill (copy "resume-next" "Resume setup — next: {step}") {"step" (:label next)})))
           (when-let [link (el "kc-setup-banner-link")] (set! (.-href link) (str (apex) (:href next))))
           ;; not on the page the step lives on: the banner would repeat the
           ;; panel right under it
@@ -90,7 +104,7 @@
       (when (number? micro)
         (when-let [chip (el "kc-credit-chip")]
           (set! (.-textContent chip) (str "$" (.toFixed (/ micro 1000000) 2)))
-          (set! (.-title chip) (t "AI クレジット残高" "AI credit balance"))
+          (set! (.-title chip) (copy "credit-balance" "AI credit balance"))
           (show! "kc-credit-chip"))))))
 
 (defn hydrate-shell!
@@ -106,7 +120,7 @@
                    ;; is on the payload, no second derivation in the browser
                    (let [username (:username s)]
                      (when (and username (el "kc-session-nav-side"))
-                       (account-chip! (el "kc-session-nav-side") username (t "個人" "Personal")))
+                       (account-chip! (el "kc-session-nav-side") username (copy "personal" "Personal")))
                      (-> (js/Promise.all #js [(get-json "/v1/research/ekyc/status")
                                               (get-json "/v1/research/status")
                                               (get-json "/v1/billing/status")])

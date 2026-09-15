@@ -1,0 +1,101 @@
+(ns app-kotoba-cloud.console-locales
+  "The console chrome's copy in every public locale — ONE home.
+
+  The console (sidebar, top bar, setup chip and banner, account entry,
+  language switch) was authored in Japanese and English while the landing
+  page carried the 22 public locales (public-locales, ADR-2609091700). A
+  reader who chose Bahasa Indonesia got an Indonesian landing page and an
+  English console around an English body (measured in Chrome 2026-09-15:
+  /models/?lang=id → sidebar MAIN / MANAGE / Docs / Apps, selector
+  「Language」 with two entries). The ADR counts app screens: an
+  untranslated console is not \"supported\".
+
+  `source` is the authored pair (en is the original, ja the second
+  author's language); `generated` (console-copy-generated) carries the
+  other 20, produced by scripts/translate-console-copy.cljk over the
+  OpenRouter API from this source, with its provenance — machine
+  translation the ADR permits and does not mistake for native review.
+  `t` reads the document's locale and falls back to English per key, so a
+  missing translation is an English label, never a blank.
+
+  Keys are the console's own vocabulary; the shell browser reads its
+  runtime strings (browser-keys) from the document — site.cljk emits them
+  as data attributes in the document's locale — so the DOCUMENT's language
+  is authoritative in the browser even when a stale bundle is cached. (The
+  map still reaches the bundles through console.cljk's require; measured
+  on the session bundle when it landed, see the commit.)"
+  (:require [app-kotoba-cloud.console-copy-generated :as generated]))
+
+(def source
+  "Authored copy: {key {:en :ja}}. Every key here is a key every locale
+   must carry (scripts/translate-console-copy.cljk --check)."
+  {;; sidebar destinations (console/groups)
+   :nav-docs        {:en "Docs" :ja "ドキュメント"}
+   :nav-apps        {:en "Apps" :ja "アプリ"}
+   :nav-blog        {:en "Blog" :ja "ブログ"}
+   :nav-keys        {:en "API tokens" :ja "接続トークン"}
+   :nav-models      {:en "Models" :ja "モデル"}
+   :nav-register    {:en "Researcher registration" :ja "研究者登録"}
+   :nav-usage       {:en "Usage & insights" :ja "利用とインサイト"}
+   :nav-guardrails  {:en "Guardrails" :ja "ガードレール"}
+   :nav-firewall    {:en "Firewall" :ja "ファイアウォール"}
+   :nav-compliance  {:en "Compliance" :ja "コンプライアンス"}
+   :nav-services    {:en "Security services" :ja "セキュリティサービス"}
+   :nav-aup         {:en "Acceptable use" :ja "利用ポリシー"}
+   :nav-account     {:en "Account" :ja "アカウント"}
+   :nav-team        {:en "Team" :ja "チーム"}
+   :nav-billing     {:en "Billing" :ja "料金・決済"}
+   ;; the top bar's section names (console/section-label)
+   :group-main      {:en "Main" :ja "メイン"}
+   :group-manage    {:en "Manage" :ja "管理"}
+   :group-secure    {:en "Secure" :ja "セキュリティ"}
+   :group-account   {:en "Account" :ja "アカウント"}
+   ;; the sidebar's chrome
+   :get-started     {:en "＋ Get started" :ja "＋ はじめる"}
+   :app-navigation  {:en "App navigation" :ja "アプリナビゲーション"}
+   :home            {:en "Kotoba Cloud home" :ja "Kotoba Cloud ホーム"}
+   :sign-in         {:en "Sign in" :ja "サインイン"}
+   :account-menu    {:en "Account menu" :ja "アカウントメニュー"}
+   :menu-account    {:en "Account" :ja "アカウント"}
+   :menu-billing    {:en "Billing" :ja "料金・決済"}
+   :sign-out        {:en "Sign out" :ja "ログアウト"}
+   ;; the top bar
+   :docs            {:en "Docs" :ja "ドキュメント"}
+   :language        {:en "Language" :ja "表示言語"}
+   ;; setup progress (shell-browser fills {done} / {total} and the next step)
+   :setup-progress  {:en "Get started {done}/{total}" :ja "はじめる {done}/{total}"}
+   :resume-setup    {:en "Resume setup" :ja "セットアップを続ける"}
+   :resume-next     {:en "Resume setup — next: {step}" :ja "セットアップを続ける — 次: {step}"}
+   :continue        {:en "Continue" :ja "続ける"}
+   :step-sign-in    {:en "Sign in" :ja "サインイン"}
+   :step-verify     {:en "Verify identity" :ja "本人確認"}
+   :step-eligible   {:en "Research eligibility" :ja "研究環境の利用資格"}
+   ;; the account chip
+   :credit-balance  {:en "AI credit balance" :ja "AI クレジット残高"}
+   :personal        {:en "Personal" :ja "個人"}})
+
+(def copy
+  "{locale {key text}} for every public locale: the authored en / ja over
+   the generated rest."
+  (merge generated/copy
+         {:en (into {} (map (fn [[k v]] [k (:en v)]) source))
+          :ja (into {} (map (fn [[k v]] [k (:ja v)]) source))}))
+
+(defn t
+  "The console copy for `key` in `locale`; English when the locale has no
+   entry (a missing translation reads as English, never as a blank)."
+  [locale key]
+  (or (get-in copy [locale key])
+      (get-in copy [:en key])
+      (throw (ex-info (str "console-locales: no copy for " key) {:key key :locale locale}))))
+
+(defn fill
+  "Substitute {name} placeholders: (fill \"Get started {done}/{total}\" {:done 1 :total 3})."
+  [s vars]
+  (reduce (fn [acc [k v]] (.replace ^String acc (str "{" (name k) "}") (str v))) s vars))
+
+(def browser-keys
+  "The strings shell-browser needs at runtime; site.cljk emits them on the
+   document as data attributes in its locale (data-<key>)."
+  [:setup-progress :resume-next :credit-balance :personal
+   :step-sign-in :step-verify :step-eligible])
