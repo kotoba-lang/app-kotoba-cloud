@@ -1144,28 +1144,37 @@
                                           (and prior (not= (get-in body [:request :messages])
                                                            (get-in prior [:request :messages])))
                                           (response {:error "job-input-conflict"} 409)
-                                          ;; A retry of the same completion re-queues a prior
-                                          ;; run that failed for a reason a re-run can fix, or
-                                          ;; one that is presumed dead. The job id is a hash of
-                                          ;; the request, so without this every client retry
-                                          ;; re-attached to the same terminal `failed` and got
-                                          ;; the same 502 in 0.3 s — measured 2026-09-15: an
-                                          ;; agent's fixed opening prompt failed once during a
-                                          ;; deploy window and stayed failed for every later
-                                          ;; session. No new quota is drawn; the reservation is
-                                          ;; the same. Capped so a route that is really down
-                                          ;; cannot be re-dispatched without bound.
+                                          ;; A retry of the same completion re-dispatches a prior
+                                          ;; run that failed for a reason a re-run can fix (a
+                                          ;; transient origin failure, a cold start), or one that
+                                          ;; is presumed dead. The deterministic job id otherwise
+                                          ;; pinned one transient failure to that prompt forever —
+                                          ;; measured 2026-09-15: an agent's fixed opening prompt
+                                          ;; failed once in a deploy window and every later session
+                                          ;; got the same 502 in 0.3 s with no run. Like a fresh
+                                          ;; job it draws the free quota (a paid job re-attaches to
+                                          ;; its own reservation), so the daily cap still bounds it;
+                                          ;; requeues is a tighter per-prompt cap on top. A
+                                          ;; non-retryable failure (the origin refused the request
+                                          ;; itself: context window, shape) is NOT re-dispatched —
+                                          ;; it falls through and the edge serves the caller its 400.
                                           (and prior (requeue? prior now))
                                           (let [next (-> prior
                                                          (dissoc :error :upstreamStatus :upstreamError :lastUpstreamStatus
-                                                                 :retryable :finishedAt :startedAt :attempts)
+                                                                 :retryable :finishedAt :startedAt :attempts
+                                                                 :content :toolCalls :finishReason :usageReceipt)
                                                          (assoc :status "queued"
+                                                                :billing (if paid? "paid" "free")
                                                                 :requeues (inc (or (:requeues prior) 0))
-                                                                :requeuedAt now))]
+                                                                :requeuedAt now))
+                                                counted (if paid? record
+                                                          (-> record (assoc-in [:usage :day] day)
+                                                              (assoc-in [:usage :count] (inc used))))]
                                             (js/console.warn "inference-job-requeued" (:jobId body)
                                                              (str "prior=" (:status prior) " upstreamStatus=" (:upstreamStatus prior)
                                                                   " requeues=" (:requeues next)))
-                                            (-> (store-job! storage next)
+                                            (-> (save-state storage counted)
+                                                (.then (fn [_] (store-job! storage next)))
                                                 (.then (fn [_] (response (job-response next record (:sessionRef body) now) 200)))))
                                           prior (response (job-response prior record (:sessionRef body) now) 200)
                                           :else

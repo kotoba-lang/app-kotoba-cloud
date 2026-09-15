@@ -29,7 +29,13 @@
    {:team :red :upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
     :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}
    "glm5.3-flash"
-   {:team :red :upstream "glm5.3-flash" :strictAttribution false
+   ;; :served false — the red route is ONE origin, and it serves only the
+   ;; qwen model: a glm5.3-flash request came back 404 "The model
+   ;; `glm5.3-flash` does not exist" after reserving a job and spending a
+   ;; quota unit (measured 2026-09-15); the model's own origin is not up.
+   ;; Listed as route-not-configured and refused at admission until an
+   ;; origin serves it.
+   {:team :red :upstream "glm5.3-flash" :strictAttribution false :served false
     :source "https://huggingface.co/zai-org/GLM"}
    "qwen/qwen3.8-flash"
    {:team :blue :upstream "qwen/qwen3.8-flash" :strictAttribution true
@@ -38,6 +44,11 @@
    {:team :blue :upstream "z-ai/glm-5.3-flash" :strictAttribution true
     :source "https://huggingface.co/zai-org"}})
 (defn model-team [id] (get-in models [id :team]))
+(defn model-served?
+  "A red-team model whose origin is not up is listed but refused by name; blue
+  models are an environment fact the edge checks separately."
+  [id]
+  (not (false? (get-in models [id :served]))))
 (defn blue? [id] (= :blue (model-team id)))
 (def model-ids (set (keys models)))
 (def upstream-model-id (get-in models [model-id :upstream]))
@@ -71,7 +82,9 @@
                   :route (name (get-in teams [(:team spec) :route]))
                   ;; the edge overrides :availability from its environment
                   ;; (blue: whether the shared route's key is configured)
-                  :availability (case (:team spec) :blue "route-not-configured" "upstream-tested-access-gated")
+                  :availability (cond (= :blue (:team spec)) "route-not-configured"
+                                      (false? (:served spec)) "route-not-configured"
+                                      :else "upstream-tested-access-gated")
                   :source (:source spec)})
                (seq models))
    :teams (into {} (map (fn [[k v]] [k (select-keys v [:label :label-en :route :requirements])]) teams))
@@ -222,8 +235,11 @@
        (case (:role m)
          "user" (and (text? (:content m) max-input-characters)
                      (every? #{:role :content :name} (keys m)))
+         ;; reasoning / reasoning_content: what a client echoes back from a
+         ;; thinking model's earlier turn; accepted and dropped by
+         ;; sanitize-message (never re-sent to the origin)
          "assistant" (let [tc (:tool_calls m) c (:content m)]
-                       (and (every? #{:role :content :tool_calls :name} (keys m))
+                       (and (every? #{:role :content :tool_calls :name :reasoning :reasoning_content} (keys m))
                             (or (nil? c) (string? c))
                             (or (nil? tc) (and (vector? tc) (<= 1 (count tc) max-tool-calls) (every? tool-call? tc)))
                             (or (text? c max-input-characters) (seq tc))))
@@ -281,7 +297,7 @@
                     (str "messages[" (+ i (if sys-only 1 0)) "]: role " (pr-str (:role m))
                          " — user needs non-empty string content; assistant needs string content or tool_calls"
                          " (id, type function, function.name, function.arguments string) and only"
-                         " role/content/tool_calls/name; tool needs tool_call_id and string content")))
+                         " role/content/tool_calls/name/reasoning/reasoning_content; tool needs tool_call_id and string content")))
                 (map-indexed vector chat))
           (cond
             (not (contains? #{"user" "tool"} (:role (last ms)))) "messages: the last turn must be user or tool"

@@ -593,13 +593,21 @@
                    valid? (if (bearer? request)
                             (policy/completion-openai-compatible? body)
                             (policy/completion? body))]
-               (if-not valid?
+               (cond
+                 (not valid?)
                  ;; say WHICH rule on the bearer path: an agent's log is the only
                  ;; place a person sees this (hermes fell back silently on a 400)
                  (respond {:error (cond-> {:code "invalid-research-request"}
                                     (bearer? request)
                                     (assoc :message (policy/completion-openai-compatible-problem body)
                                            :type "invalid_request_error"))} 400)
+                 ;; a listed model with no origin is refused here, by name, before
+                 ;; a job is reserved and a quota unit spent
+                 (not (policy/model-served? (:model normalized)))
+                 (respond {:error {:code "model-route-not-configured"
+                                   :message (str "model " (:model normalized) " has no origin yet; see /v1/models availability")
+                                   :type "invalid_request_error"}} 503)
+                 :else
                  (complete env binding principal reference normalized respond
                            {:stream? (and (bearer? request) (true? (:stream body)))})))))))))))
 
