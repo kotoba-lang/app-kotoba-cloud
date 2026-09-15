@@ -121,6 +121,11 @@
     // secret on the research authority Worker (OPENROUTER_API_KEY,
     // wrangler.research.jsonc); this flag is what /v1/models reports as the
     // blue models' availability. Set to "true" once the secret is stored.
+    // Organization SSO (ADR-2609151900): Enterprise is quote-based, so an
+    // operator grants it here as {"com-<handle>.kotoba.cloud": "enterprise"}.
+    // Team comes from the org owner's paid Stripe plan (billing/active-plan).
+    // ORG_SSO_ENTITLEMENT_SECRET is a Worker secret shared with kotobase-authn.
+    "ORG_PLAN_OVERRIDES": "{}",
     "OPENROUTER_CONFIGURED": "false"
   }
 }

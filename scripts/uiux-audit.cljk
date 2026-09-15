@@ -101,6 +101,7 @@
         ;; emitted link to anything else fails the build, not the visitor)
         worker-routes ["/account" "/identity" "/graph" "/health" "/favicon.ico"
                        "/mcp.json" "/.well-known/mcp-config.json"   ; knowledge.cljk
+                       "/sign-in/" "/account/link/"                 ; worker.cljk, ADR-2609151900
                        "/v1/" "/api/" "/schemas/" "/.well-known/"]
         report (audit/audit docs {:assets assets
                                   :stylesheets stylesheets
