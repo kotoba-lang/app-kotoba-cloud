@@ -1,0 +1,335 @@
+#!/usr/bin/env kbb
+;; test/workerd-contract.cljk — run the BUILT bundles inside workerd and pin the
+;; HTTP contract the Node smoke tests cannot see.
+;;
+;; worker-smoke.mjs and research-authority-local.mjs import build/*.js into Node
+;; with mocked bindings. That catches logic, not the runtime: workerd's fetch
+;; rejects `redirect: "error"` with a TypeError before any request leaves, the
+;; edge→authority hop is a service binding, the authority is a SQLite-backed
+;; Durable Object, HMAC runs on workerd's WebCrypto. The 2026-09-15 webhook
+;; outage (every Stripe delivery a 503 with an empty eventId, for a week, one
+;; real identity.verification_session.verified among them) lived exactly in
+;; that gap: Node's fetch accepted "error", workerd's did not.
+;;
+;; So this test starts `wrangler dev` with BOTH configs (edge primary, research
+;; authority auxiliary — the RESEARCH_AUTHORITY / ORG_AUTHORITY bindings resolve
+;; to the local authority) on a free port, with test-only secrets, and asserts
+;; the status AND the literal error code of each answer (CLAUDE.md 8 問 #6: pin
+;; the reason, not just the result).
+;;
+;; Two things measured on 2026-09-16 shape the setup (wrangler 4.131.1, node 26):
+;;   - `--env-file` reaches only the primary worker; the auxiliary looks for
+;;     .dev.vars/.env next to ITS config. What reaches both is process.env with
+;;     CLOUDFLARE_INCLUDE_PROCESS_ENV=true — so wrangler is spawned with a
+;;     minimal env (PATH/HOME/TMPDIR + the two test secrets), nothing else.
+;;   - the real assets dir (13,969 files) made every workerd/esbuild spawn fail
+;;     with `spawn EBADF`: the concurrent asset read pushes fd numbers past what
+;;     macOS posix_spawn accepts for its pipes; a 1-file dir was ready in 10 s.
+;;     So both configs are rewritten into a scratch dir with absolute `main`
+;;     paths and an assets dir holding only public/'s top-level files
+;;     (_headers included). Bindings, DOs, migrations and vars are untouched.
+;;
+;; Exit codes: 0 = every check passed, 1 = a check failed, 2 = could not run
+;; (no build, wrangler never became ready) — never 0 for "skipped".
+;; Evidence floor: prints `SCANNED<TAB>n` (n = checks executed); n must equal
+;; the expected count or the run is a 2.
+;;
+;;   kbb --backend sci test/workerd-contract.cljk     (after npm run build; no network)
+(ns workerd-contract
+  (:require [clojure.string :as str]
+            [promesa.core :as p]
+            ["node:child_process" :as cp]
+            ["node:crypto" :as crypto]
+            ["node:fs" :as fs]
+            ["node:net" :as net]
+            ["node:os" :as os]
+            ["node:path" :as path]))
+
+(def repo (js/process.cwd))
+;; The worker verifies with what wrangler loaded from our process env; a
+;; mismatch is a 403/503, not a silent pass.
+(def pat-signing-secret "contract-test-pat-signing-secret-not-a-real-secret")
+(def stripe-webhook-secret "whsec_contract_test_not_a_real_secret")
+(def expected-checks 9)
+(def ready-budget-ms 120000)
+
+(defn refuse! [reason detail]
+  (println (str "REFUSE\t" reason (when detail (str "\t" detail))))
+  (println "SCANNED\t0")
+  (js/process.exit 2))
+
+;; --- preconditions: the built bundles, the rendered assets, both configs ---------
+(doseq [rel ["build/worker.js" "build/research/worker.js" "public/_headers" "wrangler.jsonc" "wrangler.research.jsonc"]]
+  (when-not (fs/existsSync (path/join repo rel))
+    (refuse! "missing-input" (str rel " — run `npm run build` first"))))
+
+(defn free-port []
+  (js/Promise.
+   (fn [resolve reject]
+     (let [srv (net/createServer)]
+       (.unref srv)
+       (.on srv "error" reject)
+       (.listen srv 0 "127.0.0.1"
+                (fn [] (let [port (.-port (.address srv))]
+                         (.close srv (fn [] (resolve port))))))))))
+
+(defn sleep [ms] (js/Promise. (fn [resolve] (js/setTimeout resolve ms))))
+
+(def hmac-hex
+  (fn [secret msg] (-> (crypto/createHmac "sha256" secret) (.update msg) (.digest "hex"))))
+
+(defn b64url [s]
+  (-> (.toString (js/Buffer.from s "utf8") "base64")
+      (str/replace "+" "-") (str/replace "/" "_") (str/replace #"=+$" "")))
+
+;; A structurally valid, correctly signed v2 PAT (pat.cljk) that was never
+;; registered with the authority — the registry, not the MAC, must refuse it.
+(defn unregistered-pat [principal token-id]
+  (let [sig (subs (hmac-hex pat-signing-secret (str "kotoba-agent-pat-v2:" principal ":" token-id)) 0 16)]
+    (str "kc_pat_" (b64url principal) "." token-id "." sig)))
+
+;; Stripe signature header exactly as Stripe computes it: HMAC-SHA256 over "t.<raw>".
+(defn stripe-signature [raw secret]
+  (let [t (js/Math.floor (/ (js/Date.now) 1000))]
+    (str "t=" t ",v1=" (hmac-hex secret (str t "." raw)))))
+
+;; --- wrangler dev lifecycle -----------------------------------------------------
+(def dev-log (atom ""))
+(def exited (atom nil))
+(def child (atom nil))
+(def scratch (fs/mkdtempSync (path/join (os/tmpdir) "akc-workerd-contract-")))
+(def persist-dir (path/join scratch "state"))
+(def assets-dir (path/join scratch "public"))
+
+(defn replace-once!
+  "Replace `from` with `to` in s; REFUSE when it does not occur exactly once —
+  a config whose shape moved must not silently run against the wrong paths."
+  [what s from to]
+  (let [n (dec (count (.split s from)))]
+    (when-not (= 1 n) (refuse! "config-shape" (str what ": expected 1 occurrence of " (pr-str from) " got " n)))
+    (str/replace s from to)))
+
+(defn write-derived-configs!
+  "wrangler.jsonc / wrangler.research.jsonc copied into the scratch dir with
+  absolute `main` paths and the small assets dir; returns their paths."
+  []
+  (fs/mkdirSync assets-dir #js {:recursive true})
+  (doseq [f (fs/readdirSync (path/join repo "public"))
+          :let [src (path/join repo "public" f)]
+          :when (.isFile (fs/statSync src))]
+    (fs/copyFileSync src (path/join assets-dir f)))
+  (let [edge (-> (fs/readFileSync (path/join repo "wrangler.jsonc") "utf8")
+                 (as-> s (replace-once! "wrangler.jsonc" s "\"main\": \"build/worker.js\""
+                                        (str "\"main\": \"" (path/join repo "build" "worker.js") "\"")))
+                 (as-> s (replace-once! "wrangler.jsonc" s "\"directory\": \"./public\""
+                                        (str "\"directory\": \"" assets-dir "\""))))
+        authority (-> (fs/readFileSync (path/join repo "wrangler.research.jsonc") "utf8")
+                      (as-> s (replace-once! "wrangler.research.jsonc" s "\"main\": \"build/research/worker.js\""
+                                             (str "\"main\": \"" (path/join repo "build" "research" "worker.js") "\""))))
+        edge-path (path/join scratch "wrangler.jsonc")
+        authority-path (path/join scratch "wrangler.research.jsonc")]
+    (fs/writeFileSync edge-path edge)
+    (fs/writeFileSync authority-path authority)
+    [edge-path authority-path]))
+
+(defn keep-log! [chunk]
+  (swap! dev-log (fn [s] (let [s (str s chunk)] (if (> (count s) 65536) (subs s (- (count s) 65536)) s)))))
+
+(defn log-tail [n] (let [s @dev-log] (subs s (max 0 (- (count s) n)))))
+
+(defn start-dev! [port inspector-port]
+  (let [[edge-config authority-config] (write-derived-configs!)
+        args [(path/join repo "node_modules" "wrangler" "bin" "wrangler.js") "dev"
+              "-c" edge-config "-c" authority-config
+              "--local" "--port" (str port) "--ip" "127.0.0.1"
+              "--inspector-port" (str inspector-port)
+              "--persist-to" persist-dir
+              "--show-interactive-dev-session" "false"
+              "--log-level" "warn"]
+        ;; minimal env: with CLOUDFLARE_INCLUDE_PROCESS_ENV every entry becomes a
+        ;; worker secret on BOTH workers, so nothing from the owner's shell goes in.
+        env #js {:PATH (aget js/process.env "PATH") :HOME (aget js/process.env "HOME")
+                 :TMPDIR (aget js/process.env "TMPDIR")
+                 :CI "1" :NO_COLOR "1" :WRANGLER_SEND_METRICS "false"
+                 :CLOUDFLARE_INCLUDE_PROCESS_ENV "true"
+                 :PAT_SIGNING_SECRET pat-signing-secret
+                 :STRIPE_IDENTITY_WEBHOOK_SECRET stripe-webhook-secret}
+        c (cp/spawn "node" (clj->js args)
+                    #js {:cwd repo :detached true :stdio #js ["ignore" "pipe" "pipe"] :env env})]
+    (.on (.-stdout c) "data" keep-log!)
+    (.on (.-stderr c) "data" keep-log!)
+    (.on c "exit" (fn [code signal] (reset! exited {:code code :signal signal})))
+    (reset! child c)))
+
+(defn stop-dev! []
+  (when-let [c @child]
+    (try (js/process.kill (- (.-pid c)) "SIGTERM") (catch :default _ nil))
+    (.unref (js/setTimeout (fn [] (try (js/process.kill (- (.-pid c)) "SIGKILL") (catch :default _ nil))) 3000)))
+  (try (fs/rmSync scratch #js {:recursive true :force true}) (catch :default _ nil)))
+
+(js/process.on "exit" (fn [_] (stop-dev!)))
+(doseq [sig ["SIGINT" "SIGTERM"]]
+  (js/process.on sig (fn [_] (stop-dev!) (js/process.exit 2))))
+
+;; Readiness = the edge answers /v1/models, not a log line: log wording moves
+;; between wrangler versions, the route does not.
+(defn wait-ready [base]
+  (let [deadline (+ (js/Date.now) ready-budget-ms)]
+    (p/loop []
+      (when-let [e @exited]
+        (refuse! "wrangler-exited" (str "code=" (:code e) " signal=" (:signal e) "\n" (log-tail 4000))))
+      (when (> (js/Date.now) deadline)
+        (refuse! "wrangler-not-ready" (str ready-budget-ms "ms\n" (log-tail 4000))))
+      (p/let [status (-> (js/fetch (str base "/v1/models") #js {:signal (js/AbortSignal.timeout 5000)})
+                         (.then (fn [r] (.-status r)))
+                         (.catch (fn [_] nil)))]
+        (when-not (= 200 status)
+          (p/let [_ (sleep 1000)] (p/recur)))))))
+
+;; --- request helpers -------------------------------------------------------------
+(defn call [base path init]
+  (p/let [r (js/fetch (str base path) (clj->js (assoc init :signal (js/AbortSignal.timeout 30000))))
+          text (.text r)]
+    {:status (.-status r)
+     :text text
+     :json (try (js->clj (js/JSON.parse text) :keywordize-keys true) (catch :default _ nil))}))
+
+(defn json-post [base path body headers]
+  (call base path {:method "POST"
+                   :headers (merge {"content-type" "application/json"} headers)
+                   :body (js/JSON.stringify (clj->js body))}))
+
+(defn raw-post [base path raw headers]
+  (call base path {:method "POST" :headers (merge {"content-type" "application/json"} headers) :body raw}))
+
+(defn expect! [what actual expected {:keys [text]}]
+  (when-not (= actual expected)
+    (throw (ex-info (str what ": expected " (pr-str expected) " got " (pr-str actual)
+                         (when text (str " — " (subs text 0 (min 240 (count text))))))
+                    {}))))
+
+;; --- checks ------------------------------------------------------------------------
+(def scanned (atom 0))
+(def failures (atom []))
+
+(defn check [name f]
+  (swap! scanned inc)
+  ;; not p/do!: under kbb's sci a rejection inside p/do! leaks into the next
+  ;; forms (measured 2026-09-16: three checks reported the first one's error).
+  (-> (.then (js/Promise.resolve nil) (fn [_] (f)))
+      (.then (fn [_] (println (str "ok\t" name))))
+      (.catch (fn [e]
+                (swap! failures conj name)
+                (println (str "FAIL\t" name "\t" (first (str/split-lines (str (or (ex-message e) e))))))))))
+
+(def principal "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-c0ffee000001")
+(def completion {:model "qwen3.8-flash-next-whitehacker"
+                 :messages [{:role "user" :content "ping"}]
+                 :max_tokens 8})
+(def event {:id "evt_contract_test_0001" :type "identity.verification_session.verified"
+            :created (js/Math.floor (/ (js/Date.now) 1000))
+            :data {:object {:id "vs_contract_test_0001" :status "verified"
+                            :client_reference_id "ext-contract-0001"
+                            :metadata {:principal principal}}}})
+(def raw (js/JSON.stringify (clj->js event)))
+
+(defn run-sequentially
+  "Run [name f] pairs one after another; every rejection stays inside its own check."
+  [checks]
+  (reduce (fn [acc [name f]] (.then acc (fn [_] (check name f))))
+          (js/Promise.resolve nil)
+          checks))
+
+(defn checks [base]
+  [["models: GET /v1/models is 200 with a non-empty catalog"
+          (fn [] (p/let [r (call base "/v1/models" {})]
+                   (expect! "status" (:status r) 200 r)
+                   (let [rows (get-in r [:json :data])]
+                     (when-not (and (vector? rows) (seq rows)) (throw (ex-info "data[] empty" {})))
+                     (when-not (every? #(and (string? (:id %)) (seq (:id %))) rows)
+                       (throw (ex-info "a row without id" {}))))))]
+
+   ["completions: POST without Origin/cookie/bearer is 403 origin-not-allowed"
+          (fn [] (p/let [r (json-post base "/v1/chat/completions" completion {})]
+                   (expect! "status" (:status r) 403 r)
+                   (expect! "code" (get-in r [:json :error :code]) "origin-not-allowed" r)))]
+
+   ["completions: browser Origin without a session cookie is 401 sign-in-required"
+          (fn [] (p/let [r (json-post base "/v1/chat/completions" completion {"origin" "https://kotoba.cloud"})]
+                   (expect! "status" (:status r) 401 r)
+                   (expect! "code" (get-in r [:json :error :code]) "sign-in-required" r)))]
+
+   ["completions: bearer kc_pat_ with a bad MAC is 403 research-access-denied (PAT secret loaded)"
+          ;; 503 pat-not-configured here would mean the env file did not reach the edge.
+          (fn [] (p/let [r (json-post base "/v1/chat/completions" completion
+                                      {"authorization" "Bearer kc_pat_bogus.000000000000.0000000000000000"})]
+                   (expect! "status" (:status r) 403 r)
+                   (expect! "code" (get-in r [:json :error :code]) "research-access-denied" r)))]
+
+   ["completions: well-signed but unregistered v2 PAT is 401 token-revoked (edge→authority hop + DO)"
+          (fn [] (p/let [r (json-post base "/v1/chat/completions" completion
+                                      {"authorization" (str "Bearer " (unregistered-pat principal "0123456789ab"))})]
+                   (expect! "status" (:status r) 401 r)
+                   (expect! "code" (get-in r [:json :error :code]) "token-revoked" r)
+                   (when-not (re-find #"personal API token refused" (str (get-in r [:json :error :message])))
+                     (throw (ex-info (str "message: " (get-in r [:json :error :message])) {})))))]
+
+   ["webhook: junk body is 400 invalid-json before the hop (eventId empty)"
+          (fn [] (p/let [r (json-post base "/v1/research/ekyc/webhook" {} {})]
+                   (expect! "status" (:status r) 400 r)
+                   (expect! "code" (get-in r [:json :error :code]) "invalid-json" r)
+                   (expect! "eventId" (get-in r [:json :error :eventId]) "" r)))]
+
+   ["webhook: unsigned well-formed event is 400 from the AUTHORITY (eventId echoed)"
+          ;; The edge only pins data.object; the missing stripe-signature is the
+          ;; authority's refusal (stripe-signature-missing) — the eventId proves
+          ;; the request crossed the service binding and came back.
+          (fn [] (p/let [r (raw-post base "/v1/research/ekyc/webhook" raw {})]
+                   (expect! "status" (:status r) 400 r)
+                   (expect! "code" (get-in r [:json :error :code]) "invalid-json" r)
+                   (expect! "eventId" (get-in r [:json :error :eventId]) (:id event) r)))]
+
+   ["webhook: signed event for an unknown session is 403 stripe-webhook-rejected (redirect manual, WebCrypto HMAC, DO read)"
+          ;; A 503 here is the regression this file exists for: `redirect: "error"`
+          ;; throwing inside workerd before the hop (or the webhook secret not loaded).
+          (fn [] (p/let [r (raw-post base "/v1/research/ekyc/webhook" raw
+                                     {"stripe-signature" (stripe-signature raw stripe-webhook-secret)})]
+                   (expect! "status" (:status r) 403 r)
+                   (expect! "code" (get-in r [:json :error :code]) "stripe-webhook-rejected" r)
+                   (expect! "eventId" (get-in r [:json :error :eventId]) (:id event) r)))]
+
+   ["webhook: signature with the WRONG secret is 400 (never 403/200) — the verify is real"
+          ;; Boundary partner of the previous check: same payload, same header
+          ;; shape, different key. If both answered alike the HMAC would not be running.
+          (fn [] (p/let [r (raw-post base "/v1/research/ekyc/webhook" raw
+                                     {"stripe-signature" (stripe-signature raw "whsec_some_other_key")})]
+                   (expect! "status" (:status r) 400 r)
+                   (expect! "code" (get-in r [:json :error :code]) "invalid-json" r)
+                   (expect! "eventId" (get-in r [:json :error :eventId]) (:id event) r)))]])
+
+;; --- main -----------------------------------------------------------------------------
+(defn -main []
+  (p/let [port (free-port)
+          inspector-port (free-port)
+          base (str "http://127.0.0.1:" port)]
+    (start-dev! port inspector-port)
+    (p/let [_ (wait-ready base)
+            _ (run-sequentially (checks base))]
+      (stop-dev!)
+      (println (str "SCANNED\t" @scanned))
+      (cond
+        (not= @scanned expected-checks)
+        (do (println (str "REFUSE\tcheck-count\texpected " expected-checks " got " @scanned))
+            (js/process.exit 2))
+        (seq @failures)
+        (do (println (str "FAILED\t" (count @failures) "\t" (str/join " | " @failures)))
+            (println (log-tail 3000))
+            (js/process.exit 1))
+        :else
+        (do (println "workerd-contract: ok")
+            (js/process.exit 0))))))
+
+(-> (-main)
+    (.catch (fn [e]
+              (stop-dev!)
+              (refuse! "test-crashed" (str (or (.-stack e) e) "\n" (log-tail 3000))))))

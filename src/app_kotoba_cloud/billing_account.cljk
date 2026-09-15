@@ -246,6 +246,12 @@
                                             :plan (billing/active-plan ledger now)
                                             :balances (limits/balances ledger now)} 200)))))
       (js/Promise.resolve (response {:error "not-found"} 404)))))
+(defn- op-failure-response [e]
+  (js/console.error "billing-operation-failed"
+                    (or (.-statusCode e) 0)
+                    (or (.-code e) (when (= "test-stripe-key-required" (ex-message e)) "test-stripe-key-required") "internal"))
+  (response {:error "billing-operation-pending"} 503))
+
 (deftype BillingAccount [^js state env]
   Object
   (fetch [_ request]
@@ -254,10 +260,13 @@
       (-> (.json request)
           (.then (fn [body]
                    (.blockConcurrencyWhile state
-                     (fn [] (handle state env (.-pathname (js/URL. (.-url request))) (js->clj body :keywordize-keys true))))))
-          (.catch (fn [e]
-                    (js/console.error "billing-operation-failed"
-                                      (or (.-statusCode e) 0)
-                                      (or (.-code e) (when (= "test-stripe-key-required" (ex-message e)) "test-stripe-key-required") "internal"))
-                    (response {:error "billing-operation-pending"} 503)))))))
+                     (fn []
+                     ;; refusals resolve INSIDE the callback: a rejection escaping
+                     ;; blockConcurrencyWhile aborts the object and bypasses the
+                     ;; .catch below (workerd, measured 2026-09-16 in
+                     ;; test/workerd-contract.cljk; the Node mock returned fn())
+                       (-> (js/Promise.resolve nil)
+                           (.then (fn [_] (handle state env (.-pathname (js/URL. (.-url request))) (js->clj body :keywordize-keys true))))
+                           (.catch op-failure-response))))))
+          (.catch op-failure-response)))))
 (defn make-billing-account [state env] (BillingAccount. state env))

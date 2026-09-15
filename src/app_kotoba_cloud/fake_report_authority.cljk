@@ -297,7 +297,10 @@
 ;; Written without `deftype` so the namespace stays loadable by the kbb test
 ;; engine as well as by the shadow-cljs worker build.
 (defn make-fake-report-authority [^js state env]
-  (let [fetch!
+  (let [op-failure (fn [e]
+                     (js/console.error "fake-report-authority-op-failed" (or (.-stack e) (str e)))
+                     (response {:error "fake-report-authority-internal"} 500))
+        fetch!
         (fn [request init]
           ;; Cloudflare's runtime wraps binding.fetch(url, init) into a Request
           ;; before calling the DO; under the test engine we may see the raw
@@ -309,10 +312,15 @@
             (-> (.json request)
                 (.then (fn [body]
                          (.blockConcurrencyWhile ^js state
-                           (fn [] (handle state env (.-pathname (js/URL. (.-url request)))
-                                          (kwdeep (js->clj body)))))))
-                (.catch (fn [e]
-                          (js/console.error "fake-report-authority-op-failed" (.-stack e))
-                          (response {:error "fake-report-authority-internal"} 500))))
+                           (fn []
+                             ;; refusals resolve INSIDE the callback: a rejection escaping
+                             ;; blockConcurrencyWhile aborts the object and bypasses the
+                             ;; .catch below (workerd, measured 2026-09-16 in
+                             ;; test/workerd-contract.cljk; the Node mock returned fn())
+                             (-> (js/Promise.resolve nil)
+                                 (.then (fn [_] (handle state env (.-pathname (js/URL. (.-url request)))
+                                                        (kwdeep (js->clj body)))))
+                                 (.catch op-failure))))))
+                (.catch op-failure))
             (js/Promise.resolve (response {:error "private-binding-required"} 403)))))]
     #js {:fetch fetch!}))
