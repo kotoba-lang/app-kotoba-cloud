@@ -427,7 +427,12 @@
                             (policy/completion-openai-compatible? body)
                             (policy/completion? body))]
                (if-not valid?
-                 (respond {:error {:code "invalid-research-request"}} 400)
+                 ;; say WHICH rule on the bearer path: an agent's log is the only
+                 ;; place a person sees this (hermes fell back silently on a 400)
+                 (respond {:error (cond-> {:code "invalid-research-request"}
+                                    (bearer? request)
+                                    (assoc :message (policy/completion-openai-compatible-problem body)
+                                           :type "invalid_request_error"))} 400)
                  (complete binding principal reference normalized respond
                            {:stream? (and (bearer? request) (true? (:stream body)))})))))))))))
 

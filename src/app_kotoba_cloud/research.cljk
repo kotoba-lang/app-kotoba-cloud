@@ -244,18 +244,14 @@
              (string? (:name m)) (assoc :name (:name m)))
     {:role (:role m) :content (:content m)}))
 
-(defn completion-openai-compatible?
-  "OpenAI-compatible shape for local CLI/IDE agents on the bearer (PAT) path.
-  The admission fields the transport cannot send are server-derived by the
-  gateway (task defaults to code-review, scopeId resolves to the caller's own
-  approved scope). Turns: an optional leading system turn, then user /
-  assistant (with native tool_calls) / tool turns, ending in a user or tool
-  turn; the input ceiling counts content plus tool-call arguments plus the
-  tool definitions. Tool definitions and tool_choice are forwarded (the
-  origin's parser returns native tool_calls). openai-ignorable-keys are
-  accepted and dropped; `stream: true` is served as a one-chunk SSE
-  emulation; `max_completion_tokens` is the OpenAI alias of max_tokens; n
-  must be 1."
+(defn completion-openai-compatible-problem
+  "The first admission rule an OpenAI-shaped bearer request breaks, as a
+  short reason for the 400 body, or nil when the request is admitted.
+  Shape (see completion-openai-compatible?): an optional leading system
+  turn, then user / assistant (native tool_calls) / tool turns ending in a
+  user or tool turn; tool definitions and tool_choice; ceilings on input
+  characters (content + tool-call arguments + tool definitions) and output
+  tokens; openai-ignorable-keys dropped; n must be 1."
   [body]
   (let [ms (:messages body)
         sys-only (and (vector? ms) (pos? (count ms))
@@ -263,28 +259,47 @@
         chat (if sys-only (vec (drop 1 ms)) (vec ms))
         tools (:tools body)
         tools-chars (if (seq tools) (count (js/JSON.stringify (clj->js tools))) 0)
-        ks (set (map name (keys body)))]
-    (and (contains? model-ids (:model body))
-         (or (nil? (:task body)) (contains? tasks (:task body)))
-         (or (nil? (:scopeId body)) (text? (:scopeId body) 256))
-         (vector? ms) (<= 1 (count ms) 256)
-         (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))
-         (every? agent-message? chat)
-         (or (not sys-only)
-             (and (every? #{:role :content :name} (keys (first ms)))
-                  (text? (:content (first ms)) max-input-characters)))
-         (contains? #{"user" "tool"} (:role (last ms)))
-         (<= (+ tools-chars (reduce + 0 (map message-characters ms))) max-input-characters)
-         (or (nil? tools) (and (vector? tools) (<= (count tools) max-tools) (every? tool-def? tools)))
-         (tool-choice? (:tool_choice body))
-         (or (nil? (:tool_choice body)) (seq tools))
-         (or (nil? (:max_tokens body)) (output-tokens? (:max_tokens body)))
-         (or (nil? (:max_completion_tokens body)) (output-tokens? (:max_completion_tokens body)))
-         (or (nil? (:stream body)) (boolean? (:stream body)))
-         (or (nil? (:n body)) (= 1 (:n body)))
-         (every? #(or (#{"model" "messages" "max_tokens" "max_completion_tokens" "task" "scopeId"
-                          "stream" "n" "tools" "tool_choice"} %)
-                      (contains? openai-ignorable-keys %)) ks))))
+        ks (set (map name (keys body)))
+        admitted-keys #{"model" "messages" "max_tokens" "max_completion_tokens" "task" "scopeId"
+                        "stream" "n" "tools" "tool_choice"}]
+    (cond
+      (not (contains? model-ids (:model body))) "model: unknown id"
+      (not (or (nil? (:task body)) (contains? tasks (:task body)))) "task: unknown"
+      (not (or (nil? (:scopeId body)) (text? (:scopeId body) 256))) "scopeId: not text"
+      (not (vector? ms)) "messages: not an array"
+      (not (<= 1 (count ms) 256)) "messages: 1..256 turns"
+      (not (if sys-only (<= 1 (count chat)) (<= 1 (count ms)))) "messages: no turn after the system turn"
+      (and sys-only (not (and (every? #{:role :content :name} (keys (first ms)))
+                              (text? (:content (first ms)) max-input-characters))))
+      "messages[0]: system turn needs string content and only role/content/name"
+      :else
+      (or (some (fn [[i m]]
+                  (when-not (agent-message? m)
+                    (str "messages[" (+ i (if sys-only 1 0)) "]: role " (pr-str (:role m))
+                         " — user needs non-empty string content; assistant needs string content or tool_calls"
+                         " (id, type function, function.name, function.arguments string) and only"
+                         " role/content/tool_calls/name; tool needs tool_call_id and string content")))
+                (map-indexed vector chat))
+          (cond
+            (not (contains? #{"user" "tool"} (:role (last ms)))) "messages: the last turn must be user or tool"
+            (> (+ tools-chars (reduce + 0 (map message-characters ms))) max-input-characters)
+            (str "input: over " max-input-characters " characters (content + tool-call arguments + tool definitions)")
+            (not (or (nil? tools) (and (vector? tools) (<= (count tools) max-tools) (every? tool-def? tools))))
+            (str "tools: each {type function, function {name [A-Za-z0-9_.-]{1,64}, description?, parameters? (object), strict?}}, at most " max-tools)
+            (not (tool-choice? (:tool_choice body))) "tool_choice: auto | none | required | {type function, function {name}}"
+            (not (or (nil? (:tool_choice body)) (seq tools))) "tool_choice: needs tools"
+            (not (or (nil? (:max_tokens body)) (output-tokens? (:max_tokens body)))) (str "max_tokens: 1.." max-output-tokens)
+            (not (or (nil? (:max_completion_tokens body)) (output-tokens? (:max_completion_tokens body)))) (str "max_completion_tokens: 1.." max-output-tokens)
+            (not (or (nil? (:stream body)) (boolean? (:stream body)))) "stream: boolean"
+            (not (or (nil? (:n body)) (= 1 (:n body)))) "n: must be 1"
+            :else (when-let [k (first (remove #(or (admitted-keys %) (contains? openai-ignorable-keys %)) ks))]
+                    (str "unknown parameter: " k)))))))
+
+(defn completion-openai-compatible?
+  "OpenAI-compatible shape for local CLI/IDE agents on the bearer (PAT) path
+  — true when completion-openai-compatible-problem finds nothing."
+  [body]
+  (nil? (completion-openai-compatible-problem body)))
 
 (defn scope-approved? [record body now]
   (some #(and (= (:scopeId body) (:id %)) (= "approved" (:status %))
