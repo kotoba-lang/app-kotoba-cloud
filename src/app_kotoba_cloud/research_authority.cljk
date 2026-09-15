@@ -710,6 +710,47 @@
 
 (defn- store-job! [storage job]
   (js-invoke storage "put" (str "job:" (:jobId job)) (js/JSON.stringify (clj->js job))))
+
+;; --- job retention -----------------------------------------------------------
+;; A job record carries the prompt, the answer / tool_calls and the usage
+;; receipt. It exists so a retry can re-attach (deterministic id) and a paid
+;; job can settle from a terminal receipt — both happen within minutes. It
+;; is deleted 24 hours after its terminal state (or after its creation, for
+;; a job that never reached one): the ledger keeps the receipt id and the
+;; token counts, the audit log keeps refusals, nothing keeps the text.
+;; Until 2026-09-15 nothing deleted these records while the public page said
+;; prompts and outputs were never kept.
+(def job-retention-ms 86400000)
+
+(defn- job-expiry [job]
+  (let [anchor (or (:finishedAt job) (:createdAt job))]
+    (when (number? anchor) (+ anchor job-retention-ms))))
+
+(defn- arm-retention!
+  "Make sure an alarm fires no later than `due` (the DO keeps one alarm)."
+  [storage due]
+  (-> (js-invoke storage "getAlarm")
+      (.then (fn [current]
+               (when (or (nil? current) (> current due))
+                 (js-invoke storage "setAlarm" due))))
+      (.catch (fn [e] (js/console.error "job-retention-arm-failed" (str (or (.-message e) e)))))))
+
+(defn sweep-jobs!
+  "Delete every job record past its expiry; re-arm for the earliest one left.
+   Returns a promise of {:deleted n :kept n}."
+  [storage now]
+  (-> (js-invoke storage "list" #js {:prefix "job:"})
+      (.then (fn [^js entries]
+               (let [rows (atom [])]
+                 (.forEach entries (fn [v k] (swap! rows conj [k (decode v)])))
+                 (let [expired (filter (fn [[_ job]] (let [e (job-expiry job)] (or (nil? e) (<= e now)))) @rows)
+                       kept (remove (fn [[_ job]] (let [e (job-expiry job)] (or (nil? e) (<= e now)))) @rows)]
+                   (-> (js/Promise.all (clj->js (map (fn [[k _]] (js-invoke storage "delete" k)) expired)))
+                       (.then (fn [_]
+                                (when (seq kept)
+                                  (arm-retention! storage (apply min (map (fn [[_ job]] (job-expiry job)) kept))))
+                                (js/console.log "job-retention-sweep" (count expired) (count kept))
+                                {:deleted (count expired) :kept (count kept)})))))))))
 (defn- load-job [storage job-id]
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
@@ -875,23 +916,26 @@
               ;; The edge served that as 200 + `content: null` (measured live
               ;; 2026-09-15, first two PAT completions after eligibility).
               fail (fn [e]
-                     (let [data (ex-data e)]
+                     (let [data (ex-data e) finished (js/Date.now)]
                        (js/console.error "inference-run-failed" job-id
                                          (str (or (.-message e) e))
                                          (js/JSON.stringify (clj->js (select-keys data [:status :upstream]))))
-                       (store-job! storage (assoc job :status "failed"
-                                                  :error (str (or (.-message e) e))
-                                                  :upstreamStatus (:status data)
-                                                  :finishedAt (js/Date.now)))))
+                       (-> (store-job! storage (assoc job :status "failed"
+                                                      :error (str (or (.-message e) e))
+                                                      :upstreamStatus (:status data)
+                                                      :finishedAt finished))
+                           (.then (fn [_] (arm-retention! storage (+ finished job-retention-ms)))))))
               succeed (fn [{:keys [content tool-calls finish-reason usage-receipt]}]
                         (when-not (or (text? content max-content-characters) (seq tool-calls))
                           (throw (ex-info "inference-result-empty" {})))
-                        (store-job! storage (cond-> (assoc job :status "succeeded"
-                                                           :content (when (text? content max-content-characters) content)
-                                                           :finishReason finish-reason
-                                                           :usageReceipt usage-receipt
-                                                           :finishedAt (js/Date.now))
-                                              (seq tool-calls) (assoc :toolCalls (vec tool-calls)))))
+                        (let [finished (js/Date.now)]
+                          (-> (store-job! storage (cond-> (assoc job :status "succeeded"
+                                                                 :content (when (text? content max-content-characters) content)
+                                                                 :finishReason finish-reason
+                                                                 :usageReceipt usage-receipt
+                                                                 :finishedAt finished)
+                                                    (seq tool-calls) (assoc :toolCalls (vec tool-calls))))
+                              (.then (fn [_] (arm-retention! storage (+ finished job-retention-ms)))))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
@@ -1062,6 +1106,9 @@
                                                            (assoc-in [:usage :count] (inc used))))]
                                             (-> (save-state storage next)
                                                 (.then (fn [_] (store-job! storage job)))
+                                                ;; a run that never reaches a terminal state
+                                                ;; still expires from its creation
+                                                (.then (fn [_] (arm-retention! storage (+ now job-retention-ms))))
                                                 (.then (fn [_]
                                                          (response (job-response job record (:sessionRef body) now) 200))))))))))))))))))))
 
@@ -1285,6 +1332,10 @@
 
 (deftype ResearchAuthority [^js state env]
   Object
+  (alarm [_]
+    ;; job retention: the only alarm this object arms (arm-retention!)
+    (-> (sweep-jobs! (aget state "storage") (js/Date.now))
+        (.catch (fn [e] (js/console.error "job-retention-sweep-failed" (str (or (.-message e) e)))))))
   (fetch [_ request]
     (if (= "https://research.internal" (.-origin (js/URL. (.-url request))))
       (-> (.json request)
