@@ -616,15 +616,35 @@
     (not= "clear" (get-in record [:screening :status])) "review-required"
     (not (fresh? (get-in record [:screening :checkedAt]) (get-in record [:screening :expiresAt]) now screening-ttl-ms)) "screening-expired"
     :else nil))
-(defn- trust-valid? [trust now]
-  (and (vector? (:routes trust))
-       (<= 1 (count (:routes trust)) 2)
-       (= (count (:routes trust)) (count (set (:routes trust))))
-       (every? #(contains? weights %) (:routes trust))
-       (fresh? (:evaluatedAt trust) (:expiresAt trust) now trust-window-ms)
-       (number? (:score trust))
-       (= (:score trust) (min 100 (reduce + 0 (map weights (:routes trust)))))
-       (>= (:score trust) threshold)))
+(defn- trust-valid?
+  "The canonical trust grant is still backed by evidence: known, distinct
+  routes; the fixed-policy score; a grant stamped no later than now; and the
+  evidence the routes rest on (ekyc) verified and unexpired. The stored
+  stamp's own 60-second window is the PROJECTION's freshness (contract:
+  'caps freshness at 60 seconds or the earliest contributing evidence
+  expiry'), not the grant's lifetime — reading it as the lifetime made every
+  principal trust-route-required one minute after approval (measured live
+  2026-09-15, first card verification through the console)."
+  [record now]
+  (let [trust (:trust record) ekyc (:ekyc record)]
+    (and (vector? (:routes trust))
+         (<= 1 (count (:routes trust)) 2)
+         (= (count (:routes trust)) (count (set (:routes trust))))
+         (every? #(contains? weights %) (:routes trust))
+         (number? (:evaluatedAt trust)) (<= 0 (:evaluatedAt trust) now)
+         (= "verified" (:status ekyc))
+         (fresh? (:verifiedAt ekyc) (:expiresAt ekyc) now ekyc-ttl-ms)
+         (number? (:score trust))
+         (= (:score trust) (min 100 (reduce + 0 (map weights (:routes trust)))))
+         (>= (:score trust) threshold))))
+(defn- trust-projection
+  "What the edge sees: the grant re-stamped for at most 60 seconds, never past
+  the contributing evidence's expiry."
+  [record now]
+  (assoc (:trust record)
+         :evaluatedAt now
+         :expiresAt (min (+ now trust-window-ms) (get-in record [:ekyc :expiresAt]))
+         :policyVersion "kotoba-trust-routes-2026-09-v1"))
 (defn- session-projection [session-ref action now]
   ;; Uncalibrated projection: the edge has already authenticated the principal and
   ;; derived the session reference server-side over the private binding. Belief is
@@ -637,9 +657,8 @@
                  :assurance (research-policy/rung-allowance record now)
                  :compliance (secure/compliance-snapshot))
     true (assoc :continuous (session-projection session-ref action now))
-    (trust-valid? (:trust record) now)
-    (assoc :trust (assoc (:trust record) :evaluatedAt now :expiresAt (+ now trust-window-ms)
-                         :policyVersion "kotoba-trust-routes-2026-09-v1"))))
+    (trust-valid? record now)
+    (assoc :trust (trust-projection record now))))
 
 (defn- scope-approved? [record task scope-id now]
   (boolean (some #(and (= scope-id (:id %)) (= "approved" (:status %))
@@ -818,9 +837,7 @@
                                         :tool (:tool fw)}))))
                    ;; Admission recheck happens here, atomically, before any reservation.
                    (if-let [reason (or (eligibility-reason record now)
-                                       (when-not (trust-valid? (assoc (:trust record)
-                                                                      :evaluatedAt (- now 1000)
-                                                                      :expiresAt (+ now trust-window-ms -1000)) now)
+                                       (when-not (trust-valid? record now)
                                          "trust-route-required"))]
                      (response {:error reason} 403)
                      (let [day (utc-day now) used (quota-used record day)]

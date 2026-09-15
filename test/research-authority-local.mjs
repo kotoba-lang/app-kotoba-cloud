@@ -370,6 +370,42 @@ assert.equal(r.status, 400, JSON.stringify(r));
   const sig2 = "t=" + t2 + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t2 + "." + badPayload).digest("hex");
   const rBad = await callS6("/ekyc/webhook", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-777777777777", raw: badPayload, signatureHeader: sig2 });
   assert.equal(rBad.status, 403, JSON.stringify(rBad));
+
+  // S6b. The trust grant outlives its 60-second stamp. Age the stored stamp
+  // by two minutes (what any /status read after the first minute sees) and
+  // the projection must still carry the grant: policyVersion, score 60, a
+  // fresh evaluatedAt and an expiresAt at most 60 s later. Live, the first
+  // console read after approval said trust-route-required (2026-09-15).
+  const aged = JSON.parse(await stS6.storage.get("record"));
+  aged.trust.evaluatedAt = Date.now() - 120000;
+  aged.trust.expiresAt = Date.now() - 60000;
+  await stS6.storage.put("record", JSON.stringify(aged));
+  const t0 = Date.now();
+  const rSt = await callS6("/status", { principalId: pS6, sessionRef: ref2, action: "code-review" });
+  assert.equal(rSt.status, 200, JSON.stringify(rSt));
+  assert.equal(rSt.json.trust.policyVersion, "kotoba-trust-routes-2026-09-v1", "trust must be projected after the stamp aged: " + JSON.stringify(rSt.json.trust));
+  assert.equal(rSt.json.trust.score, 60);
+  assert.deepEqual(rSt.json.trust.routes, ["web-reviewed"]);
+  assert.ok(rSt.json.trust.evaluatedAt >= t0, "projection is stamped now");
+  assert.ok(rSt.json.trust.expiresAt - rSt.json.trust.evaluatedAt <= 60000, "projection window is at most 60 s");
+  assert.ok(rSt.json.trust.expiresAt <= aged.ekyc.expiresAt, "projection never outlives the evidence");
+  // and a job admitted on the same aged record is not trust-route-required
+  const rJob = await callS6("/jobs/create", { principalId: pS6, sessionRef: ref2, jobId: "job-aged-1",
+    policyVersion: "whitehat-2026-09-12-v1", billing: "free-only",
+    trustPolicyVersion: "kotoba-trust-routes-2026-09-v1", sessionPolicyVersion: "kotoba-session-evidence-2026-09-v1",
+    request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review", scopeId: "owned", max_tokens: 64,
+      messages: [{ role: "user", content: "Review my authorization checks." }] },
+    limits: { requestsPerDay: 50, maxOutputTokens: 2048, maxInputCharacters: 24000 } });
+  assert.notEqual(rJob.json.error, "trust-route-required", JSON.stringify(rJob));
+  // Evidence gone -> no projection (the reason literal is verification-expired
+  // upstream; here the trust simply is not re-stamped).
+  const expired = JSON.parse(await stS6.storage.get("record"));
+  expired.ekyc.expiresAt = Date.now() - 1;
+  await stS6.storage.put("record", JSON.stringify(expired));
+  const rEx = await callS6("/status", { principalId: pS6, sessionRef: ref2, action: "code-review" });
+  assert.equal(rEx.json.trust.policyVersion, undefined, "no evidence, no projection: " + JSON.stringify(rEx.json.trust));
+  expired.ekyc.expiresAt = aged.ekyc.expiresAt;
+  await stS6.storage.put("record", JSON.stringify(expired));
 }
 console.log("card setup webhook E2E: passed");
 
