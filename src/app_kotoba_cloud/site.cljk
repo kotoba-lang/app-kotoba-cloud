@@ -1170,8 +1170,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (compliance-site/view)))
 
 (defn enforcement-html []
-     (site-layout {:title "民事執行・差し押さえカタログ — Kotoba Cloud" :lang "ja"
-                   :description "勝訴後に強制執行（差し押さえ）へ進むための手続と、公開・非公開データソースをまとめたカタログ。"
+     (site-layout {:title "民事執行・差し押さえカタログ（日本＋世界） — Kotoba Cloud" :lang "ja"
+                   :description "勝訴後に強制執行（差し押さえ）へ進むための日本の手続、日本以外の全世界18法域の執行手段・公式DB、公開/非公開データソースをまとめたカタログ。"
                    :extra-css (str tokens/bridge-css dds-catalog/css enforcement-site/css)}
       (enforcement-site/view)))
 

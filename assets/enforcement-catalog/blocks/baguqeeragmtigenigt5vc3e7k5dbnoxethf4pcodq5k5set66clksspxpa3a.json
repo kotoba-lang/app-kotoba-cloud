@@ -1,0 +1,1 @@
+{"id":"ru","mechanisms":["Federal Law 229-FZ enforcement proceedings","FSSP（連邦司法警察官）による財産調査","арест（差押）"],"name":"Russia","name-ja":"ロシア","note":"2022年以降の国際制裁により、ロシア内資産の越境執行は事実上困難。","sources":[{"name":"FSSP databank","status":503,"url":"https://fssp.gov.ru/"},{"name":"kad.arbitr (arbitration courts)","status":200,"url":"https://kad.arbitr.ru/"}]}

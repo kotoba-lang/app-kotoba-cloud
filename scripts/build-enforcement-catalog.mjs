@@ -41,7 +41,7 @@ const dag = value => block(Buffer.from(canonical(value)), 0x129);
 const generatedAt = process.env.ENFORCEMENT_GENERATED_AT || new Date().toISOString();
 
 const doc = JSON.parse(readFileSync(src + '/enforcement.json', 'utf8'));
-const {meta, procedures, publicSources, privateSources} = doc;
+const {meta, procedures, world, publicSources, privateSources} = doc;
 
 // ---- integrity checks ----
 const order = [];
@@ -53,6 +53,18 @@ for (const p of procedures) {
 }
 if (new Set(order).size !== order.length) throw new Error('duplicate procedure order values');
 if (order.some((o, i) => o !== i + 1)) throw new Error('procedure order must be 1..N contiguous');
+const worldSeen = new Set();
+for (const w of world) {
+  if (!w.id || !w.name || !w['name-ja']) throw new Error('world record missing required fields: ' + w.id);
+  if (worldSeen.has(w.id)) throw new Error('duplicate world id: ' + w.id);
+  worldSeen.add(w.id);
+  if (!Array.isArray(w.mechanisms) || w.mechanisms.length < 1) throw new Error('world ' + w.id + ': mechanisms must be non-empty');
+  if (!Array.isArray(w.sources) || w.sources.length < 1) throw new Error('world ' + w.id + ': sources must be non-empty');
+  for (const s of w.sources) {
+    if (!s.name || !s.url || s.status === undefined) throw new Error('world ' + w.id + ': source missing name/url/status');
+    if (!/^https?:\/\//.test(s.url)) throw new Error('world ' + w.id + ': source url must be absolute');
+  }
+}
 for (const [name, list] of [['publicSources', publicSources], ['privateSources', privateSources]]) {
   const seen = new Set();
   for (const s of list) {
@@ -65,6 +77,7 @@ for (const [name, list] of [['publicSources', publicSources], ['privateSources',
 
 // ---- per-record blocks + index (inline lookup contract: the browser UI reads index.json only) ----
 const procIndex = procedures.map(p => ({...p, record: dag(p)}));
+const worldIndex = world.map(w => ({...w, record: dag(w)}));
 const pubIndex = publicSources.map(s => ({...s, record: dag(s)}));
 const privIndex = privateSources.map(s => ({...s, record: dag(s)}));
 
@@ -75,9 +88,11 @@ const index = {
   verified: meta.verified,
   note: meta.note,
   procedureCount: procedures.length,
+  worldCount: world.length,
   publicCount: publicSources.length,
   privateCount: privateSources.length,
   procedures: procIndex,
+  world: worldIndex,
   publicSources: pubIndex,
   privateSources: privIndex,
   blocks: blockIndex,
@@ -86,4 +101,4 @@ const index = {
 const head = dag(index);
 index.head = head;
 writeFileSync(out + '/index.json', JSON.stringify(index, null, 1) + '\n');
-console.log(`enforcement-catalog: ${procedures.length} procedures, ${publicSources.length} public + ${privateSources.length} private sources; head ${head['/']}`);
+console.log(`enforcement-catalog: ${procedures.length} procedures, ${world.length} world jurisdictions, ${publicSources.length} public + ${privateSources.length} private sources; head ${head['/']}`);

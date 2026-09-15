@@ -15,6 +15,7 @@ const doc = JSON.parse(readFileSync(src + '/enforcement.json', 'utf8'));
 
 // counts match the curated source
 assert.equal(index.procedureCount, doc.procedures.length);
+assert.equal(index.worldCount, doc.world.length);
 assert.equal(index.publicCount, doc.publicSources.length);
 assert.equal(index.privateCount, doc.privateSources.length);
 assert.ok(index.procedureCount >= 5, 'procedure steps present');
@@ -23,7 +24,6 @@ assert.ok(index.publicCount >= 5 && index.privateCount >= 5);
 // head CID + index integrity
 assert.ok(index.head && /^b[a-z2-7]+$/.test(index.head['/']), 'head CID');
 assert.ok(index.blocks && index.blocks[index.head['/']], 'head block indexed');
-assert.equal(index.generatedAt, doc.meta ? index.generatedAt : index.generatedAt);
 
 // procedures: 1..N contiguous, every record has required fields + URL source
 const orders = index.procedures.map(p => p.order);
@@ -37,7 +37,25 @@ for (const p of index.procedures) {
   assert.ok(index.blocks[p.record['/']], 'procedure block present: ' + p.id);
 }
 
+// world: non-JP jurisdictions only, unique ids, mechanisms + sourced DBs each
+assert.ok(index.worldCount >= 15, 'worldwide coverage: ' + index.worldCount + ' jurisdictions');
+assert.ok(!index.world.some(w => w.id === 'jp'), 'world tab excludes Japan (procedures tab owns it)');
+const worldIds = new Set();
+for (const w of index.world) {
+  assert.ok(w.id && w.name && w['name-ja'], 'world fields: ' + w.id);
+  assert.ok(!worldIds.has(w.id), 'duplicate world id: ' + w.id);
+  worldIds.add(w.id);
+  assert.ok(Array.isArray(w.mechanisms) && w.mechanisms.length >= 1, 'world mechanisms: ' + w.id);
+  assert.ok(Array.isArray(w.sources) && w.sources.length >= 1, 'world sources: ' + w.id);
+  for (const s of w.sources) {
+    assert.ok(s.name && /^https?:\/\//.test(s.url) && s.status !== undefined, 'world source fields: ' + w.id + ' ' + s.url);
+    assert.ok(typeof s.status === 'number' || s.status === 'NXDOMAIN' || s.status === 'unreachable', 'world source status: ' + w.id);
+  }
+  assert.ok(index.blocks[w.record['/']], 'world block present: ' + w.id);
+}
+
 // sources: unique ids, absolute urls, measured status, inline record blocks
+const OK_STATUS = s => typeof s === 'number' || s === 'NXDOMAIN' || s === 'unreachable';
 for (const key of ['publicSources', 'privateSources']) {
   const seen = new Set();
   for (const s of index[key]) {
@@ -45,12 +63,18 @@ for (const key of ['publicSources', 'privateSources']) {
     seen.add(s.id);
     assert.ok(s.name && s.url, 'source fields: ' + s.id);
     assert.ok(/^https?:\/\//.test(s.url), 'source url absolute: ' + s.id);
-    assert.ok(typeof s.status === 'number' || s.status === 'NXDOMAIN', 'measured status: ' + s.id);
+    assert.ok(OK_STATUS(s.status), 'measured status: ' + s.id);
     assert.ok(index.blocks[s.record['/']], 'source block present: ' + s.id);
   }
 }
 
-// inline lookup contract: the browser UI never needs a per-block fetch
-assert.ok(index.procedures.every(p => p.desc) && index.publicSources.every(s => s.url) && index.privateSources.every(s => s.url));
+// global private providers present (worldwide asset data)
+const priv = new Set(index.privateSources.map(s => s.id));
+for (const id of ['dnb', 'bvd-orbis', 'creditsafe', 'lseg-worldcheck', 'lexisnexis']) {
+  assert.ok(priv.has(id), 'global private provider present: ' + id);
+}
 
-console.log(`enforcement-catalog: ok — ${index.procedureCount} procedures, ${index.publicCount} public + ${index.privateCount} private sources, head ${index.head['/']}`);
+// inline lookup contract: the browser UI never needs a per-block fetch
+assert.ok(index.procedures.every(p => p.desc) && index.world.every(w => w.mechanisms.length) && index.publicSources.every(s => s.url) && index.privateSources.every(s => s.url));
+
+console.log(`enforcement-catalog: ok — ${index.procedureCount} procedures, ${index.worldCount} world jurisdictions, ${index.publicCount} public + ${index.privateCount} private sources, head ${index.head['/']}`);

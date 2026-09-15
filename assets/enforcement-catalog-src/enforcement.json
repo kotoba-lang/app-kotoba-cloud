@@ -1,8 +1,8 @@
 {
  "meta": {
-  "corpus": "enforcement-public",
-  "kind": "kotoba.cloud enforcement (civil execution) catalog",
-  "note": "Curated records for civil compulsory execution after a favorable judgment. Every source cites the URL measured on 2026-09-15. HTTP status per source is the measured value; 403 = bot-walled but canonical; NXDOMAIN = no DNS answer at measurement time.",
+  "corpus": "enforcement-world",
+  "kind": "kotoba.cloud enforcement (civil execution) catalog — Japan procedure + worldwide jurisdictions",
+  "note": "Curated records for civil compulsory execution after a favorable judgment. Japan procedures plus 18 non-JP jurisdictions worldwide. Every source cites the URL measured on 2026-09-16 from this network; HTTP status is the measured value; 403/412/503 = bot-walled or anti-bot but canonical; NXDOMAIN/unreachable = no DNS answer / no connection at measurement time.",
   "verified": "2026-09"
  },
  "procedures": [
@@ -34,7 +34,7 @@
    "id": "file-application",
    "order": 4,
    "name": "File the application for commencement",
-   "name-ja": "强制执行手続開始の申立て",
+   "name-ja": "強制執行手続開始の申立て",
    "desc": "File in writing at the execution department of the court that rendered the judgment. Attach the certified copy with finality certificate and the property list. Filing fees follow the fee schedule (e.g. real-estate auction: JPY 500 up to 5,000 by claim amount).",
    "source": "https://www.kanpo.go.jp/"
   },
@@ -45,6 +45,207 @@
    "name-ja": "配当の受け取り・手続の終結",
    "desc": "After the dividend or sale, receive the dividend or sale proceeds; the procedure ends on distribution and costs.",
    "source": "https://dl.ndl.go.jp/"
+  }
+ ],
+ "world": [
+  {
+   "id": "us",
+   "name": "United States",
+   "name-ja": "アメリカ",
+   "mechanisms": ["writ of execution（執行令状）", "garnishment（賃金・債権差押）", "judgment lien（登記による判決抵当権）", "debtor's examination（債務者尋問）"],
+   "sources": [
+    {"name": "PACER (federal courts records)", "url": "https://pacer.uscourts.gov/", "status": 200},
+    {"name": "uscourts.gov", "url": "https://www.uscourts.gov/", "status": 200}
+   ],
+   "note": "執行は主に各州法。外国判決の承認は州のUEFMTA（Uniform Enforcement of Foreign Judgments Act）に基づく。州裁判所の記録・抵当権は郡のrecorder/Secretary of Stateが管理。"
+  },
+  {
+   "id": "gb",
+   "name": "United Kingdom (England & Wales)",
+   "name-ja": "イギリス (イングランド・ウェールズ)",
+   "mechanisms": ["writ of control（High Court差押状）", "attachment of earnings（賃金差押）", "charging order + order for sale（担保権設定・売却命令）", "third party debt order（第三人債務命令）"],
+   "sources": [
+    {"name": "Companies House (company information)", "url": "https://find-and-update.company-information.service.gov.uk/", "status": 200},
+    {"name": "TrustDeed (personal insolvency register)", "url": "https://www.trustdeed.org.uk/", "status": 200},
+    {"name": "Registry Trust (CCJ register)", "url": "https://www.registrytrust.org.uk/", "status": "unreachable"}
+   ],
+   "note": "CCJ/High Court判決はRegistry Trust経由で信用調査機関に提供される。スコットランドは別法域。"
+  },
+  {
+   "id": "eu",
+   "name": "European Union (cross-border)",
+   "name-ja": "欧州連合 (域横断)",
+   "mechanisms": ["European Account Preservation Order (EAPO, Reg. 655/2014: 域横断銀行口座凍結)", "Brussels Ia Regulation（判決の自動承認・exequatur廃止）", "European Enforcement Order（少額・無争訟債権）"],
+   "sources": [
+    {"name": "e-Justice Portal", "url": "https://e-justice.europa.eu/", "status": 403}
+   ],
+   "note": "会員国間では判決の承認手続が原則廃止。EAPOは判決前の口座凍結も可能（対日本は対象外）。"
+  },
+  {
+   "id": "de",
+   "name": "Germany",
+   "name-ja": "ドイツ",
+   "mechanisms": ["Zwangsvollstreckung（ZPO強制執行）", "Kontopfändung（口座差押）", "Erzwingungshaft（間接強制）", "Zwangsversteigerung（ZVG不動産競売）"],
+   "sources": [
+    {"name": "Handelsregister (Unternehmensregister)", "url": "https://www.unternehmensregister.de/", "status": 200},
+    {"name": "ZVG auction portal", "url": "https://www.zvg.com/", "status": 200},
+    {"name": "Germany Justice portal", "url": "https://www.justiz.de/", "status": 200}
+   ],
+   "note": "VollstreckungsgerichtのVermögensauskunft（財産目録宣誓供述）が資産調査の中核。"
+  },
+  {
+   "id": "fr",
+   "name": "France",
+   "name-ja": "フランス",
+   "mechanisms": ["saisie-attribution（銀行口座・債権差押）", "saisie immobilière（不動産差押競売）", "procédure civile d'exécution（執行力ある正本要式）"],
+   "sources": [
+    {"name": "Légifrance (statutes & case law)", "url": "https://www.legifrance.gouv.fr/", "status": 403},
+    {"name": "Infogreffe (commercial courts)", "url": "https://www.infogreffe.fr/", "status": 200},
+    {"name": "BODACC (legal announcements)", "url": "https://www.bodacc.fr/", "status": 200}
+   ],
+   "note": "huissier de justice（司法執行官）が差押の告知・実施を行う。"
+  },
+  {
+   "id": "cn",
+   "name": "China",
+   "name-ja": "中国",
+   "mechanisms": ["人民法院強制執行", "網絡査控（財産のネットワーク照会・管理）", "失信被執行人リスト（信用ブラックリスト）", "限制高消費（高消費制限）"],
+   "sources": [
+    {"name": "裁判文書網 (judgments)", "url": "https://wenshu.court.gov.cn/", "status": 200},
+    {"name": "執行信息公開網", "url": "https://zxgk.court.gov.cn/", "status": 403},
+    {"name": "信用中国", "url": "https://www.creditchina.gov.cn/", "status": 412}
+   ],
+   "note": "執行不能（破産similar）問題が知られる。外国判決の承認・執行は条約・互惠関係が必要。"
+  },
+  {
+   "id": "kr",
+   "name": "South Korea",
+   "name-ja": "韓国",
+   "mechanisms": ["채권압류（債権押留・売掛・預金）", "부동산강제경매（不動産競売）", "재산명시·재산조회（財産明示・財産照会制度）"],
+   "sources": [
+    {"name": "Internet Registry (등기부)", "url": "https://www.iros.go.kr/", "status": 200},
+    {"name": "National Law Information Center", "url": "https://www.law.go.kr/", "status": 200},
+    {"name": "Supreme Court case law (glaw)", "url": "https://glaw.scourt.go.kr/", "status": "unreachable"}
+   ],
+   "note": "執行は金銭債権強制執行法。押留命令後、第三債務者（銀行等）への支払差止が効力を生じる。"
+  },
+  {
+   "id": "tw",
+   "name": "Taiwan",
+   "name-ja": "台湾",
+   "mechanisms": ["強制執行法（动产差押・不動産差押）", "債務人の財産申告", "担保物執行（質権・抵当権）"],
+   "sources": [
+    {"name": "Judicial Yuan (法院)", "url": "https://www.judicial.gov.tw/", "status": 200}
+   ],
+   "note": "民事強制執行事件は法院執行署が担当。確定判決＋送達証明が必要。"
+  },
+  {
+   "id": "hk",
+   "name": "Hong Kong SAR",
+   "name-ja": "香港",
+   "mechanisms": ["writ of execution（執行状）", "garnishee order（給与・口座差押）", "charging order（土地・株式担保権）", "judgment summons（債務者尋問）"],
+   "sources": [
+    {"name": "Hong Kong Judiciary", "url": "https://www.judiciary.hk/", "status": 200},
+    {"name": "Companies Registry", "url": "https://www.cr.gov.hk/", "status": 200}
+   ],
+   "note": "Ordinance第32章（Judgments）に基づく。中国本土とは执行制度が異なる。"
+  },
+  {
+   "id": "sg",
+   "name": "Singapore",
+   "name-ja": "シンガポール",
+   "mechanisms": ["writ of seizure and sale（差押競売状）", "garnishee order（第三者債務命令）", "Account Information Order（口座情報命令, Rules of Court 2021）", "judgment debtor summons（債務者審問）"],
+   "sources": [
+    {"name": "eLitigation (SG case law)", "url": "https://www.elitigation.sg/", "status": 200},
+    {"name": "ACRA BizFile (company registry)", "url": "https://www.bizfile.gov.sg/", "status": 200}
+   ],
+   "note": "AIOにより判決債権者が債務者の銀行口座情報を事前開示できる（2021年改正で導入）。"
+  },
+  {
+   "id": "au",
+   "name": "Australia",
+   "name-ja": "オーストラリア",
+   "mechanisms": ["writ of execution against land（州裁判所差押状）", "garnishee order（給与・債権差押）", "examination summons（財産審査）", "bankruptcy/insolvency route（連邦破産）"],
+   "sources": [
+    {"name": "ASIC (companies register)", "url": "https://www.asic.gov.au/", "status": 200},
+    {"name": "AustLII", "url": "https://www.austlii.edu.au/", "status": 403}
+   ],
+   "note": "執行は主に州・準州の裁判規則。破産・会社清算は連邦法（ASIC/AFSA）。"
+  },
+  {
+   "id": "ca",
+   "name": "Canada",
+   "name-ja": "カナダ",
+   "mechanisms": ["writ of execution（オンタリオ他州）", "garnishment（債権差押）", "charging order（不動産担保権）", "examination（債務者尋問）"],
+   "sources": [
+    {"name": "Justice Laws Website (federal)", "url": "https://laws-lois.justice.gc.ca/", "status": 200}
+   ],
+   "note": "執行手続は各省のRules of Civil Procedure。Quebecは別法（Code of Civil Procedure）。"
+  },
+  {
+   "id": "in",
+   "name": "India",
+   "name-ja": "インド",
+   "mechanisms": ["CPC Order XXI執行（差押・競売）", "arbitration Act s.36（仲裁裁决の執行）", "commercial courts Act"],
+   "sources": [
+    {"name": "eCourts judgments", "url": "https://judgments.ecourts.gov.in/", "status": 200},
+    {"name": "Ministry of Corporate Affairs", "url": "https://www.mca.gov.in/", "status": 403}
+   ],
+   "note": "民事拘束が限定され、執行が長期化しやすい。NCLT経由の倒産手続が現実的な回収手段となることがある。"
+  },
+  {
+   "id": "br",
+   "name": "Brazil",
+   "name-ja": "ブラジル",
+   "mechanisms": ["cumprimento de sentença（判決履行段階）", "penhora（差押・CPC優先順位）", "leilão judicial（司法競売）"],
+   "sources": [
+    {"name": "Planalto (statutes)", "url": "https://www.planalto.gov.br/", "status": 200},
+    {"name": "CNJ (judiciary council)", "url": "https://www.cnj.jus.br/", "status": 200},
+    {"name": "Jusbrasil (private case-law portal)", "url": "https://www.jusbrasil.com.br/", "status": 403}
+   ],
+   "note": "2015年CPCで執行が迅速化。penhoraは現金・口座から開始する優先順位がある。"
+  },
+  {
+   "id": "mx",
+   "name": "Mexico",
+   "name-ja": "メキシコ",
+   "mechanisms": ["juicio ejecutivo mercantil（商執行訴訟）", "embargo（差押）", "almoneda（競売）"],
+   "sources": [
+    {"name": "SCJN jurisprudence", "url": "https://sjf2.scjn.gob.mx/", "status": 403},
+    {"name": "Federal Judiciary", "url": "https://www.pjf.gob.mx/", "status": 403}
+   ],
+   "note": "商事公証書（título ejecutivo extrajudicial）でも執行可。外国判決はexequáturが必要。"
+  },
+  {
+   "id": "ru",
+   "name": "Russia",
+   "name-ja": "ロシア",
+   "mechanisms": ["Federal Law 229-FZ enforcement proceedings", "FSSP（連邦司法警察官）による財産調査", "арест（差押）"],
+   "sources": [
+    {"name": "FSSP databank", "url": "https://fssp.gov.ru/", "status": 503},
+    {"name": "kad.arbitr (arbitration courts)", "url": "https://kad.arbitr.ru/", "status": 200}
+   ],
+   "note": "2022年以降の国際制裁により、ロシア内資産の越境執行は事実上困難。"
+  },
+  {
+   "id": "id",
+   "name": "Indonesia",
+   "name-ja": "インドネシア",
+   "mechanisms": ["aanmaning（裁判所警告）", "gedwongen executie（差押競売）", "KPKNL（国有財産・競売官署）"],
+   "sources": [
+    {"name": "Supreme Court decisions", "url": "https://putusan3.mahkamahagung.go.id/", "status": 403}
+   ],
+   "note": "動産執行と不動産執行（Pendaftaran landの登記）で管轄が異なる。"
+  },
+  {
+   "id": "th",
+   "name": "Thailand",
+   "name-ja": "タイ",
+   "mechanisms": [" attachment (差押え) under CPC", "forced sale（競売）", "Department of Legal Execution（司法執行局）"],
+   "sources": [
+    {"name": "DBD (company registry)", "url": "https://www.dbd.go.th/", "status": 200}
+   ],
+   "note": "執行は司法部（Department of Legal Execution）へ申立て。外国判決は承認訴訟が必要。"
   }
  ],
  "publicSources": [
@@ -110,6 +311,27 @@
    "name-ja": "J-PlatPat",
    "url": "https://www.j-platpat.inpit.go.jp/",
    "status": 403
+  },
+  {
+   "id": "e-justice-eu",
+   "name": "e-Justice Portal (EU, all member states)",
+   "name-ja": "欧州司法ポータル",
+   "url": "https://e-justice.europa.eu/",
+   "status": 403
+  },
+  {
+   "id": "ofac-sanctions",
+   "name": "OFAC Sanctions List Search",
+   "name-ja": "OFAC制裁者検索",
+   "url": "https://sanctionssearch.ofac.treas.gov/",
+   "status": 200
+  },
+  {
+   "id": "opencorporates",
+   "name": "OpenCorporates (global company registry index)",
+   "name-ja": "OpenCorporates",
+   "url": "https://opencorporates.com/",
+   "status": 200
   }
  ],
  "privateSources": [
@@ -179,7 +401,7 @@
   {
    "id": "nipss",
    "name": "NIPSS",
-   "name-ja": "国立情報学研究所 系",
+   "name-ja": "情報システム研究センター",
    "url": "https://www.nipss.go.jp/",
    "status": "NXDOMAIN"
   },
@@ -203,6 +425,55 @@
    "name-ja": "国際登録情報",
    "url": "https://www.ip-r-info.jp/",
    "status": "NXDOMAIN"
+  },
+  {
+   "id": "tdb",
+   "name": "Teikoku Databank (TDB company DB)",
+   "name-ja": "帝国データバンク",
+   "url": "https://www.tdb.co.jp/",
+   "status": 200
+  },
+  {
+   "id": "tsr",
+   "name": "Tokyo Shoko Research (TSR company DB)",
+   "name-ja": "東京商工リサーチ",
+   "url": "https://www.tsr.co.jp/",
+   "status": 200
+  },
+  {
+   "id": "dnb",
+   "name": "Dun & Bradstreet (global B2B data)",
+   "name-ja": "ダンドブラッドストリート",
+   "url": "https://www.dnb.com/",
+   "status": 200
+  },
+  {
+   "id": "bvd-orbis",
+   "name": "Bureau van Dijk / Moody's Orbis",
+   "name-ja": "Orbis",
+   "url": "https://www.bvdinfo.com/",
+   "status": 200
+  },
+  {
+   "id": "creditsafe",
+   "name": "Creditsafe",
+   "name-ja": "クレディセイフ",
+   "url": "https://www.creditsafe.com/",
+   "status": 200
+  },
+  {
+   "id": "lseg-worldcheck",
+   "name": "LSEG World-Check (PEP/sanctions data)",
+   "name-ja": "LSEG World-Check",
+   "url": "https://www.lseg.com/en/risk-intelligence",
+   "status": 200
+  },
+  {
+   "id": "lexisnexis",
+   "name": "LexisNexis Risk Solutions",
+   "name-ja": "リークシスネクシス",
+   "url": "https://www.lexisnexis.com/",
+   "status": 200
   }
  ]
 }
