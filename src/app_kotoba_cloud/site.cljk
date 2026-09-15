@@ -1069,14 +1069,19 @@ body:has(.kc-sb){padding-inline-start:15rem}
   external assets)."
   [{:keys [title description lang robots extra-css sidebar? current locale surface]
     :or {surface :apex}} body]
-  ;; page/page is the hiccup; the surface walk runs BEFORE rendering
-  (str "<!DOCTYPE html>\n"
+  ;; page/page is the hiccup; the surface walk runs BEFORE rendering. The
+  ;; document language follows the locale (its catalog html-lang) unless a
+  ;; caller names one; a right-to-left locale gets dir="rtl" on <html>
+  ;; exactly as page-html does for the landing (the shell's inline-start /
+  ;; inline-end rules follow it).
+  (let [lang (or lang (if locale (:html-lang (translation locale)) "ja"))]
+  (cond-> (str "<!DOCTYPE html>\n"
    (html/->html
     (surface-hrefs surface
      (page/page
    {:title title
     :description description
-    :lang (or lang (if (= locale :en) "en" "ja"))
+    :lang lang
     :css ""
     :app-css ""
     ;; dark: the inversion layer lives in /css/site.css (site-css); page
@@ -1118,7 +1123,10 @@ body:has(.kc-sb){padding-inline-start:15rem}
        (list [:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
              (site-header locale t)
              [:main {:id "main"} body])))
-   (site-footer (translation (or locale :ja))))))))
+   (site-footer (translation (or locale :ja)))))))
+    (and locale (locales/rtl-locales locale))
+    (str/replace (str "<html lang=\"" lang "\">")
+                 (str "<html lang=\"" lang "\" dir=\"rtl\">")))))
 
 (defn security-html []
      (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
@@ -1189,14 +1197,28 @@ body:has(.kc-sb){padding-inline-start:15rem}
        (dds/row (dds/button "研究者登録（Stripe Identity）" {:href "https://kotoba.cloud/ekyc.md" :type :solid-fill})
                 (dds/button "登録ガイド" {:href "https://kotoba.cloud/llms.txt" :type :outline})))))
 
-(defn account-html []
-  ;; Account console: session, Stripe-only identity verification, research
-  ;; eligibility, scopes and billing. Client logic lives in account-browser.
-  (site-layout {:title "アカウント管理 — Kotoba Cloud" :lang "ja"
-                :robots "noindex"
-                :sidebar? true :current "/account"
-                :extra-css (str account-site/css dds-console/css)}
-   (account-site/section)))
+(defn account-html
+  "Account console: session, identity verification, research eligibility,
+   scopes, organizations and billing; client logic lives in account-browser.
+   One document per public locale: the shell (top bar, sidebar, language
+   selector) in that locale, the console body in Japanese for :ja and in
+   English otherwise (account-site/section). /account is negotiated like
+   every other variant root (locale/variant-roots): cookie, ?lang=,
+   Accept-Language."
+  ([] (account-html :ja))
+  ([locale]
+   (let [t (translation locale) ja? (= locale :ja)]
+     (site-layout {:title (if ja? "アカウント管理 — Kotoba Cloud" "Account — Kotoba Cloud")
+                   :lang (:html-lang t)
+                   :locale locale
+                   :robots "noindex"
+                   :sidebar? true :current "/account"
+                   :extra-css (str account-site/css dds-console/css)}
+      ;; a non-ja, non-en shell carries an English body: say so on the
+      ;; region so assistive tech reads it in the right language
+      (if (contains? #{:ja :en} locale)
+        (account-site/section locale)
+        [:div {:lang "en"} (account-site/section locale)])))))
 
 (defn billing-html [locale]
   ;; ACCOUNT › 料金・決済: the console shell in the document's locale (the
@@ -1601,8 +1623,14 @@ body:has(.kc-sb){padding-inline-start:15rem}
           (copy-file headers (node-path/join root "_headers"))))
             (let [out (node-path/join root "identity" "index.html")]
         (spit-file out (identity-html)))
-      (let [out (node-path/join root "account" "index.html")]
-        (spit-file out (account-html)))
+      ;; the account console: one variant per public locale (en at the
+      ;; locale-free root, the rest under their locale directory)
+      (spit-file (node-path/join root "account" "index.html") (account-html :en))
+      (spit-file (node-path/join en-dir "account" "index.html") (account-html :en))
+      (doseq [locale supported-locales :when (not= locale :en)]
+        (let [dir (node-path/join root (name locale) "account")]
+          (fs/mkdirSync dir #js {:recursive true})
+          (spit-file (node-path/join dir "index.html") (account-html locale))))
       (let [out (node-path/join root "admin" "index.html")]
         (spit-file out (admin-html)))
       ;; security + csf2 + crypto static pages and their data blocks
