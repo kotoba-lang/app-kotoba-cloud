@@ -122,8 +122,9 @@
                         (if english?
                           "Signed-in session confirmed. Next: connect this Principal to Kotobase."
                           "ログイン済みの session を確認しました。次: この Principal を Kotobase へ接続します。"))]
-    (when-let [nav (element "kc-session-nav")]
-      (signed-in-menu! nav username))
+    (doseq [nav-id ["kc-session-nav" "kc-session-nav-side"]]
+      (when-let [nav (element nav-id)]
+        (signed-in-menu! nav username)))
     (when-let [action (element "kc-session-action")]
       (set! (.-textContent action) next-label)
       (.setAttribute action "href" next-href)

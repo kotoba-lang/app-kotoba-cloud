@@ -14,12 +14,8 @@
      (chat/workspace {:id "main"}
        (chat/sidebar {:id "norbert-sidebar" :aria-label (t "会話" "Conversations")}
          [:button {:type "button" :id "norbert-new"} (t "＋ 新しいチャット" "+ New chat")]
-         [:button {:type "button" :id "norbert-close" :data-ck-chat "history-close"} (t "閉じる" "Close")]
-         [:a {:href "#knowledge/overview"} (t "データベース管理" "Manage databases")]
-         [:a {:href "#security"} (t "公開データ" "Public data")]
          [:nav {:id "norbert-history" :aria-label (t "会話履歴" "Chat history")}]
-         [:button {:type "button" :id "norbert-delete"} (t "この会話を削除" "Delete conversation")]
-         [:a {:href (if ja? "/ja/billing/" "/billing/")} (t "利用設定" "Usage settings")])
+         [:button {:type "button" :id "norbert-delete"} (t "この会話を削除" "Delete conversation")])
        (chat/panel {}
          (chat/toolbar {}
            [:button {:type "button" :id "norbert-menu" :data-ck-chat "history-toggle" :aria-controls "norbert-sidebar" :aria-expanded "false"} (t "会話" "Chats")]

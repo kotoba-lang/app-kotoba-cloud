@@ -418,6 +418,17 @@
 .kc-sb a:hover{background:var(--hig-color-system-background)}
 .kc-sb a[data-current=true]{background:var(--hig-color-key-100);color:var(--hig-color-key-900,var(--hig-color-label))}
 .kc-sb__foot{margin-top:auto;padding-top:var(--hig-spacing-4);color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}
+.kc-sb__foot{margin-top:auto;border-top:1px solid var(--hig-color-separator);padding-top:var(--hig-spacing-3)}
+#kc-session-nav-side{min-height:3.25rem;display:flex;align-items:center;color:var(--hig-color-secondary-label);font-weight:700}
+#kc-session-nav-side .kc-session-menu{inline-size:100%}
+#kc-session-nav-side .kc-session-menu summary{justify-content:center;inline-size:100%}
+#kc-session-nav-side .kc-session-menu__panel{position:static;box-shadow:none;border:none;padding:var(--hig-spacing-2) 0;display:grid}
+#kc-session-nav-side .kc-session-menu__item{min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;background:none;border:none;font:inherit;cursor:pointer;inline-size:100%;text-align:start}
+#kc-session-nav-side .kc-session-menu__item:hover{background:var(--hig-color-system-background)}
+.kc-session-menu__panel{position:absolute;inset-inline-end:0;top:calc(100% + var(--hig-spacing-2));z-index:40;min-inline-size:13rem;display:grid;padding:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-system-background);box-shadow:0 8px 24px rgb(0 0 0 / 12%)}
+.kc-session-menu__panel a,.kc-session-menu__panel button{display:flex;align-items:center;min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;white-space:nowrap;background:none;border:none;font:inherit;cursor:pointer}
+.kc-session-menu__panel a:hover,.kc-session-menu__panel button:hover{background:var(--hig-color-secondary-system-background)}
+.kc-session-menu:not([open]) .kc-session-menu__panel{display:none}
 body:has(.kc-sb){padding-inline-start:15rem}
 @media(max-width:64rem){body:has(.kc-sb){padding-inline-start:0}.kc-sb{position:static;inline-size:auto;inset-block:auto;border-inline-end:none;border-block-end:1px solid var(--hig-color-separator)}}")
 
@@ -446,7 +457,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
      [:div {:class "kc-sb__group"} (:sb-account t)]
      (item (:menu-account t) "/account")
      (item (:menu-billing t) "/billing/")
-     [:div {:class "kc-sb__foot"} (t "Kotoba Labs Inc" "Kotoba Labs Inc")]]))
+     [:div {:id "kc-session-nav-side" :class "kc-sb__foot"
+            :aria-label (t "アカウント" "Account")}
+      (t "サインインしてください" "Sign in to view your account")]]))
 
 (defn app-menu
   "OpenRouter-style single dropdown menu over the compact app header.
@@ -832,7 +845,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
      ;; on top, and the research chat as one panel — not the landing hero.
      (site-header locale t {:nav false})
      (app-sidebar locale t "/docs/reference/quickstart/")
-     [:div {:id "kc-app-main" :style {:padding "0 var(--hig-spacing-4)"}}
+     [:div {:id "kc-app-main" :style {:padding "0"
+                                       :margin-inline-start "15rem"
+                                       :min-height "calc(100dvh - 65px)"}}
       (chat-site/view locale (passkey-href locale))]
      (knowledge-site/view locale)
      [:div {:id "security-view" :hidden true} (security-site/view true)]
