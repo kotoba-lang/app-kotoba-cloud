@@ -77,8 +77,15 @@
    :trustPolicy trust-policy :sessionPolicy session-policy})
 
 (defn text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))
+;; A projection is stamped by the authority on one machine and checked by
+;; the edge on another. Measured 2026-09-15 20:44:32: one bearer completion
+;; answered 403 trust-route-required while /status was eligible 1 s before
+;; and 16 s after — the only time-dependent term in that check is
+;; evaluatedAt <= edge-now, and a few ms of clock skew flips it. Tolerate a
+;; stamp slightly in the edge's future; never a stale or expired one.
+(def clock-skew-ms 5000)
 (defn fresh? [start end now max-age]
-  (and (number? start) (number? end) (<= 0 start now) (< now end)
+  (and (number? start) (number? end) (<= 0 start (+ now clock-skew-ms)) (< now end)
        (<= (- now start) max-age)))
 
 (defn trust-current?
