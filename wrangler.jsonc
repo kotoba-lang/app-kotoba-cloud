@@ -116,6 +116,11 @@
     // account (billing_account.cljk portal-configuration!): the test id
     // bpc_1UFI88ITDawH5x8adO7LxkD1 belongs to the Kotoba Labs test account
     // and must not be sent to the live account.
-    "STRIPE_PORTAL_CONFIGURATION_ID": ""
+    "STRIPE_PORTAL_CONFIGURATION_ID": "",
+    // blue-team route (research.cljk teams :blue → OpenRouter). The key itself is a
+    // secret on the research authority Worker (OPENROUTER_API_KEY,
+    // wrangler.research.jsonc); this flag is what /v1/models reports as the
+    // blue models' availability. Set to "true" once the secret is stored.
+    "OPENROUTER_CONFIGURED": "false"
   }
 }

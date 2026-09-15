@@ -170,6 +170,59 @@ r = await call("/applications", {
 assert.equal(r.status, 200);
 assert.ok(r.json.applicationId.startsWith("app-req-1"));
 
+// 11. blue team (OpenRouter): a signed-in principal with NO record is admitted,
+//     the job goes to OpenRouter with the OpenRouter id, and the offensive
+//     band stays closed. Without the key the route refuses by name.
+{
+  const blueState = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const bluePrincipal = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-222222222222";
+  const blueJob = "33333333-3333-4333-8333-333333333333";
+  const blueRequest = (model, task, content) => ({
+    principalId: bluePrincipal, sessionRef, jobId: blueJob, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model, task, scopeId: "owned", max_tokens: 64, messages: [{ role: "user", content }] },
+  });
+  const oldFetch = globalThis.fetch;
+  const routed = [];
+  globalThis.fetch = async (url, init) => {
+    routed.push({ url: String(url), auth: init.headers.authorization, referer: init.headers["HTTP-Referer"], body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ id: "gen-1", object: "chat.completion", model: "qwen/qwen3.8-flash",
+      choices: [{ index: 0, message: { role: "assistant", content: "Blue answer." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    // key absent → the job is admitted but the run refuses by name (never falls back to Modal)
+    const noKey = new ResearchAuthority(blueState, { ...env });
+    const callNoKey = (path, body) => noKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
+    let b = await callNoKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
+    assert.equal(b.status, 200, "blue: no record needed " + JSON.stringify(b.json));
+    let stored = JSON.parse(await blueState.storage.get("job:" + blueJob));
+    assert.equal(stored.status, "failed");
+    assert.match(stored.error, /openrouter-not-configured/);
+    assert.equal(routed.length, 0, "nothing was fetched — no fallback to the red route");
+    // key present → OpenRouter, OpenRouter id, referer, strict attribution
+    const blueState2 = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+    const withKey = new ResearchAuthority(blueState2, { ...env, OPENROUTER_API_KEY: "or-test-key" });
+    const callKey = (path, body) => withKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
+    b = await callKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
+    assert.equal(b.status, 200, JSON.stringify(b.json));
+    stored = JSON.parse(await blueState2.storage.get("job:" + blueJob));
+    assert.equal(stored.status, "succeeded", JSON.stringify(stored));
+    assert.equal(routed.length, 1);
+    assert.equal(routed[0].url, "https://openrouter.ai/api/v1/chat/completions");
+    assert.equal(routed[0].auth, "Bearer or-test-key");
+    assert.equal(routed[0].referer, "https://kotoba.cloud");
+    assert.equal(routed[0].body.model, "qwen/qwen3.8-flash");
+    // the offensive band is closed to the blue team regardless of key
+    b = await callKey("/jobs/create", { ...blueRequest("z-ai/glm-5.3-flash", "payload-crafting", "x"), jobId: "44444444-4444-4444-8444-444444444444" });
+    assert.equal(b.status, 403, JSON.stringify(b.json));
+    // red team on a fresh principal is still refused
+    b = await callKey("/jobs/create", { ...blueRequest("qwen3.8-flash-next-whitehacker", "code-review", "x"), jobId: "55555555-5555-4555-8555-555555555555" });
+    assert.equal(b.status, 403, "red stays gated: " + JSON.stringify(b.json));
+    assert.equal(b.json.error, "review-required");
+  } finally { globalThis.fetch = oldFetch; }
+  console.log("blue team route: admitted on sign-in, OpenRouter with its id, refuses by name without the key, offensive band closed, red still gated");
+}
+
 console.log("research authority local checks: all passed");
 
 // --- Stripe Identity eKYC E2E (challenge -> signed webhook -> full approval) ---

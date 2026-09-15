@@ -219,16 +219,21 @@
                     (or (:status (ex-data e)) 503)))))))
 
 (defn- complete [binding principal reference body respond]
-  (-> (service binding "/status" {:principalId principal :sessionRef reference :action (:task body)})
-      (.then
-       (fn [record]
-         (let [now (js/Date.now) reason (or (policy/eligibility principal record now)
-                                          (when-not (policy/session-current? reference (:task body) (:continuous record) now) "session-reverification-required"))]
-           (cond
-             reason (respond {:error {:code reason}} 403)
-             (not (policy/scope-approved? record body now))
-             (respond {:error {:code "research-scope-required"}} 403)
-             :else (complete-via-job binding principal reference body respond)))))))
+  (if (policy/blue? (:model body))
+    ;; Blue team: the edge has authenticated the principal (cookie session or
+    ;; PAT); the authority admits on guardrails + task + free quota and routes
+    ;; to OpenRouter. No identity ladder, no scope, no continuous session.
+    (complete-via-job binding principal reference body respond)
+    (-> (service binding "/status" {:principalId principal :sessionRef reference :action (:task body)})
+        (.then
+         (fn [record]
+           (let [now (js/Date.now) reason (or (policy/eligibility principal record now)
+                                            (when-not (policy/session-current? reference (:task body) (:continuous record) now) "session-reverification-required"))]
+             (cond
+               reason (respond {:error {:code reason}} 403)
+               (not (policy/scope-approved? record body now))
+               (respond {:error {:code "research-scope-required"}} 403)
+               :else (complete-via-job binding principal reference body respond))))))))
 
 (defn- session-reference [request principal]
   (let [token (session/cookie-value (.get (.-headers request) "cookie") session/cookie-name)]
@@ -253,9 +258,12 @@
                  (contains? #{"queued" "running" "succeeded" "cancelled" "unknown"} status)
                  (policy/text? (:receiptId result) 512)))
       (respond {:error {:code "invalid-job-receipt"}} 502)
-      (or (policy/eligibility principal record now)
-          (not (policy/session-current? reference task (:continuous record) now))
-          (not (policy/scope-approved? record {:task task :scopeId scope} now)))
+      ;; The red team re-verifies the whole ladder on every poll; a blue job
+      ;; was admitted on the principal alone (research.cljk teams).
+      (and (not (policy/blue? (:model result)))
+           (or (policy/eligibility principal record now)
+               (not (policy/session-current? reference task (:continuous record) now))
+               (not (policy/scope-approved? record {:task task :scopeId scope} now))))
       (respond {:error {:code "job-reverification-required"}} 403)
       (and (= "succeeded" status) (not (policy/text? (:content result) 65536)))
       (respond {:error {:code "invalid-job-receipt"}} 502)
@@ -407,7 +415,20 @@
     (cond
       (not= method required-method)
       (respond {:error {:code "method-not-allowed"}} 405)
-      (= path "/v1/models") (respond policy/catalog 200)
+      (= path "/v1/models")
+      ;; blue-team availability is an environment fact: the OpenRouter key
+      ;; is an operator secret on the RESEARCH authority; the edge reads its
+      ;; own copy of the flag (OPENROUTER_CONFIGURED) rather than the key
+      (respond (update policy/catalog :data
+                       (fn [rows]
+                         (mapv (fn [m]
+                                 (if (= "blue" (:team m))
+                                   (assoc m :availability (if (= "true" (aget env "OPENROUTER_CONFIGURED"))
+                                                            "openrouter-configured"
+                                                            "openrouter-key-not-configured"))
+                                   m))
+                               rows)))
+               200)
       ;; Stripe server-to-server webhook: no origin, auth or viewer gate.
       public-webhook?
       (-> (if-not binding
