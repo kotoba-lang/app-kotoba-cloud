@@ -149,7 +149,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
     creditHidden:document.getElementById('kc-credit-chip').hidden,
     foot:document.getElementById('kc-session-nav-side').textContent.replace(/\\s+/g,' ').trim(),
     brand:(()=>{const i=document.querySelector('.kc-sb__brand img');const r=i.getBoundingClientRect();return {loaded:i.complete&&i.naturalWidth>0,left:Math.round(r.left),top:Math.round(r.top),h:Math.round(r.height)}})(),
-    section:document.querySelector('.kc-topbar__section').textContent.replace(/\\s+/g,' ').trim()}));
+    section:document.querySelector('.ck-topbar__section').textContent.replace(/\\s+/g,' ').trim()}));
   if(s.chip!=='はじめる 1/3')throw Error('setup chip '+s.chip);
   if(s.state!=='pending'||!/account-panel-identity/.test(s.chipHref))throw Error('setup chip next '+JSON.stringify(s));
   if(!s.bannerHidden)throw Error('banner must not repeat the panel on /account');
@@ -157,13 +157,31 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   if(!/@hanako/.test(s.foot)||!/個人/.test(s.foot))throw Error('account chip '+s.foot);
   if(s.section!=='アカウント')throw Error('section '+s.section);
   if(!s.brand.loaded||s.brand.left>32||s.brand.top>40||s.brand.h<20||s.brand.h>40)throw Error('brand mark not top-left / not loaded '+JSON.stringify(s.brand));
-  await page.click('.kc-account-chip'); await page.waitForTimeout(200);
+  // the account entry is cloud-kotoba-dds.shell's: the sign-in control is
+  // hidden, the chip revealed; opening the menu changes NOTHING in flow (the
+  // foot's height, the chip's place) and the menu floats over the rail —
+  // 'just expands' (owner, 2026-09-15) is measured as a foot that grows
+  const closed=await page.evaluate(()=>{const c=document.querySelector('.ck-account__chip').getBoundingClientRect();return {signIn:document.querySelector('[data-ck-account=sign-in]').hidden,chip:[Math.round(c.top),Math.round(c.left)],foot:Math.round(document.querySelector('.kc-sb__foot').getBoundingClientRect().height)};});
+  if(!closed.signIn)throw Error('sign-in control still shown beside the chip');
+  await page.click('.ck-account__chip'); await page.waitForTimeout(200);
   const nav=await page.evaluate(()=>{const nav=document.querySelector('.kc-sb');const rects=[...nav.children].map(e=>e.getBoundingClientRect());let overlaps=0;for(let i=1;i<rects.length;i++){if(rects[i].top<rects[i-1].bottom-1)overlaps++;}
-    const item=nav.querySelectorAll(':scope > a')[3].getBoundingClientRect();const chip=document.querySelector('.kc-account-chip').getBoundingClientRect();
-    return {overlaps,itemH:Math.round(item.height),chipH:Math.round(chip.height),open:document.querySelector('#kc-session-nav-side details').open,menuItems:document.querySelectorAll('#kc-session-nav-side .kc-session-menu__item').length}});
+    const item=nav.querySelectorAll(':scope > a')[3].getBoundingClientRect();const chip=document.querySelector('.ck-account__chip').getBoundingClientRect();
+    const menu=document.querySelector('[data-chrome=float]');const m=menu.getBoundingClientRect();const cs=getComputedStyle(menu);
+    return {overlaps,itemH:Math.round(item.height),chipH:Math.round(chip.height),open:document.querySelector('#kc-session-nav-side details').open,menuItems:document.querySelectorAll('#kc-session-nav-side .ck-account__item').length,
+      after:{chip:[Math.round(chip.top),Math.round(chip.left)],foot:Math.round(document.querySelector('.kc-sb__foot').getBoundingClientRect().height)},
+      menu:{position:cs.position,z:cs.zIndex,above:m.bottom<=chip.top+1,inViewport:m.top>=0&&m.bottom<=innerHeight,w:Math.round(m.width)}}});
   if(nav.overlaps)throw Error('sidebar children overlap ('+nav.overlaps+') — a shrunken foot paints its chip over the items');
   if(nav.itemH>36||nav.chipH>44)throw Error('sidebar menu not compact '+JSON.stringify(nav));
   if(!nav.open||nav.menuItems!==3)throw Error('account menu '+JSON.stringify(nav));
+  if(nav.after.foot!==closed.foot||nav.after.chip[0]!==closed.chip[0])throw Error('the account menu opened in flow (foot '+closed.foot+'→'+nav.after.foot+', chip top '+closed.chip[0]+'→'+nav.after.chip[0]+') — it must float');
+  if(nav.menu.position!=='absolute'||Number(nav.menu.z)<40||!nav.menu.above||!nav.menu.inViewport)throw Error('account menu does not float above the chip '+JSON.stringify(nav.menu));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  const esc=await page.evaluate(()=>({open:document.querySelector('#kc-session-nav-side details').open,focus:document.activeElement.className}));
+  if(esc.open||!/ck-account__chip/.test(esc.focus))throw Error('Escape must close the menu and return focus to the chip '+JSON.stringify(esc));
+  // the top bar is sticky: after scrolling it is still at the top edge
+  const stuck=await page.evaluate(async()=>{const bar=document.querySelector('[data-chrome=top]');window.scrollTo(0,4000);await new Promise(r=>setTimeout(r,120));return {top:Math.round(bar.getBoundingClientRect().top),scrolled:window.scrollY,h:document.documentElement.scrollHeight};});
+  if(stuck.scrolled<300)throw Error('page too short to test the sticky bar '+JSON.stringify(stuck));
+  if(stuck.top!==0)throw Error('top bar scrolled away (top '+stuck.top+' after '+stuck.scrolled+'px)');
   await page.close();
  }
  console.log('block theme+language');
