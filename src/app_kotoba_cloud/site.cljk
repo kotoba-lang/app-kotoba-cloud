@@ -394,26 +394,27 @@
 (defn site-header
   ([locale t]
    (site-header locale t {}))
-  ([locale t {:keys [language-ja language-en]}]
-   [:header {:class "kc-header"}
+  ([locale t {:keys [language-ja language-en nav] :or {nav true}}]
+   [:header {:class (if nav "kc-header" "kc-header kc-header--compact")}
     (dds/container
      [:div {:class "kc-header__inner"}
       [:a {:class "kc-wordmark" :href (:path t) :aria-label (:home-label t)}
        [:span {:class "kc-mark" :aria-hidden "true"} "こ"]
        [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]]
-      [:nav {:class "kc-nav" :aria-label (:nav-label t)}
-       [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-models")} (if (= locale :ja) "モデル" "Models")]
-       [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (if (= locale :ja) "研究者登録" "Researchers")]
-       [:a {:class "kc-nav__secondary" :href "/billing/"} (if (= locale :ja) "料金・決済" "Billing")]
-       [:a {:class "kc-nav__secondary" :href "/account"} (:nav-account t)]
-       [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]
-       (language-links locale (:language-label t)
-                       {:ja (or language-ja "/ja/") :en (or language-en "/")})
-       ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
+      (when nav
+        [:nav {:class "kc-nav" :aria-label (:nav-label t)}
+         [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-models")} (if (= locale :ja) "モデル" "Models")]
+         [:a {:class "kc-nav__secondary" :href (str (:path t) "#research-register")} (if (= locale :ja) "研究者登録" "Researchers")]
+         [:a {:class "kc-nav__secondary" :href "/billing/"} (if (= locale :ja) "料金・決済" "Billing")]
+         [:a {:class "kc-nav__secondary" :href "/account"} (:nav-account t)]
+         [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]])
+      (language-links locale (:language-label t)
+                      {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
+      ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
        ;; ADR-2609071000); passkeys, wallets and recovery phrases remain.
        (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
-                                     :href (passkey-href locale)})]])]))
+                                     :href (passkey-href locale)})])]))
 
 (defn site-footer [t]
   [:footer {:class "kc-footer"}
