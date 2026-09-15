@@ -24,6 +24,8 @@
             [app-kotoba-cloud.public-locales :as locales]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.console :as console]
+            [jp-go-dds.theme-toggle :as theme-toggle]
+            [jp-go-dds.dark :as dark]
             [app-kotoba-cloud.secure-site :as secure-site]
             [app-kotoba-cloud.models-site :as models-site]
             [app-kotoba-cloud.billing-site :as billing-site]
@@ -524,6 +526,27 @@ body:has(.kc-sb){padding-inline-start:15rem}
              :href (passkey-href locale)}
          (txt "サインイン" "Sign in")]]]))))
 
+(defn console-language-switch
+  "The language switch of the console chrome — jp-go-dds's language-selector
+   under cloud-kotoba-dds's :language-selector contract: base
+   :jp-go-dds/language-selector, preserves the route, selection order
+   explicit URL → saved choice → default. The two implemented console
+   locales (contracts.edn :locales) are offered; each href is the SAME
+   document under a locale prefix, which the Worker canonicalises back to
+   the locale-free route with the choice persisted as kb_locale
+   (locale.cljk) — the click also writes the cookie client-side
+   (language-cookie-script), so the route never forks."
+  [locale current]
+  (let [path (first (str/split (str (or current "/")) #"#" 2))
+        path (if (str/starts-with? path "/") path (str "/" path))]
+    (dds/language-selector
+     {:id-prefix "kc-console-language"
+      :size "sm"
+      :current locale
+      :languages [{:code :ja :label "日本語" :href (str "/ja" path)}
+                  {:code :en :label "English" :href (str "/en" path)}]
+      :attrs {:aria-label (if (= locale :ja) "表示言語" "Language")}})))
+
 (defn console-topbar
   "The console's top bar: the section this page belongs to (from the IA
   table — navigation, not a second h1), then the actions every console
@@ -544,7 +567,11 @@ body:has(.kc-sb){padding-inline-start:15rem}
      [:div {:class "kc-topbar__actions"}
       [:a {:class "kc-topbar__chip" :id "kc-credit-chip" :href "/billing/" :hidden true} "—"]
       [:a {:class "kc-topbar__link" :href "/docs/"} (txt "ドキュメント" "Docs")]
-      [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]]]))
+      [:a {:class "kc-topbar__chip kc-topbar__chip--setup" :id "kc-setup-chip" :href "/account" :hidden true} "—"]
+      ;; right edge (reference: … | EN): language, then the λ yin-yang
+      ;; theme switch (jp-go-dds.theme-toggle; hidden until its script runs)
+      (console-language-switch locale current)
+      theme-toggle/control]]))
 
 (defn setup-banner
   "'Resume setup — <next step> · Continue': hidden until the session is
@@ -599,6 +626,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
          [:a {:class "kc-nav__secondary" :href "/apps/"} (:menu-apps t)]])
       (language-links locale (:language-label t)
                       {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
+      theme-toggle/control
       ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
        ;; ADR-2609071000); passkeys, wallets and recovery phrases remain.
@@ -935,8 +963,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css app-sidebar-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
-                :head (document-head locale :path (:title t) (:description t))}
+                :dark? true
+                :app-css (str theme-toggle/css tokens/skin-css app-css app-sidebar-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
+                :head (into [[:script {:src "/js/theme.js"}]] (document-head locale :path (:title t) (:description t)))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
                  (view-fn locale)))
@@ -962,6 +991,10 @@ body:has(.kc-sb){padding-inline-start:15rem}
    the same bytes."
   []
   (str (document-css) "\n"
+       ;; upstream → ext (page inlines it) → dark → app: the inversion layer
+       ;; before every app rule so an app override stays last (page.cljk)
+       (dark/dark-css (document-css)) "\n"
+       theme-toggle/css "\n"
        tokens/skin-css "\n" app-css "\n" app-sidebar-css "\n"
        research-site/css "\n" chat-site/css "\n"
        knowledge-site/css "\n" tokens/bridge-css "\n"
@@ -991,8 +1024,14 @@ body:has(.kc-sb){padding-inline-start:15rem}
     :lang (or lang (if (= locale :en) "en" "ja"))
     :css ""
     :app-css ""
+    ;; dark: the inversion layer lives in /css/site.css (site-css); page
+    ;; derives the color-scheme / theme-color pair from :dark-source and
+    ;; does not inline a second copy. theme.js runs in <head> before paint
+    ;; (jp-go-dds.theme-toggle/script) — external, because script-src is
+    ;; 'self' with no 'unsafe-inline' (csp.cljk).
+    :dark? true :dark-source (document-css) :dark-inline? false
     :head (into (if robots [[:meta {:name "robots" :content robots}]] [])
-                (into site-css-link
+                (into (into [[:script {:src "/js/theme.js"}]] site-css-link)
                       [[:script {:src "https://freebuff.com/freebuff-tag.js" :async true}]
                        [:script "window.freebuff=window.freebuff||function(){(window.freebuff.q=window.freebuff.q||[]).push(arguments)}"]
                        [:script {:src "/js/language-selector.js" :defer true}]
@@ -1459,6 +1498,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join en-dir "legal" "tokushoho" "index.html") (tokushoho-html :en))
       (spit-file (node-path/join js-dir "language-selector.js")
                  (str behavior/language-selector-script "\n" locale/language-cookie-script))
+      ;; the theme choice, applied in <head> before paint on every document
+      (spit-file (node-path/join js-dir "theme.js") theme-toggle/script)
       (doseq [source (fs-walk-files ipfs-source)]
         (copy-file source (node-path/join ipfs-target (node-path/basename source))))
       (copy-file registry-source registry-target)

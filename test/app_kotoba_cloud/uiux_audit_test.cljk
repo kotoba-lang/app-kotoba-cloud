@@ -15,7 +15,7 @@
   ;; in-process: the documents the render emits are named here by hand (the
   ;; script reads them from public/); the Worker routes and the per-route CSP
   ;; are the same data the script uses
-  {:assets #{"/js/session.js" "/js/language-selector.js" "/css/site.css" "/assets/kotoba-logo.png"}
+  {:assets #{"/js/session.js" "/js/language-selector.js" "/js/theme.js" "/css/site.css" "/assets/kotoba-logo.png"}
    :stylesheets {"/css/site.css" (site/site-css)}
    :documents (into #{"/zh/"} (map #(str "/" (name %) "/") site/supported-locales)) ; locale emits
    :documents-static #{"/" "/docs/" "/secure/" "/models/" "/blog/" "/docs/reference/" "/docs/reference/quickstart/" "/docs/reference/errors/"
@@ -28,6 +28,7 @@
                 ;; link through these; article pages are emitted per post)
                 "/ja/blog/"}
    :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"]
+   :locale-prefixes (set (map name site/supported-locales))
    :csp csp/for-path})
 
 (def ctx (update ctx :documents into (:documents-static ctx)))
@@ -70,8 +71,9 @@
       (is (str/includes? (:finding (axis r :unique-ids)) "account-pat-create×2"))))
   (testing "a script the build did not ship"
     (let [r (audit/score-document {:file "/account/" :html (site/account-html)}
-                                  (assoc ctx :assets #{"/js/language-selector.js" "/css/site.css"}))]
-      (is (str/includes? (:finding (axis r :assets-resolve)) "referenced but absent from the published assets: /js/session.js"))))
+                                  (update ctx :assets disj "/js/session.js"))]
+      (is (= "referenced but absent from the published assets: /js/session.js — the document ships, its behaviour does not (every pending cell stays pending forever)"
+             (:finding (axis r :assets-resolve))))))
   (testing "a nav link to a document that was never emitted"
     (let [r (audit/score-document {:file "/account/" :html (site/account-html)}
                                   (update ctx :documents disj "/docs/"))]
