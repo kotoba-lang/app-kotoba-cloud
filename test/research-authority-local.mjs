@@ -187,6 +187,62 @@ assert.deepEqual(storedJob.usageReceipt && {
   assert.equal(rts.json.finishReason, "tool_calls");
 }
 
+// 6d. The model answers tool calls as Qwen3-Coder XML text (the origin's
+// hermes parser leaves it in content, measured live 2026-09-15 21:04). The
+// authority converts it to native tool_calls, typing the parameters from
+// the request's tool schema, and the residual text becomes null content.
+{
+  const realUpstream = globalThis.fetch;
+  const xml = '\n\n<tool_call>\n<function=write_file>\n<parameter=path>\ngreet.py\n</parameter>\n<parameter=content>\nprint("hi")\n\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=terminal>\n<parameter=command>\npython3 greet.py\n</parameter>\n<parameter=timeout>\n30\n</parameter>\n<parameter=background>\nfalse\n</parameter>\n</function>\n</tool_call>';
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    id: "chatcmpl-xml", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: xml } }],
+    usage: { prompt_tokens: 40, completion_tokens: 60, total_tokens: 100 },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const xmlJobId = "55555555-5555-4555-8555-555555555555";
+  const rx = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: xmlJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 256,
+      tools: [{ type: "function", function: { name: "write_file", parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } } } } },
+              { type: "function", function: { name: "terminal", parameters: { type: "object", properties: { command: { type: "string" }, timeout: { type: "integer" }, background: { type: "boolean" } } } } }],
+      messages: [{ role: "user", content: "Create greet.py and run it" }] },
+  });
+  assert.equal(rx.status, 200, JSON.stringify(rx));
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  const xmlJob = JSON.parse(await state.storage.get("job:" + xmlJobId));
+  assert.equal(xmlJob.status, "succeeded", JSON.stringify(xmlJob));
+  assert.equal(xmlJob.content, null, "residual text is only whitespace");
+  assert.equal(xmlJob.finishReason, "tool_calls");
+  assert.equal(xmlJob.toolCalls.length, 2);
+  assert.equal(xmlJob.toolCalls[0].function.name, "write_file");
+  assert.deepEqual(JSON.parse(xmlJob.toolCalls[0].function.arguments), { path: "greet.py", content: 'print("hi")\n' });
+  assert.equal(xmlJob.toolCalls[1].function.name, "terminal");
+  assert.deepEqual(JSON.parse(xmlJob.toolCalls[1].function.arguments), { command: "python3 greet.py", timeout: 30, background: false });
+  assert.match(xmlJob.toolCalls[0].id, /^call_/);
+  assert.notEqual(xmlJob.toolCalls[0].id, xmlJob.toolCalls[1].id);
+  // the hermes-style json form is read too, and text outside the block survives
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    id: "chatcmpl-json", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: 'Let me look.\n<tool_call>\n{"name": "read_file", "arguments": {"path": "a.txt"}}\n</tool_call>' } }],
+    usage: { prompt_tokens: 4, completion_tokens: 6, total_tokens: 10 },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const jsonJobId = "66666666-6666-4666-8666-666666666666";
+  await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: jsonJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 256, messages: [{ role: "user", content: "Read a.txt" }] },
+  });
+  await new Promise(r => setTimeout(r, 50));
+  globalThis.fetch = realUpstream;
+  const jsonJob = JSON.parse(await state.storage.get("job:" + jsonJobId));
+  assert.equal(jsonJob.status, "succeeded", JSON.stringify(jsonJob));
+  assert.equal(jsonJob.content, "Let me look.");
+  assert.deepEqual(JSON.parse(jsonJob.toolCalls[0].function.arguments), { path: "a.txt" });
+  assert.equal(jsonJob.toolCalls[0].function.name, "read_file");
+}
+
 // 7. replay same input -> same receipt, not double-counted
 r = await call("/jobs/create", {
   principalId: principal, sessionRef, jobId, policyVersion: "whitehat-2026-09-12-v1",
