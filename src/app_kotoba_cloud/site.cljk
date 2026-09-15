@@ -1012,6 +1012,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
                (str (fs/readFileSync (node-path/join "assets" "blog" "posts.edn") "utf8")))]
     (vec (reverse (sort-by :date posts)))))
 
+(defn blog-locale-catalog
+  "Locales addressable for the blog: English (canonical), Japanese, plus
+   every locale that any post carries a real :i18n translation for."
+  [posts]
+  (distinct (concat [:en :ja] (mapcat (comp keys :i18n) posts))))
+
 (defn blog-html [locale]
      (site-layout {:title "セキュリティ観測ブログ — Kotoba Cloud"
                    :description "cybersecurity の最新ニュース・インシデント・AI モデル動向の毎日観測レポート。"
@@ -1020,9 +1026,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (blog-site/list-view locale (blog-posts))))
 
 (defn blog-article-html [locale post]
-     (site-layout {:title (str (if (= locale :ja) (:title-ja post) (:title-en post)) " — Kotoba Cloud")
-                   :description (if (= locale :ja) (:summary-ja post) (:summary-en post))
-                   :lang (name locale)
+     (site-layout {:title (str (blog-site/post-title post locale) " — Kotoba Cloud")
+                   :description (blog-site/post-summary post locale)
+                   :lang (blog-site/post-lang post locale)
                    :extra-css (str tokens/bridge-css blog-site/css)}
       (blog-site/article-view locale post)))
 
@@ -1471,12 +1477,18 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "compliance" "index.html") (compliance-html))
       (spit-file (node-path/join root "security" "compliance" "index.html") (compliance-html))
       (spit-file (node-path/join root "ja" "security" "compliance" "index.html") (compliance-html))
-      ;; blog: security-research thinktank feed (articles = assets/blog/posts.edn)
-      (spit-file (node-path/join root "blog" "index.html") (blog-html :en))
-      (spit-file (node-path/join root "ja" "blog" "index.html") (blog-html :ja))
-      (doseq [p (blog-posts)]
-        (spit-file (node-path/join root "blog" (:slug p) "index.html") (blog-article-html :en p))
-        (spit-file (node-path/join root "ja" "blog" (:slug p) "index.html") (blog-article-html :ja p)))
+      ;; blog: security-research thinktank feed (articles = assets/blog/posts.edn).
+      ;; One index per addressable locale, one article page per locale the
+      ;; post actually carries (:en canonical, :ja, plus :i18n languages).
+      (let [posts (blog-posts)]
+        (doseq [l (blog-locale-catalog posts)]
+          (let [dir (if (= l :en) root (node-path/join root (name l)))]
+            (spit-file (node-path/join dir "blog" "index.html") (blog-html l))))
+        (doseq [p posts]
+          (doseq [l (distinct (concat [:en :ja] (keys (:i18n p))))]
+            (let [dir (if (= l :en) root (node-path/join root (name l)))]
+              (spit-file (node-path/join dir "blog" (:slug p) "index.html")
+                         (blog-article-html l p))))))
       ;; compliance catalog data blocks + browser script (data at /compliance-data/compliance/)
       (doseq [source (fs-walk-files (node-path/join "assets" "compliance-catalog"))]
         (let [rel (node-path/relative (node-path/join "assets" "compliance-catalog") source)

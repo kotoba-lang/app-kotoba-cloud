@@ -33,4 +33,8 @@
   :body-ja ["Kotoba Cloud の researcher チームは、cybersecurity の最新ニュース、重大インシデント、AI モデルまわりの動向を毎日観測し、分析記事をこのブログに公開します。"
             "記事は観測 bot が収集した公開情報に基づき、出典を確認したうえで人間が編集方針を管理します。脅威情報そのものの配信ではなく、Kotoba Cloud のセキュリティ製品カタログ (CSF 2.0) やコンプライアンスデータと接続できる分析を提供します。"]
   :body-en ["The Kotoba Cloud research team observes the latest cybersecurity news, major incidents and AI-model developments every day and publishes analysis articles here."
-            "Articles are based on public information collected by the observatory bot, verified against sources; a human maintains editorial policy. This is not raw threat-intel feed delivery: the analysis connects to Kotoba Cloud's security product catalog (CSF 2.0) and compliance data."]}]
+            "Articles are based on public information collected by the observatory bot, verified against sources; a human maintains editorial policy. This is not raw threat-intel feed delivery: the analysis connects to Kotoba Cloud's security product catalog (CSF 2.0) and compliance data."]
+  :i18n {:zh-Hans {:title "安全观测博客开通了"
+                   :summary "每天观测、分析网络安全新闻、重大事件与 AI 模型动态，并在此发布。"
+                   :body ["Kotoba Cloud 的研究团队每天观测最新的网络安全新闻、重大安全事件与 AI 模型动态，并将分析文章发布在这个博客上。"
+                          "文章基于观测 bot 收集的公开信息并核实出处；编辑方针由人工维护。这里不是原始威胁情报源：分析会与 Kotoba Cloud 的安全产品目录（CSF 2.0）和合规数据相连接。"]}}}]

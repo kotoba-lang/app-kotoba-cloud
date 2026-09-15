@@ -1118,6 +1118,16 @@
       ]
     },
     {
+      "id": "trend-container-security",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "Trend Micro Container Security",
+      "categoryId": "container",
+      "pricingMode": "quote-based",
+      "pricingNote": "quote-based; product page offers a 'Get pricing' CTA with no public list pricing (en_us page HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+      "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-container-image-security.html"
+    },
+    {
       "id": "trend-industrial-network-security",
       "provider": "Trend Micro",
       "providerHq": "JP",
@@ -4602,6 +4612,16 @@
       "pricingMode": "quote-based",
       "pricingNote": "国内診断サービス、見積り。",
       "pricingUrl": "https://www.arax.co.jp/"
+    },
+    {
+      "id": "trend-deep-discovery-inspector",
+      "provider": "Trend Micro",
+      "providerHq": "JP",
+      "name": "TrendAI Deep Discovery Inspector",
+      "categoryId": "ndr",
+      "pricingMode": "quote-based",
+      "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
+      "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)"
     }
   ]
 }
