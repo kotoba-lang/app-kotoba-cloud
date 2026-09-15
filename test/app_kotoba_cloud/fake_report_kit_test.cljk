@@ -1,0 +1,100 @@
+(ns app-kotoba-cloud.fake-report-kit-test
+  (:require [app-kotoba-cloud.fake-report-kit :as kit]
+            [clojure.test :refer [deftest is testing run-tests]]
+            [kotoba.lang.text :as str]))
+
+(defn- base-case [platform kind]
+  {:case/schema "kotoba-fake-report-case-2026-09-v1"
+   :case/platform platform
+   :case/suspect {:handle "@suspect-handle"
+                  :url (str "https://example-" (name platform) ".com/fake")
+                  :taken-at "2026-09-15T00:00:00Z"}
+   :case/impostered {:display-name (if (= :person kind) "Fixture Person" "Fixture Biz K.K.")
+                     :official-url (str "https://example-" (name platform) ".com/real")
+                     :kind kind}
+   :case/evidence [{:cid "bafkqfixturedraft" :taken-at "2026-09-15T00:00:00Z" :kind :screenshot}]})
+
+;; golden: 3 platforms x person/business = 6 deterministic drafts
+(def golden
+  (into {} (for [platform [:facebook :linkedin :line]
+                 kind [:person :business]]
+             [[platform kind] ((comp :ok kit/build-draft) (base-case platform kind))])))
+
+(deftest validate-accepts-fixture-and-rejects-shapes
+  (testing "C2: zero evidence is structurally impossible"
+    (is (contains? (kit/validate-case (assoc (base-case :facebook :person)
+                                             :case/evidence []))
+                   :errors))
+    (is (contains? (kit/validate-case (assoc (base-case :facebook :person)
+                                             :case/evidence nil))
+                   :errors)))
+  (testing "C2: evidence entry without taken-at is rejected"
+    (is (contains? (kit/validate-case (assoc-in (base-case :facebook :person)
+                                                [:case/evidence 0 :taken-at] nil))
+                   :errors)))
+  (testing "schema pin"
+    (is (contains? (kit/validate-case (assoc (base-case :linkedin :business)
+                                             :case/schema "other-v9"))
+                   :errors)))
+  (testing "unknown platform rejected"
+    (is (contains? (kit/validate-case (assoc (base-case :x :person) :case/platform :x))
+                   :errors)))
+  (testing "input absent -> reported, not silently passed (8-q #1/#2)"
+    (is (contains? (kit/validate-case nil) :errors)))
+  (testing "C3: on-behalf without consent is rejected"
+    (is (contains? (kit/validate-case (assoc (base-case :line :business)
+                                             :case/on-behalf true))
+                   :errors))
+    (is (:ok (kit/validate-case (assoc (base-case :line :business)
+                                       :case/on-behalf true
+                                       :case/consent {:statement "fixture consent"
+                                                      :proof-url "https://example-line.com/self-ref"})))))
+  (testing "valid fixture passes all 6 combinations"
+    (doseq [platform [:facebook :linkedin :line]
+            kind [:person :business]]
+      (is (:ok (kit/validate-case (base-case platform kind)))))))
+
+(deftest golden-drafts-are-deterministic-and-per-platform
+  (doseq [platform [:facebook :linkedin :line]
+          kind [:person :business]]
+    (let [again ((comp :ok kit/build-draft) (base-case platform kind))]
+      (is (= (get golden [platform kind]) again) "same input -> same draft")))
+  (is (= 6 (count golden)))
+  (is (str/includes? (get-in (get golden [:facebook :person]) [:form-url]) "facebook.com"))
+  (is (str/includes? (get-in (get golden [:linkedin :business]) [:form-url]) "linkedin.com"))
+  (is (str/includes? (get-in (get golden [:line :person]) [:form-name]) "LINE"))
+  (testing "eml fallback exists for line only"
+    (is (:eml (get golden [:line :business])))
+    (is (nil? (:eml (get golden [:facebook :person])))))
+  (testing "business kind wording differs from person"
+    (is (not= (get-in (get golden [:facebook :person]) [:fields])
+              (get-in (get golden [:facebook :business]) [:fields])))))
+
+(deftest c1-no-adjudicating-phrases-in-any-golden-draft
+  (doseq [[key draft] golden]
+    (is (false? (kit/contains-forbidden-phrase? draft))
+        (str "C1 violation in golden draft " (pr-str key))))
+  (testing "the detector itself has teeth (broken copy must fail)"
+    (let [poisoned (assoc (get golden [:facebook :person])
+                          :caveat "This account is definitely fake and confirmed.")]
+      (is (true? (kit/contains-forbidden-phrase? poisoned)))))
+  (testing "caveat explicitly disclaims a verdict"
+    (is (str/includes? (get-in (get golden [:facebook :person]) [:caveat]) "not a determination"))
+    (is (str/includes? (get-in (get golden [:line :person]) [:caveat]) "確定ではありません"))))
+
+(deftest build-draft-refuses-invalid-cases
+  (is (contains? (kit/build-draft (assoc (base-case :line :person) :case/evidence [])) :errors))
+  (is (contains? (kit/build-draft nil) :errors))
+  (testing "input absent -> refuse, not throw"
+    (is (map? (try (kit/build-draft {}))))))
+
+(deftest pure-kit-assertions
+  (testing "no host effects: ns exposes no send/submit/fetch vars (C4)"
+    (let [publics (set (keys (ns-publics 'app-kotoba-cloud.fake-report-kit)))]
+      (is (contains? publics 'validate-case))
+      (is (contains? publics 'build-draft))
+      (is (contains? publics 'contains-forbidden-phrase?))
+      (is (empty? (filter (fn [s] (re-find #"send|submit|fetch|post" (name s))) publics)))))
+  (testing "charter flags"
+    (is (true? kit/non-adjudicating))
+    (is (= "kotoba-fake-report-case-2026-09-v1" kit/schema-version))))
