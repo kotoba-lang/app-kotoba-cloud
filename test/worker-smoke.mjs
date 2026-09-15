@@ -698,6 +698,9 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     let job = jobs.get(body.jobId);
     if (!job) {
       job = { jobId: body.jobId, principalId: body.principalId, sessionRef: body.sessionRef,
+        // the edge's word: "paid" holds a reservation for this id, anything
+        // else is the free daily quota (research_authority handle-jobs-create)
+        billing: body.billing === "paid" ? "paid" : "free",
         status: "queued", receiptId: "receipt-" + body.jobId, request: body.request, createdAt: Date.now() };
       jobs.set(body.jobId, job);
       setTimeout(() => { if (job.status === "queued") {
@@ -706,17 +709,22 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
         if (upstreamOutcome === "failed") { job.status = "failed"; job.error = "red-route-unavailable"; }
         else if (upstreamOutcome === "tool_calls") { job.status = "succeeded"; job.content = null; job.finishReason = "tool_calls";
           job.toolCalls = [{ id: "call_9", type: "function", function: { name: "write_file", arguments: "{\"path\":\"a.txt\"}" } }]; }
-        else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; } } }, 5);
+        else { job.status = "succeeded"; job.content = upstreamOutcome === "empty" ? null : "Check ownership before returning the record."; }
+        // the provider's measured usage as the authority stores it on every
+        // succeeded job (research_authority run-inference!)
+        if (job.status === "succeeded") job.usageReceipt = { receiptVersion: "kotoba-inference-usage-2026-09-v1", source: "origin-openai-compatible",
+          requestId: job.jobId, receiptId: job.receiptId, model: job.request.model, inputTokens: 120, cachedInputTokens: 0,
+          outputTokens: 30, totalTokens: 150, observedAt: Date.now() }; } }, 5);
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
-      sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
+      sessionPolicyVersion: body.sessionPolicyVersion, policyDecision: "allowed",
       model: body.request ? body.request.model : researchModel, record: researchRecord });
   }
   if (path === "/jobs/status") {
     const job = jobs.get(body.jobId);
     if (!job) return new Response(JSON.stringify({ error: "not-found" }), { status: 404 });
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
-      sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
+      sessionPolicyVersion: body.sessionPolicyVersion, policyDecision: "allowed",
       model: body.request ? body.request.model : researchModel, record: researchRecord });
   }
   assert.equal(path, "/complete");
@@ -1243,6 +1251,127 @@ for (const c of researchCalls) {
   assert.equal(JSON.stringify(c.body).includes("kc_pat_"), false);
 }
 console.log("PAT issue + bearer research path passed");
+
+// Paid inference (docs/billing/design.md "Enforcement"): with both launch
+// flags on and a BillingAccount binding, a principal whose ledger HOLDS a
+// reservation runs the job as "paid" — the authority is told so (no free
+// count), and the edge settles from the provider receipt, never from the
+// request. No balance (402) is the free quota exactly as before; a failed
+// paid job releases its hold at zero; a job the ledger cannot settle is
+// still answered, with the settlement named pending.
+{
+  const ledgerCalls = [];
+  let reserveAnswer = { status: 200, body: { status: "held" } };
+  let settleAnswer = { status: 200, body: { settled: true, receiptId: "inference:fixture", amountMicroUSD: 243 } };
+  const billingAccounts = { idFromName: (name) => name, get: (name) => ({ fetch: async (url, init) => {
+    const body = JSON.parse(init.body);
+    const path = new URL(url).pathname;
+    ledgerCalls.push({ name, path, body });
+    if (path === "/reserve") return Response.json(reserveAnswer.body, { status: reserveAnswer.status });
+    if (path === "/settle-usage") return Response.json(settleAnswer.body, { status: settleAnswer.status });
+    if (path === "/settle") return Response.json({ status: "settled", actual: body.actual }, { status: 200 });
+    throw new Error("unexpected ledger path " + path);
+  } }) };
+  const paidEnv = { ...researchEnv, PAT_SIGNING_SECRET: patSecret, BILLING_ACCOUNTS: billingAccounts,
+    BILLING_ENABLED: "true", BILLING_METERING_READY: "true", BILLING_MODE: "live", BILLING_ENVIRONMENT_ID: "acct_1TuxvPIzvFrqWhXK-live" };
+  const savedForPaid = structuredClone(researchRecord);
+  researchRecord.continuous.sessionRef = agentSessionRef;
+  researchRecord.continuous.action = "code-review";
+  researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+  const bearer = (body) => new Request("https://kotoba.cloud/v1/chat/completions", {
+    method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+    body: JSON.stringify(body) });
+  const paidBody = { model: researchModel, max_tokens: 2048, messages: [{ role: "user", content: "Review my auth checks (paid)." }] };
+
+  // held → paid: the authority hears "paid", the ledger settles the receipt
+  const paidOk = await route(bearer(paidBody), paidEnv);
+  assert.equal(paidOk.status, 200, JSON.stringify(await paidOk.clone().json()));
+  const paidJson = await paidOk.json();
+  assert.equal(paidJson.billing, "paid");
+  assert.deepEqual(paidJson.usage, { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 });
+  assert.equal(paidJson.chargedMicroUSD, 243);
+  const paidCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(paidCreate.body.billing, "paid");
+  const reserve = ledgerCalls.find(c => c.path === "/reserve");
+  assert.equal(reserve.name, "live:acct_1TuxvPIzvFrqWhXK-live:" + researchPrincipal, "the ledger a purchase funds is the one a completion debits");
+  assert.equal(reserve.body.id, paidCreate.body.jobId, "reservation id = job id: a retry re-attaches to both");
+  assert.equal(reserve.body.scope, "ai");
+  // the hold is an upper bound: 2048 output tokens at $4.50/M alone is 9,216 µUSD
+  assert(reserve.body.maximum >= 9216, "maximum " + reserve.body.maximum);
+  const settle = ledgerCalls.find(c => c.path === "/settle-usage");
+  assert.equal(settle.body.id, paidCreate.body.jobId);
+  assert.equal(settle.body.kind, "inference");
+  assert.deepEqual([settle.body.receipt.inputTokens, settle.body.receipt.outputTokens, settle.body.receipt.cachedInputTokens], [120, 30, 0]);
+  assert.match(settle.body.receipt.occurredAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(JSON.stringify(settle.body).includes("Review my auth checks"), false, "no prompt text reaches the ledger");
+  // the streamed shape carries the same accounting
+  const paidStream = await route(bearer({ ...paidBody, stream: true }), paidEnv);
+  assert.equal(paidStream.status, 200);
+  const streamText = await paidStream.text();
+  assert.match(streamText, /"billing":"paid"/);
+  assert.match(streamText, /"chargedMicroUSD":243/);
+
+  // no balance → the free quota, untouched: 402 makes no settle call and the
+  // authority hears free-only
+  ledgerCalls.length = 0;
+  reserveAnswer = { status: 402, body: { error: "usage-limit-exceeded" } };
+  const freeAgain = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "no balance" }] }), paidEnv);
+  assert.equal(freeAgain.status, 200);
+  assert.equal((await freeAgain.json()).billing, "free");
+  assert.equal(researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0].body.billing, "free-only");
+  assert.deepEqual(ledgerCalls.map(c => c.path), ["/reserve"]);
+
+  // metering off → no ledger hop at all
+  ledgerCalls.length = 0;
+  reserveAnswer = { status: 200, body: { status: "held" } };
+  const meteringOff = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "metering off" }] }), { ...paidEnv, BILLING_METERING_READY: "false" });
+  assert.equal((await meteringOff.json()).billing, "free");
+  assert.deepEqual(ledgerCalls, []);
+
+  // a paid job that fails releases the hold at zero
+  ledgerCalls.length = 0;
+  upstreamOutcome = "failed";
+  const paidFailed = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "paid but failed" }] }), paidEnv);
+  upstreamOutcome = "ok";
+  assert.equal(paidFailed.status, 502);
+  assert.equal((await paidFailed.json()).error.code, "inference-failed");
+  const release = ledgerCalls.find(c => c.path === "/settle");
+  assert.deepEqual([release.body.actual, release.body.receiptId.startsWith("released:")], [0, true]);
+  assert.equal(ledgerCalls.some(c => c.path === "/settle-usage"), false);
+
+  // a settlement the ledger refuses is named, not hidden — the answer is
+  // still served and the hold stays for reconciliation
+  ledgerCalls.length = 0;
+  settleAnswer = { status: 503, body: { error: "billing-reconciliation-required" } };
+  const paidPending = await route(bearer({ ...paidBody, messages: [{ role: "user", content: "paid, settle refused" }] }), paidEnv);
+  assert.equal(paidPending.status, 200);
+  const pendingJson = await paidPending.json();
+  assert.equal(pendingJson.billing, "paid");
+  assert.equal(pendingJson.settlement, "pending");
+  assert.equal(pendingJson.chargedMicroUSD, undefined);
+  settleAnswer = { status: 200, body: { settled: true, receiptId: "inference:fixture", amountMicroUSD: 243 } };
+  researchRecord = savedForPaid;
+
+  // the same bearer reads the balance its completions debit; a bad token or
+  // no token stays 401; writes stay cookie + origin only
+  const statusCalls = [];
+  const statusEnv = { ...paidEnv, STRIPE_AWAI_LIVE_KEY: "rk_live_fixture", STRIPE_AWAI_LIVE_WEBHOOK_SECRET: "whsec_fixture",
+    BILLING_SANDBOX_ENABLED: "false", STRIPE_PRICE_IDS: JSON.stringify({ pro: "price_live_pro" }), STRIPE_PORTAL_CONFIGURATION_ID: "",
+    BILLING_ACCOUNTS: { idFromName: (name) => name, get: (name) => ({ fetch: async (url, init) => {
+      statusCalls.push({ name, path: new URL(url).pathname, body: JSON.parse(init.body) });
+      return Response.json({ status: "connected", plan: "pro", balances: [{ scope: "ai", availableMicroUSD: 11999757 }] });
+    } }) } };
+  const bearerBalance = await route(new Request("https://kotoba.cloud/v1/billing/status", { headers: { authorization: `Bearer ${patBody.token}` } }), statusEnv);
+  assert.equal(bearerBalance.status, 200, JSON.stringify(await bearerBalance.clone().json()));
+  assert.equal((await bearerBalance.json()).plan, "pro");
+  assert.equal(statusCalls[0].name, "live:acct_1TuxvPIzvFrqWhXK-live:" + researchPrincipal);
+  assert.equal(statusCalls[0].body.principal, researchPrincipal);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/billing/status", { headers: { authorization: "Bearer kc_pat_bogus.0000000000000000" } }), statusEnv)).status, 401);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/billing/status"), statusEnv)).status, 401);
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/billing/checkout", { method: "POST",
+    headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" }, body: "{}" }), statusEnv)).status, 403, "a PAT cannot start a checkout");
+  console.log("paid inference: reserve → paid job → settle from the receipt; no balance stays free; failure releases; refused settlement named; PAT reads its own balance");
+}
 assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
   method: "POST", headers: { cookie: "gftd_session=test", origin: "https://kotoba.cloud", "content-type": "application/json" }, body: "{broken"
 }), researchEnv)).status, 400);

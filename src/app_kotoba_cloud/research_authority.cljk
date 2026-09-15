@@ -692,10 +692,14 @@
    :policyVersion "whitehat-2026-09-12-v1"
    :trustPolicyVersion "kotoba-trust-routes-2026-09-v1"
    :sessionPolicyVersion "kotoba-session-evidence-2026-09-v1"
-   :model (get-in job [:request :model]) :billing "free" :policyDecision "allowed"
+   :model (get-in job [:request :model]) :billing (or (:billing job) "free") :policyDecision "allowed"
    :receiptId (:receiptId job) :status (:status job)
    :task (get-in job [:request :task]) :scopeId (get-in job [:request :scopeId])
    :content (:content job)
+   ;; the provider's measured usage (token counts, model, timestamps — never
+   ;; the prompt) so the edge can settle a paid reservation from a terminal
+   ;; receipt, never from the request or the response text
+   :usageReceipt (:usageReceipt job)
    :toolCalls (:toolCalls job)
    :finishReason (:finishReason job)
    :record (public-record record session-ref (get-in job [:request :task]) now)})
@@ -1015,9 +1019,16 @@
                                          (when-not (trust-valid? record now)
                                            "trust-route-required")))]
                      (response {:error reason} 403)
-                     (let [day (utc-day now) used (quota-used record day)]
+                     ;; `:billing "paid"` is the edge's word that it holds a
+                     ;; reservation on the principal's prepaid ledger for this
+                     ;; job id (research-gateway paid-admission). A paid job is
+                     ;; not counted against the free daily quota and is not
+                     ;; refused by it; everything else (guardrails, firewall,
+                     ;; the identity ladder above) is the same bar.
+                     (let [day (utc-day now) used (quota-used record day)
+                           paid? (= "paid" (:billing body))]
                        (cond
-                         (>= used (:requestsPerDay free-limits))
+                         (and (not paid?) (>= used (:requestsPerDay free-limits)))
                          (response {:error "free-quota-exhausted"} 429)
                          :else
                          (-> (js-invoke storage "get" (str "job:" (:jobId body)))
@@ -1031,10 +1042,12 @@
                                           :else
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
                                                      :status "queued" :receiptId (str "receipt-" (:jobId body))
+                                                     :billing (if paid? "paid" "free")
                                                      :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens :tools :tool_choice])
                                                      :createdAt now :sessionRef (:sessionRef body)}
-                                                next (assoc-in record [:usage :day] day)
-                                                next (assoc-in next [:usage :count] (inc used))]
+                                                next (if paid? record
+                                                       (-> record (assoc-in [:usage :day] day)
+                                                           (assoc-in [:usage :count] (inc used))))]
                                             (-> (save-state storage next)
                                                 (.then (fn [_] (store-job! storage job)))
                                                 (.then (fn [_]

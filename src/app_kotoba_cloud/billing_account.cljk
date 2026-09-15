@@ -52,9 +52,20 @@
                        params (cond-> {:customer (:stripe customer) :mode (if (:topup p) "payment" "subscription")
                                        :line_items [{:price price :quantity 1}] :metadata metadata
                                        :integration_identifier "kotoba_cloud_billing_qmxnptvz"
+                                       ;; promotion codes are entered by the buyer
+                                       ;; on Stripe's page; the grant still comes
+                                       ;; only from the paid invoice the webhook
+                                       ;; retrieves (billing/paid-line), so a code
+                                       ;; changes the price, never the allowance
+                                       :allow_promotion_codes true
                                        :success_url "https://kotoba.cloud/billing/?checkout=complete"
                                        :cancel_url "https://kotoba.cloud/billing/?checkout=cancelled"}
-                                (not (:topup p)) (assoc :subscription_data {:metadata metadata} :expires_at expires))]
+                                (not (:topup p)) (assoc :subscription_data {:metadata metadata} :expires_at expires
+                                                        ;; a subscription whose first invoice is
+                                                        ;; fully discounted needs no card on file
+                                                        ;; (Stripe collects one when a later
+                                                        ;; invoice is due)
+                                                        :payment_method_collection "if_required"))]
                    (-> (.create (.. (gateway/client env) -checkout -sessions) (clj->js params)
                                 #js {:idempotencyKey (str "kotoba-checkout:" (:stripe customer) ":" requestId)})
                        (.then (fn [session]
