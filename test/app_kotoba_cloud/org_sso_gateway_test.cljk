@@ -1,0 +1,64 @@
+(ns app-kotoba-cloud.org-sso-gateway-test
+  "Organization SSO on the apex (ADR-2609151900): the plan a ledger is on,
+  the org handle grammar, and the entitlement kotoba.cloud mints for
+  auth.kotoba.cloud. The identity plane's own smoke
+  (control-plane authn/test/org_sso_worker_smoke.cljk) proves the other
+  half: that this exact header format is what it accepts and that a Pro
+  entitlement is refused there."
+  (:require [clojure.test :refer [deftest is testing async]]
+            [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.org-sso-gateway :as sso]))
+
+(deftest active-plan-is-measured-not-guessed
+  (let [now 1000
+        live (fn [sku] {:id (str sku ":ai") :scope "ai" :amount 1 :topup false :sku sku :start 900 :end 1100})]
+    (testing "no grants, no plan" (is (nil? (billing/active-plan {:grants {}} now))))
+    (testing "a grant written before skus were recorded is not a plan"
+      (is (nil? (billing/active-plan {:grants {"x" (dissoc (live "team") :sku)}} now))))
+    (testing "an expired team grant is not a plan"
+      (is (nil? (billing/active-plan {:grants {"x" (assoc (live "team") :end 999)}} now))))
+    (testing "the boundary: end is exclusive, start inclusive"
+      (is (nil? (billing/active-plan {:grants {"x" (assoc (live "team") :end 1000)}} now)))
+      (is (= "team" (billing/active-plan {:grants {"x" (assoc (live "team") :start 1000)}} now))))
+    (testing "a top-up never counts as a plan"
+      (is (nil? (billing/active-plan {:grants {"x" (assoc (live "team") :topup true)}} now))))
+    (testing "the highest live platform plan wins"
+      (is (= "ultra" (billing/active-plan {:grants {"a" (live "pro") "b" (live "ultra") "c" (live "team")}} now))))
+    (testing "team is what the SSO gate needs"
+      (is (contains? sso/sso-plans "team"))
+      (is (contains? sso/sso-plans "enterprise"))
+      (is (not (contains? sso/sso-plans "ultra"))
+          "Ultra is a bigger personal plan, not an organization plan"))))
+
+(deftest org-handle-grammar-matches-the-authority
+  (is (sso/handle? "com-acme.kotoba.cloud"))
+  (is (not (sso/handle? "acme.kotoba.cloud")))
+  (is (not (sso/handle? "com-ACME.kotoba.cloud")))
+  (is (not (sso/handle? "com-acme.kotoba.cloud/x")))
+  (is (not (sso/handle? nil))))
+
+(deftest entitlement-round-trip
+  (async done
+    (let [secret "test-entitlement-secret-with-at-least-32-bytes"
+          env #js {:ORG_SSO_ENTITLEMENT_SECRET secret}]
+      (-> (sso/mint-entitlement! #js {} {:org "com-acme.kotoba.cloud" :plan "team" :principal-id "did:key:z6Mk1"})
+          (.then (fn [none]
+                   (is (nil? none) "without the shared secret nothing is minted — fail closed")
+                   (sso/mint-entitlement! env {:org "com-acme.kotoba.cloud" :plan "team" :principal-id "did:key:z6Mk1"})))
+          (.then (fn [header]
+                   (let [[payload mac] (.split header ".")
+                         decoded (js->clj (js/JSON.parse (.toString (js/Buffer.from payload "base64url") "utf8")) :keywordize-keys true)]
+                     (is (re-matches #"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$" header) "payload.mac, both base64url, HMAC-SHA256 is 43 chars")
+                     (is (= "com-acme.kotoba.cloud" (:org decoded)))
+                     (is (= "team" (:plan decoded)))
+                     (is (= "did:key:z6Mk1" (:principalId decoded)))
+                     (is (= sso/entitlement-ttl-ms (- (:expiresAt decoded) (:issuedAt decoded))))
+                     ;; Verify the MAC the way auth.kotoba.cloud does.
+                     (-> (js/crypto.subtle.importKey "raw" (.encode (js/TextEncoder.) secret)
+                                                     #js {:name "HMAC" :hash "SHA-256"} false #js ["verify"])
+                         (.then (fn [key]
+                                  (js/crypto.subtle.verify "HMAC" key (js/Buffer.from mac "base64url")
+                                                           (.encode (js/TextEncoder.) payload))))
+                         (.then (fn [ok?] (is (true? ok?) "the MAC verifies with the shared secret")))))))
+          (.catch (fn [e] (is false (str "threw: " e))))
+          (.finally done)))))

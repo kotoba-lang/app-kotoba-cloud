@@ -7,6 +7,7 @@
   is theater."
   (:require [app-kotoba-cloud.site :as site]
             [app-kotoba-cloud.csp :as csp]
+            [app-kotoba-cloud.console :as console]
             [kotoba.lang.text :as str]
             [shinkansen.audit :as audit]
             [clojure.test :refer [deftest is testing]]))
@@ -15,7 +16,7 @@
   ;; in-process: the documents the render emits are named here by hand (the
   ;; script reads them from public/); the Worker routes and the per-route CSP
   ;; are the same data the script uses
-  {:assets #{"/js/session.js" "/js/language-selector.js" "/css/site.css" "/assets/kotoba-logo.png"}
+  {:assets #{"/js/session.js" "/js/language-selector.js" "/js/theme.js" "/js/shell.js" "/js/code.js" "/css/site.css" "/assets/kotoba-logo.png"}
    :stylesheets {"/css/site.css" (site/site-css)}
    :documents (into #{"/zh/"} (map #(str "/" (name %) "/") site/supported-locales)) ; locale emits
    :documents-static #{"/" "/docs/" "/secure/" "/models/" "/blog/" "/docs/reference/" "/docs/reference/quickstart/" "/docs/reference/errors/"
@@ -23,14 +24,25 @@
                 "/security/aup/" "/security/services/" "/security/csf2/" "/billing/" "/legal/" "/legal/tokushoho/"
                 "/agent-quickstart.md" "/ekyc.md" "/llms.txt" "/security-data/pep/index.json"
                 "/security-data/pep/schema.edn" "/security-data/index.json" "/compliance-data/compliance/index.json"
-                "/security/" "/security/compliance/"
-                ;; blog surface: index documents per emitted locale (posts
-                ;; link through these; article pages are emitted per post)
-                "/ja/blog/"}
-   :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"]
+                "/security/" "/security/compliance/"}
+   :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"
+            ;; worker.cljk: Continue with Google/GitHub hand-offs (ADR-2609151900)
+            "/sign-in/" "/account/link/"]
+   :locale-prefixes (set (map name site/supported-locales))
    :csp csp/for-path})
 
 (def ctx (update ctx :documents into (:documents-static ctx)))
+
+(def docs-ctx
+  ;; the docs host (docs.kotoba.cloud): the same emit tree, its /docs/…
+  ;; documents addressed from the host root; an apex path in a docs document
+  ;; is absolute (console/href-for) and the audit does not follow it
+  (assoc ctx :documents (into #{} (comp (filter #(str/starts-with? % "/docs/"))
+                                        (map #(console/href-for :docs %)))
+                              (:documents-static ctx))
+             :routes []))
+
+(defn- ctx-for [file] (if (str/starts-with? file "/docs/") docs-ctx ctx))
 
 (defn- axis [report id] (first (filter #(= id (:id %)) (:axes report))))
 
@@ -55,13 +67,31 @@
                        ["/docs/reference/quickstart/" ((site/docs-ref-html "quickstart") :ja)]
                        ["/security/aup/" (site/aup-html :ja)]
                        ["/admin/" (site/admin-html)]]]
-    (let [r (audit/score-document {:file file :html html} ctx)]
+    (let [r (audit/score-document {:file file :html html} (ctx-for file))]
       (is (empty? (:unmeasured r)) file)
       (is (>= (:overall r) 90.0) (str file " " (:overall r) " " (pr-str (map :axis (:findings r)))))
-      ;; the shell rules hold on every sidebar document
+      ;; the shell rules hold on every sidebar document — including the two
+      ;; chrome layers (sticky top bar, floating account menu; 2026-09-15)
       (doseq [id [:nav-one-home :nav-before-content :skip-link :fixed-anchor :unique-ids :assets-resolve
-                  :links-resolve :csp-allows-assets :pre-overflow]]
+                  :links-resolve :csp-allows-assets :pre-overflow :chrome-layers]]
         (is (= 1.0 (:score (axis r id))) (str file " " (name id)))))))
+
+(deftest docs-documents-live-on-their-own-host
+  ;; emitted for docs.kotoba.cloud: docs links host-relative, apex links
+  ;; absolute, the stylesheet still same-origin, the apex origin declared
+  ;; for the runtime; on the apex every docs link is absolute
+  (let [html (site/docs-index-html :ja)]
+    (is (str/includes? html "href=\"/reference/quickstart/\""))
+    (is (str/includes? html "href=\"https://kotoba.cloud/account\""))
+    (is (str/includes? html "href=\"/css/site.css\""))
+    (is (str/includes? html "<meta name=\"kc-apex\" content=\"https://kotoba.cloud\">"))
+    (is (not (str/includes? html "href=\"/docs/"))))
+  (is (str/includes? (site/models-html) "href=\"https://docs.kotoba.cloud/reference/quickstart/\""))
+  (is (not (str/includes? (site/models-html) "href=\"/docs/")))
+  (testing "against the apex document set a docs page's links would be dead — the surface ctx is what resolves them"
+    (let [html ((site/docs-ref-html "quickstart") :en)]
+      (is (= 1.0 (:score (axis (audit/score-document {:file "/docs/reference/quickstart/" :html html} docs-ctx) :links-resolve))))
+      (is (= 0.0 (:score (axis (audit/score-document {:file "/docs/reference/quickstart/" :html html} ctx) :links-resolve)))))))
 
 (deftest a-broken-document-is-refused-by-name
   (testing "a duplicated id"
@@ -70,17 +100,29 @@
       (is (str/includes? (:finding (axis r :unique-ids)) "account-pat-create×2"))))
   (testing "a script the build did not ship"
     (let [r (audit/score-document {:file "/account/" :html (site/account-html)}
-                                  (assoc ctx :assets #{"/js/language-selector.js" "/css/site.css"}))]
-      (is (str/includes? (:finding (axis r :assets-resolve)) "referenced but absent from the published assets: /js/session.js"))))
+                                  (update ctx :assets disj "/js/session.js"))]
+      (is (= "referenced but absent from the published assets: /js/session.js — the document ships, its behaviour does not (every pending cell stays pending forever)"
+             (:finding (axis r :assets-resolve))))))
   (testing "a nav link to a document that was never emitted"
     (let [r (audit/score-document {:file "/account/" :html (site/account-html)}
-                                  (update ctx :documents disj "/docs/"))]
-      (is (str/includes? (:finding (axis r :links-resolve)) "links to nothing published: /docs/")
-          "exactly the 404 the sidebar shipped until 2026-09-15")))
+                                  (update ctx :documents disj "/models/"))]
+      (is (str/includes? (:finding (axis r :links-resolve)) "links to nothing published: /models/")
+          "the shape of the 404 the sidebar shipped until 2026-09-15 (/docs/, now on its own host)")))
+  (testing "chrome that lost its layer"
+    (let [sticky-gone (str/replace (site/site-css) "position:sticky;top:0;z-index:20" "position:static")
+          r (audit/score-document {:file "/account/" :html (site/account-html)}
+                                  (assoc ctx :stylesheets {"/css/site.css" sticky-gone}))]
+      (is (str/starts-with? (:finding (axis r :chrome-layers)) "data-chrome=top has no position:sticky|fixed")
+          "the top bar scrolling away is named, not averaged"))
+    (let [float-gone (str/replace (site/site-css) "[data-chrome=float]{position:absolute" "[data-chrome=float]{position:static")
+          r (audit/score-document {:file "/account/" :html (site/account-html)}
+                                  (assoc ctx :stylesheets {"/css/site.css" float-gone}))]
+      (is (str/includes? (:finding (axis r :chrome-layers)) "data-chrome=float has no position:absolute|fixed")
+          "the menu opening in flow is named")))
   (testing "a CSP that blocks the document's own stylesheet"
     (let [r (audit/score-document {:file "/account/" :html (site/account-html)}
                                   (assoc ctx :csp (fn [_] "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'")))]
       (is (str/starts-with? (:finding (axis r :csp-allows-assets)) "style-src blocks /css/site.css"))))
   (testing "a stylesheet nobody supplied is unmeasured, not a pass"
     (let [r (audit/score-document {:file "/account/" :html (site/account-html)} (dissoc ctx :stylesheets))]
-      (is (= #{:viewport :fixed-anchor} (set (map :axis (:unmeasured r))))))))
+      (is (= #{:viewport :fixed-anchor :chrome-layers} (set (map :axis (:unmeasured r))))))))

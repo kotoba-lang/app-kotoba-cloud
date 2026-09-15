@@ -1,19 +1,31 @@
 (ns app-kotoba-cloud.pat
-  "Stateless personal API tokens (PAT) for local CLI/IDE agents.
+  "Personal API tokens (PAT) for local CLI/IDE agents.
 
-  Token = \"kc_pat_\" <principalB64url> \".\" <hmac16hex>, where hmac16hex is
-  the first 16 hex chars of HMAC-SHA-256(PAT_SIGNING_SECRET, \"kotoba-agent-pat-v1:<principal>\").
-  The edge verifies by recomputation — no storage, no DO. Revocation is coarse
-  by design: rotating PAT_SIGNING_SECRET invalidates every token at once
-  (documented; users who need revocation contact support). Fail closed when
-  the secret is absent. Tokens are issued once over HTTPS and never appear in
-  query strings or logs."
+  Token (v2) = \"kc_pat_\" <principalB64url> \".\" <tokenId 12hex> \".\" <hmac16hex>,
+  hmac16hex = first 16 hex chars of
+  HMAC-SHA-256(PAT_SIGNING_SECRET, \"kotoba-agent-pat-v2:<principal>:<tokenId>\").
+  The edge verifies by recomputation; the tokenId gives each token an
+  identity, and the research authority keeps a per-principal registry
+  (label, issuedAt, revokedAt) that the bearer path consults on every
+  request — so one token can be revoked from /account without touching the
+  others (owner direction 2026-09-15; before this every token of a principal
+  was the SAME string and revocation meant rotating the secret).
+
+  Legacy (v1) = \"kc_pat_\" <principalB64url> \".\" <hmac16hex> over
+  \"kotoba-agent-pat-v1:<principal>\" — still verified (tokenId nil) until the
+  principal revokes legacy tokens in the registry. Fail closed when the secret
+  is absent. Tokens are issued once over HTTPS and never appear in query
+  strings or logs."
   (:require [app-kotoba-cloud.session :as session]))
 
 (def prefix "kc_pat_")
 (def secret-name "PAT_SIGNING_SECRET")
 (def hmac-domain "kotoba-agent-pat-v1")
+(def hmac-domain-v2 "kotoba-agent-pat-v2")
 (def session-domain "kotoba-agent-session-v1")
+(def token-id-pattern #"[0-9a-f]{12}")
+
+(defn token-id? [v] (and (string? v) (boolean (re-matches token-id-pattern v))))
 
 (defn- bytes->hex [buffer]
   (apply str (map (fn [b] (.padStart (.toString b 16) 2 "0"))
@@ -67,34 +79,46 @@
                                                        (.charCodeAt b i))))
                       0 (range (count a))))))
 
+(defn- random-token-id []
+  (let [bytes (js/Uint8Array. 6)]
+    (.getRandomValues js/crypto bytes)
+    (bytes->hex (.-buffer bytes))))
+
 (defn issue
+  "Promise of {:token .. :tokenId ..}: a fresh v2 token for the principal."
   [principal secret]
-  (-> (hmac-hex secret (str hmac-domain ":" principal))
-      (.then (fn [sig] (str prefix (b64url-encode principal) "." (subs sig 0 16))))))
+  (let [token-id (random-token-id)]
+    (-> (hmac-hex secret (str hmac-domain-v2 ":" principal ":" token-id))
+        (.then (fn [sig] {:token (str prefix (b64url-encode principal) "." token-id "." (subs sig 0 16))
+                          :tokenId token-id})))))
 
 (defn verify
-  "Promise of {:principalId .. :tokenHash ..} or nil (nil = reject). Fails
-  closed on any structural, charset or MAC mismatch. tokenHash is SHA-256 of
-  the exact bearer token as presented."
+  "Promise of {:principalId .. :tokenHash .. :tokenId ..} or nil (nil =
+  reject). Fails closed on any structural, charset or MAC mismatch. tokenHash
+  is SHA-256 of the exact bearer token as presented; tokenId is nil for a
+  legacy v1 token."
   [token secret]
   (if-not (and (string? token) (string? secret) (pos? (count secret))
                (<= (count secret) 256) (.startsWith token prefix))
     (js/Promise.resolve nil)
-    (let [rest (subs token (count prefix))
-          dot (.indexOf rest ".")]
-      (if-not (and (pos? dot) (= (.lastIndexOf rest ".") dot))
+    (let [parts (vec (.split (subs token (count prefix)) "."))
+          [principal-b64 token-id signature] (case (count parts)
+                                               2 [(parts 0) nil (parts 1)]
+                                               3 [(parts 0) (parts 1) (parts 2)]
+                                               [nil nil nil])
+          principal (when principal-b64 (b64url-decode principal-b64))]
+      (if-not (and (principal-id? principal)
+                   (string? signature) (re-matches #"[0-9a-f]{16}" signature)
+                   (or (nil? token-id) (token-id? token-id)))
         (js/Promise.resolve nil)
-        (let [principal (b64url-decode (subs rest 0 dot))
-              signature (subs rest (inc dot))]
-          (if-not (and (principal-id? principal)
-                       (re-matches #"[0-9a-f]{16}" signature))
-            (js/Promise.resolve nil)
-            (-> (hmac-hex secret (str hmac-domain ":" principal))
-                (.then (fn [expected]
-                         (if (constant-eq? signature (subs expected 0 16))
-                           (-> (sha256-hex token)
-                               (.then (fn [h] {:principalId principal :tokenHash h})))
-                           nil))))))))))
+        (-> (hmac-hex secret (if token-id
+                               (str hmac-domain-v2 ":" principal ":" token-id)
+                               (str hmac-domain ":" principal)))
+            (.then (fn [expected]
+                     (if (constant-eq? signature (subs expected 0 16))
+                       (-> (sha256-hex token)
+                           (.then (fn [h] {:principalId principal :tokenHash h :tokenId token-id})))
+                       nil))))))))
 
 (defn agent-session-reference
   "Stable bearer session-reference. Same derivation family as the browser

@@ -81,17 +81,52 @@ The public webpage is generated from pure CLJC using the workspace DADS
 (`jp-go-digital-design-system`) base. It visualizes Kotoba Cloud as the single
 control/identity entrance feeding three separately governed planes rather than
 presenting the four domains as interchangeable products. `public/` is a build
-artifact: `npm run render` produces English `/`, Japanese `/ja/`, and one
-emit directory per catalog locale, then Wrangler ships them as Static Assets
-beside the discovery Worker. Locale catalogs share one key contract and the
-page publishes canonical, `hreflang`, and JSON-LD `inLanguage` links, so
-another locale is an explicit catalog-and-route addition rather than a
-second handwritten page.
+artifact: `npm run render` produces the English root and one emit directory
+per catalog locale (`public/ja/…`, `public/id/…`) — **emit directories, not
+public URLs**. Every document has ONE locale-free URL (shinkansen.locale;
+owner direction 2026-09-15: the `/ja`, `/en` paths are no longer needed):
+the Worker negotiates the variant before the Static Assets HIT and serves
+it in place. The language switch is `?lang=<locale>` on the same route,
+served directly (200) with the choice persisted as `kb_locale` — no
+redirect hop, no client script needed. A non-English variant is
+self-canonical at `<route>?lang=<locale>`; `hreflang` alternates and
+`og:url` use the same form, `x-default` is the locale-free route. An
+explicit prefix (`/ja/billing/`) is compatibility only: 301 to the
+locale-free route with the cookie set.
 
-Origin language switching runs in the Worker **before** the Static Assets
-HIT and follows the kotobase.net detection contract:
+`path (301 compat) > ?lang= > kb_locale cookie > Accept-Language > request.cf.country > en`
 
-`path > kb_locale cookie > Accept-Language > request.cf.country > en`
+**docs.kotoba.cloud** (2026-09-15): the `/docs/…` documents of the same
+emit tree are served from the root of `docs.kotoba.cloud`
+(`worker.cljk route-docs-host`; `docs.kotoba.cloud` is a custom domain of
+the same Worker). Every href in the repo is written once in its apex form
+and resolved for the surface a document is emitted on
+(`console/surfaces`, `console/href-for`, `site/surface-hrefs` — one walk
+over the page): on the apex `/docs/x` becomes
+`https://docs.kotoba.cloud/x`, on the docs host `/account` becomes
+`https://kotoba.cloud/account` and `/docs/x` is `/x`; shared assets
+(`/css/` `/js/` `/assets/`) stay host-relative on both. The apex answers
+`/docs/…` with a 301 to the host (locale prefix first). Locale negotiation
+and `?lang=` on the docs host are the apex's (`route-static` over the
+apex-form path). The session cookie is host-only, so the docs host shows
+the sign-in control; the audit scores docs-host pages against their own
+document set (shinkansen per-document `:ctx`).
+
+**Console chrome** (2026-09-15): the top bar and the account entry are
+`cloud-kotoba-dds.shell` (`shell/topbar`, `shell/account-entry`,
+`shell/css`, the runtime shipped as `/js/shell.js` from `shell/script`).
+The bar is sticky (`data-chrome=top`), the account menu floats over the
+rail (`data-chrome=float`) — both measured by shinkansen.audit
+`:chrome-layers` on every emitted document, and in a real browser by
+`test/account-browser.cljk` (bar top edge at 0 after a 4000px scroll; the
+foot's height and the chip's place unchanged when the menu opens; Escape
+returns focus). Both account states are in the document; the browser
+only fills and reveals (`cloudKotobaShell.hydrateSession`).
+
+`locale/variant-roots` names the content roots that have per-locale emits;
+`test/worker-smoke.mjs` derives the list from `public/ja/` and fails when a
+root is emitted but not served (measured live 2026-09-15: `/blog/` and
+`/apps/` were emitted under `/ja/` and served in English).
 
 Country map: `ID→id`, `IL→he`, `KR→ko`, `ES→es`, `IT→it`, `DE→de`,
 `MA→ar-MA` (else `ar`), `EG→arz`. Country never selects `jv` or `su`;
@@ -114,12 +149,11 @@ compiler, verifier, host enforcement, or service-specific authority.
   ML-DSA-65 approval relay for a bounded, locally signed Kotobase head record
 - `GET /schemas/library-publication-request/v3` — single-use, epoch-bound
   publication request contract
-- `GET /` — English public architecture and CLI entrance; 302 to a catalog
-  locale when cookie, `Accept-Language`, or `request.cf.country` negotiate
-  one
-- `GET /ja/`, `/id/`, `/jv/`, `/su/`, `/he/`, `/it/`, `/ar-MA/`, and the
-  rest of the catalog — finite localized entry documents
-- `GET /en/` — English alias of the apex document
+- `GET /` — the public architecture and CLI entrance; the variant is
+  negotiated (`?lang=`, cookie, `Accept-Language`, `request.cf.country`)
+  and served in place, never redirected
+- `GET /?lang=ja` (any catalog locale) — that variant, choice persisted
+- `GET /ja/`, `/id/`, …, `/en/` — compatibility: 301 to `/` with the cookie
 
 The control-plane document also includes the library catalog, storage,
 commands, current publication mode, default dry-run behavior, and hosted
@@ -187,14 +221,14 @@ a prediction, the delta is the proof). `uiux_audit_test.cljk` pins the
 
 Locale smoke after render + Worker:
 
-- `GET /id/` is `200` with `lang=id`; `/jv/`, `/su/`, `/he/`, `/it/`,
-  `/ar-MA/` are the same shape (no 404)
-- `GET /` with `Accept-Language: id` is `302` `/id/`
-- `GET /` with `CF-IPCountry: ID` and no language header is `302` `/id/`
-  (never `/jv/` or `/su/`)
+- `GET /` with `Accept-Language: id` is `200` serving the `id` emit in
+  place (no `Location`)
+- `GET /` with `CF-IPCountry: ID` and no language header serves `id`
+  (never `jv` or `su`)
 - `GET /` with `Accept-Language: en` and `CF-IPCountry: ID` stays English
-- `GET /su/` with `kb_locale=he` stays Sundanese (path wins) and refreshes
-  the cookie
+- `GET /docs/?lang=ja` with `kb_locale=he` is `200` serving `/ja/docs/`,
+  `Set-Cookie: kb_locale=ja`; `?lang=klingon` is ignored and persists nothing
+- `GET /su/` with `kb_locale=he` is `301` `/` with `Set-Cookie: kb_locale=su`
 - `GET /health`, `/v1/session`, and `/api/funnel` are not locale-redirected
 
 ## Nearest-repository boundary
@@ -243,6 +277,34 @@ not expose these functions. Self account/live-flow provisioning, canonical
 Kotobase review/quota state, human-review operation and durable asynchronous
 inference jobs remain required before public intake can open. See
 `docs/research-authority-contract.md` for the exact activation boundary.
+
+### Two model teams (2026-09-15)
+
+`/v1/models` and `/models/` split the catalog into two teams
+(`app-kotoba-cloud.research/teams`, one table; the page, the edge and the
+authority all read it). **No provider is named on any public surface** —
+which deployment stands behind a route is operator configuration
+(owner direction 2026-09-15).
+
+| team | models | route | admitted on |
+|---|---|---|---|
+| red | `qwen3.8-flash-next-whitehacker`, `glm5.3-flash` | `dedicated` — Kotoba's private research deployment (`MODAL_INFERENCE_URL` / `_TOKEN`, stored secrets whose names are fixed) | sign-in, card-based identity verification (`/v1/research/ekyc/start`, credit/debit funding only), consent to the Acceptable Use Policy (`/security/aup/`, `policyVersion`), screening, trust route, approved scope, free quota, guardrails |
+| blue | `qwen/qwen3.8-flash`, `z-ai/glm-5.3-flash` (the publishers' ids, unchanged) | `shared` — the shared inference route (`BLUE_ROUTE_API_KEY`, a secret on the research authority Worker) | sign-in, free quota, guardrails; the three standard tasks only |
+
+The edge makes no `/status` hop for a blue model and the authority skips the
+identity ladder for it; the offensive band (`payload-crafting`, `c2-tooling`)
+stays closed to blue by the request shape. Without the key the blue route
+refuses by name (`blue-route-not-configured`, 503) — a blue job never falls
+back to the dedicated deployment. `BLUE_ROUTE_CONFIGURED` in `wrangler.jsonc`
+is what `/v1/models` reports as the blue rows' availability
+(`route-configured` / `route-key-not-configured`); it is `"true"` since the
+secret was stored on 2026-09-15 (`wrangler secret put BLUE_ROUTE_API_KEY
+--config wrangler.research.jsonc`). Measured: `test/worker-smoke.mjs`
+(catalog split, no provider name in the catalog; blue 200 / red 403 on the
+same suspended record), `test/research-authority-local.mjs` block 11 (blue
+admitted with no record, refuses by name without the key, the shared
+route's URL + bearer + model id with it), `test/account-browser.cljk`
+block models.
 
 ### Shared conversation UI
 
