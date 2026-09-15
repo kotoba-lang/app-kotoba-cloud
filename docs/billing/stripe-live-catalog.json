@@ -1,0 +1,43 @@
+{
+  "account": "acct_1TuxvPIzvFrqWhXK",
+  "account_name": "AWAI",
+  "livemode": true,
+  "catalog_version": "2026-09-15-v4",
+  "status": "live-annex",
+  "note": "Live-mode price map for the billing v4 catalog. Verified against Stripe API 2026-09-15: every price resolves, currency=usd, and unit_amount matches the catalog cents. The worker currently runs BILLING_MODE=test against Kotoba Labs (acct_1U7sRyITDawH5x8a) test prices (stripe-test-catalog.json); this annex is the live-side mapping for launch. Never reuse test IDs in live mode.",
+  "prices": {
+    "pro": {
+      "product": "prod_VFoiphskFouOdi",
+      "price": "price_1UFJ5TIzvFrqWhXKHHsr82B0",
+      "unit_amount": 2000
+    },
+    "team": {
+      "product": "prod_VGKDPPrXqx3kCS",
+      "price": "price_1UFnZ5IzvFrqWhXKvUHHAwO5",
+      "unit_amount": 15000,
+      "seats": 6,
+      "created": "2026-09-15"
+    },
+    "max": {
+      "product": "prod_VFojjxZjaYtfUE",
+      "price": "price_1UFJ60IzvFrqWhXKzi7RBX6d",
+      "unit_amount": 10000
+    },
+    "ultra": {
+      "product": "prod_VFojrthDS4oVSr",
+      "price": "price_1UFJ6UIzvFrqWhXKl2ichBCD",
+      "unit_amount": 20000
+    },
+    "ai-credits-25": {
+      "product": "prod_VFokBcoGcV18ld",
+      "price": "price_1UFJ72IzvFrqWhXKEvUlJ9Nj",
+      "unit_amount": 2500
+    },
+    "storage-credits-25": {
+      "product": "prod_VFolqMJbTjuwWb",
+      "price": "price_1UFJ7YIzvFrqWhXKqs1H0DCV",
+      "unit_amount": 2500,
+      "renamed": "Database Credits 25 -> Storage Credits 25 (2026-09-15, matches v3 naming)"
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"categoryId":"pki","complianceFits":["cis-controls","iso-27001","soc2"],"id":"smallstep-ca","name":"Smallstep Certificate Manager/step-ca","pricingMode":"public-list","pricingNote":"open-source step-ca free; managed platform priced per-issuing-CA/usage as published","pricingUrl":"https://smallstep.com/pricing/","provider":"Smallstep","providerHq":"US"}

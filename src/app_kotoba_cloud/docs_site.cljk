@@ -1,0 +1,392 @@
+(ns app-kotoba-cloud.docs-site
+  "docs.kotoba.cloud content — served under /docs/ on the canonical origin
+  (a separate docs subdomain is not provisioned; one origin, see graph-docs).
+  orcarouter-pattern: an integrations overview with the two rules that apply
+  to every tool, then one copy-paste page per client. Every config block is
+  generated from the same data the API serves (base URLs, model id) so the
+  docs cannot drift from the endpoints. All pages carry the shared chrome.")
+
+(def css
+  ".kc-docs{padding-block:var(--hig-spacing-6)}
+.kc-docs h2{margin-block:var(--hig-spacing-6) var(--hig-spacing-3)}
+.kc-docs__lead{max-width:48rem;color:var(--hig-color-secondary-label)}
+.kc-docs__list{display:grid;gap:var(--hig-spacing-3);padding:0;list-style:none}
+.kc-docs__list li{border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);padding:var(--hig-spacing-4)}
+.kc-docs__list a{font-weight:700}
+.kc-docs__config{padding:var(--hig-spacing-4);overflow:auto;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm);background:var(--hig-color-label);color:var(--hig-color-system-background);font-family:var(--hig-font-mono);line-height:1.7;white-space:pre;overflow-wrap:normal}
+.kc-docs__note{padding:var(--hig-spacing-3) var(--hig-spacing-4);border-inline-start:4px solid var(--hig-color-tint);background:var(--hig-color-secondary-system-background);border-radius:0 var(--hig-radius-sm) var(--hig-radius-sm) 0}
+.kc-docs__note--warn{border-inline-start-color:var(--hig-palette-orange,var(--hig-color-label))}")
+
+(def base-origin "https://api.kotoba.cloud")
+(def openai-base "https://api.kotoba.cloud/v1")
+(def model-id "qwen3.8-flash-next-whitehacker")
+
+(defn- config-block [s] [:pre {:class "kc-docs__config"} s])
+(defn- txt [ja en] ja) ;; overridden per view
+
+;; --- the two rules (orcarouter pattern) -------------------------------------
+(defn two-rules [ja?]
+  (let [txt (fn [ja en] (if ja? ja en))]
+    [[:h2 (txt "すべてのツールに共する 2 つのルール" "Two rules that apply to every tool")]
+     [:p (txt "1. モデル名は常に " "1. Model names are always ")
+      [:code model-id] (txt " です (カタログ: " " (catalog: ")
+      [:a {:href "/v1/models"} "/v1/models"] ")"]
+     [:p (txt "2. ベース URL の /v1 有無はプロトコルで決まります: OpenAI 互換ツール → " "2. Whether the base URL keeps /v1 depends on the protocol: OpenAI-compatible tools → ")
+      [:code openai-base] (txt " (/v1 あり)。Anthropic プロトコル互換ツール → " " (with /v1). Anthropic-protocol-compatible tools → ")
+      [:code base-origin] (txt " (/v1 なし — ツール自身がパスを付けます)。" " (no /v1 — the tool appends the path itself).")]
+     (config-block
+      (str "# list every available model id\ncurl " openai-base "/models \\\n  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\""))]))
+
+;; --- client catalog ----------------------------------------------------------
+(def clients
+  "One entry per client page. protocol: openai (base URL with /v1) or
+  anthropic (bare host). status mirrors the orcarouter chips honestly."
+  [{:id "claude-code" :name "Claude Code"
+    :protocol :anthropic :status :verified
+    :desc-ja "Anthropic 製ターミナルコーディングエージェント。Anthropic プロトコル (ベース URL に /v1 を付けない)。"
+    :desc-en "Anthropic's terminal coding agent. Anthropic protocol (base URL without /v1)."
+    :config (str "export KOTOBA_API_BASE=\"" base-origin "\"\n"
+                 "export KOTOBA_API_TOKEN=\"kc_pat_<your-token>\"\n"
+                 "export KOTOBA_MODEL=\"" model-id "\"\n\n"
+                 "# test the connection\nclaude -p \"Reply with exactly: OK\"")
+    :note-ja "Anthropic プロトコルはベアホストです。/v1 を足すと /v1/v1/messages になって失敗します。"
+    :note-en "Anthropic protocol — bare host, no /v1. Adding /v1 produces /v1/v1/messages and fails."}
+   {:id "codex-cli" :name "Codex CLI"
+    :protocol :openai :status :verified
+    :desc-ja "OpenAI 製ターミナルコーディングエージェント。OpenAI 互換 (Responses API)。"
+    :desc-en "OpenAI's terminal coding agent. OpenAI-compatible."
+    :config (str "export KOTOBA_API_BASE=\"" openai-base "\"\n"
+                 "export KOTOBA_API_TOKEN=\"kc_pat_<your-token>\"\n\n"
+                 "# test the connection\ncodex exec \"Reply with exactly: OK\"")
+    :note-ja "OpenAI 互換 — ベース URL は /v1 込み。"
+    :note-en "OpenAI-compatible — base URL includes /v1."}
+   {:id "cline" :name "Cline"
+    :protocol :openai :status :should-work
+    :desc-ja "VS Code 拡張。設定で API Provider を「OpenAI Compatible」にします。"
+    :desc-en "VS Code extension. Set API Provider to \"OpenAI Compatible\" in settings."
+    :config (str "Base URL: " openai-base "\nAPI Key: kc_pat_<your-token>\nModel ID: " model-id)}
+   {:id "kilo-code" :name "Kilo Code"
+    :protocol :openai :status :verified
+    :desc-ja "VS Code 拡張。Providers → Custom provider で接続します。"
+    :desc-en "VS Code extension. Connect via its Custom provider."
+    :config (str "Provider ID: kotobacloud (lowercase)\nBase URL: " openai-base
+                 "\nAPI Key: kc_pat_<your-token>\nModel ID: " model-id)}
+   {:id "opencode" :name "OpenCode"
+    :protocol :openai :status :caveat
+    :desc-ja "オープンソースのターミナルエージェント。opencode.json で接続。"
+    :desc-en "Open-source terminal agent. Configured via opencode.json."
+    :config (str "~/.config/opencode/opencode.json:\n{\n  \"provider\": {\n    \"kotobacloud\": {\n      \"baseUrl\": \"" openai-base "\",\n      \"apiKey\": \"kc_pat_<your-token>\",\n      \"models\": {\"" model-id "\": {}}\n    }\n  }\n}")
+    :note-ja "reasoning モデルは temperature 400 を返すことがあります (既知の注意点)。"
+    :note-en "Reasoning models can 400 on temperature — a known caveat."}
+   {:id "aider" :name "Aider"
+    :protocol :openai :status :should-work
+    :desc-ja "OpenAI 互換エンドポイントを openai/ プロバイダとして扱います。"
+    :desc-en "Treats any OpenAI-compatible endpoint as its openai/ provider."
+    :config (str "export OPENAI_API_BASE=\"" openai-base "\"\n"
+                 "export OPENAI_API_KEY=\"kc_pat_<your-token>\"\n\n"
+                 "# the openai/ prefix stacks on our model id\naider --model openai/" model-id)}
+   {:id "hermes-agent" :name "Hermes Agent"
+    :protocol :openai :status :verified
+    :desc-ja "Nous Research のターミナルエージェント (Linux/macOS/WSL2)。config.yaml にエンドポイント、.env にキー。"
+    :desc-en "Nous Research's terminal agent (Linux/macOS/WSL2). Endpoint in config.yaml, key in .env."
+    :config (str "# config.yaml\nprovider:\n  base_url: \"" openai-base "\"\n  model: " model-id "\n\n# .env\nKOTOBA_API_TOKEN=kc_pat_<your-token>")}
+   {:id "open-webui" :name "Open WebUI"
+    :protocol :openai :status :should-work
+    :desc-ja "セルフホストのチャット UI。環境変数で接続して起動します。"
+    :desc-en "Self-hosted chat UI. Launch with the connection prefilled via environment variables."
+    :config (str "docker run -d -p 3000:8080 \\\n  -e OPENAI_API_BASE_URL=\"" openai-base "\" \\\n  -e OPENAI_API_KEY=\"kc_pat_<your-token>\" \\\n  ghcr.io/open-webui/open-webui:main\n\n# then open http://localhost:3000 and pick the model")}
+   {:id "cursor" :name "Cursor"
+    :protocol :openai :status :caveat
+    :desc-ja "設定で OpenAI ベース URL をオーバーライド (Pro プランが必要)。"
+    :desc-en "Override the OpenAI base URL in settings (requires Cursor Pro)."
+    :config (str "Base URL: " openai-base "\nAPI Key: kc_pat_<your-token>\nModel: " model-id)
+    :note-ja "Cursor Pro が必要です。リクエストは到達しますが、返信が描画されない Cursor 側の制限が報告されています。"
+    :note-en "Needs Cursor Pro. Requests reach the API but Cursor may not render the reply — a Cursor-side limitation."}
+   {:id "generic-openai" :name "Any OpenAI SDK"
+    :protocol :openai :status :verified
+    :desc-ja "OpenAI SDK なら 1 行のベース URL 差し替えで動きます。"
+    :desc-en "Any OpenAI SDK works with a one-line base-URL swap."
+    :config (str "from openai import OpenAI\nclient = OpenAI(\n  base_url=\"" openai-base "\",\n  api_key=\"kc_pat_<your-token>\",\n)\nr = client.chat.completions.create(\n  model=\"" model-id "\",\n  messages=[{\"role\": \"user\", \"content\": \"Reply with exactly: OK\"}],\n)")}])
+
+(defn- status-chip [status]
+  (let [[label cls] (case status
+                      :verified ["Verified" "kc-docs__chip--verified"]
+                      :should-work ["Should work" "kc-docs__chip--pending"]
+                      ["Caveat" "kc-docs__chip--caveat"])]
+    [:span {:class (str "kc-docs__chip " cls)} label]))
+
+(defn client-page [id]
+  (first (filter #(= (:id %) id) clients)))
+
+(defn overview-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "接続ガイド — Agents & Harnesses" "Connect Agents & Harnesses")]
+     [:p {:class "kc-docs__lead"}
+      (txt "カスタム API ベース URL を設定できるツールなら、kotoba.cloud をそのまま使えます。人気ツール向けのコピー&ペースト設定をまとめました。"
+          "Anything that lets you set a custom API base URL can talk to kotoba.cloud. Copy-paste setup for popular finished tools.")]
+     (two-rules ja?)
+     [:h2 (txt "ツール別ページ" "Per-tool pages")]
+     (into [:ul {:class "kc-docs__list"}]
+           (for [c clients]
+             [:li
+              [:strong (:name c)] " " (status-chip (:status c))
+              [:p (if ja? (:desc-ja c) (:desc-en c))]
+              [:a {:href (str "/docs/integrations/" (:id c) "/")} (txt "設定を開く" "Open the setup")]]))]))
+
+(defn client-view [id locale]
+  (let [c (client-page id)
+        ja? (= :ja locale)]
+    (concat
+     (if-not c
+       [[:h1 "Not found"]
+        [:p {:class "kc-docs__lead"} "No page for that tool yet."]]
+       (concat
+        [[:h1 (:name c)]]
+        [(status-chip (:status c))]
+        [[:p {:class "kc-docs__lead"} (if ja? (:desc-ja c) (:desc-en c))]]
+        (when (:note-ja c)
+          [[:p {:class "kc-docs__note"} (if ja? (:note-ja c) (:note-en c))]])
+        [[:h2 "Setup"]]
+        [(config-block (:config c))]
+        [[:p {:class "kc-docs__lead"}
+          "The research gates (verification, scope, free quota) are identical to the cookie session; the token only removes the origin gate."]
+         [:a {:href "/docs/integrations/"} "← All tools"]])))))
+
+(defn- note-block [child] [:p {:class "kc-docs__note"} child])
+
+(def ref-pages
+  "API reference pages (orcarouter pattern). Only what the shipped API
+  actually does: async jobs (poll, no SSE), no tool calling, guardrail /
+  firewall denials as errors, free-quota 429s, ZDR design."
+  [{:id "quickstart" :name "Quickstart"
+    :desc-ja "サインイン → カード認証 → トークン発行 → 最初のリクエスト。"
+    :desc-en "Sign in, verify with a card, issue a token, first request."}
+   {:id "streaming" :name "Streaming"
+    :desc-ja "研究面は SSE を提供しません — 非同期ジョブ (submit → poll)。"
+    :desc-en "The research surface serves no SSE — async jobs (submit, poll)."}
+   {:id "tools" :name "Tool calling"
+    :desc-ja "モデルはツール呼び出しを生成しません。Firewall はホスト側ツールを rung でゲート。"
+    :desc-en "The model never emits tool calls. The firewall gates host tools by rung."}
+   {:id "structured-outputs" :name "Structured outputs"
+    :desc-ja "response_format は受理され上流へ転送されません。プロンプトで JSON を要求。"
+    :desc-en "response_format is accepted and dropped. Ask for JSON in the prompt."}
+   {:id "errors" :name "Errors"
+    :desc-ja "OpenAI 互換エラーの形と、code ごとの対処。"
+    :desc-en "The OpenAI-compatible error shape and per-code handling."}
+   {:id "rate-limits" :name "Rate limits"
+    :desc-ja "無料枠 50 req/day と assurance rung ごとの tokens/day。"
+    :desc-en "The free 50 req/day allowance and tokens/day by assurance rung."}
+   {:id "billing-and-usage" :name "Billing & usage"
+    :desc-ja "1 credit = $1。token 別の micro-USD 計上と Credits Monthly。"
+    :desc-en "1 credit = $1; per-token micro-USD rating and Credits Monthly."}
+   {:id "zero-data-retention" :name "Zero data retention"
+    :desc-ja "ZDR 設計: 保持するのは最小限の状態だけ。"
+    :desc-en "ZDR design: only minimal state is retained."}
+   {:id "byok" :name "BYOK"
+    :desc-ja "上流プロバイダキーの持ち込みは現在提供していません (first-party 推論)。"
+    :desc-en "Bring-your-own provider keys are not offered (first-party inference)."}
+   {:id "security-services" :name "Security services (CTEM)"
+    :desc-ja "セキュリティサービススイートの公開カタログ GET /v1/security/services。CTEM (component-shipped) の 4 capability と VM 台帳への連携。"
+    :desc-en "The public catalog of the security-services suite at GET /v1/security/services — CTEM (component-shipped) and its four capabilities feeding the VM ledger."}])
+
+(defn security-services-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Security services (CTEM)" "Security services (CTEM)")]
+     [:p {:class "kc-docs__lead"}
+      (txt "セキュリティサービススイート (CTEM / DAST / SAST / VM) のカタログは GET /v1/security/services で取得できます。認証不要の公開エッジで、記述 (describe) のみを行います。"
+           "The security-services suite (CTEM / DAST / SAST / VM) is described by GET /v1/security/services — a public, unauthenticated edge that DESCRIBES only.")]
+     (config-block (str "curl -s https://api.kotoba.cloud/v1/security/services | jq '.[] | {id, status}'\n\n"
+                        "# ctem  → \"component-shipped\"\n"
+                        "# dast  → \"gated\"\n"
+                        "# sast  → \"gated\"\n"
+                        "# vm    → \"component-shipped\""))
+     [:h2 "CTEM — exposure management"]
+     [:p {:class "kc-docs__lead"}
+      (txt "CTEM は外部攻撃表面と社内エントリポイントを継続的に列挙し、攻撃パスと資産コンテキストを VM 台帳へ渡します (status: component-shipped)。"
+           "CTEM continuously enumerates the external attack surface and entry points, and hands attack paths plus asset context to the VM ledger (status: component-shipped).")]
+     (config-block (str "# CTEM capabilities (from the catalog entry)\n"
+                        "surface-inventory  # continuous external attack-surface / asset inventory\n"
+                        "attack-path        # reachable attack-path identification\n"
+                        "context            # asset context (public routes, deps, owner)\n"
+                        "exposure-feed      # exposure events fed to the VM ledger\n\n"
+                        "# inputs:  assets, dns, certificates, open-endpoints\n"
+                        "# outputs: attack-paths, exposure-findings, asset-context\n"
+                        "# integration: feeds vm, emits :finding (shared finding-schema)"))
+     [:h2 "SAST — static application security testing"]
+     [:p {:class "kc-docs__lead"}
+      (txt "SAST はソースコードを解析して脆弱パターンとサニタイズ漏れを検出し、ファイル・行つきのコード所見を VM 台帳へ出します (status: gated)。"
+           "SAST analyzes source code for vulnerable patterns and missing sanitization, emitting code findings with file and line to the VM ledger (status: gated).")]
+     (config-block (str "# SAST capabilities (from the catalog entry)\n"
+                        "code-analysis  # static source-code analysis\n"
+                        "taint-flow     # taint / data-flow inspection\n"
+                        "code-finding   # code findings with file + line\n\n"
+                        "# inputs:  source-code, dependency-manifests\n"
+                        "# outputs: code-findings, taint-paths, dependency-notes\n"
+                        "# integration: feeds vm, emits :finding (role: code-findings)"))
+     [:h2 "DAST — dynamic application security testing"]
+     [:p {:class "kc-docs__lead"}
+      (txt "DAST は稼働中のアプリを実行して脆弱性を検出し、再現性のあるランタイム所見 (リクエスト・レスポンスのエビデンス) を VM 台帳へ出します (status: gated)。"
+           "DAST probes running applications and reports reproducible runtime findings (request/response evidence) to the VM ledger (status: gated).")]
+     (config-block (str "# DAST capabilities (from the catalog entry)\n"
+                        "runtime-probe    # dynamic probing of running applications\n"
+                        "auth-scenarios   # probing with authenticated scenarios\n"
+                        "runtime-finding  # runtime vulnerability detection as findings\n\n"
+                        "# inputs:  running-apps, scan-scopes, auth-scenarios\n"
+                        "# outputs: runtime-findings, request-response-evidence\n"
+                        "# integration: feeds vm, emits :finding (role: runtime-findings)"))
+     (note-block
+      (txt "DAST / SAST は gated (非公開の authority の後方でゲート中)。3 つの上流サービスは共通 finding-schema で所見を出し、VM が重複排除・スコアリング (到達可能性 × 悪用可能性)・修正ライフサイクルを CPE/CVE キーで管理します。"
+           "DAST / SAST are gated (behind the private authority). The three upstream services emit findings in the shared finding-schema; VM dedups, scores (reachability × exploitability) and tracks remediation keyed by CPE/CVE."))
+     [:p {:class "kc-docs__lead"}
+      "→ "
+      [:a {:href "/security/services/"} (txt "セキュリティサービスのページ" "The /security/services/ page")]]]))
+
+(defn quickstart-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Quickstart" "Quickstart")]
+     [:p {:class "kc-docs__lead"}
+      (txt "サインイン → カード認証 → トークン発行 → 最初のリクエスト。だいたい 5 分。"
+           "Sign in, verify with a card, issue a token, send the first request. About five minutes.")]
+     [:h2 (txt "1. サインインとトークン発行" "1. Sign in and issue a token")]
+     (config-block (str "# 1. Sign in at https://kotoba.cloud/account\n"
+                        "# 2. 「CLI / IDE から使う」→「接続トークンを発行」(shown once)\n"
+                        "export KOTOBA_API_TOKEN=\"kc_pat_<your-token>\""))
+     [:h2 (txt "2. 最初のジョブ (非同期)" "2. First job (async)")]
+     (config-block (str "curl -s -X POST " openai-base "/research/jobs \\\n"
+                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
+                        "  -H \"content-type: application/json\" \\\n"
+                        "  -H \"idempotency-key: 11111111-1111-4111-8111-111111111111\" \\\n"
+                        "  -d '{\"model\":\"" model-id "\",\"task\":\"code-review\",\"scopeId\":\"owned\",\n"
+                        "        \"max_tokens\":256,\"messages\":[{\"role\":\"user\",\n"
+                        "        \"content\":\"Review this login function for auth bypasses.\"}]}'\n\n"
+                        "# poll until status is succeeded (queued/running -> 202)\n"
+                        "curl -s \"" openai-base "/research/job?jobId=<uuid>\" \\\n"
+                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\""))
+     [:h2 (txt "3. または同期呼び出し (OpenAI 互換)" "3. Or the sync call (OpenAI-compatible)")]
+     (config-block (str "curl -s -X POST " openai-base "/chat/completions \\\n"
+                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
+                        "  -H \"content-type: application/json\" \\\n"
+                        "  -d '{\"model\":\"" model-id "\",\n"
+                        "        \"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: OK\"}]}'"))
+     (note-block
+      (txt "初回呼び出しの前に本人確認とスコープ承認が必要です。未承認の principal は 403 (verification-required / research-scope-required) を受けます。"
+           "Verification and an approved scope are required before the first call. An unverified principal receives 403 (verification-required / research-scope-required)."))]))
+
+(defn streaming-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Streaming" "Streaming")]
+     [:p {:class "kc-docs__lead"}
+      (txt "kotoba.cloud の研究面は SSE を提供しません。推論は非同期ジョブ (submit → poll) で行います。stream: true は拒否されます。"
+           "The research surface does not serve SSE. Inference runs as async jobs (submit, then poll). stream: true is rejected.")]
+     (config-block (str "\"stream\": true  → 400 invalid-research-request\n\n"
+                        "# instead: POST /v1/research/jobs, then poll\n"
+                        "# GET /v1/research/job?jobId=<uuid> every 5s until 200"))
+     (note-block
+      (txt "ジョブの cold start には最大約 35 分かかる場合があります (モデル起動)。pollAfterMs を守ってください。"
+           "Job cold start can take up to about 35 minutes (model startup). Respect pollAfterMs."))]))
+
+(defn tools-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Tool calling" "Tool calling")]
+     [:p {:class "kc-docs__lead"}
+      (txt "モデルはツール呼び出しを生成しません。tools は空または省略のみ受理され、それ以外は拒否されます。Firewall はホスト側ツール (タスク種別) を assurance rung でゲートします。"
+           "The model never emits tool calls. tools is accepted only empty-or-absent. The host-side firewall gates task tools by assurance rung.")]
+     (config-block (str "\"tools\": []          // accepted\n"
+                        "\"tools\": [{...}]    // rejected\n\n"
+                        "# host-side tool gates (firewall):\n"
+                        "#   code-review / vulnerability-triage / remediation → identity rung+\n"
+                        "#   payload-crafting / c2-tooling → denied until the contracted rung"))]))
+
+(defn structured-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Structured outputs" "Structured outputs")]
+     [:p {:class "kc-docs__lead"}
+      (txt "response_format は受理され、上流へは転送されません (openai-ignorable-keys)。出力制約が必要ならプロンプトで JSON を要求し、呼び出し側で検証してください。"
+           "response_format is accepted and dropped (not forwarded). To constrain output, ask for JSON in the prompt and validate on your side.")]
+     (config-block "response_format: {\"type\": \"json_object\"}  // accepted-and-dropped\n\n# do this instead:\n# messages: [{\"role\":\"user\",\"content\":\"Return JSON: {\\\"finding\\\": string}\"}]\n# then parse and validate the content yourself")]))
+
+(defn errors-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Errors" "Errors")]
+     [:p {:class "kc-docs__lead"}
+      (txt "エラーは OpenAI 互換の形です: {\"error\": {\"code\": \"...\"}}。code で原因を判定してください。"
+           "Errors use the OpenAI-compatible shape: {\"error\": {\"code\": \"...\"}}. Match on code.")]
+     (config-block (str "401 sign-in-required          // no cookie session, no/invalid PAT\n"
+                        "403 origin-not-allowed        // browser POST from a foreign origin\n"
+                        "403 verification-required     // identity verification missing/expired\n"
+                        "403 research-scope-required   // task not covered by an approved scope\n"
+                        "403 guardrail-blocked         // CSAM/CBRN/fraud content policy (durable)\n"
+                        "403 firewall-denied           // task tool closed at your assurance rung\n"
+                        "403 prepaid-card-not-accepted // prepaid/virtual card in verification\n"
+                        "429 free-quota-exhausted      // 50 requests/day used up (resets UTC midnight)\n"
+                        "503 card-verification-not-configured // temporary; retry later"))
+     (note-block
+      (txt "429 の無料枠は UTC 深夜にリセットされ、Retry-After は付きません。リトライは翌日 (UTC) に。"
+           "The free-tier 429 resets at UTC midnight and carries no Retry-After — retry the next UTC day."))]))
+
+(defn ratelimits-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Rate limits" "Rate limits")]
+     [:p {:class "kc-docs__lead"}
+      (txt "無料研究枠は principal ごとに 1 日 50 リクエスト、出力最大 2,048 tokens/リクエスト、入力合計 24,000 文字。有料枠 (Credits) を使う場合も 1 リクエストの上限は同じです。"
+           "The free research allowance is 50 requests/day per principal, up to 2,048 output tokens per request, 24,000 input characters total. Paid (Credits) usage shares the same per-request ceilings.")]
+     (config-block (str "free-limits: {\n"
+                        "  \"requestsPerDay\": 50,\n"
+                        "  \"maxOutputTokens\": 2048,\n"
+                        "  \"maxInputCharacters\": 24000\n"
+                        "}\n\n"
+                        "# assurance ladder (tokens/day by rung) at /v1/secure\n"
+                        "#   L2 identity:    50,000 / ceiling 200,000\n"
+                        "#   L3 business:    2,000,000 / ceiling 8,000,000\n"
+                        "#   L4 contracted:  8,000,000 / ceiling 32,000,000"))]))
+
+(defn billing-doc-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Billing & usage" "Billing & usage")]
+     [:p {:class "kc-docs__lead"}
+      (txt "1 credit = $1 相当。入力 / キャッシュ入力 / 出力の tokens が producer receipt ごとに micro-USD で計上されます。保存は byte-秒 (30 日月) 単位。"
+           "1 credit = $1 of usage. Input / cached-input / output tokens are rated to micro-USD per authenticated producer receipt. Storage is rated byte-seconds over a 30-day billing month.")]
+     (config-block (str "GET " openai-base "/billing/status\n"
+                        "  → {\"balances\": [{\"scope\": \"ai\", \"availableMicroUSD\": ...},\n"
+                        "                    {\"scope\": \"storage.capacity\", ...}]}\n\n"
+                        "# credits monthly (never expire, cancel anytime):\n"
+                        "#   $50 +2% | $100 +3% | $500 +5% | $1000 +10%\n\n"
+                        "# rates (micro-USD per million tokens):\n"
+                        "#   input 600,000 · cached-input 150,000 · output 2,400,000\n"
+                        "#   storage 200,000 per GiB-month · egress 90,000/GiB"))]))
+
+(defn zdr-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "Data handling / Zero data retention" "Data handling / Zero data retention")]
+     [:p {:class "kc-docs__lead"}
+      (txt "設計は ZDR です: プロンプトと出力はメモリで処理され、推論ログは保持しません。保持するのは最小限の状態 (確認状態・有効期限・証跡参照・監査レシート) だけです。"
+           "Designed for zero data retention: prompts and outputs are processed in memory; no inference logs are kept. Only minimal state survives (verification status, expiry, evidence references, audit receipts).")]
+     (config-block (str "kept:   verification status/expiry · evidence refs · audit receipts · usage counters\n"
+                        "never:  prompts · outputs · document images · card numbers\n\n"
+                        "screened in memory for: CSAM, CBRN (AUP strictly-prohibited)\n"
+                        "audit-log retention: 180 days (compliance surface: /v1/secure)"))]))
+
+(defn byok-view [locale]
+  (let [txt (fn [ja en] (if (= :ja locale) ja en))]
+    [[:h1 (txt "BYOK" "BYOK")]
+     [:p {:class "kc-docs__lead"}
+      (txt "kotoba.cloud は first-party 推論を提供します (Murakumo 上の自前モデル)。上流プロバイダのキーを持ち込む BYOK は現在提供していません。"
+           "kotoba.cloud serves first-party inference (its own models on Murakumo). Bring-your-own provider keys are not offered today.")]
+     (config-block (str "status: not-offered\n\n"
+ "# the model catalog (/v1/models) lists what the gateway routes;\n"
+                        "# there is no per-workspace upstream key attachment surface"))]))
+
+(defn ref-view [id locale]
+  (case id
+    "quickstart" (quickstart-view locale)
+    "security-services" (security-services-view locale)
+    "streaming" (streaming-view locale)
+    "tools" (tools-view locale)
+    "structured-outputs" (structured-view locale)
+    "errors" (errors-view locale)
+    "rate-limits" (ratelimits-view locale)
+    "billing-and-usage" (billing-doc-view locale)
+    "zero-data-retention" (zdr-view locale)
+    "byok" (byok-view locale)
+    [[:h1 "Not found"]]))

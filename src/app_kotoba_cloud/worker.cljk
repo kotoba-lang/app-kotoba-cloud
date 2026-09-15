@@ -8,6 +8,8 @@
             [app-kotoba-cloud.funnel :as funnel]
             [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.research :as research]
+            [app-kotoba-cloud.security-services :as security-services]
+            [app-kotoba-cloud.security-fit :as security-fit]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
@@ -17,14 +19,14 @@
             [app-kotoba-cloud.pqc :as pqc]
             [app-kotoba-cloud.session :as session]
             [app-kotoba-cloud.pat :as pat]
+            [app-kotoba-cloud.csp :as csp]
             [goog.object :as gobj]))
 
 (def security-headers
   ;; connect-src stays 'self' for first-party funnel POSTs. freebuff.com is
   ;; allowed only so a measured bfcid can load the vendor tag. No OpenAI Ads
   ;; host is listed.
-  {"content-security-policy"
-   "default-src 'none'; style-src 'unsafe-inline'; script-src 'self' https://freebuff.com; connect-src 'self' https://freebuff.com; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+  {"content-security-policy" csp/public-document
    "cross-origin-opener-policy" "same-origin"
    "referrer-policy" "no-referrer"
    "x-content-type-options" "nosniff"
@@ -699,6 +701,89 @@
       :else
       (boot-error "not-found" 404))))
 
+(defn- normalize-finding
+  "Coerce JSON-decoded finding fields to the shapes the ledger validates
+  against: snake_case JSON keys become the schema's kebab keys, and string
+  values for :service/:severity become keywords."
+  [f]
+  (let [f (cond-> f
+            (contains? f :finding_id) (assoc :finding-id (get f :finding_id))
+            (contains? f :first_seen) (assoc :first-seen (get f :first_seen))
+            (contains? f :last_seen) (assoc :last-seen (get f :last_seen)))]
+    (cond-> f
+      (string? (:service f)) (update :service keyword)
+      (string? (:severity f)) (update :severity keyword))))
+
+(defn- parse-findings-payload
+  "Accepts a bare JSON array or {findings:[...]}. Returns [ok findings]."
+  [body]
+  (cond
+    (vector? body) [true body]
+    (and (map? body) (vector? (:findings body))) [true (:findings body)]
+    :else [false nil]))
+
+(defn- route-security-findings [request]
+  (let [content-type (or (.get (.-headers request) "content-type") "")]
+    (if-not (.startsWith content-type "application/json")
+      (private-json-response {:ok false :error {:code "content-type-required"}} 415)
+      (-> (.text request)
+          (.then
+           (fn [text]
+             (let [body (js->clj (js/JSON.parse text) :keywordize-keys true)
+                   [ok? findings] (parse-findings-payload body)
+                   normalized (mapv normalize-finding (or findings []))
+                   first-bad (when ok?
+                               (some (fn [[i f]] (when-let [err (security-services/finding-error f)]
+                                                   (assoc err :index i)))
+                                     (map-indexed vector normalized)))]
+               (cond
+                 (not ok?)
+                 (private-json-response
+                  {:ok false :error {:code "invalid-findings-payload"
+                                     :hint "submit a JSON array or a {findings: [...]} object"}} 400)
+
+                 first-bad
+                 (private-json-response
+                  {:ok false :error {:code "invalid-finding"
+                                     :index (:index first-bad)
+                                     :field (:field first-bad)
+                                     :reason (:code first-bad)}} 400)
+
+                 :else
+                 (private-json-response
+                  (merge {:ok true :accepted (count normalized)}
+                         {:ledger (security-services/build-ledger normalized)}))))))))))
+
+(defn- route-security-vulnerabilities [request]
+  (let [raw (.get (.-searchParams (js/URL. (.-url request))) "findings")]
+    (if (not raw)
+      (private-json-response
+       (merge {:ok true :accepted 0}
+              {:ledger (security-services/build-ledger nil)}))
+      (-> (js/Promise.resolve nil)
+          (.then
+           (fn [_]
+             (let [body (js->clj (js/JSON.parse raw) :keywordize-keys true)
+                   [ok? findings] (parse-findings-payload body)
+                   normalized (mapv normalize-finding (or findings []))
+                   first-bad (when ok?
+                               (some (fn [[i f]] (when-let [err (security-services/finding-error f)]
+                                                   (assoc err :index i)))
+                                     (map-indexed vector normalized)))]
+               (cond
+                 (not ok?)
+                 (private-json-response {:ok false :error {:code "invalid-findings-payload"}} 400)
+                 first-bad
+                 (private-json-response
+                  {:ok false :error {:code "invalid-finding"
+                                     :index (:index first-bad)
+                                     :field (:field first-bad)
+                                     :reason (:code first-bad)}} 400)
+                 :else
+                 (private-json-response
+                  (merge {:ok true :accepted (count normalized)}
+                         {:ledger (security-services/build-ledger normalized)}))))))))))
+
 (defn route [request ^js env]
   (let [url (js/URL. (.-url request))
         path (.-pathname url)
@@ -733,7 +818,7 @@
         (#{"/" "/admin/" "/index.html"} path)
         (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/admin/") request))
             (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                             "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                                             "content-security-policy" csp/admin-document
                                              "x-robots-tag" "noindex"
                                              "referrer-policy" "no-referrer"})))
 
@@ -758,7 +843,7 @@
       (and (contains? #{"/identity" "/identity/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/identity/") request))
           (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                           "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                                           "content-security-policy" csp/identity-document
                                            "permissions-policy" "camera=(self), microphone=(), geolocation=(), payment=()"})))
 
       (contains? org-gateway/paths path)
@@ -767,7 +852,7 @@
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
           (.then #(with-security-headers % {"cache-control" "no-store, private"
-                                           "content-security-policy" "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"})))
+                                           "content-security-policy" csp/account-document})))
 
       (contains? research-gateway/paths path)
       (research-gateway/route request env fetch-viewer private-json-response)
@@ -809,6 +894,18 @@
                    (if-not (:valid viewer)
                      (private-json-response {:ok false :error "sign-in-required"} 401)
                      (route-api-token request env viewer)))))
+
+      ;; VM ledger API (PR: security-apps). Deterministic, stateless: POST
+      ;; /v1/security/findings validates the submitted finding records and
+      ;; returns the deduped scored ledger computed from the body itself;
+      ;; GET /v1/security/vulnerabilities computes the same ledger from an
+      ;; optional ?findings= JSON param. POST routes MUST precede the
+      ;; 405 catch-all below.
+      (and (= path "/v1/security/findings") (= method "POST"))
+      (route-security-findings request)
+
+      (and (= path "/v1/security/vulnerabilities") (#{"GET" "HEAD"} method))
+      (route-security-vulnerabilities request)
 
       (not (#{"GET" "HEAD"} method))
       (response "method not allowed" 405 "text/plain; charset=utf-8")
@@ -856,7 +953,7 @@
             org-binding (aget env "ORG_AUTHORITY")]
         (if (and org-binding (re-find #"^com-[a-z0-9][a-z0-9-]{2,62}\.kotoba\.cloud$" handle))
           (-> (.fetch org-binding
-                      (js/Request. "https://org.internal/didlog"
+                      (js/Request. "https://org.internal/registry"
                                    #js {:method "POST" :redirect "manual"
                                         :signal (js/AbortSignal.timeout 15000)
                                         :headers #js {"content-type" "application/json"}
@@ -866,12 +963,52 @@
                          (json-response {:error {:code "org-did-not-found"}} 404)
                          (.then (.json r)
                                 (fn [d]
-                                  (let [d (js->clj d :keywordize-keys true)]
-                                    (js/Response. (str (:log d) "\n")
-                                                  #js {:status 200
-                                                       :headers #js {"content-type" "application/jsonl; charset=utf-8"
+                                  (let [doc (js->clj d :keywordize-keys true)
+                                        entry (some (fn [o] (when (= handle (:handle o)) o))
+                                                    (:organizations doc))]
+                                    (js/Response. (str (or (:log entry) (:log doc)) "\n")
+                                                  #js {:status (if (or (:log entry) (:log doc)) 200 404)
+                                                       :headers #js {"content-type" (if (or (:log entry) (:log doc))
+                                                                                      "application/jsonl; charset=utf-8"
+                                                                                      "application/json")
                                                                      "cache-control" "public, max-age=3600"}}))))))))
           (json-response {:error {:code "not-found"}} 404)))
+
+      ;; SECURE surface (orcarouter pattern): public metadata of the runtime
+      ;; controls — guardrail templates, firewall tool map, compliance coverage.
+      ;; Read-only; the authority enforces, the edge only describes.
+      ;; Security-services suite catalog (describing only): the edge serves
+      ;; the ONE canonical def; any enforcement stays on the private
+      ;; authority.
+      (= path "/v1/security/services")
+      (json-response security-services/security-services)
+
+      ;; Compliance Fit Finder (deterministic, no AI): transitive
+      ;; service -> catalog-category -> framework-control expansion over the
+      ;; committed compliance-catalog fit mapping. Query-param or path form.
+      (and (= path "/v1/security/compliance-fit") (#{"GET" "HEAD"} method))
+      (let [fw (.get (.-searchParams (js/URL. (.-url request))) "framework")
+            fit (when fw (security-fit/fit fw))]
+        (if fit
+          (json-response (merge {:ok true} fit))
+          (json-response {:ok false
+                          :error {:code "unknown-framework"
+                                  :framework fw
+                                  :committed (vec security-fit/frameworks)}}
+                         (if fw 404 400))))
+
+      (.startsWith path "/v1/security/compliance-fit/")
+      (let [fw (subs path (count "/v1/security/compliance-fit/"))
+            fit (security-fit/fit fw)]
+        (if fit
+          (json-response (merge {:ok true} fit))
+          (json-response {:ok false
+                          :error {:code "unknown-framework"
+                                  :framework fw
+                                  :committed (vec security-fit/frameworks)}} 404)))
+
+      (= path "/v1/secure")
+      (json-response research/secure-profile)
 
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})

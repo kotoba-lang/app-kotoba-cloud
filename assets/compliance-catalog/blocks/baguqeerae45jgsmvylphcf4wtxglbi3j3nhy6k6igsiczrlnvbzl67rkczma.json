@@ -1,0 +1,1 @@
+{"categoryId":"secrets","complianceFits":["iso-27001","pci-dss-40","soc2"],"id":"conjur-cyberark","name":"CyberArk Secrets Manager (Conjur)","pricingMode":"quote-based","pricingNote":"quote-based; open-source Conjur core free","pricingUrl":"https://www.cyberark.com/products/secrets-manager/","provider":"CyberArk","providerHq":"US"}

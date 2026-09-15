@@ -49,6 +49,12 @@ Scope note: documents and selfies go only to Stripe (https://verify.stripe.com).
 kotoba.cloud stores no identity images — only the verification status, expiry,
 evidence reference and audit receipt. Not a drop-in API-key service; no tools,
 arbitrary models or system-message overrides. Chat UI requires the same session.
+
+Assurance ladder access order: a saved card (setup mode, nothing charged) unlocks
+the free research allowance (50 requests/day) immediately; identity verification
+and governance checks (business verified, contracted researcher) come after and
+raise the token ceiling. Tool calls and command execution are NEVER performed
+server-side — the model returns text only; run tools locally on your machine.
 Registration page: https://kotoba.cloud/#research-register · Full guide: https://kotoba.cloud/ekyc.md
 
 Existing infrastructure features below retain separate authority boundaries.

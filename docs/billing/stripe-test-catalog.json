@@ -1,7 +1,7 @@
 {
   "stripe_account": "acct_1U7sRyITDawH5x8a",
   "livemode": false,
-  "catalog_version": "2026-09-14-v2",
+  "catalog_version": "2026-09-15-v4",
   "status": "sandbox-proposal",
   "products": [
     {

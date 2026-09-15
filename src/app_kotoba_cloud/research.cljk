@@ -4,7 +4,20 @@
 
 (def policy-version "whitehat-2026-09-12-v1")
 (def model-id "qwen3.8-flash-next-whitehacker")
-(def upstream-model-id "qwen3.8-flash-next-cybersecurity-nvfp4")
+(def models
+  "Selectable research models. `:upstream` is the model id forwarded to the
+  configured inference endpoint; `:strictAttribution` requires the upstream
+  to echo its own model id. Models served behind a router reporting a
+  different serving name (e.g. murakumo-main) set it false and are validated
+  on object shape + content only."
+  {"qwen3.8-flash-next-whitehacker"
+   {:upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
+    :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}
+   "glm5.3-flash"
+   {:upstream "glm5.3-flash" :strictAttribution false
+    :source "https://huggingface.co/zai-org/GLM"}})
+(def model-ids (set (keys models)))
+(def upstream-model-id (get-in models [model-id :upstream]))
 (def tasks #{"code-review" "vulnerability-triage" "remediation"})
 (def free-limits {:requestsPerDay 50 :maxOutputTokens 2048 :maxInputCharacters 24000})
 (def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
@@ -13,10 +26,12 @@
                      :minBelief 0.85 :maxDisbelief 0.05 :maxUncertainty 0.20})
 (def catalog
   {:object "list"
-   :data [{:id model-id :object "model" :owned_by "kotoba"
-           :upstream "https://api.murakumo.cloud/v1/chat/completions"
-           :availability "upstream-tested-access-gated"
-           :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}]
+   :data (mapv (fn [[id spec]]
+                 {:id id :object "model" :owned_by "kotoba"
+                  :upstream "https://api.murakumo.cloud/v1/chat/completions"
+                  :availability "upstream-tested-access-gated"
+                  :source (:source spec)})
+               (seq models))
    :policyVersion policy-version :freeTier free-limits
    :requirements ["authenticated-principal" "verified-ekyc" "current-aml-ctf-clearance"
                   "current-trust-route" "approved-research-scope" "available-free-quota"]
@@ -81,7 +96,7 @@
                  :purpose :scope :issuer :reference} (keys body))))
 
 (defn completion? [body]
-  (and (= model-id (:model body))
+  (and (contains? model-ids (:model body))
        (contains? tasks (:task body))
        (text? (:scopeId body) 256)
        (vector? (:messages body)) (<= 1 (count (:messages body)) 12)
@@ -116,7 +131,7 @@
                        (= "system" (get (first ms) :role)))
         chat (if sys-only (vec (drop 1 ms)) (vec ms))
         ks (set (map name (keys body)))]
-    (and (= model-id (:model body))
+    (and (contains? model-ids (:model body))
          (or (nil? (:task body)) (contains? tasks (:task body)))
          (or (nil? (:scopeId body)) (text? (:scopeId body) 256))
          (vector? ms) (<= 1 (count ms) 64)
@@ -145,18 +160,20 @@
 
 ;; --- Assurance ladder (OrcaRouter-style rungs) ------------------------------
 ;; Each rung names the evidence that puts a workspace at that level and the
-;; daily token allowance it unlocks. The bottom rung proves nothing about who
-;; the caller is (a chargeable card is not an identity), so it unlocks nothing
-;; on its own; each higher rung inherits the ones below. The authority computes
-;; the reached rung from the record; the edge only displays it.
+;; daily token allowance it unlocks. The bottom rung (a chargeable card is not
+;; an identity) unlocks only the free research allowance — 50 requests/day with
+;; the 2,048-token per-request output cap, i.e. 102,400 tokens/day; identity
+;; verification and governance checks (business, contracted) come after it and
+;; raise the ceiling. Each higher rung inherits the ones below. The authority
+;; computes the reached rung from the record; the edge only displays it.
 (def assurance-ladder
   {:version "kotoba-assurance-ladder-2026-09-v1"
    :unit "tokensPerDay"
    :rungs
    [{:id "card" :level 1 :label "Payment method on file"
      :evidence "a live credit/debit card (prepaid rejected) verified with a $0 check"
-     :defaultTokensPerDay 0 :ceilingTokensPerDay 0
-     :grantsBand nil}
+     :defaultTokensPerDay 102400 :ceilingTokensPerDay 102400
+     :grantsBand "code-review"}
     {:id "identity" :level 2 :label "Identity verified"
      :evidence "Stripe Identity document + selfie check bound to the principal"
      :defaultTokensPerDay 50000 :ceilingTokensPerDay 200000
@@ -190,7 +207,11 @@
    :privacy {:title "Privacy"
              :points ["Designed for zero data retention"
                       "Request content is screened in memory"
-                      "When zero-data-retention is enabled, your content is not used for training"]}})
+                      "When zero-data-retention is enabled, your content is not used for training"]}
+   :localExecution {:title "Local execution boundary"
+                    :points ["The model never emits tool calls and the service never executes tools, code, commands or network actions server-side"
+                             "Tool use, command execution and automation stay entirely on the user's local machine, driven by the user's own agent"
+                             "Generated exploit or payload text is data returned to the caller — it is never run by kotoba.cloud"]}})
 
 (defn reached-rung
   "The highest rung the record's evidence reaches. Never fabricates: a rung is
@@ -213,8 +234,11 @@
       card? :card
       :else :none)))
 
-(defn rung-by-id [id]
-  (some #(when (= id (:id %)) %) (:rungs assurance-ladder)))
+(defn rung-by-id
+  "Accepts the string ids used in the ladder and the keyword ids reached-rung
+  returns (= by name); mixing them silently resolves to nil otherwise."
+  [id]
+  (some #(when (and id (= (name id) (:id %))) %) (:rungs assurance-ladder)))
 
 (defn rung-allowance
   "Daily token allowance at the record's reached rung. The bottom rung and no
@@ -226,6 +250,29 @@
      :ceilingTokensPerDay (:ceilingTokensPerDay rung)
      :grantsBand (:grantsBand rung)}
     {:rungId :none :level 0 :tokensPerDay 0 :ceilingTokensPerDay 0 :grantsBand nil}))
+
+;; --- SECURE public metadata (orcarouter pattern) ----------------------------
+;; What the edge tells the browser/API about the runtime controls. Coverage
+;; is automated runtime controls only — never a certification claim.
+(def secure-profile
+  {:version "kotoba-secure-2026-09-v1"
+   :note "Coverage = automated runtime controls only - not a certification."
+   :guardrails {:version "kotoba-guardrails-2026-09-v1"
+                :templates ["csam-block" "cbrn-block" "fraud-block" "secret-hygiene" "pii-passkeys"]
+                :precedence "rule-match is deterministic; block refuses the job before quota"}
+   :firewall {:version "kotoba-firewall-2026-09-v1"
+              :tools {"code-review" :identity "vulnerability-triage" :identity
+                      "remediation" :identity "payload-crafting" :contracted
+                      "c2-tooling" :contracted}
+              :observeMode false}
+   :compliance {:version "kotoba-compliance-2026-09-v1"
+                :frameworks ["APPI (JP)" "PCI DSS 4.0" "OWASP LLM Top-10" "NIST AI RMF"]
+                :auditLogRetentionDays 180
+                :dataResidency "unspecified"
+                :zeroDataRetention "designed-for-zdr"}
+   :team {:version "kotoba-org-membership-2026-09-v1"
+          :roles ["owner" "admin" "member" "billing"]
+          :shared ["api tokens" "scopes" "billing"] :surface "/account"}})
 
 (def identity-profile
   ;; Public identity metadata. The live route is Stripe Identity only

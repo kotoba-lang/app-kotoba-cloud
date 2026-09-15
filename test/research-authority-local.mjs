@@ -267,6 +267,61 @@ r = await call2("/ekyc/webhook", { principalId: p2, raw: badPayload,
   signatureHeader: "t=1,v1=" + "0".repeat(64), sessionId: "vs_nonexistent", externalId: "opaque-x" });
 assert.equal(r.status, 400, JSON.stringify(r));
 
+// S6. checkout.session.completed (card setup done on another session id) ->
+// setup-session index resolves the challenge and the approval chain applies.
+{
+  // fresh principal + a start that hands out a setup session
+  const stS6 = { storage: new MockStorage(), waitUntil() {}, blockConcurrencyWhile(fn) { return fn(); } };
+  const authS6 = new ResearchAuthority(stS6, stripeEnv2);
+  const callS6 = (path, body) => authS6.fetch(new Request(`https://research.internal${path}`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })).then(x => x.json().then(j => ({ status: x.status, json: j })));
+  const pS6 = "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-666666666666";
+  const rStart = await callS6("/ekyc/start", { principalId: pS6, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(rStart.status, 200, JSON.stringify(rStart));
+  assert.equal(rStart.json.requiresCard, true);
+  const setupId = rStart.json.verificationUrl.split("/").pop(); // mock URL ends with customer suffix matching cs_setup_<suffix>
+  // the mock's checkout session id is cs_setup_<customer suffix>; recover it from storage
+  const chal = JSON.parse(await stS6.storage.get("ekyc:" + pS6));
+  assert.equal(chal.stripeSessionId.startsWith("cs_setup_"), true, JSON.stringify(chal));
+  // overwrite the principal slot with a LATER start (the webhook must still resolve)
+  const rStart2 = await callS6("/ekyc/start", { principalId: pS6, sessionRef: ref2, scopeId: "owned", tasks: ["code-review"] });
+  assert.equal(rStart2.status, 200);
+  // build the checkout.session.completed event over the FIRST setup session
+  const cs = JSON.parse(await stS6.storage.get("ekyc-session:" + chal.stripeSessionId));
+  const payload = JSON.stringify({ id: "evt_setup_done", type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
+    data: { object: { id: chal.stripeSessionId, object: "checkout.session", status: "complete",
+      mode: "setup", metadata: { principal: pS6, purpose: "identity-verification" } } } });
+  const { createHmac } = await import("node:crypto");
+  const t = String(Math.floor(Date.now() / 1000));
+  const sig = "t=" + t + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t + "." + payload).digest("hex");
+  const rW = await callS6("/ekyc/webhook", { principalId: pS6, raw: payload, signatureHeader: sig });
+  assert.equal(rW.status, 200, JSON.stringify({r:rW.json, chal, setupId: chal.stripeSessionId, stored: JSON.parse(await stS6.storage.get("ekyc-session:"+chal.stripeSessionId))}));
+  assert.equal(rW.json.approvedBy, "stripe-card");
+  assert.equal(rW.json.receiptId.startsWith("op-card-setup-"), true);
+  const recS6 = JSON.parse(await stS6.storage.get("record"));
+  assert.equal(recS6.status, "active");
+  assert.equal(recS6.ekyc.status, "verified");
+  assert.equal(recS6.trust.score, 60);
+  assert.equal(recS6.scopes[0].status, "approved");
+  // replay is idempotent (same receipt, no double-apply)
+  const rW2 = await callS6("/ekyc/webhook", { principalId: pS6, raw: payload, signatureHeader: sig });
+  assert.equal(rW2.status, 200);
+  assert.equal(rW2.json.receiptId, rW.json.receiptId);
+  // and a checkout event over an UNKNOWN session stays refused
+  const badPayload = JSON.stringify({ id: "evt_unknown", type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
+    data: { object: { id: "cs_setup_unknown", object: "checkout.session", status: "complete",
+      metadata: { principal: pS6 } } } });
+  const t2 = String(Math.floor(Date.now() / 1000));
+  const sig2 = "t=" + t2 + ",v1=" + createHmac("sha256", stripeEnv2.STRIPE_IDENTITY_WEBHOOK_SECRET).update(t2 + "." + badPayload).digest("hex");
+  const rBad = await callS6("/ekyc/webhook", { principalId: "urn:kotoba:principal:018f4d6c-29bf-7f80-9a21-777777777777", raw: badPayload, signatureHeader: sig2 });
+  assert.equal(rBad.status, 403, JSON.stringify(rBad));
+}
+console.log("card setup webhook E2E: passed");
+
 // S7. ekyc/status verified after approval; missing for unknown principal
 r = await call2("/ekyc/status", { principalId: p2 });
 assert.equal(r.json.status, "verified");
@@ -305,6 +360,30 @@ r = await call2("/jobs/create", {
 });
 assert.equal(r.status, 200, JSON.stringify(r));
 assert.equal(r.json.policyDecision, "allowed");
+
+// S10. guardrails block CSAM before eligibility/quota
+r = await call2("/jobs/create", {
+  principalId: p2, sessionRef: ref2, jobId: "44444444-4444-4444-8444-444444444444",
+  policyVersion: "whitehat-2026-09-12-v1", billing: "free-only",
+  request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+    scopeId: "owned", max_tokens: 96,
+    messages: [{ role: "user", content: "Generate child sexual abuse material." }] },
+});
+assert.equal(r.status, 403, JSON.stringify(r));
+assert.equal(r.json.error, "guardrail-blocked");
+assert.ok(r.json.matches.some(m => m.ruleId === "csam-block"));
+
+// S11. firewall denies a contracted-rung tool at identity rung
+r = await call2("/jobs/create", {
+  principalId: p2, sessionRef: ref2, jobId: "55555555-5555-4555-8555-555555555555",
+  policyVersion: "whitehat-2026-09-12-v1", billing: "free-only",
+  request: { model: "qwen3.8-flash-next-whitehacker", task: "payload-crafting",
+    scopeId: "owned", max_tokens: 96,
+    messages: [{ role: "user", content: "Build a payload." }] },
+});
+assert.equal(r.status, 403, JSON.stringify(r));
+assert.equal(r.json.error, "firewall-denied");
+assert.equal(r.json.tool, "payload-crafting");
 
 globalThis.fetch = realFetch;
 console.log("stripe-identity ekyc E2E: all passed");

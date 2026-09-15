@@ -1,0 +1,84 @@
+(ns app-kotoba-cloud.security-services-site
+  "Page surface for the security-services suite: renders from the ONE
+  canonical def in app-kotoba-cloud.security-services (data-only), so the
+  /security/services/ document and the /apps cards cannot drift. Emitted
+  by site.cljk through the shared site-layout (sidebar) wrapper."
+  (:require [app-kotoba-cloud.security-services :as security-services]
+            [cloud-kotoba-dds.catalog :as catalog]
+            [kotoba.lang.text :as str]
+            [jp-go-dds.core :as dds]))
+
+(def css
+  ".kc-secsvc{display:grid;gap:var(--hig-spacing-5);padding-block:var(--hig-spacing-5)}
+.kc-secsvc__card{display:grid;gap:var(--hig-spacing-3);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);padding:var(--hig-spacing-5)}
+.kc-secsvc__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--hig-spacing-3)}
+.kc-secsvc__title{margin:0;font-size:var(--hig-text-title2-font-size);line-height:var(--hig-text-title2-line-height)}
+.kc-secsvc__domain{font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);color:var(--hig-color-secondary-label);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-capsule);padding:2px var(--hig-spacing-2)}
+.kc-secsvc__io{display:grid;gap:var(--hig-spacing-2);margin:0;padding:0;list-style:none;font-size:var(--hig-text-caption1-font-size);color:var(--hig-color-secondary-label)}
+.kc-secsvc__table{width:100%;border-collapse:collapse;font-size:var(--hig-text-caption1-font-size)}
+.kc-secsvc__table th,.kc-secsvc__table td{border-block-end:1px solid var(--hig-color-separator);padding:var(--hig-spacing-2) var(--hig-spacing-3);text-align:start;vertical-align:top}
+.kc-secsvc__table th{color:var(--hig-color-secondary-label);font-weight:700;white-space:nowrap}
+.kc-secsvc__flow{display:grid;gap:var(--hig-spacing-2);margin:0;padding:var(--hig-spacing-4);list-style:none;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-secondary-system-background)}
+.kc-secsvc__flow li{display:grid;grid-template-columns:auto 1fr;gap:var(--hig-spacing-3);align-items:start}
+.kc-secsvc__flow .arrow{color:var(--hig-color-secondary-label);font-family:var(--hig-font-mono)}
+.kc-secsvc__status{display:inline-flex;align-items:center;gap:var(--hig-spacing-2);font-size:var(--hig-text-caption2-font-size);color:var(--hig-color-secondary-label)}
+.kc-secsvc__status::before{content:'';inline-size:.6rem;block-size:.6rem;border-radius:var(--hig-radius-capsule);background:var(--hig-palette-green)}
+.kc-secsvc__status[data-state=gated]::before{background:var(--hig-color-tint)}")
+
+(defn view [locale]
+  (let [ja? (= locale :ja)]
+    (catalog/page
+     {:title (if ja? "セキュリティサービス" "Security services")
+      :lead (if ja?
+              "kotoba.cloud の第一次セキュリティサービス群。CTEM・DAST・SAST の所見は共通スキーマで VM 台帳へ集約されます。"
+              "The first-party security services suite on kotoba.cloud. CTEM, DAST and SAST findings flow into the VM ledger in one shared schema.")
+      :nav (catalog/breadcrumb
+            "Security services"
+            [["ホーム" "/ja/"]
+             ["Apps" "/apps/"]
+             ["セキュリティサービス" nil]])}
+     [:div {:class "kc-secsvc"}
+      (into [:div {:class "kc-secsvc__card"}]
+            (map (fn [{:keys [id name summary domain capabilities inputs outputs integration status]}]
+                   [:section {:id (clojure.core/name id) :data-service (clojure.core/name id)}
+                    [:div {:class "kc-secsvc__head"}
+                     [:h2 {:class "kc-secsvc__title"} name]
+                     [:span {:class "kc-secsvc__domain"} (clojure.core/name domain)]
+                     [:span {:class "kc-secsvc__status" :data-state status}
+                      (if (= status "component-shipped")
+                        (if ja? "コンポーネント提供中" "component shipped")
+                        (if ja? "ゲート中" "gated"))]]
+                    [:p (:ja summary)]
+                    [:p {:lang "en"} (:en summary)]
+                    (into [:table {:class "kc-secsvc__table"}
+                           [:thead [:tr [:th (if ja? "機能" "Capability")]
+                                    [:th (if ja? "説明" "Description")]]]]
+                          (map (fn [[k label]]
+                                 [:tr [:td (str (clojure.core/name k))] [:td label]])
+                               capabilities))
+                    (into [:ul {:class "kc-secsvc__io"}
+                           [:li (str (if ja? "入力: " "inputs: ") (str/join ", " (map clojure.core/name inputs)))]
+                           [:li (str (if ja? "出力: " "outputs: ") (str/join ", " (map clojure.core/name outputs)))]
+                           [:li (str (if ja? "VM 統合: " "VM integration: ") (:note integration))]])])
+                 security-services/security-services))
+      [:section {:id "vm-ledger-flow"}
+       (dds/heading 2 (if ja? "VM 台帳へのデータフロー" "Dataflow into the VM ledger") {:size "24"})
+       [:p (if ja?
+             "上流 3 サービスは共通スキーマの所見を出し、VM が重複排除・スコアリング・修正追跡を行います。"
+             "The three upstream services emit shared-schema findings; VM dedups, scores and tracks remediation.")]
+       (into [:ul {:class "kc-secsvc__flow"}]
+             (map (fn [{:keys [id name integration]}]
+                    [:li [:span {:class "arrow"} "→"]
+                     [:span [:strong name]
+                      (str " · " (if ja? "役割: " "role: ") (:role integration))
+                      (when (= :vm id)
+                        (str " · ledger keys: cpe, cve"))]])
+                  security-services/security-services))
+       [:p {:class "kc-secsvc__domain"}
+        (str "finding schema: " (str/join ", " (map clojure.core/name security-services/finding-schema)))]]
+      [:p {:class "ck-catalog__footnote"}
+       (if ja?
+         "このページと GET /v1/security/services は同じ正本定義から描画されます。実施（enforcement）は非公開 authority が担い、この面は記述のみを行います。"
+         "This page and GET /v1/security/services render from the one canonical def. Enforcement stays on the private authority; this surface only describes.")]])))
+
+;; html is emitted by site.cljk (site-layout wrapper) — no bare page here.

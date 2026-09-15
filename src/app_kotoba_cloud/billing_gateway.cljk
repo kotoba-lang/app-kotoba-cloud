@@ -67,7 +67,7 @@
         read? (contains? #{"/v1/billing/readiness" "/v1/billing/catalog" "/v1/billing/status"} path)]
     (cond
       (not= method (if read? "GET" "POST")) (respond {:error "method-not-allowed"} 405)
-      (= path "/v1/billing/catalog") (respond (assoc billing/catalog :mode (aget env "BILLING_MODE") :checkoutEnabled (boolean (configured? env))) 200)
+      (= path "/v1/billing/catalog") (respond (assoc billing/catalog :mode (aget env "BILLING_MODE") :creditsTerms billing/credits-terms :checkoutEnabled (boolean (configured? env))) 200)
       (= path "/v1/billing/webhook")
       (webhook request env respond)
       (and (not read?) (not (shared/origins (.get (.-headers request) "origin"))))

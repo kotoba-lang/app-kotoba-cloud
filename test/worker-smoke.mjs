@@ -523,6 +523,16 @@ assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
 assert(idFromHeader.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 assert(headerBeatsCountry.headers.get("content-security-policy").includes("connect-src 'self' https://api.kotoba.cloud"));
 
+// Every document links /css/site.css (abc2c4f). A CSP whose style-src lacks
+// 'self' blocks that sheet silently and the page ships unstyled — measured
+// live 2026-09-15: the sidebar rendered position:static under the content on
+// every band while the audit over the HTML + CSS bytes said 100. The header
+// is the document's behaviour too; pin it on the app, account and admin docs.
+for (const [name, res] of [["apex", headerBeatsCountry], ["account", sharedUntouched]]) {
+  const csp = res.headers.get("content-security-policy") || "";
+  assert.match(csp, /style-src [^;]*'self'/, name + " CSP must allow the same-origin stylesheet: " + csp);
+}
+
 const sessionUntouched = await route(new Request("https://kotoba.cloud/v1/session"), env);
 assert.equal(sessionUntouched.status, 200);
 assert.equal(sessionUntouched.headers.get("location"), null);
@@ -577,14 +587,14 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
-      model: researchModel, record: researchRecord });
+      model: body.request ? body.request.model : researchModel, record: researchRecord });
   }
   if (path === "/jobs/status") {
     const job = jobs.get(body.jobId);
     if (!job) return new Response(JSON.stringify({ error: "not-found" }), { status: 404 });
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, billing: "free", policyDecision: "allowed",
-      model: researchModel, record: researchRecord });
+      model: body.request ? body.request.model : researchModel, record: researchRecord });
   }
   assert.equal(path, "/complete");
   assert.equal(body.principalId, researchPrincipal);
@@ -631,7 +641,10 @@ assert.equal(researchCalls.length, 0);
     body: JSON.stringify({ handle: 'com-x.kotoba.cloud', role: 'owner' }) }), env)).status, 401);
 }
 const modelCatalog = await route(new Request("https://kotoba.cloud/v1/models"), env);
-assert.equal((await modelCatalog.json()).data[0].availability, "upstream-tested-access-gated");
+const modelCatalogBody = await modelCatalog.json();
+assert.equal(modelCatalogBody.data[0].availability, "upstream-tested-access-gated");
+assert.deepEqual(modelCatalogBody.data.map(m => m.id).sort(),
+  ["glm5.3-flash", "qwen3.8-flash-next-whitehacker"]);
 const eligibleStatus = await route(researchRequest("/v1/research/status"), researchEnv);
 const eligibleStatusBody = await eligibleStatus.json();
 assert.equal(eligibleStatusBody.status, "eligible");
@@ -800,6 +813,28 @@ assert.equal((await route(researchRequest("/v1/chat/completions", researchBody, 
   // Cookie path stays strict: OpenAI-only body without task/scopeId → 400.
   assert.equal((await route(researchRequest("/v1/chat/completions", { model: researchModel,
     messages: [{ role: "user", content: "x" }] }), researchEnv)).status, 400);
+  // Multi-model: glm5.3-flash admitted end-to-end on the bearer path; the
+  // completion echoes the requested model and the authority request keeps it.
+  const glmBody = { model: "glm5.3-flash", messages: [{ role: "user", content: "Review my auth checks." }] };
+  const savedForGlm = structuredClone(researchRecord);
+  researchRecord.continuous.sessionRef = agentSessionRef;
+  researchRecord.continuous.action = "code-review";
+  researchRecord.scopes = [{ id: "owned", status: "approved", tasks: ["code-review"], expiresAt: Date.now() + 60000 }];
+  const okGlm = await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+    method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+    body: JSON.stringify(glmBody)
+  }), bearerPatEnv);
+  researchRecord = savedForGlm;
+  assert.equal(okGlm.status, 200);
+  const glmJson = await okGlm.json();
+  assert.equal(glmJson.model, "glm5.3-flash");
+  const lastGlmCreate = researchCalls.filter(c => c.path === "/jobs/create").slice(-1)[0];
+  assert.equal(lastGlmCreate.body.request.model, "glm5.3-flash");
+  // Unknown models remain rejected on the bearer path.
+  assert.equal((await route(new Request("https://kotoba.cloud/v1/chat/completions", {
+    method: "POST", headers: { authorization: `Bearer ${patBody.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: "gpt-4o", messages: [{ role: "user", content: "x" }] })
+  }), bearerPatEnv)).status, 400);
 }
 
 // Token must never leak into logged calls (only sessionRef/policy payloads go
@@ -935,19 +970,25 @@ assert.deepEqual(orgRegistryBody.organizations, []);
   assert.equal(lrb.organizations.length,1);
   assert.equal(lrb.organizations[0].handle,'com-live.kotoba.cloud');
   assert.equal(lrb.statusLists.length,1);
-  // authority unreachable → static policy doc, never an error
-  const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>Response.error('down')}};
+  // authority non-ok HTTP → explicit error (live intent, fef2dbd); authority
+  // unreachable (fetch rejects) → static policy doc, never an error.
+  const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>new Response('503',{status:503})}};
   const dr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),downEnv);
   assert.equal(dr.status,200);
   assert.deepEqual((await dr.json()).organizations,[]);
+  const deadEnv={...env, ORG_AUTHORITY:{fetch:async()=>{throw new Error('binding down');}}};
+  const rr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),deadEnv);
+  assert.equal(rr.status,200);
+  assert.deepEqual((await rr.json()).organizations,[]);
 }
 // Public per-org did:webvh log: worker proxies the private authority's
 // /didlog and serves it as application/jsonl (ADR-2609141633 layer 1).
 {
   const didLogEnv={...env, ORG_AUTHORITY:{fetch:async(url,init)=>{
     const b=JSON.parse(init && init.body ? init.body : await url.text());
-    if (b.handle==='com-pub.kotoba.cloud') return Response.json({did:'did:webvh:zS:com-pub.kotoba.cloud',
-      scid:'zS',log:'{"versionId":"1-zS"}',publishedAt:1700000000000});
+    if (b.handle==='com-pub.kotoba.cloud') return Response.json({organizations:[{
+      handle:'com-pub.kotoba.cloud', did:'did:webvh:zS:com-pub.kotoba.cloud',
+      scid:'zS', log:'{"versionId":"1-zS"}', publishedAt:1700000000000}]});
     return Response.json({error:'org-unknown'},{status:404});
   }}};
   const pubLog=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-dids/com-pub.kotoba.cloud/did.jsonl'),didLogEnv);
@@ -1147,7 +1188,7 @@ try {
  r=await doBill('/usage',{kind:'inference',receipt:{...receipt,outputTokens:20}});assert.equal(r.status,503,'conflicting receipt rejected');
 
  r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200,await r.clone().text());
- assert.equal((await r.json()).amountMicroUSD,66);
+ assert.equal((await r.json()).amountMicroUSD,108);
  const settledSnapshot=memory.get('limits');
  r=await doBill('/settle-usage',{id:'reserved-two',kind:'inference',receipt});assert.equal(r.status,200);
  assert.equal(memory.get('limits'),settledSnapshot,'retry cannot charge twice');
@@ -1306,4 +1347,103 @@ console.log('Scoped database session exchange and header isolation passed');
   const noOrigin=await route(new Request('https://kotoba.cloud/v1/org/verify',{method:'POST',
     headers:{'content-type':'application/json'},body:'{}'}),{});
   assert.equal(noOrigin.status,403);
+}
+
+{
+  // Security-services suite catalog on the edge (describing only).
+  const res=await route(new Request('https://kotoba.cloud/v1/security/services'),env);
+  assert.equal(res.status,200);
+  const catalog=await res.json();
+  assert.deepEqual([...catalog.map(s=>s.id)].sort(),['ctem','dast','sast','vm']);
+  assert.ok(catalog.every(s=>s.integration&&s.capabilities&&s.summary));
+  const vm=catalog.find(s=>s.id==='vm');
+  assert.equal(vm.integration.role,'aggregation-ledger');
+  assert.deepEqual(vm.integration['ledger-keys'],['cpe','cve']);
+  for(const s of catalog.filter(x=>x.id!=='vm')){
+    assert.equal(s.integration.feeds,'vm');
+  }
+  const denied=await route(new Request('https://kotoba.cloud/v1/security/services',{method:'POST'}),env);
+  assert.equal(denied.status,405);
+}
+
+{
+  // VM ledger API: deterministic, stateless aggregation on the edge.
+  const good=[{findingId:'xss-reflected',service:'dast',asset:'https://api.example.com/login',
+    severity:'high',evidence:{kind:'request-response',cve:'CVE-2026-1234',cpe:'cpe:2.3:a:acme:gw'},
+    firstSeen:'2026-08-01',lastSeen:'2026-09-10'},
+    {findingId:'sqli-blind',service:'sast',asset:'https://api.example.com/login',
+    severity:'low',evidence:{kind:'taint-path'},firstSeen:'2026-09-02',lastSeen:'2026-09-02'}];
+  const payload=JSON.stringify(good.map(f=>({finding_id:f.findingId,service:f.service,asset:f.asset,
+    severity:f.severity,evidence:f.evidence,first_seen:f.firstSeen,last_seen:f.lastSeen})));
+  const post=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:payload}),env);
+  assert.equal(post.status,200);
+  const postBody=await post.json();
+  assert.equal(postBody.ok,true);
+  assert.equal(postBody.accepted,2);
+  assert.equal(postBody.ledger.schema,'kotoba.security/vm-ledger-v1');
+  assert.equal(postBody.ledger.counts.vulnerabilities,2);
+  assert.equal(postBody.ledger.counts.assets,1);
+  // deterministic scoring sample: high + dast + request-response = 72
+  const xss=postBody.ledger.assets[0].vulnerabilities.find(v=>v['finding-id']==='xss-reflected');
+  assert.equal(xss.score,72);
+  assert.equal(xss.status,'open');
+  assert.equal(xss['evidence-refs'].cve,'CVE-2026-1234');
+  assert.ok(xss['first-seen']&&xss['last-seen']);
+  // malformed finding -> 400 with error code
+  const bad=JSON.stringify([{finding_id:'x',service:'dast',asset:'a',severity:'catastrophic',
+    evidence:{},first_seen:'2026-09-01',last_seen:'2026-09-01'}]);
+  const badRes=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:bad}),env);
+  assert.equal(badRes.status,400);
+  assert.equal((await badRes.json()).error.code,'invalid-finding');
+  const badPayload=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',
+    headers:{'content-type':'application/json'},body:'{"nope":1}'}),env);
+  assert.equal(badPayload.status,400);
+  assert.equal((await badPayload.json()).error.code,'invalid-findings-payload');
+  // GET ledger endpoint: empty ledger is 200 with the same scoring metadata
+  const getLedger=await route(new Request('https://kotoba.cloud/v1/security/vulnerabilities'),env);
+  assert.equal(getLedger.status,200);
+  const getBody=await getLedger.json();
+  assert.equal(getBody.ledger.schema,'kotoba.security/vm-ledger-v1');
+  assert.equal(getBody.ledger.counts.vulnerabilities,0);
+  assert.ok(getBody.ledger.scoring.formula);
+  const qLedger=await route(new Request('https://kotoba.cloud/v1/security/vulnerabilities?findings='
+    +encodeURIComponent(payload)),env);
+  assert.equal(qLedger.status,200);
+  const qBody=await qLedger.json();
+  assert.equal(qBody.ledger.counts.vulnerabilities,2);
+  const qXss=qBody.ledger.assets[0].vulnerabilities.find(v=>v['finding-id']==='xss-reflected');
+  assert.equal(qXss.score,72);
+  // findings POST without JSON content-type -> 415
+  const noCt=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',body:'[]'}),env);
+  assert.equal(noCt.status,415);
+}
+
+{
+  // Compliance Fit Finder: deterministic service -> category -> control fit.
+  const fit=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit?framework=nist-csf-20'),env);
+  assert.equal(fit.status,200);
+  const fitBody=await fit.json();
+  assert.equal(fitBody.ok,true);
+  assert.equal(fitBody.framework.id,'nist-csf-20');
+  assert.equal(fitBody.framework.controlMapping,'committed');
+  assert.deepEqual(fitBody.services.map(s=>s.service).sort(),['ctem','dast','sast','vm']);
+  const vm=fitBody.services.find(s=>s.service==='vm');
+  assert.ok(vm.categories.includes('vm-scanner'));
+  assert.ok(vm.controls.length>0);
+  assert.ok(fitBody.allControls.length>0);
+  const fitPath=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/nist-csf-20'),env);
+  assert.equal(fitPath.status,200);
+  const fitPathBody=await fitPath.json();
+  assert.equal(fitPathBody.framework.id,'nist-csf-20');
+  // unknown framework -> 404 with error code + committed list
+  const unknown=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/iso-99999'),env);
+  assert.equal(unknown.status,404);
+  const unknownBody=await unknown.json();
+  assert.equal(unknownBody.error.code,'unknown-framework');
+  assert.ok(unknownBody.error.committed.includes('nist-csf-20'));
+  // missing framework param -> 400
+  const missing=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit'),env);
+  assert.equal(missing.status,400);
 }

@@ -1,0 +1,1 @@
+{"categoryId":"secrets","complianceFits":["iso-27001","nist-csf-20","soc2"],"id":"google-secret-manager","name":"Google Secret Manager","pricingMode":"public-list","pricingNote":"usage-based published pricing (about $0.06/secret-version/month plus access charges)","pricingUrl":"https://cloud.google.com/secret-manager/pricing","provider":"Google","providerHq":"US"}
