@@ -429,6 +429,8 @@
   ;; nav sits AFTER <main> in document order so reading order is content
   ;; first on every band (shinkansen.audit :nav-before-content).
   ".kc-sb{box-sizing:border-box;position:fixed;inset-block:0;inset-inline-start:0;inline-size:15rem;background:var(--hig-color-secondary-system-background);border-inline-end:1px solid var(--hig-color-separator);display:flex;flex-direction:column;padding:var(--hig-spacing-4);gap:var(--hig-spacing-2);overflow:auto;z-index:30}
+.kc-sb__brand{display:block;padding:var(--hig-spacing-1) var(--hig-spacing-1) var(--hig-spacing-2)}
+.kc-sb__brand img{display:block;inline-size:100%;max-inline-size:13rem;block-size:auto}
 .kc-sb__new{display:flex;align-items:center;justify-content:center;min-height:2.75rem;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-system-background);color:var(--hig-color-label);font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
 .kc-sb__new:hover{background:var(--hig-color-tertiary-system-background,var(--hig-color-secondary-system-background))}
 .kc-sb__group{margin-top:var(--hig-spacing-4);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);font-weight:700;letter-spacing:.08em;color:var(--hig-color-secondary-label)}
@@ -472,6 +474,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
 .kc-sb{inset-block:0 auto;inset-inline:0;inline-size:auto;block-size:3.25rem;flex-direction:row;align-items:center;gap:var(--hig-spacing-1);padding:0 var(--hig-spacing-2);border-inline-end:none;border-block-end:1px solid var(--hig-color-separator);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .kc-sb::-webkit-scrollbar{display:none}
 .kc-sb__group{display:none}
+.kc-sb__brand{flex:none;padding:0 var(--hig-spacing-1)}
+.kc-sb__brand img{inline-size:auto;block-size:1.5rem}
 .kc-sb__new{flex:none;min-height:2.25rem;padding-inline:var(--hig-spacing-3)}
 .kc-sb a{flex:none;min-height:2.25rem;font-size:var(--hig-text-footnote1-font-size)}
 .kc-sb__foot{position:sticky;inset-inline-end:0;margin-top:0;margin-inline-start:auto;margin-inline-end:calc(-1 * var(--hig-spacing-2));border-top:none;padding:0 var(--hig-spacing-2);flex:none;background:var(--hig-color-secondary-system-background)}
@@ -496,6 +500,11 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (let [txt (fn [ja en] (if (= locale :ja) ja en))]
     (into
      [:nav {:class "kc-sb" :aria-label (txt "アプリナビゲーション" "App navigation")}
+      ;; the brand, top-left of every screen (owner direction 2026-09-15):
+      ;; the Kotoba mark from kotoba-lang/kotoba's README header, one home —
+      ;; the compact header on the app page drops its wordmark for it
+      [:a {:class "kc-sb__brand" :href "/" :aria-label (txt "Kotoba Cloud ホーム" "Kotoba Cloud home")}
+       [:img {:src "/assets/kotoba-logo.png" :alt "Kotoba" :width 208 :height 29 :decoding "async"}]]
       [:a {:class "kc-sb__new" :href (:href console/get-started)}
        (txt (:ja console/get-started) (:en console/get-started))]]
      (concat
@@ -568,11 +577,14 @@ body:has(.kc-sb){padding-inline-start:15rem}
    [:header {:class (if nav "kc-header" "kc-header kc-header--compact")}
     (dds/container
      [:div {:class "kc-header__inner"}
-      ;; locale-free: the edge negotiates the variant by cookie
-      ;; (shinkansen.locale); a /ja/ href is a 301 hop.
-      [:a {:class "kc-wordmark" :href "/" :aria-label (:home-label t)}
-       [:span {:class "kc-mark" :aria-hidden "true"} "こ"]
-       [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]]
+      ;; the compact header sits beside the sidebar, whose top-left already
+      ;; carries the Kotoba mark — one brand, one home. The full header (no
+      ;; sidebar) keeps its wordmark. locale-free href: the edge negotiates
+      ;; the variant by cookie (shinkansen.locale).
+      (when nav
+        [:a {:class "kc-wordmark" :href "/" :aria-label (:home-label t)}
+         [:span {:class "kc-mark" :aria-hidden "true"} "こ"]
+         [:span {:class "kc-wordmark__text"} "KOTOBA CLOUD"]])
       (when nav
         [:nav {:class "kc-nav" :aria-label (:nav-label t)}
          [:a {:class "kc-nav__secondary" :href "/#research-models"} (:nav-models t)]
@@ -588,8 +600,11 @@ body:has(.kc-sb){padding-inline-start:15rem}
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
        ;; ADR-2609071000); passkeys, wallets and recovery phrases remain.
        (app-menu locale t)
-      (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
-                                     :href (passkey-href locale)})])]))
+      ;; beside the sidebar the account entry is the sidebar's chip (one
+      ;; home); the full header keeps its own
+      (when nav
+        (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
+                                       :href (passkey-href locale)}))])]))
 
 (defn site-footer [t]
   [:footer {:class "kc-footer"}
@@ -1414,6 +1429,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
         (fs/mkdirSync dir #js {:recursive true}))
       (doseq [name ["llms.txt" "llms-full.txt" "ekyc.md" "agent-quickstart.md" "robots.txt" "sitemap.xml" "og.png" "public-locale-coverage.json"]]
         (copy-file (node-path/join "assets" name) (node-path/join root name)))
+      ;; the brand mark every sidebar document shows top-left (site: kc-sb__brand)
+      (copy-file (node-path/join "assets" "kotoba-logo.png") (node-path/join root "assets" "kotoba-logo.png"))
       (doseq [locale supported-locales :when (not (#{:en :ja} locale))]
         (let [dir (node-path/join root (name locale))]
           (fs/mkdirSync dir #js {:recursive true})
