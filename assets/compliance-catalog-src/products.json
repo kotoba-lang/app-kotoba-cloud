@@ -1150,7 +1150,12 @@
       "categoryId": "dspm",
       "pricingMode": "quote-based",
       "pricingNote": "quote-based; ja_jp 製品ページに公開価格はなく、CTA は無料体験/お問い合わせのみ (ページ HTTP 200, verified 2026-09-15) — 購入/見積は Trend Micro またはパートナー経由。",
-      "pricingUrl": "https://www.trendaisecurity.com/ja/platform/data-security"
+      "pricingUrl": "https://www.trendaisecurity.com/ja/platform/data-security",
+      "complianceFits": [
+        "iso-27001",
+        "soc2"
+      ],
+      "complianceNote": "Trend Micro Trust Center コンプライアンス頁 https://www.trendmicro.com/ja_jp/about/trust-center/compliance.html (HTTP 200 確認 2026-09-16): ISO/IEC 27001:2022・SOC 2 Type II は社全体の認証 (PCI DSS 認定サービスプロバイダのスコープ表記は TrendAI Vision One のため本製品には含めず、パターンは PR #235/#236 と同一)。Data Security (DSPM) は Vision One プラットフォーム/SaaS モジュールとして提供されるため ISO/SOC2 の適用は間接的。pricingUrl は ja_jp 旧 URL (trendmicro.com/ja_jp/business/products/data.html) が 301 で trendaisecurity.com/ja/platform/data-security (HTTP 200) へ転送されることを同日確認済み。"
     },
     {
       "id": "armis",
