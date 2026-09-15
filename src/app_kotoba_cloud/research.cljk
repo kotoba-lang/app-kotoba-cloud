@@ -53,7 +53,12 @@
 ;; request count is unchanged.
 (def max-input-characters 524288)
 (def max-output-tokens 32768)
-(def free-limits {:requestsPerDay 50 :maxOutputTokens max-output-tokens :maxInputCharacters max-input-characters})
+;; 1,000 requests/day (owner direction 2026-09-15): an agent coding session
+;; spends 3–10 calls per task; the previous 50 ran out within one day of
+;; verification. The per-day count is the only enforced quota (the token
+;; ladder is a projection); it resets at UTC midnight.
+(def requests-per-day 1000)
+(def free-limits {:requestsPerDay requests-per-day :maxOutputTokens max-output-tokens :maxInputCharacters max-input-characters})
 (def trust-policy {:version "kotoba-trust-routes-2026-09-v1" :weights {"web-reviewed" 60 "app-passport" 80}
                    :threshold 60 :ceiling 100 :defaultRoute "web-reviewed" :provisional true})
 (def session-policy {:version "kotoba-session-evidence-2026-09-v1" :calibrated false :maxProjectionAgeMs 15000
@@ -308,8 +313,8 @@
 ;; --- Assurance ladder (rungs) ------------------------------------------------
 ;; Each rung names the evidence that puts a workspace at that level and the
 ;; daily token allowance it unlocks. The bottom rung (a chargeable card is not
-;; an identity) unlocks only the free research allowance — 50 requests/day with
-;; the 2,048-token per-request output cap, i.e. 102,400 tokens/day; identity
+;; an identity) unlocks only the free research allowance — requests-per-day
+;; with the max-output-tokens per-request cap; identity
 ;; verification and governance checks (business, contracted) come after it and
 ;; raise the ceiling. Each higher rung inherits the ones below. The authority
 ;; computes the reached rung from the record; the edge only displays it.

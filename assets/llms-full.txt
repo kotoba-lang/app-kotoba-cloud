@@ -13,7 +13,7 @@ Status: LIVE. Identity verification runs on Stripe Identity only (no manual revi
 One Stripe Identity verification approves the account automatically: ekyc (365d),
 screening (24h), trust 60/100 web-reviewed, scope approval and activation.
 
-Free allowance after verified identity: 50 requests per day, up to 2,048 output tokens per request. No automatic paid fallback.
+Free allowance after verified identity: 1,000 requests per day, up to 32,768 output tokens per request (524,288 input characters, about 128k tokens). No automatic paid fallback.
 
 ## Registration (Stripe Identity only — agent-followable)
 
@@ -51,7 +51,7 @@ evidence reference and audit receipt. Not a drop-in API-key service; no tools,
 arbitrary models or system-message overrides. Chat UI requires the same session.
 
 Assurance ladder access order: a saved card (setup mode, nothing charged) unlocks
-the free research allowance (50 requests/day) immediately; identity verification
+the free research allowance (1,000 requests/day) immediately; identity verification
 and governance checks (business verified, contracted researcher) come after and
 raise the token ceiling. Tool calls and command execution are NEVER performed
 server-side — the model returns text only; run tools locally on your machine.
@@ -92,8 +92,8 @@ Local CLI/IDE agents can call the research API without a browser session:
    `POST https://api.kotoba.cloud/v1/chat/completions` and
    `POST https://api.kotoba.cloud/v1/research/jobs` (OpenAI-compatible shape),
    `GET https://api.kotoba.cloud/v1/models` and `/v1/research/status`.
-3. Identity verification (Stripe), approved scope, free quota (50 req/day,
-   2,048 output tokens) and all eligibility gates are identical to the
+3. Identity verification (Stripe), approved scope, free quota (1,000 req/day,
+   32,768 output tokens) and all eligibility gates are identical to the
    browser session — the token bypasses the browser origin gate only.
 4. The token is shown once at issuance and is never accepted in URLs. It is
    stateless (HMAC-backed); revocation is by rotating the signing secret —
