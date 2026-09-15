@@ -1,0 +1,318 @@
+(ns app-kotoba-cloud.fake-report-authority
+  "Private fake-report authority (ADR-2609141800 Phase 2). Runs as a Durable
+   Object in the private kotoba-research-authority Worker (second class,
+   wrangler migration v3b); the edge reaches it only through a service
+   binding, exactly like org-authority / research-authority.
+
+   Charter gates owned here (ADR D1):
+   - C2 evidence-first: a case cannot leave :open as :submitted unless the
+     stored case still carries >=1 evidence item (kit/validate-case re-runs
+     on every submit; validation is structural, not advisory).
+   - C4 no submission rail: this DO never sends anything to a platform. It
+     only records the reporter's own statement that they submitted.
+   - C5 falsified reports are counted and visible: a falsified flag on a
+     case is a counted record, not a deletion.
+   - C6 data minimisation: the DO stores the case fields, evidence
+     REFERENCES (cid/url/taken-at/kind) and content-addressed draft CIDs.
+     It never stores natural-person join keys; evidence blobs live outside
+     the DO and expire 30 days after resolution (purge drops expired blob
+     references, keeps the case skeleton and draft CIDs)."
+  (:require [app-kotoba-cloud.fake-report-kit :as kit]))
+
+(def schema-version kit/schema-version)
+
+(def status-order [:open :submitted :platform-acked :resolved])
+
+(def purge-after-ms (* 30 86400000))
+
+;; C6: evidence entries whose blob expired keep only references. A :url
+;; evidence is itself only a reference and is kept as-is.
+(defn evidence-expired?
+  "True when a resolved-at timestamp is >= 30 days old (C6). Boundary: exactly
+   30 days counts as expired."
+  [resolved-at now]
+  (and (int? resolved-at) (int? now) (>= (- now resolved-at) purge-after-ms)))
+
+(defn expired-evidence-entry [e]
+  (-> (select-keys e [:cid :kind :taken-at :url])
+      (assoc :expired true)))
+
+(defn transition
+  "Pure status transition. Returns {:ok next-status} or {:error reason}.
+   One step at a time, forward only (ADR D2 ledger)."
+  [from to]
+  (let [fi (.indexOf status-order from)
+        ti (.indexOf status-order to)]
+    (cond
+      (or (neg? fi) (neg? ti)) {:error "unknown-status"}
+      (= 1 (- ti fi)) {:ok to}
+      (= ti fi) {:error "same-status"}
+      :else {:error "invalid-transition"})))
+
+;; --- wire shape helpers (same pattern as org-authority) ----------------------
+
+;; clj->js DROPS keyword namespaces on this engine (:case/platform would
+;; serialize as "platform"), so serialization goes through dekw, which keeps
+;; the full keyword name as the JSON key / value.
+(defn- dekw [x]
+  (cond
+    (keyword? x) (subs (str x) 1)
+    (map? x) (into {} (map (fn [[k v]] [(if (keyword? k) (subs (str k) 1) k) (dekw v)]) x))
+    (vector? x) (mapv dekw x)
+    (set? x) (mapv dekw x)
+    :else x))
+
+(defn- response [body status]
+  (js/Response. (js/JSON.stringify (clj->js (dekw body)))
+                #js {:status status
+                     :headers #js {"content-type" "application/json; charset=utf-8"
+                                   "cache-control" "no-store"}}))
+
+(defn- kwmap [m]
+  (into {} (map (fn [[k v]] [(if (and (string? k) (re-find #"^[a-zA-Z][a-zA-Z0-9-]*$" k))
+                               (keyword k) k)
+                             v]) m)))
+
+;; cljs js->clj ignores :keywordize-keys on this engine (org-authority hit the
+;; same wall), so string keys are keywordized explicitly. Also used to coerce
+;; enum values (:facebook, :person, :screenshot) that JSON round-trips turned
+;; back into strings before the keyword-based kit validator sees them.
+(defn- kw-if-str [x]
+  (if (string? x) (keyword x) x))
+
+(defn- kwdeep [x]
+  (cond
+    (map? x) (into {} (map (fn [[k v]] [(if (string? k) (keyword k) k) (kwdeep v)]) x))
+    (vector? x) (mapv kwdeep x)
+    (seq? x) (mapv kwdeep x)
+    :else x))
+
+(defn- decode [x]
+  (when-not (or (nil? x) (undefined? x))
+    (kwdeep (kwmap (js->clj (js/JSON.parse x))))))
+
+(defn normalize-case [case]
+  (-> case
+      (update :case/platform kw-if-str)
+      (update-in [:case/impostered :kind] kw-if-str)
+      (update :case/evidence (fn [evs] (mapv (fn [e] (update e :kind kw-if-str)) evs)))))
+
+(defn- load-case! [storage case-id]
+  (-> ((aget storage "get") (str "case:" case-id))
+      (.then decode)
+      (.then (fn [rec] (when rec (-> rec (update :case normalize-case)
+                                     (update :status kw-if-str)))))))
+
+(defn- save-case! [storage case-id record]
+  (-> ((aget storage "put") (str "case:" case-id) (js/JSON.stringify (clj->js (dekw record))))
+      (.then (fn [_]
+               ;; maintain case-index (caseId -> principalId) for the purge scan
+               (-> ((aget storage "get") "case-index")
+                   (.then (fn [raw]
+                            (let [index (kwdeep (js->clj (js/JSON.parse (or raw "{}"))))]
+                              ((aget storage "put") "case-index"
+                                         (js/JSON.stringify (clj->js (assoc index case-id (:principalId record)))))))))))))
+
+(defn- cid-for!
+  "Content address for the immutable draft (C6): SHA-256 over the draft JSON,
+   hex-encoded. Drafts are generated from the stored case, so the CID changes
+   only if the case data changes."
+  [obj]
+  (-> (.digest (.-subtle js/crypto) "SHA-256"
+               (.encode (js/TextEncoder.) (js/JSON.stringify (clj->js obj))))
+      (.then (fn [d]
+               (apply str (map (fn [b] (.padStart (.toString b 16) 2 "0"))
+                               (array-seq (js/Uint8Array. d))))))))
+
+(defn- text? [x n] (and (string? x) (<= 1 (count x) n) (re-find #"\S" x)))
+
+(def case-id-pattern #"^fr_[0-9a-f]{24}$")
+
+(defn- new-case-id! []
+  (let [a (js/Uint8Array. 12)]
+    (js/crypto.getRandomValues a)
+    (str "fr_" (apply str (map (fn [b] (.padStart (.toString b 16) 2 "0")) (array-seq a))))))
+
+;; --- operations ---------------------------------------------------------------
+
+(defn- handle-case-create [storage body now]
+  (let [principal (:principalId body)
+        case-data (:case body)]
+    (if-not (text? principal 256)
+      (js/Promise.resolve (response {:error "invalid-principal"} 400))
+      (let [case-data (normalize-case case-data)
+            v (kit/validate-case case-data)]
+        (if (:errors v)
+          ;; C2: an invalid case (including zero-evidence) is never stored.
+          (js/Promise.resolve (response {:error "invalid-case" :errors (vec (:errors v))} 400))
+          (let [case-id (new-case-id!)
+                record {:caseId case-id
+                        :principalId principal
+                        :case (assoc-in case-data [:case/schema] schema-version)
+                        :status :open
+                        :drafts []
+                        :falsified false
+                        :createdAt now}]
+            (-> (save-case! storage case-id record)
+                (.then (fn [_]
+                         (response {:caseId case-id :status :open
+                                    :schemaVersion schema-version}
+                                   200))))))))))
+
+(defn- handle-case-draft [storage body _now]
+  (let [principal (:principalId body) case-id (:caseId body)]
+    (if-not (and (text? principal 256) (string? case-id) (re-matches case-id-pattern case-id))
+      (js/Promise.resolve (response {:error "invalid-draft-request"} 400))
+      (-> (load-case! storage case-id)
+          (.then (fn [record]
+                   (cond
+                     (nil? record) (response {:error "case-not-found"} 404)
+                     (not= principal (:principalId record)) (response {:error "case-not-found"} 404)
+                     ;; C4: the draft is generated material only; nothing is sent.
+                     :else
+                     (let [draft (:ok (kit/build-draft (:case record)))]
+                       (if-not draft
+                         (response {:error "case-invalid"} 409)
+                         (-> (cid-for! draft)
+                             (.then (fn [cid]
+                                      (let [entry {:platform (name (:platform draft)) :cid cid}
+                                            record (if (some #(= cid (:cid %)) (:drafts record))
+                                                     record
+                                                     (update record :drafts conj entry))]
+                                        (-> (save-case! storage case-id record)
+                                            (.then (fn [_]
+                                                     (response {:caseId case-id :draft draft :draftCid cid}
+                                                              200)))))))))))))))))
+
+(defn- handle-case-submit [storage body now]
+  (let [principal (:principalId body) case-id (:caseId body)]
+    (if-not (and (text? principal 256) (string? case-id) (re-matches case-id-pattern case-id))
+      (js/Promise.resolve (response {:error "invalid-submit-request"} 400))
+      (-> (load-case! storage case-id)
+          (.then (fn [record]
+                   (cond
+                     (nil? record) (response {:error "case-not-found"} 404)
+                     (not= principal (:principalId record)) (response {:error "case-not-found"} 404)
+                     (:falsified record) (response {:error "case-falsified"} 403)
+                     ;; C2 structural: re-validate the STORED case on submit. A
+                     ;; zero-evidence case cannot be submitted — there is no
+                     ;; override path, not even for the authority itself.
+                     (:errors (kit/validate-case (:case record)))
+                     (response {:error "evidence-required"
+                                :errors (vec (:errors (kit/validate-case (:case record))))} 422)
+                     :else
+                     (case (:status record)
+                       :open
+                       (let [record (assoc record :status :submitted :submittedAt now)]
+                         (-> (save-case! storage case-id record)
+                             (.then (fn [_]
+                                      (response {:caseId case-id :status :submitted} 200)))))
+                       :submitted (response {:error "already-submitted"} 409)
+                       (response {:error "invalid-status"} 409)))))))))
+
+(defn- handle-case-status [storage body now]
+  (let [principal (:principalId body) case-id (:caseId body) to (some-> (:to body) keyword)]
+    (if-not (and (text? principal 256) (string? case-id) (re-matches case-id-pattern case-id))
+      (js/Promise.resolve (response {:error "invalid-status-request"} 400))
+      (-> (load-case! storage case-id)
+          (.then (fn [record]
+                   (cond
+                     (nil? record) (response {:error "case-not-found"} 404)
+                     (not= principal (:principalId record)) (response {:error "case-not-found"} 404)
+                     (nil? to) (response {:caseId case-id :status (:status record)
+                                          :drafts (:drafts record) :falsified (:falsified record)} 200)
+                     (:falsified record) (response {:error "case-falsified"} 403)
+                     :else
+                     (let [t (transition (:status record) to)]
+                       (if (:error t)
+                         (response {:error (:error t)} 409)
+                         (let [record (assoc record :status (:ok t)
+                                             :resolvedAt (when (= :resolved (:ok t)) now))]
+                           (-> (save-case! storage case-id record)
+                               (.then (fn [_]
+                                        (response {:caseId case-id :status (:status record)} 200))))))))))))))
+
+(defn- handle-case-falsify [storage body now]
+  ;; C5: falsified reports are counted and left visible. An operator marks a
+  ;; case falsified; the count is derived from the records themselves.
+  (let [case-id (:caseId body)]
+    (if-not (and (string? case-id) (re-matches case-id-pattern case-id))
+      (js/Promise.resolve (response {:error "invalid-falsify-request"} 400))
+      (-> (load-case! storage case-id)
+          (.then (fn [record]
+                   (if (nil? record)
+                     (response {:error "case-not-found"} 404)
+                     (let [record (assoc record :falsified true :falsifiedAt now)]
+                       (-> (save-case! storage case-id record)
+                           (.then (fn [_] (response {:caseId case-id :falsified true} 200))))))))))))
+
+(defn- purge-one! [storage case-id principal now]
+  (-> (load-case! storage case-id)
+      (.then (fn [record]
+               (if (and (map? record)
+                        (= principal (:principalId record))
+                        (= :resolved (:status record))
+                        (evidence-expired? (:resolvedAt record) now))
+                 (let [purged (assoc record :case
+                                     (update-in (:case record) [:case/evidence]
+                                                (fn [evs] (mapv expired-evidence-entry evs))))]
+                   (-> (save-case! storage case-id purged)
+                       (.then (fn [_] case-id))))
+                 (js/Promise.resolve nil))))))
+
+(defn- handle-case-purge [storage body now]
+  ;; C6: drop evidence references whose blob expired (30 days after
+  ;; resolution). The case skeleton, status ledger and draft CIDs remain.
+  (let [principal (:principalId body)]
+    (if-not (text? principal 256)
+      (js/Promise.resolve (response {:error "invalid-principal"} 400))
+      (-> ((aget storage "get") "case-index")
+          (.then (fn [raw]
+                   (let [index (kwmap (js->clj (js/JSON.parse (or raw "{}"))))]
+                     (js/Promise.all
+                      (map (fn [case-id] (purge-one! storage case-id principal now))
+                           (keys index))))))
+          (.then (fn [ids]
+                   (response {:purged (vec (remove nil? ids))} 200)))))))
+
+(defn- route-op [path]
+  (case path
+    "/case/create" handle-case-create
+    "/case/draft" handle-case-draft
+    "/case/submit" handle-case-submit
+    "/case/status" handle-case-status
+    "/case/falsify" handle-case-falsify
+    "/case/purge" handle-case-purge
+    nil))
+
+(defn- handle [state env path body]
+  (let [storage (aget state "storage") now (.now js/Date)]
+    (if-let [op (route-op path)]
+      (op storage (kwdeep body) now)
+      (js/Promise.resolve (response {:error "not-found"} 404)))))
+
+;; The DO instance is a plain JS object with a `fetch` method closing over
+;; (state env). `new makeFakeReportAuthority(state, env)` returns it verbatim
+;; (JS constructor-return rule), which is what the Workers runtime needs.
+;; Written without `deftype` so the namespace stays loadable by the kbb test
+;; engine as well as by the shadow-cljs worker build.
+(defn make-fake-report-authority [^js state env]
+  (let [fetch!
+        (fn [request init]
+          ;; Cloudflare's runtime wraps binding.fetch(url, init) into a Request
+          ;; before calling the DO; under the test engine we may see the raw
+          ;; (url, init) pair, so normalize to a Request ourselves.
+          (let [request (if (or (nil? init) (undefined? init))
+                          request
+                          (js/Request. request init))]
+          (if (= "https://fake-report.internal" (.-origin (js/URL. (.-url request))))
+            (-> (.json request)
+                (.then (fn [body]
+                         (.blockConcurrencyWhile ^js state
+                           (fn [] (handle state env (.-pathname (js/URL. (.-url request)))
+                                          (kwdeep (js->clj body)))))))
+                (.catch (fn [e]
+                          (js/console.error "fake-report-authority-op-failed" (.-stack e))
+                          (response {:error "fake-report-authority-internal"} 500))))
+            (js/Promise.resolve (response {:error "private-binding-required"} 403)))))]
+    #js {:fetch fetch!}))

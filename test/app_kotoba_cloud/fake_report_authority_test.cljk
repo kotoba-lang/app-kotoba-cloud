@@ -1,0 +1,341 @@
+(ns app-kotoba-cloud.fake-report-authority-test
+  "ADR-2609141800 Phase 2 tests: authority state ledger + gateway seam
+   negatives. Runs the REAL authority DO object against an in-memory
+   storage and the REAL gateway route function against fake bindings.
+   Every refusal is asserted on its literal error code, not just the status."
+  (:require [clojure.test :refer [deftest is testing async]]
+            [app-kotoba-cloud.fake-report-kit :as kit]
+            [app-kotoba-cloud.fake-report-authority :as auth]
+            [app-kotoba-cloud.fake-report-gateway :as gw]))
+
+(def principal "did:key:z6MkFakeReportTestPrincipalAAAAAAAA")
+
+(defn- base-case [evidence]
+  {:case/schema kit/schema-version
+   :case/platform :facebook
+   :case/suspect {:handle "@suspect-handle"
+                  :url "https://facebook.com/suspect.fake"
+                  :taken-at "2026-09-15T00:00:00Z"}
+   :case/impostered {:display-name "Fixture Person"
+                     :official-url "https://facebook.com/genuine.page"
+                     :kind :person}
+   :case/evidence evidence})
+
+(def one-evidence
+  [{:cid "bafkfakeevidencecid0000000000000000000000000000000"
+    :taken-at "2026-09-15T00:00:00Z"
+    :kind :screenshot}])
+
+;; --- fakes -------------------------------------------------------------------
+
+(defn- dekw [x]
+  (cond
+    (keyword? x) (subs (str x) 1)
+    (map? x) (into {} (map (fn [[k v]] [(if (keyword? k) (subs (str k) 1) k) (dekw v)]) x))
+    (vector? x) (mapv dekw x)
+    :else x))
+
+;; js->clj chokes on this engine for some JSON payloads; convert explicitly.
+(defn- jsclj [x]
+  (cond
+    (or (string? x) (number? x) (boolean? x) (nil? x)) x
+    (array? x) (mapv jsclj (array-seq x))
+    (and (object? x) (= js/Object (.-constructor x)))
+    (into {} (map (fn [k] [(keyword k) (jsclj (aget x k))])
+                  (js/Object.keys x)))
+    :else x))
+
+(defn- kwdeep [x]
+  (cond
+    (map? x) (into {} (map (fn [[k v]] [(if (and (string? k) (re-find #"^[a-zA-Z][a-zA-Z0-9-]*$" k)) (keyword k) k)
+                                        (kwdeep v)]) x))
+    (vector? x) (mapv kwdeep x)
+    (seq? x) (mapv kwdeep x)
+    :else x))
+
+(defn- fake-storage []
+  (let [store (atom {})]
+    #js {:get (fn [k] (js/Promise.resolve (get @store k)))
+         :put (fn [k v] (swap! store assoc k v) (js/Promise.resolve nil))}))
+
+(defn- fake-state [storage]
+  #js {:storage storage
+       :blockConcurrencyWhile (fn [f] (f))})
+
+(defn- make-authority []
+  (auth/make-fake-report-authority (fake-state (fake-storage)) #js {}))
+
+(defn- call-authority! [binding path body]
+  (let [req (js/Request. (str "https://fake-report.internal" path)
+                         #js {:method "POST"
+                              :headers #js {"content-type" "application/json"}
+                              :body (js/JSON.stringify (clj->js (dekw body)))})]
+    (-> (.fetch binding req)
+        (.then (fn [resp]
+                 (-> (.json resp)
+                     (.then (fn [j] {:status (.-status resp)
+                                     :body (kwdeep (jsclj j))}))))))))
+
+(defn- ekyc-binding [statuses]
+  ;; statuses: atom principalId -> status string returned by /ekyc/status
+  #js {:fetch (fn [_url init]
+                (let [body (js->clj (js/JSON.parse (.-body init)) :keywordize-keys true)
+                      st (get @statuses (:principalId body) "missing")
+                      payload {:status st :expiresAt (+ (js/Date.now) 86400000)}]
+                  (js/Promise.resolve
+                   (js/Response. (js/JSON.stringify (clj->js payload))
+                                 #js {:status 200 :headers #js {"content-type" "application/json"}}))))})
+
+(defn- call-gateway! [{:keys [method origin content-type body viewer path ekyc fake]}]
+  (let [respond (atom nil)]
+    (-> (js/Promise.
+         (fn [resolve _]
+           (let [env #js {:FAKE_REPORT_AUTHORITY fake
+                          :RESEARCH_AUTHORITY ekyc}
+                 bodyless (contains? #{"GET" "HEAD"} method)
+                 req (js/Request. (str "https://kotoba.cloud" (or path "/v1/fake-report/case"))
+                                  (clj->js (cond-> {:method (or method "POST")
+                                                    :headers {"origin" (or origin "https://kotoba.cloud")
+                                                              "content-type" (or content-type "application/json")}}
+                                             (not bodyless) (assoc :body (js/JSON.stringify (clj->js (dekw (or body {}))))))))
+                 viewer-fn (fn [_]
+                             (js/Promise.resolve (or viewer {:valid false})))]
+             (try
+               (gw/route req env viewer-fn
+                         (fn [resp status]
+                           (reset! respond {:status status :body (kwdeep resp)})
+                           (resolve nil)))
+               (catch :default e
+                 (js/console.error "SYNC-THROW:" (.-message e) "\n" (.-stack e))
+                 (reset! respond {:status :thrown :body (str e)})
+                 (resolve nil))))))
+        (.then (fn [_] @respond)))))
+
+;; --- pure logic ---------------------------------------------------------------
+
+(deftest transition-is-one-step-forward-only
+  (is (= {:ok :submitted} (auth/transition :open :submitted)))
+  (is (= {:ok :platform-acked} (auth/transition :submitted :platform-acked)))
+  (is (= {:ok :resolved} (auth/transition :platform-acked :resolved)))
+  (is (= {:error "invalid-transition"} (auth/transition :open :resolved)) "no skip")
+  (is (= {:error "invalid-transition"} (auth/transition :submitted :open)) "no backward")
+  (is (= {:error "same-status"} (auth/transition :open :open)))
+  (is (= {:error "unknown-status"} (auth/transition :open :bogus))))
+
+(deftest evidence-expiry-boundary-is-exactly-30-days
+  (let [now 1800000000000]
+    (is (true? (auth/evidence-expired? (- now auth/purge-after-ms) now)) "exactly 30d expires")
+    (is (true? (auth/evidence-expired? (- now (+ auth/purge-after-ms 1)) now)))
+    (is (false? (auth/evidence-expired? (- now (- auth/purge-after-ms 1)) now)) "29d23h kept")
+    (is (false? (auth/evidence-expired? (- now 1000) now)))
+    (is (false? (auth/evidence-expired? nil now)))))
+
+;; --- authority end-to-end over an in-memory DO storage ------------------------
+
+(defn- create-case! [binding evidence]
+  (call-authority! binding "/case/create" {:principalId principal
+                                           :case (base-case evidence)}))
+
+(deftest create-draft-submit-happy-path
+  (async done
+    (let [binding (make-authority)]
+      (-> (create-case! binding one-evidence)
+          (.then (fn [created]
+                   (is (= 200 (:status created)))
+                   (is (re-matches auth/case-id-pattern (:caseId (:body created))))
+                   (let [case-id (:caseId (:body created))]
+                     (-> (call-authority! binding "/case/draft" {:principalId principal :caseId case-id})
+                         (.then (fn [d]
+                                  (is (= 200 (:status d)))
+                                  (is (re-find #"^[0-9a-f]{64}$" (:draftCid (:body d))))
+                                  (is (= "facebook" (get-in (:body d) [:draft :platform])))
+                                  ;; C1: draft carries the non-adjudicating caveat and no verdict phrase
+                                  (is (string? (get-in (:body d) [:draft :caveat])))
+                                  (is (not (kit/contains-forbidden-phrase? (:draft (:body d)))))
+                                  (-> (call-authority! binding "/case/submit" {:principalId principal :caseId case-id})
+                                      (.then (fn [s]
+                                               (is (= 200 (:status s)))
+                                               (is (= "submitted" (:status (:body s))))
+                                               ;; double submit is refused
+                                               (-> (call-authority! binding "/case/submit" {:principalId principal :caseId case-id})
+                                                   (.then (fn [s2]
+                                                            (is (= 409 (:status s2)))
+                                                            (is (= "already-submitted" (:error (:body s2))))
+                                                            (done)))))))))))))
+          (.catch (fn [e] (is false (str e)) (done)))))))
+
+(deftest submit-refused-when-zero-evidence-c2
+  (async done
+    (let [binding (make-authority)]
+      (-> (create-case! binding [])
+          (.then (fn [r]
+                   ;; C2: creation itself refuses a zero-evidence case
+                   (is (= 400 (:status r)))
+                   (is (= "invalid-case" (:error (:body r))))
+                   (is (some #(re-find #"C2" %) (:errors (:body r))))
+                   (done)))
+          (.catch (fn [e] (is false (str e)) (done)))))
+
+(deftest submit-refused-for-falsified-case-c5
+  (async done
+    (let [binding (make-authority)]
+      (-> (create-case! binding one-evidence)
+          (.then (fn [r]
+                   (let [cid (:caseId (:body r))]
+                     (-> (call-authority! binding "/case/falsify" {:caseId cid})
+                         (.then (fn [f]
+                                  (is (= 200 (:status f)))
+                                  (is (true? (:falsified (:body f))))
+                                  (-> (call-authority! binding "/case/submit" {:principalId principal :caseId cid})
+                                      (.then (fn [s]
+                                               (is (= 403 (:status s)))
+                                               (is (= "case-falsified" (:error (:body s))))
+                                               (done))))))))))
+          (.catch (fn [e] (is false (str e)) (done)))))))
+
+(deftest status-ledger-keeps-forward-order
+  (async done
+    (let [binding (make-authority)]
+      (-> (create-case! binding one-evidence)
+          (.then (fn [r]
+                   (let [cid (:caseId (:body r))]
+                     (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid :to "submitted"})
+                         (.then (fn [_]
+                                  ;; the status op moves one step at a time; submit
+                                  ;; is the only route that re-validates C2
+                                  (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid :to "platform-acked"})
+                                      (.then (fn [_]
+                                               (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid :to "resolved"})
+                                                   (.then (fn [r2]
+                                                            (is (= 200 (:status r2)))
+                                                            (is (= "resolved" (:status (:body r2))))
+                                                            (done))))))))))))))
+          (.catch (fn [e] (is false (str e)) (done)))))))
+
+(deftest foreign-principal-cannot-touch-a-case
+  (async done
+    (let [binding (make-authority)]
+      (-> (create-case! binding one-evidence)
+          (.then (fn [r]
+                   (-> (call-authority! binding "/case/submit"
+                                        {:principalId "did:key:z6MkOtherPrincipal" :caseId (:caseId (:body r))})
+                       (.then (fn [s]
+                                (is (= 404 (:status s)))
+                                (is (= "case-not-found" (:error (:body s))))
+                                (done)))))))
+          (.catch (fn [e] (is false (str e)) (done)))))))
+
+(deftest purge-drops-expired-blob-references-keeps-url-and-drafts
+  (async done
+    (let [storage (fake-storage)
+          binding (auth/make-fake-report-authority (fake-state storage) #js {})
+          now (js/Date.now)]
+      (-> (call-authority! binding "/case/create"
+                           {:principalId principal
+                            :case (base-case
+                                   [{:cid "bafkScreenshotBlobCid0000000000000000000000000"
+                                     :taken-at "2026-09-15T00:00:00Z" :kind :screenshot}
+                                    {:url "https://facebook.com/suspect.fake/posts/1"
+                                     :taken-at "2026-09-15T00:00:00Z" :kind :url}])})
+          (.then (fn [r]
+                   (let [cid (:caseId (:body r))]
+                     (-> (call-authority! binding "/case/submit" {:principalId principal :caseId cid})
+                         (.then (fn [_]
+                                 (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid :to "platform-acked"})
+                                     (.then (fn [_]
+                                             (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid :to "resolved"})
+                                                 (.then (fn [_]
+                                                           (-> (call-authority! binding "/case/draft" {:principalId principal :caseId cid})
+                                                               (.then (fn [_]
+                                                         (-> (call-authority! binding "/case/purge" {:principalId principal})
+                                                               (.then (fn [p0]
+                                                                        (is (= 0 (count (:purged (:body p0)))) "not yet 30d")
+                                                                        (-> (.get storage (str "case:" cid))
+                                                                            (.then (fn [raw]
+                                                                                     (let [rec (assoc-in (kwdeep (jsclj (js/JSON.parse raw)))
+                                                                                                         [:resolvedAt]
+                                                                                                         (- now (+ auth/purge-after-ms 86400000)))]
+                                                                                       (.put storage (str "case:" cid) (js/JSON.stringify (clj->js (dekw rec)))))))
+                                                                            (.then (fn [_]
+                                                                                     (-> (call-authority! binding "/case/purge" {:principalId principal})
+                                                                                         (.then (fn [p]
+                                                                                                  (is (= [cid] (:purged (:body p))))
+                                                                                                  (-> (.get storage (str "case:" cid))
+                                                                                                      (.then (fn [raw2]
+                                                                                                               (let [rec (kwdeep (jsclj (js/JSON.parse raw2)))
+                                                                                                                     evs (get-in rec [:case :case/evidence])]
+                                                                                                                 (is (true? (:expired (nth evs 0))))
+                                                                                                                 (is (= "bafkScreenshotBlobCid0000000000000000000000000" (:cid (nth evs 0))) "blob reference kept, marked expired")
+                                                                                                                 (is (= "https://facebook.com/suspect.fake/posts/1" (:url (nth evs 1))) "url ref kept")
+                                                                                                                 (is (= 1 (count (:drafts rec))) "draft CIDs kept"))))
+                                                                                                                 (done))))))))))))))))))))))))))
+          (.catch (fn [e] (is false (str e)) (done)))))))
+
+(deftest gateway-refuses-without-session-origin-or-json
+  (async done
+    (-> (call-gateway! {:method "GET"})
+        (.then (fn [r] (is (= 405 (:status r))) (is (= "method-not-allowed" (get-in (:body r) [:error :code]))) nil))
+        (.then (fn [_] (call-gateway! {:origin "https://evil.example"})))
+        (.then (fn [r] (is (= 403 (:status r))) (is (= "origin-not-allowed" (get-in (:body r) [:error :code]))) nil))
+        (.then (fn [_] (call-gateway! {:content-type "text/plain"})))
+        (.then (fn [r] (is (= 415 (:status r))) (is (= "json-required" (get-in (:body r) [:error :code]))) nil))
+        (.then (fn [_] (call-gateway! {:viewer {:valid false}})))
+        (.then (fn [r] (is (= 401 (:status r))) (is (= "sign-in-required" (get-in (:body r) [:error :code]))) nil))
+        (.then (fn [_] (call-gateway! {})))
+        (.then (fn [r] (is (= 401 (:status r))) (is (= "sign-in-required" (get-in (:body r) [:error :code]))) nil))
+        ;; signed-in but no authority configured -> 503
+        (.then (fn [_] (call-gateway! {:viewer {:valid true :principalId "principal-x"}})))
+        (.then (fn [r] (is (= 503 (:status r))) nil))
+        (.then (fn [_] (done)))
+        (.catch (fn [e] (is false (str e)) (done))))))
+
+(deftest gateway-refuses-unverified-ekyc-c3
+  (async done
+    (let [statuses (atom {"principal-1" "pending"})
+          ekyc (ekyc-binding statuses)
+          fake (make-authority)]
+      (-> (call-gateway! {:ekyc ekyc :fake fake
+                          :viewer {:valid true :principalId "principal-1"}
+                          :body {:case (base-case one-evidence)}})
+          (.then (fn [r]
+                   ;; C3: a pending verification is refused with a pinned literal
+                   (is (= 403 (:status r)))
+                   (is (= "ekyc-required" (get-in (:body r) [:error :code])))
+                   nil))
+          (.then (fn [_]
+                  ;; verified caller passes the gate and reaches the authority
+                  (reset! statuses {"principal-1" "verified"})
+                  (call-gateway! {:ekyc ekyc :fake fake
+                                  :viewer {:valid true :principalId "principal-1"}
+                                  :body {:case (base-case one-evidence)}})))
+          (.then (fn [r]
+                   (is (= 200 (:status r)))
+                   (is (re-matches auth/case-id-pattern (:caseId (:body r))))
+                   (done))))
+      )))
+
+(deftest gateway-forwards-verified-caller-to-authority-c2-422
+  (async done
+    (let [statuses (atom {"principal-2" "verified"})
+          ekyc (ekyc-binding statuses)
+          fake (make-authority)]
+      (-> (call-gateway! {:ekyc ekyc :fake fake
+                          :viewer {:valid true :principalId "principal-2"}
+                          :body {:case (base-case [])}})
+          (.then (fn [r]
+                   ;; C2 through the full seam: a zero-evidence case is refused
+                   ;; at creation — it can never reach :submitted.
+                   (is (= 400 (:status r)))
+                   (is (= "invalid-case" (get-in (:body r) [:error :code])))
+                   nil))
+          (.then (fn [_]
+                   ;; C4: the authority has no /case/send op; unknown op -> 404
+                   (-> (.fetch fake (js/Request. "https://fake-report.internal/case/send"
+                                                 #js {:method "POST"
+                                                      :headers #js {"content-type" "application/json"}
+                                                      :body (js/JSON.stringify "{}")}))
+                       (.then (fn [resp]
+                                (is (= 404 (.-status resp)))
+                                (done))))))
+          (.catch (fn [e] (is false (str e)) (done)))))
+))

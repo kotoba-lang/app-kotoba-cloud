@@ -13,6 +13,7 @@
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
             [app-kotoba-cloud.org-sso-gateway :as org-sso-gateway]
+            [app-kotoba-cloud.fake-report-gateway :as fake-report-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
 [app-kotoba-cloud.sousa :as sousa]
@@ -950,6 +951,9 @@
       (redirect (org-sso-gateway/link-start-location
                  (second (re-matches #"^/account/link/(google|github)$" path))
                  "https://kotoba.cloud/account/"))
+
+      (contains? fake-report-gateway/paths path)
+      (fake-report-gateway/route request env fetch-viewer private-json-response)
 
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
       ;; the console is a locale variant root like /billing/: the negotiated

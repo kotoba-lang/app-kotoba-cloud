@@ -8,7 +8,13 @@
 
 (def paths #{"/v1/research/status" "/v1/research/applications" "/v1/chat/completions" "/v1/models"
              "/v1/research/jobs" "/v1/research/job"
-             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook" "/v1/research/review"})
+             "/v1/research/ekyc/start" "/v1/research/ekyc/status" "/v1/research/ekyc/webhook" "/v1/research/review"
+             "/v1/research/ekyc/kotoba-proof/submit"})
+(def submit-path "/v1/research/ekyc/kotoba-proof/submit")
+;; DG1/DG5/DG11/DG12 base64 + SOD DER: a passport face image (DG5) alone can
+;; be ~100 KB, so the chip-evidence hop gets its own bound above the 32 KiB
+;; start/status bodies but far below the 2 MiB completion bound.
+(def proof-submit-body-limit 262144)
 (def origins #{"https://kotoba.cloud" "https://www.kotoba.cloud" "https://console.kotoba.cloud"
                "https://admin.kotoba.cloud"})
 
@@ -59,27 +65,56 @@
 ;; family below, so nothing internal leaks through the edge.
 (def surfaced-ekyc-codes
   #{"card-verification-not-configured" "prepaid-card-not-accepted" "stripe-unavailable"
-    "invalid-stripe-session"})
+    "invalid-stripe-session"
+    ;; kotoba-proof submit: operator-visible sentences the console maps for the
+    ;; chip-evidence chain (challenge gate, tamper reject, duplicate person).
+    "challenge-unknown-or-expired" "chip-evidence-not-admissible"
+    "duplicate-person-rejected"})
+
+(defn- kotoba-proof-submit-route [request binding principal reference respond]
+  ;; kotoba-proof chip evidence (layer 1). The principal is the session's,
+  ;; never the body's, as on start; the authority validates the seeded
+  ;; challenge, the ICAO digests and the nullifier dedupe itself.
+  (-> (bounded-json request proof-submit-body-limit)
+      (.then
+       (fn [body]
+         (if-not (and (policy/text? (:scopeId body) 256)
+                      (vector? (:tasks body)) (pos? (count (:tasks body)))
+                      (every? #(policy/text? % 200000)
+                              [(:sodDer body) (:dg1 body) (:dg11 body)
+                               (:dg12 body) (:dg5 body)]))
+           (respond {:error {:code "invalid-kotoba-proof-submit"}} 400)
+           (-> (service binding "/ekyc/kotoba-proof/submit"
+                        {:principalId principal :sessionRef reference
+                         :sodDer (:sodDer body) :dg1 (:dg1 body)
+                         :dg11 (:dg11 body) :dg12 (:dg12 body) :dg5 (:dg5 body)
+                         :scopeId (:scopeId body) :tasks (vec (:tasks body))})
+               (.then #(respond % 200))))))))
+
+(defn- ekyc-start-route [request binding principal reference respond]
+  (-> (bounded-json request 32768)
+      (.then
+       (fn [body]
+         ;; The principal is the session's, never the body's — the console
+         ;; sends {scopeId, tasks} only (a principalId requirement here
+         ;; turned every browser start into 400 invalid-ekyc-request,
+         ;; measured live 2026-09-15). The PAT path may still send one; it
+         ;; is ignored the same way.
+         (if-not (and (policy/text? (:scopeId body) 256)
+                      (vector? (:tasks body)) (pos? (count (:tasks body))))
+           (respond {:error {:code "invalid-ekyc-request"}} 400)
+           (-> (service binding "/ekyc/start"
+                        {:principalId principal :sessionRef reference
+                         :scopeId (:scopeId body) :tasks (:tasks body)})
+               (.then #(respond % 200))))))))
 
 (defn- ekyc-route [request path binding principal reference respond]
   (if (= path "/v1/research/ekyc/status")
     (-> (service binding "/ekyc/status" {:principalId principal :sessionRef reference})
         (.then #(respond % 200)))
-    (-> (bounded-json request 32768)
-        (.then
-         (fn [body]
-           ;; The principal is the session's, never the body's — the console
-           ;; sends {scopeId, tasks} only (a principalId requirement here
-           ;; turned every browser start into 400 invalid-ekyc-request,
-           ;; measured live 2026-09-15). The PAT path may still send one; it
-           ;; is ignored the same way.
-           (if-not (and (policy/text? (:scopeId body) 256)
-                        (vector? (:tasks body)) (pos? (count (:tasks body))))
-             (respond {:error {:code "invalid-ekyc-request"}} 400)
-             (-> (service binding "/ekyc/start"
-                          {:principalId principal :sessionRef reference
-                           :scopeId (:scopeId body) :tasks (:tasks body)})
-                 (.then #(respond % 200)))))))))
+    (if (= path submit-path)
+      (kotoba-proof-submit-route request binding principal reference respond)
+      (ekyc-start-route request binding principal reference respond))))
 
 ;; Stripe calls this server-to-server: no origin gate, no auth, no viewer. The
 ;; edge only reads the raw body + signature header and extracts ROUTING HINTS
@@ -362,6 +397,20 @@
                    ;; the terminal result: the envelope is built by the caller,
                    ;; which knows whether a reservation has to be settled first
                    (select-keys result [:content :toolCalls :finishReason :receiptId :billing :usageReceipt])
+                   ;; the origin refused the REQUEST (400/413/422: context
+                   ;; window, shape): that is the caller's 400 with the
+                   ;; origin's reason, not a 502 — measured 2026-09-15:
+                   ;; 480,018 characters passed the edge's character ceiling
+                   ;; and were 131,057 tokens at the origin's 131,072 window
+                   (and (= "failed" status) (contains? #{400 413 422} (:upstreamStatus result)))
+                   (throw (ex-info "inference-rejected"
+                                   {:status 400
+                                    :message (let [m (get-in result [:upstreamError :message])]
+                                               (if (policy/text? m 2000) m "the inference route refused the request"))}))
+                   ;; the route refused the AUTHORITY (401/403/404: token, URL):
+                   ;; operator configuration, served as unavailable
+                   (and (= "failed" status) (contains? #{401 403 404} (:upstreamStatus result)))
+                   (throw (ex-info "inference-route-misconfigured" {:status 503}))
                    (contains? #{"failed" "cancelled" "unknown"} status)
                    (throw (ex-info (if (= "unknown" status) "inference-job-timeout" "inference-run-failed")
                                    {:status (if (= "unknown" status) 504 502)}))
@@ -399,7 +448,10 @@
                         (.then (fn [_] (poll-completion-job binding principal reference job-id (:model body) 0 started)))
                         (.then (fn [terminal]
                                  (if-not (or paid? (= "paid" (:billing terminal)))
-                                   (completion-envelope job-id terminal (:model body))
+                                   ;; the provider's measured usage rides on free completions
+                                   ;; too: an agent budgets its context from it (hermes logged
+                                   ;; usage=unavailable on every free call, 2026-09-15)
+                                   (completion-envelope job-id terminal (:model body) {:usage (:usageReceipt terminal)})
                                    (-> (settle-paid! env principal job-id (usage-receipt terminal job-id))
                                        (.then (fn [{:keys [charged settlement]}]
                                                 (completion-envelope job-id terminal (:model body)
@@ -417,12 +469,19 @@
          ;; the authority code is the ex-info MESSAGE (see `service`); ex-data
          ;; never carried :message, so every failure read as unavailable
          (let [code (or (ex-message e) (str e))]
-           (respond {:error {:code (case code
-                                     "inference-run-failed" "inference-failed"
-                                     "inference-job-timeout" "inference-timeout"
-                                     "invalid-job-receipt" "invalid-inference-receipt"
-                                     "job-input-conflict" "invalid-research-request"
-                                     "research-service-unavailable")}}
+           (respond {:error (case code
+                              ;; the origin's refusal of the request, in the
+                              ;; OpenAI error shape an agent's log shows a person
+                              "inference-rejected" {:code "invalid-research-request"
+                                                    :message (:message (ex-data e))
+                                                    :type "invalid_request_error"}
+                              {:code (case code
+                                       "inference-run-failed" "inference-failed"
+                                       "inference-job-timeout" "inference-timeout"
+                                       "inference-route-misconfigured" "research-service-unavailable"
+                                       "invalid-job-receipt" "invalid-inference-receipt"
+                                       "job-input-conflict" "invalid-research-request"
+                                       "research-service-unavailable")})}
                     (or (:status (ex-data e)) 503)))))))
 
 (defn- complete [^js env binding principal reference body respond & [opts]]
@@ -657,7 +716,7 @@
   (let [path (.-pathname (js/URL. (.-url request))) method (.-method request)
         post? (= method "POST") binding (.-RESEARCH_AUTHORITY env)
         public-webhook? (= path "/v1/research/ekyc/webhook")
-        ekyc? (contains? #{"/v1/research/ekyc/start" "/v1/research/ekyc/status"} path)
+        ekyc? (contains? #{"/v1/research/ekyc/start" "/v1/research/ekyc/status" submit-path} path)
         auth-header (or (.get (.-headers request) "authorization") "")
         pat-prefix (str "Bearer " pat/prefix)
         required-method (cond
@@ -665,7 +724,7 @@
                           (= path "/v1/chat/completions") "POST"
                           (= path "/v1/research/jobs") "POST"
                           (= path "/v1/research/review") "POST"
-                          (or public-webhook? (= path "/v1/research/ekyc/start")) "POST"
+                          (or public-webhook? (= path "/v1/research/ekyc/start") (= path submit-path)) "POST"
                           :else "GET")]
     (cond
       (not= method required-method)
