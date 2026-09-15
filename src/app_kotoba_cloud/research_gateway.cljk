@@ -170,6 +170,10 @@
       (.then (fn [result]
                (let [status (:status result)]
                  (cond
+                   ;; a succeeded job with no text is a broken receipt, not an
+                   ;; answer — never a 200 with content null (8 問 #1)
+                   (and (= "succeeded" status) (not (policy/text? (:content result) 65536)))
+                   (throw (ex-info "invalid-job-receipt" {:status 502}))
                    (= "succeeded" status)
                    (completion-envelope job-id (:content result) (:receiptId result) model)
                    (contains? #{"failed" "cancelled" "unknown"} status)

@@ -752,11 +752,25 @@
                                :headers #js {"content-type" "application/json"
                                              "authorization" (str "Bearer " (or (aget env "MODAL_INFERENCE_TOKEN") ""))}
                                :body (js/JSON.stringify (upstream-body (:request job)))})
+              ;; ONE terminal catch at the end of the chain. The previous shape
+              ;; attached `fail` as the rejection handler of every `then`: a
+              ;; non-ok upstream threw in the ok-handler, the NEXT step's `fail`
+              ;; stored "failed" and resolved, and `succeed` then ran on
+              ;; undefined — overwriting the job as "succeeded" with nil content.
+              ;; The edge served that as 200 + `content: null` (measured live
+              ;; 2026-09-15, first two PAT completions after eligibility).
               fail (fn [e]
-                     (store-job! storage (assoc job :status "failed"
-                                                :error (str (or (.-message e) e))
-                                                :finishedAt (js/Date.now))))
+                     (let [data (ex-data e)]
+                       (js/console.error "inference-run-failed" job-id
+                                         (str (or (.-message e) e))
+                                         (js/JSON.stringify (clj->js (select-keys data [:status :upstream]))))
+                       (store-job! storage (assoc job :status "failed"
+                                                  :error (str (or (.-message e) e))
+                                                  :upstreamStatus (:status data)
+                                                  :finishedAt (js/Date.now)))))
               succeed (fn [{:keys [content usage-receipt]}]
+                        (when-not (text? content 65536)
+                          (throw (ex-info "inference-result-empty" {})))
                         (store-job! storage (assoc job :status "succeeded"
                                                    :content content
                                                    :usageReceipt usage-receipt
@@ -764,9 +778,18 @@
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
-                            (throw (ex-info "modal-inference-unavailable" {:status (.-status r)}))
-                            (.json r)))
-                        fail)
+                            ;; keep the upstream's own error type/code (never
+                            ;; the prompt) so the log names 401 vs 404 vs 5xx
+                            (-> (.text r)
+                                (.catch (fn [_] ""))
+                                (.then (fn [detail]
+                                         (let [err (try (get (js->clj (js/JSON.parse detail) :keywordize-keys true) :error)
+                                                        (catch :default _ nil))]
+                                           (throw (ex-info "modal-inference-unavailable"
+                                                           {:status (.-status r)
+                                                            :upstream (if (map? err) (select-keys err [:type :code :message])
+                                                                          (subs (str detail) 0 (min 200 (count (str detail)))))}))))))
+                            (.json r))))
               parsed (js-invoke fetched "then"
                        (fn [raw]
                          (let [decoded (decode raw)
@@ -778,11 +801,11 @@
                                             (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
                                         (text? fallback 65536))
-                             (throw (ex-info "unexpected-modal-model-or-response" {}))
+                             (throw (ex-info "unexpected-modal-model-or-response"
+                                             {:upstream {:model (:model decoded) :object (:object decoded)}}))
                              {:content fallback
-                              :usage-receipt (upstream-usage-receipt decoded job)})))
-                       fail)]
-          (js-invoke parsed "then" succeed fail)))))))
+                              :usage-receipt (upstream-usage-receipt decoded job)}))))]
+          (js-invoke (js-invoke parsed "then" succeed) "catch" fail)))))))
 ;; --- request handling -------------------------------------------------------
 (defn- handle-status [storage body]
   (let [now (.now js/Date)]
