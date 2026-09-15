@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T09:12:15.797Z",
+ "generatedAt": "2026-09-15T09:12:52.728Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
@@ -2852,6 +2852,19 @@
    ],
    "record": {
     "/": "baguqeeraf7btdnhylo6fec75ie732syyhuz47xt2rfg7gj3h7t6ssczamvia"
+   }
+  },
+  {
+   "id": "trend-container-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Container Security",
+   "categoryId": "container",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; product page offers a 'Get pricing' CTA with no public list pricing (en_us page HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/hybrid-cloud/cloud-one-container-image-security.html",
+   "record": {
+    "/": "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba"
    }
   },
   {
@@ -7129,19 +7142,6 @@
    "record": {
     "/": "baguqeerapiog3354wp2vmiavi4kd6utfrap7xwbxgubfqfdgirve3ahcxiva"
    }
-  },
-  {
-   "id": "trend-deep-discovery-inspector",
-   "provider": "Trend Micro",
-   "providerHq": "JP",
-   "name": "TrendAI Deep Discovery Inspector",
-   "categoryId": "ndr",
-   "pricingMode": "quote-based",
-   "pricingUrl": "https://www.trendmicro.com/en_us/business/products/network/advanced-threat-protection/inspector.html",
-   "pricingNote": "quote-based; 'Get pricing' CTA on product page (verified 200, 2026-09-15)",
-   "record": {
-    "/": "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a"
-   }
   }
  ],
  "blocks": {
@@ -7628,6 +7628,11 @@
   "baguqeeraf7btdnhylo6fec75ie732syyhuz47xt2rfg7gj3h7t6ssczamvia": {
    "path": "/compliance-data/compliance/blocks/baguqeeraf7btdnhylo6fec75ie732syyhuz47xt2rfg7gj3h7t6ssczamvia.json",
    "bytes": 298,
+   "codec": "dag-json"
+  },
+  "baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradi25k7sopwelo3hjkg5cgomeyxcfrod7cnycngtgd4fzesmbg4ba.json",
+   "bytes": 489,
    "codec": "dag-json"
   },
   "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a": {
@@ -8980,23 +8985,18 @@
    "bytes": 264,
    "codec": "dag-json"
   },
-  "baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraxh3qdl4hv6y5ms7i674rwmy24c62q5wamlwcbsycbr576iygxr2a.json",
-   "bytes": 377,
-   "codec": "dag-json"
-  },
   "baguqeera2b5ebu3ui2hleskbke4xxo6j5oyzqjjhiuvykuokugowgig2ms5a": {
    "path": "/compliance-data/compliance/blocks/baguqeera2b5ebu3ui2hleskbke4xxo6j5oyzqjjhiuvykuokugowgig2ms5a.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeeraysqzquer5yxa2kn7imucemxi5bzm5ispj34udawzynfsibrufhba": {
-   "path": "/compliance-data/compliance/blocks/baguqeeraysqzquer5yxa2kn7imucemxi5bzm5ispj34udawzynfsibrufhba.json",
-   "bytes": 250693,
+  "baguqeeraycqvsohomnv6f5f4zfhz23x44rrxhtxyyfsfglbsw2oo54gauwaa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraycqvsohomnv6f5f4zfhz23x44rrxhtxyyfsfglbsw2oo54gauwaa.json",
+   "bytes": 250805,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeeraysqzquer5yxa2kn7imucemxi5bzm5ispj34udawzynfsibrufhba"
+  "/": "baguqeeraycqvsohomnv6f5f4zfhz23x44rrxhtxyyfsfglbsw2oo54gauwaa"
  }
 }
