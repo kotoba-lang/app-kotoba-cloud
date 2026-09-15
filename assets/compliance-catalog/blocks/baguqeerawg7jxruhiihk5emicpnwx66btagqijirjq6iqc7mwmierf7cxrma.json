@@ -1,0 +1,1 @@
+{"categoryId":"encryption","complianceFits":["iso-27001","nist-csf-20","soc2"],"id":"google-cloud-kms","name":"Google Cloud KMS","pricingMode":"public-list","pricingNote":"usage-based published pricing (about $0.06/key-version/month, plus per-operation charges; Cloud HSM tier higher)","pricingUrl":"https://cloud.google.com/kms/pricing","provider":"Google","providerHq":"US"}

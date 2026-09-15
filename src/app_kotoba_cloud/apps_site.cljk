@@ -78,7 +78,7 @@
     :links [["カタログを開く" "/ja/security/compliance/"]
             ["IPLD" "/compliance-data/compliance/index.json"]
             ["生成スクリプト" "https://github.com/kotoba-lang/app-kotoba-cloud/blob/main/scripts/build-compliance-catalog.mjs"]]
-    :meta ["16 基準" "29 プロダクト" "価格あり"]}
+    :meta ["16 基準" "350 プロダクト" "CSF 2.0 対応あり"]}
    {:id "aup"
     :name "Security Research AUP"
     :kind "policy"
