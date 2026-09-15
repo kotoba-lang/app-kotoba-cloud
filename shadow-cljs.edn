@@ -11,7 +11,8 @@
                        :modules {:worker {:exports {default app-kotoba-cloud.research-authority/default
                                                     ResearchAuthority app-kotoba-cloud.research-authority/make-research-authority
                                                     OrgAuthority app-kotoba-cloud.org-authority/make-org-authority
-                                                    OrgAuthority2 app-kotoba-cloud.org-authority/make-org-authority}}}
+                                                    OrgAuthority2 app-kotoba-cloud.org-authority/make-org-authority
+                                                    FakeReportAuthority app-kotoba-cloud.fake-report-authority/make-fake-report-authority}}}
                        :compiler-options {:output-feature-set :es2020 :infer-externs :auto}}
   :free-sites-test
   {:target :node-test

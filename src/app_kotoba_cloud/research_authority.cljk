@@ -717,6 +717,47 @@
 
 (defn- store-job! [storage job]
   (js-invoke storage "put" (str "job:" (:jobId job)) (js/JSON.stringify (clj->js job))))
+
+;; --- job retention -----------------------------------------------------------
+;; A job record carries the prompt, the answer / tool_calls and the usage
+;; receipt. It exists so a retry can re-attach (deterministic id) and a paid
+;; job can settle from a terminal receipt — both happen within minutes. It
+;; is deleted 24 hours after its terminal state (or after its creation, for
+;; a job that never reached one): the ledger keeps the receipt id and the
+;; token counts, the audit log keeps refusals, nothing keeps the text.
+;; Until 2026-09-15 nothing deleted these records while the public page said
+;; prompts and outputs were never kept.
+(def job-retention-ms 86400000)
+
+(defn- job-expiry [job]
+  (let [anchor (or (:finishedAt job) (:createdAt job))]
+    (when (number? anchor) (+ anchor job-retention-ms))))
+
+(defn- arm-retention!
+  "Make sure an alarm fires no later than `due` (the DO keeps one alarm)."
+  [storage due]
+  (-> (js-invoke storage "getAlarm")
+      (.then (fn [current]
+               (when (or (nil? current) (> current due))
+                 (js-invoke storage "setAlarm" due))))
+      (.catch (fn [e] (js/console.error "job-retention-arm-failed" (str (or (.-message e) e)))))))
+
+(defn sweep-jobs!
+  "Delete every job record past its expiry; re-arm for the earliest one left.
+   Returns a promise of {:deleted n :kept n}."
+  [storage now]
+  (-> (js-invoke storage "list" #js {:prefix "job:"})
+      (.then (fn [^js entries]
+               (let [rows (atom [])]
+                 (.forEach entries (fn [v k] (swap! rows conj [k (decode v)])))
+                 (let [expired (filter (fn [[_ job]] (let [e (job-expiry job)] (or (nil? e) (<= e now)))) @rows)
+                       kept (remove (fn [[_ job]] (let [e (job-expiry job)] (or (nil? e) (<= e now)))) @rows)]
+                   (-> (js/Promise.all (clj->js (map (fn [[k _]] (js-invoke storage "delete" k)) expired)))
+                       (.then (fn [_]
+                                (when (seq kept)
+                                  (arm-retention! storage (apply min (map (fn [[_ job]] (job-expiry job)) kept))))
+                                (js/console.log "job-retention-sweep" (count expired) (count kept))
+                                {:deleted (count expired) :kept (count kept)})))))))))
 (defn- load-job [storage job-id]
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
@@ -861,13 +902,14 @@
 ;; deployment's own `smoke` polls those four statuses; the authority now does
 ;; the same, under the edge's 14-minute wait (research-gateway
 ;; job-wait-budget-ms).
-(def not-ready-statuses #{303 502 503 504})
+(def not-ready-statuses #{303 502 503 504 524})
 (def dispatch-budget-ms 780000)
 (defn- not-ready-delay-ms
   "5 s, 10 s, then 15 s between not-ready answers (INFERENCE_NOT_READY_DELAY_MS
   scales the base; the local test sets it to 1)."
   [env attempt]
-  (let [base (let [n (js/Number (or (aget env "INFERENCE_NOT_READY_DELAY_MS") 5000))]
+  (let [base (let [n (js/Number (or (aget env "INFERENCE_NOT_READY_DELAY_MS")
+                               (aget env "ORIGIN_LOADING_RETRY_MS") 5000))]
                (if (and (js/Number.isFinite n) (pos? n)) n 5000))]
     (min (* 3 base) (* base attempt))))
 (defn- delay-ms [ms] (js/Promise. (fn [resolve] (js/setTimeout resolve ms))))
@@ -929,9 +971,11 @@
                         (-> (one-fetch)
                             (.then (fn [r]
                                      (if (and (contains? not-ready-statuses (.-status r)) (within-budget?))
-                                       (-> (store-job! storage (running (.-status r)))
-                                           (.then (fn [_] (delay-ms (not-ready-delay-ms env @attempts))))
-                                           (.then attempt))
+                                       (do
+                                         (js/console.warn "inference-origin-loading" job-id (.-status r) @attempts)
+                                         (-> (store-job! storage (running (.-status r)))
+                                             (.then (fn [_] (delay-ms (not-ready-delay-ms env @attempts))))
+                                             (.then attempt)))
                                        r)))
                             (.catch (fn [e]
                                       (if (and (nil? (ex-data e)) (within-budget?))
@@ -952,33 +996,36 @@
               ;; The edge served that as 200 + `content: null` (measured live
               ;; 2026-09-15, first two PAT completions after eligibility).
               fail (fn [e]
-                     (let [data (ex-data e)]
+                     (let [data (ex-data e) finished (js/Date.now)]
                        (js/console.error "inference-run-failed" job-id
                                          (str (or (.-message e) e))
                                          (js/JSON.stringify (clj->js (select-keys data [:status :upstream])))
                                          (str "attempts=" @attempts " elapsedMs=" (- (js/Date.now) started)))
-                       (store-job! storage (assoc job :status "failed"
-                                                  :error (str (or (.-message e) e))
-                                                  :upstreamStatus (:status data)
-                                                  ;; the origin's own error object (type/code/message,
-                                                  ;; never the prompt) so a 4xx can be served as the
-                                                  ;; caller's 400 with the reason
-                                                  :upstreamError (let [u (:upstream data)] (when (map? u) u))
-                                                  :retryable (retryable-failure? (:status data))
-                                                  :attempts @attempts
-                                                  :startedAt started
-                                                  :finishedAt (js/Date.now)))))
+                       (-> (store-job! storage (assoc job :status "failed"
+                                                      :error (str (or (.-message e) e))
+                                                      :upstreamStatus (:status data)
+                                                      ;; the origin's own error object (type/code/message,
+                                                      ;; never the prompt) so a 4xx can be served as the
+                                                      ;; caller's 400 with the reason
+                                                      :upstreamError (let [u (:upstream data)] (when (map? u) u))
+                                                      :retryable (retryable-failure? (:status data))
+                                                      :attempts @attempts
+                                                      :startedAt started
+                                                      :finishedAt finished))
+                           (.then (fn [_] (arm-retention! storage (+ finished job-retention-ms)))))))
               succeed (fn [{:keys [content tool-calls finish-reason usage-receipt]}]
                         (when-not (or (text? content max-content-characters) (seq tool-calls))
                           (throw (ex-info "inference-result-empty" {})))
-                        (store-job! storage (cond-> (assoc job :status "succeeded"
-                                                           :content (when (text? content max-content-characters) content)
-                                                           :finishReason finish-reason
-                                                           :usageReceipt usage-receipt
-                                                           :attempts @attempts
-                                                           :startedAt started
-                                                           :finishedAt (js/Date.now))
-                                              (seq tool-calls) (assoc :toolCalls (vec tool-calls)))))
+                        (let [finished (js/Date.now)]
+                          (-> (store-job! storage (cond-> (assoc job :status "succeeded"
+                                                                 :content (when (text? content max-content-characters) content)
+                                                                 :finishReason finish-reason
+                                                                 :usageReceipt usage-receipt
+                                                                 :attempts @attempts
+                                                                 :startedAt started
+                                                                 :finishedAt finished)
+                                                    (seq tool-calls) (assoc :toolCalls (vec tool-calls))))
+                              (.then (fn [_] (arm-retention! storage (+ finished job-retention-ms)))))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
@@ -1188,6 +1235,9 @@
                                                            (assoc-in [:usage :count] (inc used))))]
                                             (-> (save-state storage next)
                                                 (.then (fn [_] (store-job! storage job)))
+                                                ;; a run that never reaches a terminal state
+                                                ;; still expires from its creation
+                                                (.then (fn [_] (arm-retention! storage (+ now job-retention-ms))))
                                                 (.then (fn [_]
                                                          (response (job-response job record (:sessionRef body) now) 200))))))))))))))))))))
 
@@ -1411,6 +1461,10 @@
 
 (deftype ResearchAuthority [^js state env]
   Object
+  (alarm [_]
+    ;; job retention: the only alarm this object arms (arm-retention!)
+    (-> (sweep-jobs! (aget state "storage") (js/Date.now))
+        (.catch (fn [e] (js/console.error "job-retention-sweep-failed" (str (or (.-message e) e)))))))
   (fetch [_ request]
     (if (= "https://research.internal" (.-origin (js/URL. (.-url request))))
       (-> (.json request)

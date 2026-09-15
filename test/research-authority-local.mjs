@@ -15,10 +15,13 @@ globalThis.fetch = async (url, init) => {
 import { ResearchAuthority } from "../build/research/worker.js";
 
 class MockStorage {
-  constructor() { this.map = new Map(); }
+  constructor() { this.map = new Map(); this.alarmAt = null; }
   async get(k) { return this.map.has(k) ? this.map.get(k) : null; }
   async put(k, v) { this.map.set(k, String(v)); }
   async delete(k) { this.map.delete(k); }
+  async list({ prefix } = {}) { return new Map([...this.map].filter(([k]) => !prefix || k.startsWith(prefix))); }
+  async getAlarm() { return this.alarmAt; }
+  async setAlarm(t) { this.alarmAt = t; }
 }
 const state = {
   storage: new MockStorage(),
@@ -26,6 +29,7 @@ const state = {
   blockConcurrencyWhile(fn) { return fn(); },
 };
 const env = {
+  ORIGIN_LOADING_RETRY_MS: "20",
   RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef",
   MODAL_INFERENCE_URL: "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions",
   MODAL_INFERENCE_TOKEN: "modal-test-token",
@@ -98,6 +102,8 @@ assert.equal(r.json.policyDecision, "allowed");
 assert.equal(r.json.model, "qwen3.8-flash-next-whitehacker");
 await new Promise(r => setTimeout(r, 20));
 
+// the run is detached (waitUntil): give the mocked upstream a tick to land
+await new Promise(res => setTimeout(res, 50));
 const storedJob = JSON.parse(await state.storage.get("job:" + jobId));
 assert.equal(storedJob.status, "succeeded");
 assert.equal(storedJob.attempts, 1);
@@ -107,6 +113,31 @@ assert.deepEqual(storedJob.usageReceipt && {
   outputTokens: storedJob.usageReceipt.outputTokens,
   totalTokens: storedJob.usageReceipt.totalTokens,
 }, { source: "upstream-openai-compatible", inputTokens: 12, outputTokens: 3, totalTokens: 15 });
+
+// 6a. job retention: the terminal write arms the object's alarm 24 h out;
+// the alarm deletes every record past its expiry (the prompt and the answer
+// go with it), keeps the rest and re-arms for the earliest one left. Until
+// 2026-09-15 nothing deleted these records while the public page said
+// prompts and outputs were never kept.
+{
+  const day = 86400000;
+  // creation arms 24 h from createdAt (a run that never finishes still
+  // expires); the terminal write never pushes an earlier alarm later
+  assert.ok(state.storage.alarmAt >= storedJob.createdAt + day && state.storage.alarmAt <= storedJob.finishedAt + day,
+    "retention armed within [createdAt+24h, finishedAt+24h]: " + state.storage.alarmAt);
+  // an older job, already past its expiry, and a queued one that never finished
+  const old = { ...storedJob, jobId: "44444444-4444-4444-8444-444444444444", finishedAt: Date.now() - day - 1000 };
+  const stuck = { jobId: "55555555-5555-4555-8555-555555555555", principalId: principal, status: "queued",
+    request: { messages: [{ role: "user", content: "never ran" }] }, createdAt: Date.now() - 2 * day };
+  await state.storage.put("job:" + old.jobId, JSON.stringify(old));
+  await state.storage.put("job:" + stuck.jobId, JSON.stringify(stuck));
+  state.storage.alarmAt = null;   // the runtime clears a fired alarm before the handler runs
+  await auth.alarm();
+  assert.equal(await state.storage.get("job:" + old.jobId), null, "a job past its expiry is deleted");
+  assert.equal(await state.storage.get("job:" + stuck.jobId), null, "a job that never finished expires from its creation");
+  assert.ok(await state.storage.get("job:" + jobId), "a job inside the window is kept");
+  assert.equal(state.storage.alarmAt, storedJob.finishedAt + day, "re-armed for the earliest remaining expiry");
+}
 
 // 6b. upstream refuses (401) -> terminal state is FAILED with the upstream
 // status; never "succeeded" with nil content. Live, the chain's per-step
@@ -165,6 +196,44 @@ assert.deepEqual(storedJob.usageReceipt && {
   });
   assert.equal(rr2.json.receiptId, "receipt-" + failJobId);
   assert.equal(JSON.parse(await state.storage.get("record")).usage.count, usedBefore + 1, "a replay is not counted");
+}
+
+// 6b2. a scale-to-zero origin: the proxy's 503 ("model loading") and
+// Cloudflare's 524 are retried until the origin serves; the job then
+// succeeds — measured live 2026-09-15 22:47: every request during a 491 s
+// snapshot rebuild failed on the first 524. A 401 is still failed at once.
+{
+  const realUpstream = globalThis.fetch;
+  let attempts = 0;
+  const warnLines = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => { warnLines.push(args.map(String).join(" ")); };
+  globalThis.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) return new Response("error code: 524", { status: 524 });
+    if (attempts === 2) return new Response(JSON.stringify({ error: "model loading" }), { status: 503, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({
+      id: "chatcmpl-cold", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      choices: [{ index: 0, message: { role: "assistant", content: "Served after loading." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const coldJobId = "77777777-7777-4777-8777-777777777777";
+  const rc = await call("/jobs/create", {
+    principalId: principal, sessionRef, jobId: coldJobId, policyVersion: "whitehat-2026-09-12-v1",
+    billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+      scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, cold." }] },
+  });
+  assert.equal(rc.status, 200, JSON.stringify(rc));
+  await new Promise(r => setTimeout(r, 200));
+  globalThis.fetch = realUpstream;
+  console.warn = realWarn;
+  const cold = JSON.parse(await state.storage.get("job:" + coldJobId));
+  assert.equal(cold.status, "succeeded", "the loading origin must be retried: " + JSON.stringify(cold));
+  assert.equal(cold.content, "Served after loading.");
+  assert.equal(attempts, 3);
+  const loading = warnLines.filter(l => l.startsWith("inference-origin-loading " + coldJobId));
+  assert.deepEqual(loading.map(l => l.split(" ").slice(2).join(" ")), ["524 1", "503 2"]);
 }
 
 // 6c. native tool calls: the request's tools reach the origin verbatim, and
@@ -337,7 +406,7 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
     const callKey = (path, body) => withKey.fetch(new Request(`https://research.internal${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).then(r => r.json().then(j => ({ status: r.status, json: j })));
     b = await callKey("/jobs/create", blueRequest("qwen/qwen3.8-flash", "code-review", "Summarise this function."));
     assert.equal(b.status, 200, JSON.stringify(b.json));
-    await new Promise(r => setTimeout(r, 20));
+    await new Promise(res => setTimeout(res, 50)); // detached run: let the mocked upstream land
     stored = JSON.parse(await blueState2.storage.get("job:" + blueJob));
     assert.equal(stored.status, "succeeded", JSON.stringify(stored));
     assert.equal(routed.length, 1);
