@@ -45,7 +45,7 @@ reimplemented in-house without losing admission quality:
 
 - The `security-data` static pipeline (`public/security-data/`, IPLD manifest
   + datoms + JSON-LD) already serves curated public security data from
-  kotoba.cloud. PEP/sanctions lists (OpenSanctions base export, CC BY) are
+  kotoba.cloud. PEP/sanctions lists (OpenSanctions base export, CC BY-NC 4.0 — non-commercial; commercial use requires a data license from OpenSanctions) are
   added as a new dataset under the same path with the same manifest pattern:
   `/security-data/pep/index.json`, `pep/persons.datoms.json`,
   `pep/schema.edn` (name variants, dob ranges, jurisdiction, list source).
