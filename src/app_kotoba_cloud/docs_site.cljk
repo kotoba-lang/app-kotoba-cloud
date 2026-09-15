@@ -213,6 +213,17 @@
                         "# inputs:  assets, dns, certificates, open-endpoints\n"
                         "# outputs: attack-paths, exposure-findings, asset-context\n"
                         "# integration: feeds vm, emits :finding (shared finding-schema)"))
+     [:h2 "SAST — static application security testing"]
+     [:p {:class "kc-docs__lead"}
+      (txt "SAST はソースコードを解析して脆弱パターンとサニタイズ漏れを検出し、ファイル・行つきのコード所見を VM 台帳へ出します (status: gated)。"
+           "SAST analyzes source code for vulnerable patterns and missing sanitization, emitting code findings with file and line to the VM ledger (status: gated).")]
+     (config-block (str "# SAST capabilities (from the catalog entry)\n"
+                        "code-analysis  # static source-code analysis\n"
+                        "taint-flow     # taint / data-flow inspection\n"
+                        "code-finding   # code findings with file + line\n\n"
+                        "# inputs:  source-code, dependency-manifests\n"
+                        "# outputs: code-findings, taint-paths, dependency-notes\n"
+                        "# integration: feeds vm, emits :finding (role: code-findings)"))
      (note-block
       (txt "DAST / SAST は gated (非公開の authority の後方でゲート中)。3 つの上流サービスは共通 finding-schema で所見を出し、VM が重複排除・スコアリング (到達可能性 × 悪用可能性)・修正ライフサイクルを CPE/CVE キーで管理します。"
            "DAST / SAST are gated (behind the private authority). The three upstream services emit findings in the shared finding-schema; VM dedups, scores (reachability × exploitability) and tracks remediation keyed by CPE/CVE."))
@@ -352,7 +363,7 @@
       (txt "kotoba.cloud は first-party 推論を提供します (Murakumo 上の自前モデル)。上流プロバイダのキーを持ち込む BYOK は現在提供していません。"
            "kotoba.cloud serves first-party inference (its own models on Murakumo). Bring-your-own provider keys are not offered today.")]
      (config-block (str "status: not-offered\n\n"
-                        "# the model catalog (/v1/models) lists what the gateway routes;\n"
+ "# the model catalog (/v1/models) lists what the gateway routes;\n"
                         "# there is no per-workspace upstream key attachment surface"))]))
 
 (defn ref-view [id locale]
