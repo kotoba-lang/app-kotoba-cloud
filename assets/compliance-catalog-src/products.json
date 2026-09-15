@@ -4744,6 +4744,16 @@
    "pricingMode": "public-list",
    "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbp.html",
    "pricingNote": "public list; ja_jp product page (verified HTTP 200 on 2026-09-15) shows prices 21,780円 / 18,700円 / 10,780円 (いずれも税込, 期間・デバイス構成別)"
+  },
+  {
+   "id": "trend-vb-mobile",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター モバイル",
+   "categoryId": "consumer-av",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbm.html",
+   "pricingNote": "ja_jp product page (verified HTTP 200 on 2026-09-15) shows feature list and purchase flow but no public price; linked online store (virusbuster.jp/store/vbm/) returned HTTP 403 to automated fetch — pricing unverified"
   }
  ]
 }

@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:39:12.314Z",
+ "generatedAt": "2026-09-15T09:48:17.428Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 45,
- "productCount": 366,
+ "productCount": 367,
  "ontology": {
   "nodes": 45,
-  "claims": 3982,
+  "claims": 3987,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeras7ofg452d3jzveqkmcx3w6r67dqphlbooqas5qufk55wjoigtxpa"
+   "/": "baguqeerangja7647if3smh36eu3ap2bm6nywg22jc76vzvwptzkczbtrs7pa"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -7355,6 +7355,19 @@
    "record": {
     "/": "baguqeeraswwi45r5xvmddkrbvyv5b4uahss4gqairoprjzv6xz2ffksh7ila"
    }
+  },
+  {
+   "id": "trend-vb-mobile",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "ウイルスバスター モバイル",
+   "categoryId": "consumer-av",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/forHome/products/vbm.html",
+   "pricingNote": "ja_jp product page (verified HTTP 200 on 2026-09-15) shows feature list and purchase flow but no public price; linked online store (virusbuster.jp/store/vbm/) returned HTTP 403 to automated fetch — pricing unverified",
+   "record": {
+    "/": "baguqeeraekrqafrhsxqan4sq2sstzyeckyngt6njevxj7avnrw57ucagtica"
+   }
   }
  ],
  "blocks": {
@@ -9268,18 +9281,23 @@
    "bytes": 486,
    "codec": "dag-json"
   },
-  "baguqeeras7ofg452d3jzveqkmcx3w6r67dqphlbooqas5qufk55wjoigtxpa": {
-   "path": "/compliance-data/compliance/blocks/baguqeeras7ofg452d3jzveqkmcx3w6r67dqphlbooqas5qufk55wjoigtxpa.json",
+  "baguqeeraekrqafrhsxqan4sq2sstzyeckyngt6njevxj7avnrw57ucagtica": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraekrqafrhsxqan4sq2sstzyeckyngt6njevxj7avnrw57ucagtica.json",
+   "bytes": 478,
+   "codec": "dag-json"
+  },
+  "baguqeerangja7647if3smh36eu3ap2bm6nywg22jc76vzvwptzkczbtrs7pa": {
+   "path": "/compliance-data/compliance/blocks/baguqeerangja7647if3smh36eu3ap2bm6nywg22jc76vzvwptzkczbtrs7pa.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerasa42gc6reipuyw5iwmsnpjo4soycqg76xz6lsqmpdko3eg2tg72a": {
-   "path": "/compliance-data/compliance/blocks/baguqeerasa42gc6reipuyw5iwmsnpjo4soycqg76xz6lsqmpdko3eg2tg72a.json",
-   "bytes": 261997,
+  "baguqeerahizdnoc7mygng2prluyxjtgcnqtokbtyqiygycmjjro33ea6k4na": {
+   "path": "/compliance-data/compliance/blocks/baguqeerahizdnoc7mygng2prluyxjtgcnqtokbtyqiygycmjjro33ea6k4na.json",
+   "bytes": 262763,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerasa42gc6reipuyw5iwmsnpjo4soycqg76xz6lsqmpdko3eg2tg72a"
+  "/": "baguqeerahizdnoc7mygng2prluyxjtgcnqtokbtyqiygycmjjro33ea6k4na"
  }
 }
