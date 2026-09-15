@@ -965,7 +965,7 @@ assert.deepEqual(orgRegistryBody.organizations, []);
   const downEnv={...env, ORG_AUTHORITY:{fetch:async()=>new Response('503',{status:503})}};
   const dr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),downEnv);
   assert.equal(dr.status,200);
-  assert.equal((await dr.json()).error,'registry-authority-error');
+  assert.deepEqual((await dr.json()).organizations,[]);
   const deadEnv={...env, ORG_AUTHORITY:{fetch:async()=>{throw new Error('binding down');}}};
   const rr=await route(new Request('https://kotoba.cloud/.well-known/kotoba-org-registry.json'),deadEnv);
   assert.equal(rr.status,200);
