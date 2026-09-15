@@ -1,0 +1,18 @@
+(ns app-kotoba-cloud.code-block
+  "cloud-kotoba-dds.code/block with this site's copy-control labels — the
+   one home for them (the docs, the models page and the apex all emit
+   blocks). Wrap stays the pattern's default; the host only names the
+   language and the labels."
+  (:require [cloud-kotoba-dds.code :as code]))
+
+(def labels
+  {:ja {:copy-label "コピー" :copied-label "コピーしました"}
+   :en {:copy-label "Copy" :copied-label "Copied"}})
+
+(defn block
+  "opts as cloud-kotoba-dds.code/block (:lang defaults to :bash)."
+  ([locale src] (block locale {} src))
+  ([locale opts src]
+   (code/block (merge {:lang :bash} (get labels locale (:en labels)) opts) src)))
+
+(def inline code/inline)

@@ -588,6 +588,8 @@ assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
   assert.equal(last(), "https://docs.kotoba.cloud/css/site.css", "shared assets are the host's own");
   await docs("/js/shell.js");
   assert.equal(last(), "https://docs.kotoba.cloud/js/shell.js");
+  await docs("/js/code.js");
+  assert.equal(last(), "https://docs.kotoba.cloud/js/code.js", "the code block's copy runtime is the host's own too");
   assert.match((await docs("/")).headers.get("content-security-policy"), /style-src 'self'/);
   // the apex: /docs/… → the host, query kept; the locale prefix canonicalises first
   const moved = await route(new Request("https://kotoba.cloud/docs/reference/quickstart/?lang=ja"), env);
