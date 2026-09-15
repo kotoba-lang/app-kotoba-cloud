@@ -4,26 +4,28 @@
  if(chat&&view){const toggle=()=>{const open=location.hash==='#security';chat.hidden=open||location.hash.indexOf('#knowledge')===0;view.hidden=!open;};window.addEventListener('hashchange',toggle);toggle();view.querySelector('nav a').href='#chat';}
  if(chat&&view&&location.hash!=='#security')await new Promise(resolve=>{const start=()=>{if(location.hash==='#security'){window.removeEventListener('hashchange',start);resolve();}};window.addEventListener('hashchange',start);});
  const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
+ // copy in the document's language: <html lang> is ja for the Japanese emit, everything else reads English
+ const ja=document.documentElement.lang==='ja',t=(j,e)=>ja?j:e;
  try{
   const response=await fetch('/security-data/index.json');if(!response.ok)throw Error('unavailable');const data=await response.json();
   const url=link=>data.blocks[link['/']].path;
   const link=(label,href)=>{const a=node('a',label);a.href=href;return a;};
-  const labels={'vulnerability':'脆弱性','technique':'攻撃手法','actor-group':'グループ','historical-group':'履歴（未確認）','attack-log':'公開ラボログ','standard':'SCAP','threat-model':'脅威モデル'};
-  $('summary').replaceChildren(node('span',`${data.records.length}項目 · ${data.claims.length}件の出典付き主張 · 取得 ${data.generatedAt.slice(0,10)} `),link('スナップショットCID',data.headUrl));
+  const labels=ja?{'vulnerability':'脆弱性','technique':'攻撃手法','actor-group':'グループ','historical-group':'履歴（未確認）','attack-log':'公開ラボログ','standard':'SCAP','threat-model':'脅威モデル'}:{'vulnerability':'Vulnerability','technique':'Technique','actor-group':'Group','historical-group':'History (unconfirmed)','attack-log':'Public lab log','standard':'SCAP','threat-model':'Threat model'};
+  $('summary').replaceChildren(node('span',ja?`${data.records.length}項目 · ${data.claims.length}件の出典付き主張 · 取得 ${data.generatedAt.slice(0,10)} `:`${data.records.length} items · ${data.claims.length} sourced claims · fetched ${data.generatedAt.slice(0,10)} `),link(t('スナップショットCID','Snapshot CID'),data.headUrl));
   let selected=0;
-  async function detail(record){const request=++selected;const panel=$('detail');panel.hidden=false;panel.replaceChildren(node('h2',record['item/label']),link('このレコードのCID',url(record.record)));
+  async function detail(record){const request=++selected;const panel=$('detail');panel.hidden=false;panel.replaceChildren(node('h2',record['item/label']),link(t('このレコードのCID','CID of this record'),url(record.record)));
    const r=await fetch(url(record.record));if(!r.ok)throw Error('record unavailable');const value=await r.json();if(request!==selected)return;
-   if(chat){const use=node('button','この根拠で調べる');use.type='button';use.onclick=()=>{window.dispatchEvent(new CustomEvent('kotoba:research-context',{detail:{id:record['item/id'],label:record['item/label']}}));};panel.append(use);}
-   if(value.evidence)panel.append(node('p','出典レコードから、元URL・取得日時・原文アーカイブへ辿れます。'),link('出典とアーカイブ',url(value.evidence)));
-   if(record.historical){panel.append(node('p',`過去の未確認申告 ${record.historical.count} 件。確認済み被害件数ではありません。`));for(const [i,page] of record.historical.pages.entries())panel.append(link(`履歴データ ${i+1} `,url(page)));}
-   if(record.rawLog)panel.append(node('p','公開されたラボの監査ログです。実際の被害事例ではありません。'),link('監査ログを読む',record.rawLog));
-   if(value.record)panel.append(node('p','このシナリオは分析の雛形で、観測事実ではありません。'),link('シナリオと仮定',url(value.record)));
+   if(chat){const use=node('button',t('この根拠で調べる','Research with this evidence'));use.type='button';use.onclick=()=>{window.dispatchEvent(new CustomEvent('kotoba:research-context',{detail:{id:record['item/id'],label:record['item/label']}}));};panel.append(use);}
+   if(value.evidence)panel.append(node('p',t('出典レコードから、元URL・取得日時・原文アーカイブへ辿れます。','The source record leads to the original URL, the fetch time and the archived text.')),link(t('出典とアーカイブ','Source and archive'),url(value.evidence)));
+   if(record.historical){panel.append(node('p',ja?`過去の未確認申告 ${record.historical.count} 件。確認済み被害件数ではありません。`:`${record.historical.count} past unconfirmed reports. Not a count of confirmed victims.`));for(const [i,page] of record.historical.pages.entries())panel.append(link(ja?`履歴データ ${i+1} `:`History data ${i+1} `,url(page)));}
+   if(record.rawLog)panel.append(node('p',t('公開されたラボの監査ログです。実際の被害事例ではありません。','A published lab audit log. Not a real incident.')),link(t('監査ログを読む','Read the audit log'),record.rawLog));
+   if(value.record)panel.append(node('p',t('このシナリオは分析の雛形で、観測事実ではありません。','This scenario is an analysis template, not an observation.')),link(t('シナリオと仮定','Scenario and assumptions'),url(value.record)));
    const edges=data.relations.filter(e=>e.subject===record['item/id']||e.object===record['item/id']);
-   if(edges.length){panel.append(node('h3','出典付きの関係'));const list=node('ul');for(const e of edges){const id=e.subject===record['item/id']?e.object:e.subject;const target=data.records.find(r=>r['item/id']===id);const li=node('li');const b=node('button',`${e.property} · ${target?.['item/label']||id}`);b.type='button';if(target)b.onclick=()=>detail(target).catch(fail);li.append(b);list.append(li);}panel.append(list);}
-   panel.append(node('details'));const details=panel.lastChild;details.append(node('summary','レコード全体'),node('pre',JSON.stringify(value,null,2)));panel.focus();
+   if(edges.length){panel.append(node('h3',t('出典付きの関係','Sourced relations')));const list=node('ul');for(const e of edges){const id=e.subject===record['item/id']?e.object:e.subject;const target=data.records.find(r=>r['item/id']===id);const li=node('li');const b=node('button',`${e.property} · ${target?.['item/label']||id}`);b.type='button';if(target)b.onclick=()=>detail(target).catch(fail);li.append(b);list.append(li);}panel.append(list);}
+   panel.append(node('details'));const details=panel.lastChild;details.append(node('summary',t('レコード全体','Full record')),node('pre',JSON.stringify(value,null,2)));panel.focus();
   }
-  function render(){const term=$('search').value.toLowerCase(),kind=$('kind').value;const records=data.records.filter(r=>(!kind||r['item/class'].endsWith('/'+kind))&&`${r['item/id']} ${r['item/label']} ${(r.aliases||[]).join(' ')}`.toLowerCase().includes(term));$('results').replaceChildren();for(const r of records){const b=node('button',r['item/label']);b.type='button';b.append(node('small',labels[r['item/class'].split('/').at(-1)]||''));b.onclick=()=>detail(r).catch(fail);$('results').append(b);}if(!records.length)$('results').append(node('p','一致する項目はありません。'));}
-  function fail(){ $('summary').textContent='データを読み込めませんでした。時間をおいて再度開いてください。'; }
+  function render(){const term=$('search').value.toLowerCase(),kind=$('kind').value;const records=data.records.filter(r=>(!kind||r['item/class'].endsWith('/'+kind))&&`${r['item/id']} ${r['item/label']} ${(r.aliases||[]).join(' ')}`.toLowerCase().includes(term));$('results').replaceChildren();for(const r of records){const b=node('button',r['item/label']);b.type='button';b.append(node('small',labels[r['item/class'].split('/').at(-1)]||''));b.onclick=()=>detail(r).catch(fail);$('results').append(b);}if(!records.length)$('results').append(node('p',t('一致する項目はありません。','No matching items.')));}
+  function fail(){ $('summary').textContent=t('データを読み込めませんでした。時間をおいて再度開いてください。','Could not load the data. Try again later.'); }
   $('search').oninput=render;$('kind').onchange=render;render();
- }catch(_){$('summary').textContent='データを読み込めませんでした。時間をおいて再度開いてください。';}
+ }catch(_){$('summary').textContent=t('データを読み込めませんでした。時間をおいて再度開いてください。','Could not load the data. Try again later.');}
 })();
