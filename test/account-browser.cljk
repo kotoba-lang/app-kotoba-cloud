@@ -165,7 +165,7 @@ const shots=process.env.ACCOUNT_SHOTS||'';
   await page.route('**/v1/account/api-tokens',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,...registry})}));
   await page.route('**/v1/account/api-token/revoke',r=>{const b=r.request().postDataJSON();revokes.push(b);const t=registry.tokens.find(t=>t.id===b.tokenId);t.revokedAt=Date.now();r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:t})})});
   await page.route('**/v1/account/api-token',r=>{registry.tokens.push({id:'0123456789ad',label:'cli',issuedAt:Date.now()});r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,token:'kc_pat_x.0123456789ad.0123456789abcdef',tokenId:'0123456789ad',label:'cli'})})});
-  await page.goto(base+'/account/');
+  await page.goto(base+'/ja/account/');
   await page.waitForFunction(()=>document.getElementById('account-pat-list-state').dataset.state==='value',null,{timeout:5000});
   const s=await page.evaluate(()=>({state:document.getElementById('account-pat-list-state').textContent,
     rows:[...document.querySelectorAll('#account-pat-list [data-token-row]')].map(r=>({id:r.dataset.tokenRow,buttons:r.querySelectorAll('button').length})),
