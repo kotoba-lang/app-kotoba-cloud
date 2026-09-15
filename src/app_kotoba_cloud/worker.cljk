@@ -1170,6 +1170,10 @@
                                                 [(name k) (mapv name (sort v))]))
                                          sousa/case-transitions)})
 
+      (= path "/v1/sousa/evidence-kinds")
+      (json-response {:kinds (mapv name (sort sousa/evidence-kinds))
+                      :custodyRule "every evidence record carries a time-ordered chain of custody; the first entry is collection"})
+
       (= path "/schemas/aiueos-boot-catalog/v1")
       (json-response {:type "object"
                       :required ["schema" "status" "target" "bootstrap" "update"

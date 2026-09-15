@@ -200,6 +200,11 @@
 ;; Queries (pure, over caller-supplied in-memory records)
 ;; ---------------------------------------------------------------------------
 
+(def evidence-kinds
+  "The kinds of evidence the ontology accepts. Fixed set: a closed world means
+  the worker route can enumerate them and validators can reject anything else."
+  #{:physical :document :digital :testimony})
+
 (defn- has-case-id? [case-id]
   (fn [{:keys [kind] :as e}]
     (and (contains? #{:victim :suspect :evidence :procedure} kind)
@@ -234,6 +239,18 @@
                              records))]
     {:ok true :chain (:custody-chain ev)}
     {:ok false :reason :evidence-not-found}))
+
+(defn evidence-by-kind
+  "Evidence records of `kind` linked to `case-id`. `kind` must be one of
+  `evidence-kinds` (closed world). -> vector, possibly empty; filtering by
+  an unknown kind throws — an unknown kind is a caller bug, not an empty set."
+  [records case-id kind]
+  (when-not (contains? evidence-kinds kind)
+    (throw (ex-info "unknown evidence kind" {:kind kind})))
+  (filterv #(and (= :evidence (:kind %))
+                 (= case-id (:case-id %))
+                 (= kind (:evidence-kind %)))
+           records))
 
 (defn next-legal-statuses
   "For the worker's read-only route: what may this status move to."
