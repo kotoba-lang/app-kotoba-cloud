@@ -29,6 +29,7 @@
   (:require [kotoba.lang.text :as str]
             [clojure.edn :as edn]
             [app-kotoba-cloud.csp :as csp]
+            [app-kotoba-cloud.public-locales :as locales]
             [shinkansen.audit :as audit]
             [shinkansen.coscientist :as cosci]
             ["node:fs" :as fs]
@@ -105,6 +106,10 @@
                                   :stylesheets stylesheets
                                   :documents assets
                                   :routes worker-routes
+                                  ;; the Worker canonicalises /<locale>/<route> to
+                                  ;; /<route> (locale.cljk) — the language switch
+                                  ;; links resolve through their target
+                                  :locale-prefixes (set (map name locales/locale-order))
                                   :csp csp/for-path})]
     (if (flag? "--json")
       (println (js/JSON.stringify (clj->js (dissoc report :documents))))
