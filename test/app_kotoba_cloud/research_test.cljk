@@ -44,6 +44,25 @@
   (is (nil? (r/eligibility "principal-a" (update approved :trust assoc :routes ["web-reviewed" "app-passport"] :score 100) now)))
   (is (string? (r/eligibility "principal-a" (assoc-in approved [:screening :status] "review") now))))
 
+(deftest projections-tolerate-the-authority-clock-leading-the-edge
+  ;; The authority stamps `evaluatedAt` on its own machine; the edge reads it
+  ;; with another clock. A lead of at most projection-skew-ms is two clocks,
+  ;; one more millisecond is a stamp from the future. Both directions, on the
+  ;; boundary, for the trust and the session projection.
+  (let [lead r/projection-skew-ms
+        trust-led (fn [ms] (assoc (:trust approved) :evaluatedAt (+ now ms) :expiresAt (+ now ms 60000)))
+        session {:policyVersion (:version r/session-policy) :sessionRef "session" :action "code-review" :decision "allow"
+                 :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}}
+        session-led (fn [ms] (assoc session :evaluatedAt (+ now ms) :expiresAt (+ now ms 15000)))]
+    (is (= 2000 lead))
+    (is (nil? (r/eligibility "principal-a" (assoc approved :trust (trust-led lead)) now)))
+    (is (= "trust-route-required" (r/eligibility "principal-a" (assoc approved :trust (trust-led (inc lead))) now)))
+    ;; the tolerance never widens the window: an old stamp is still stale
+    (is (= "trust-route-required" (r/eligibility "principal-a" (assoc approved :trust (assoc (:trust approved) :evaluatedAt (- now 60001))) now)))
+    (is (r/session-current? "session" "code-review" (session-led lead) now))
+    (is (not (r/session-current? "session" "code-review" (session-led (inc lead)) now)))
+    (is (not (r/session-current? "session" "code-review" (assoc (session-led 0) :expiresAt now) now)))))
+
 (deftest session-opinions-are-bound-and-fresh
   (let [projection {:policyVersion (:version r/session-policy) :sessionRef "session" :action "code-review" :decision "allow"
                     :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}
