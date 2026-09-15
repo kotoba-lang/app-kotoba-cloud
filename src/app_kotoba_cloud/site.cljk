@@ -76,6 +76,11 @@
     :menu-models "モデル" :menu-register "研究者登録" :menu-billing "料金・決済"
     :menu-account "アカウント" :menu-security "セキュリティ" :menu-apps "アプリ"
     :menu-label "アプリメニュー"
+    ;; orcarouter-style sidebar groups (ja)
+    :sb-main "MAIN" :sb-manage "MANAGE" :sb-secure "SECURE" :sb-account "ACCOUNT"
+    :sb-start "はじめる" :sb-chat "調査チャット" :sb-docs "ドキュメント"
+    :sb-keys "接続トークン (PAT)" :sb-routing "モデル & ルーティング" :sb-insights "利用とインサイト"
+    :sb-logs "利用ログ" :sb-settings "設定"
     :language-label "表示言語" :hero-eyebrow "CONTROLLED EXECUTION"
     :headline "AIが書くソフトウェアを、制御された実行へ。"
     :lead ["Kotoba Cloud は、AI が書くソフトウェアの実行環境へつながる identity と deploy control の入口です。Kotoba が言語、Kotobase が信頼できるグラフ状態を担います。"
@@ -187,6 +192,11 @@
     :menu-models "Models" :menu-register "Researchers" :menu-billing "Billing"
     :menu-account "Account" :menu-security "Security" :menu-apps "Apps"
     :menu-label "App menu"
+    ;; orcarouter-style sidebar groups (en)
+    :sb-main "MAIN" :sb-manage "MANAGE" :sb-secure "SECURE" :sb-account "ACCOUNT"
+    :sb-start "Get started" :sb-chat "Research chat" :sb-docs "Docs"
+    :sb-keys "API tokens (PAT)" :sb-routing "Models & routing" :sb-insights "Usage & insights"
+    :sb-logs "Usage logs" :sb-settings "Settings"
     :language-label "Display language" :hero-eyebrow "CONTROLLED EXECUTION"
     :headline "Controlled execution for AI-generated software."
     :lead ["Kotoba Cloud is the identity and deploy-control entrance to the execution environment for AI-generated software. Kotoba is the language. Kotobase is the trusted graph state layer."
@@ -398,6 +408,45 @@
 
 (defn contact-mailto []
   [:a {:href (str "mailto:" public-contact-email)} public-contact-email])
+
+(def app-sidebar-css
+  ".kc-sb{position:fixed;inset-block:0;inline-size:15rem;background:var(--hig-color-secondary-system-background);border-inline-end:1px solid var(--hig-color-separator);display:flex;flex-direction:column;padding:var(--hig-spacing-4);gap:var(--hig-spacing-2);overflow:auto;z-index:30}
+.kc-sb__new{display:flex;align-items:center;justify-content:center;min-height:2.75rem;border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-system-background);color:var(--hig-color-label);font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
+.kc-sb__new:hover{background:var(--hig-color-tertiary-system-background,var(--hig-color-secondary-system-background))}
+.kc-sb__group{margin-top:var(--hig-spacing-4);font-family:var(--hig-font-mono);font-size:var(--hig-text-caption2-font-size);font-weight:700;letter-spacing:.08em;color:var(--hig-color-secondary-label)}
+.kc-sb a{display:flex;align-items:center;min-height:2.5rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none}
+.kc-sb a:hover{background:var(--hig-color-system-background)}
+.kc-sb a[data-current=true]{background:var(--hig-color-key-100);color:var(--hig-color-key-900,var(--hig-color-label))}
+.kc-sb__foot{margin-top:auto;padding-top:var(--hig-spacing-4);color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}
+body:has(.kc-sb){padding-inline-start:15rem}
+@media(max-width:64rem){body:has(.kc-sb){padding-inline-start:0}.kc-sb{position:static;inline-size:auto;inset-block:auto;border-inline-end:none;border-block-end:1px solid var(--hig-color-separator)}}")
+
+(defn app-sidebar
+  "OrcaRouter-style persistent left nav, grouped by category. Landing item
+  is Get started first (docs + connection), the research chat is one item —
+  the workspace is no longer the default landing."
+  [locale t current]
+  (let [ja? (= locale :ja)
+        item (fn [label href]
+               [:a (cond-> {:href href} (= current href) (assoc :data-current "true")) label])]
+    [:nav {:class "kc-sb" :aria-label (t "アプリナビゲーション" "App navigation")}
+     [:a {:class "kc-sb__new" :href "/docs/reference/quickstart/"} (t "＋ はじめる" "＋ Get started")]
+     [:div {:class "kc-sb__group"} (:sb-main t)]
+     (item (:sb-start t) "/docs/reference/quickstart/")
+     (item (:sb-docs t) "/docs/")
+     (item (:menu-apps t) "/apps/")
+     [:div {:class "kc-sb__group"} (:sb-manage t)]
+     (item (:sb-keys t) "/account")
+     (item (:sb-routing t) (str (:path t) "#research-models"))
+     (item (:menu-register t) (str (:path t) "#research-register"))
+     (item (:sb-insights t) "/account")
+     [:div {:class "kc-sb__group"} (:sb-secure t)]
+     (item (:menu-security t) "/security/aup/")
+     (item (:sb-docs t) "/docs/reference/errors/")
+     [:div {:class "kc-sb__group"} (:sb-account t)]
+     (item (:menu-account t) "/account")
+     (item (:menu-billing t) "/billing/")
+     [:div {:class "kc-sb__foot"} (t "Kotoba Labs Inc" "Kotoba Labs Inc")]]))
 
 (defn app-menu
   "OpenRouter-style single dropdown menu over the compact app header.
@@ -779,11 +828,12 @@
 (defn view [locale]
   (let [t (translation locale)]
     [[:a {:class "kc-skip dads-button" :href "#main"} (:skip t)]
-     ;; The app chat surface keeps the compact chrome: wordmark + app menu +
-     ;; session button only — the cross-page nav lives in the app menu
-     ;; (OpenRouter-style) instead of crowding the chat workspace.
+     ;; OrcaRouter-style shell: fixed left nav (Get started first), header
+     ;; on top, and the research chat as one panel — not the landing hero.
      (site-header locale t {:nav false})
-     (chat-site/view locale (passkey-href locale))
+     (app-sidebar locale t "/docs/reference/quickstart/")
+     [:div {:id "kc-app-main" :style {:padding "0 var(--hig-spacing-4)"}}
+      (chat-site/view locale (passkey-href locale))]
      (knowledge-site/view locale)
      [:div {:id "security-view" :hidden true} (security-site/view true)]
      [:span {:id "kc-session-labels" :hidden true
@@ -802,7 +852,7 @@
                 :description (:description t)
                 :lang (:html-lang t)
                 :css (document-css)
-                :app-css (str tokens/skin-css app-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css security-site/css)
+                :app-css (str tokens/skin-css app-css app-sidebar-css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css security-site/css)
                 :head (document-head locale :path (:title t) (:description t))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
