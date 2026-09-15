@@ -444,14 +444,18 @@
                 (dds/card
                  (dds/heading 2 (:name p) {:size "28"})
                  [:p (str "$" (/ (:cents p) 100) (when-not (:topup p) (txt " / 月" " / month")))]
-                 [:p (if (:topup p)
-                       (str "$" (/ (:cents p) 100) (txt " 分の利用分（1 credit = $1）" " of usage (1 credit = $1)"))
-                       (str (:credits p) (txt (str " AI credits / 月（$" (:credits p) "相当）")
-                                              (str " AI credits / month (worth $" (:credits p) ")"))))]
+                 (if (:monthly p)
+                   [:p (str (:credits p) (txt " credits / 月 (ボーナス +" (:bonusPercent p) "%)" " credits / month (+"
+                            (:bonusPercent p) "% bonus)"))]
+                   [:p (if (:topup p)
+                         (str "$" (/ (:cents p) 100) (txt " 分の利用分（1 credit = $1）" " of usage (1 credit = $1)"))
+                         (str (:credits p) (txt (str " AI credits / 月（$" (:credits p) "相当）")
+                                                (str " AI credits / month (worth $" (:credits p) ")"))))])
                  (when (:gib p) [:p (str (:gib p) (txt " GiB の保存容量（超過分は $0.20/GiB・月）" " GiB storage (excess at $0.20/GiB per month)"))])
                  (when (:seats p) [:p (str (:seats p) (txt " 席（AI・保存枠を共有）" " seats (shared AI and storage allowance)"))])
                  [:button {:type "button" :data-billing-sku (:sku p) :disabled true}
                   (txt "接続状況を確認中" "Checking availability")])) )
+        [:p (txt "Credits Monthly は失効しないクレジット残高を毎月付与します (契約額が大きいほどボーナス率が上がります)。毎期自動請求・いつでも解約・自動チャージは無効。" "Credits Monthly grants a balance that never expires (the bonus rate rises with commitment). Auto-charged each period, cancel anytime, no automatic top-up.")]
         [:p (txt "Proのtoken枠を基準にMaxは5倍、Ultraは10倍。Proの12 creditsは、通常入力1,000万＋出力250万tokensに相当します（混合例）。入力・キャッシュ・出力の構成により利用可能なtoken数は変わります。" "Max includes 5× and Ultra 10× the Pro token allowance. Pro's 12 credits cover, for example, 10 million uncached input plus 2.5 million output tokens. Actual token capacity varies with the input, cache and output mix.")]
         [:p (txt "WebとAPIで同じtoken枠を共有します。保存容量は推論では消費されません。Viewerは付属し、query処理・外部転送・保存超過は保存超過用クレジット（1 credit = $1 = $0.20/GiB・月5GiB分）の対象です。" "Web and API share the token allowance. Inference does not consume storage capacity. The viewer is included; query compute, egress and excess storage use excess-storage credits (1 credit = $1 = 5 GiB-months at $0.20/GiB).")]
         [:p {:id "billing-status" :role "status"}]

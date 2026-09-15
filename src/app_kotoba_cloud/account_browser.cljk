@@ -113,6 +113,45 @@
           (:checkoutEnabled r) (t "有料枠の購入・管理は料金ページから行えます。" "Purchases and management are on the plans page.")
           :else (t "請求は検証中です。まだ購入できません。" "Billing is in validation. Purchases are not available yet."))))
 
+(defn render-secure [r]
+  (let [host (el "account-secure")]
+    (when host
+      (.replaceChildren host)
+      (if (and (:httpOk r) (:guardrails r))
+        (doseq [[label value]
+                [["Guardrails" (str/join ", " (:templates (:guardrails r)))]
+                 ["Firewall" (str (count (:tools (:firewall r))) " tools · observe=" (:observeMode (:firewall r)))]
+                 ["Compliance" (str/join ", " (:frameworks (:compliance r)))
+                  ]]]
+          (let [row (.createElement js/document "div")]
+            (set! (.-className row) "ck-console__row")
+            (set! (.-textContent row) (str label ": " value))
+            (.append host row))))
+      (when-not (and (:httpOk r) (:guardrails r))
+        (let [p (.createElement js/document "p")]
+          (set! (.-className p) "kc-account-note")
+          (set! (.-textContent p) (t "セキュリティ管理の状態を取得できません。更新してください。"
+                                     "Could not read the security surface. Refresh."))
+          (.append host p))))))
+
+(defn render-team [r]
+  (let [host (el "account-team")]
+    (when host
+      (.replaceChildren host)
+      (if (and (:httpOk r) (seq (:organizations r)))
+        (doseq [o (:organizations r)]
+          (let [row (.createElement js/document "div")]
+            (set! (.-className row) "ck-console__row")
+            (set! (.-textContent row)
+                  (str (:handle o) " · role " (:role o) " · " (str/join ", " (or (:memberRoles o) []))))
+            (.append host row)))
+        (let [p (.createElement js/document "p")]
+          (set! (.-className p) "kc-account-note")
+          (set! (.-textContent p)
+                (t "チームはありません。組織を作成すると owner ロールが付与され、member を招待できます。"
+                   "No team yet. Create an organization to become owner and invite members."))
+          (.append host p))))))
+
 (defn render-orgs [r]
   (let [host (el "account-orgs")]
     (when host
@@ -227,7 +266,9 @@
                  (do (-> (api "/v1/research/ekyc/status") (.then render-ekyc))
                      (-> (api "/v1/research/status")
                          (.then (fn [r] (render-eligibility r) (render-scopes (:scopes r [])))))
-                     (-> (api "/v1/org/status" {}) (.then render-orgs))
+                     (-> (api "/v1/org/status" {})
+                         (.then (fn [r] (render-orgs r) (render-team r))))
+                     (-> (api "/v1/secure") (.then render-secure))
                      (-> (api "/v1/billing/status") (.then render-billing))))))))
 
 (defn init! []

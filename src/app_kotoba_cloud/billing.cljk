@@ -6,8 +6,24 @@
    {:sku "team" :name "Team" :scope "platform" :cents 15000 :credits 60 :gib 50 :seats 6}
    {:sku "max" :name "Max" :scope "platform" :cents 10000 :credits 60 :gib 100}
    {:sku "ultra" :name "Ultra" :scope "platform" :cents 20000 :credits 120 :gib 250}
+   ;; OrcaRouter-style credits-monthly tiers: the monthly plan purchases a
+   ;; credits balance with a bonus that rises with commitment. Credits never
+   ;; expire, the plan renews each period, cancel any time (terms surfaced on
+   ;; the billing page). scope credits = fungible across ai+storage meters.
+   {:sku "credits-50" :name "Credits 50" :scope "credits" :cents 5000
+    :credits 51 :bonusPercent 2 :monthly true}
+   {:sku "credits-100" :name "Credits 100" :scope "credits" :cents 10000
+    :credits 103 :bonusPercent 3 :monthly true}
+   {:sku "credits-500" :name "Credits 500" :scope "credits" :cents 50000
+    :credits 525 :bonusPercent 5 :monthly true}
+   {:sku "credits-1000" :name "Credits 1000" :scope "credits" :cents 100000
+    :credits 1100 :bonusPercent 10 :monthly true}
    {:sku "ai-credits-25" :name "AI Credits $25" :scope "ai" :cents 2500 :credits 25 :topup true}
    {:sku "storage-credits-25" :name "Storage Credits $25" :scope "storage" :cents 2500 :credits 25 :topup true}])
+
+(def credits-terms
+  {:autoCharge false :creditsExpire false :cancelAnyTime true
+   :renewal "monthly" :note "Auto-charged each period, cancel anytime, credits never expire."})
 (defn plan [sku] (first (filter #(= sku (:sku %)) plans)))
 (def rates {:input-per-million 600000 :cached-input-per-million 150000
             :output-per-million 2400000 :storage-gib-month 200000
@@ -71,9 +87,10 @@
        :credits (:credits p) :gib (:gib p) :start start :end end})))
 
 (defn allowance-grants
-  "Fan out one paid subscription line into independently replay-safe balances."
+  "Fan out one paid subscription line into independently replay-safe balances.
+  platform and credits scopes are both fungible across ai + storage meters."
   [line]
-  (if (= "platform" (:scope line))
+  (if (contains? #{"platform" "credits"} (:scope line))
     [(-> line (assoc :id (str (:id line) ":ai") :scope "ai") (dissoc :gib))
      (-> line (assoc :id (str (:id line) ":storage") :scope "storage") (dissoc :credits))]
     [line]))

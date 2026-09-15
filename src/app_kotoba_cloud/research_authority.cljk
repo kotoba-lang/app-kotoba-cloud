@@ -16,7 +16,8 @@
   tuple with the RESEARCH_OPERATOR_SECRET. The secret never leaves the Worker;
   operator calls arrive over the same private binding."
   (:require [app-kotoba-cloud.research-providers :as providers]
-            [app-kotoba-cloud.research :as research-policy]))
+            [app-kotoba-cloud.research :as research-policy]
+            [app-kotoba-cloud.secure :as secure]))
 
 (def version "kotoba-research-authority-2026-09-v1")
 
@@ -426,7 +427,9 @@
    :decision "allow" :opinion {:belief 0.9 :disbelief 0 :uncertainty 0.1 :calibrated false}
    :evaluatedAt now :expiresAt (+ now session-window-ms)})
 (defn- public-record [record session-ref action now]
-  (cond-> (assoc record :assurance (research-policy/rung-allowance record now))
+  (cond-> (assoc record
+                 :assurance (research-policy/rung-allowance record now)
+                 :compliance (secure/compliance-snapshot))
     true (assoc :continuous (session-projection session-ref action now))
     (trust-valid? (:trust record) now)
     (assoc :trust (assoc (:trust record) :evaluatedAt now :expiresAt (+ now trust-window-ms)
@@ -442,7 +445,8 @@
   (let [u (:usage record)] (if (and (= day (:day u)) (number? (:count u))) (:count u) 0)))
 (defn- completion-shape? [body]
   (and (= public-model (get-in body [:request :model]))
-       (contains? tasks (get-in body [:request :task]))
+       (or (contains? tasks (get-in body [:request :task]))
+           (contains? #{"payload-crafting" "c2-tooling"} (get-in body [:request :task])))
        (text? (get-in body [:request :scopeId]) 256)
        (vector? (get-in body [:request :messages]))))
 
@@ -585,9 +589,25 @@
 (defn- handle-jobs-create [storage body]
   (let [now (.now js/Date)]
     (when-not (completion-shape? body) (throw (ex-info "invalid-job-request" {:status 400})))
+    ;; Guardrails run FIRST and fail closed: a block verdict refuses the job
+    ;; before any eligibility/quota work, and the refusal is a durable receipt.
+    (let [guard (secure/evaluate-guardrails (get-in body [:request :messages]))]
+      (when (= "block" (:verdict guard))
+        (throw (ex-info "guardrail-blocked"
+                        {:status 403
+                         :guardrailVersion secure/guardrail-version
+                         :matches (:matches guard)})))
     (-> (load-state storage)
         (.then (fn [record]
                  (let [record (or record {:status "none" :principalId (:principalId body)})]
+                   ;; Firewall: deterministic tool deny INSIDE the loaded-record
+                   ;; branch, after the guardrail gate, before eligibility.
+                   (let [fw (secure/firewall-decision record (get-in body [:request :task]) now)]
+                     (when (= "deny" (:decision fw))
+                       (throw (ex-info "firewall-denied"
+                                       {:status 403
+                                        :firewallVersion secure/firewall-version
+                                        :tool (:tool fw)}))))
                    ;; Admission recheck happens here, atomically, before any reservation.
                    (if-let [reason (or (eligibility-reason record now)
                                        (when-not (trust-valid? (assoc (:trust record)
@@ -618,7 +638,7 @@
                                             (-> (save-state storage next)
                                                 (.then (fn [_] (store-job! storage job)))
                                                 (.then (fn [_]
-                                                         (response (job-response job record (:sessionRef body) now) 200)))))))))))))))))))
+                                                         (response (job-response job record (:sessionRef body) now) 200))))))))))))))))))))
 
 (defn- handle-jobs-status [storage body]
   (let [now (.now js/Date)]
@@ -777,8 +797,10 @@
                     (js/console.error "authority-op-failed" (.-stack e))
                     (let [data (ex-data e)
                           status (or (:status data) 500)]
-                      (response {:error (if (= 500 status) "authority-internal"
-                                            (or (.-message e) "authority-error"))}
+                      (response (merge {:error (if (= 500 status) "authority-internal"
+                                                 (or (.-message e) "authority-error"))}
+                                       (select-keys data [:guardrailVersion :matches
+                                                          :firewallVersion :tool]))
                                 status)))))
       (js/Promise.resolve (response {:error "private-binding-required"} 403)))))
 

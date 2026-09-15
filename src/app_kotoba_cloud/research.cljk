@@ -236,6 +236,29 @@
      :grantsBand (:grantsBand rung)}
     {:rungId :none :level 0 :tokensPerDay 0 :ceilingTokensPerDay 0 :grantsBand nil}))
 
+;; --- SECURE public metadata (orcarouter pattern) ----------------------------
+;; What the edge tells the browser/API about the runtime controls. Coverage
+;; is automated runtime controls only — never a certification claim.
+(def secure-profile
+  {:version "kotoba-secure-2026-09-v1"
+   :note "Coverage = automated runtime controls only - not a certification."
+   :guardrails {:version "kotoba-guardrails-2026-09-v1"
+                :templates ["csam-block" "cbrn-block" "fraud-block" "secret-hygiene" "pii-passkeys"]
+                :precedence "rule-match is deterministic; block refuses the job before quota"}
+   :firewall {:version "kotoba-firewall-2026-09-v1"
+              :tools {"code-review" :identity "vulnerability-triage" :identity
+                      "remediation" :identity "payload-crafting" :contracted
+                      "c2-tooling" :contracted}
+              :observeMode false}
+   :compliance {:version "kotoba-compliance-2026-09-v1"
+                :frameworks ["APPI (JP)" "PCI DSS 4.0" "OWASP LLM Top-10" "NIST AI RMF"]
+                :auditLogRetentionDays 180
+                :dataResidency "unspecified"
+                :zeroDataRetention "designed-for-zdr"}
+   :team {:version "kotoba-org-membership-2026-09-v1"
+          :roles ["owner" "admin" "member" "billing"]
+          :shared ["api tokens" "scopes" "billing"] :surface "/account"}})
+
 (def identity-profile
   ;; Public identity metadata. The live route is Stripe Identity only
   ;; (web-reviewed console and app-passport routes remain in-repo components,

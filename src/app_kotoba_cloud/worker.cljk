@@ -873,6 +873,12 @@
                                                                      "cache-control" "public, max-age=3600"}}))))))))
           (json-response {:error {:code "not-found"}} 404)))
 
+      ;; SECURE surface (orcarouter pattern): public metadata of the runtime
+      ;; controls — guardrail templates, firewall tool map, compliance coverage.
+      ;; Read-only; the authority enforces, the edge only describes.
+      (= path "/v1/secure")
+      (json-response research/secure-profile)
+
       (= path "/health")
       (json-response {:ok true :service "kotoba-cloud-control-plane"})
 
