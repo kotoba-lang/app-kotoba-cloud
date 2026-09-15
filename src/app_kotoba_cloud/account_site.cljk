@@ -16,9 +16,13 @@
   ".kc-account{padding-block:var(--hig-spacing-6);display:grid;gap:var(--hig-spacing-5)}")
 
 (defn- panel
-  [title body {:keys [id] :or {id (str "ck-console-" (hash title))}}]
-  (dds/card
-   (console/panel title body {:id id})))
+  [title & forms]
+  (let [[body attrs] (if (map? (last forms))
+                       [(butlast forms) (last forms)]
+                       [forms {}])
+        {:keys [id] :or {id (str "ck-console-" (hash title))}} attrs]
+    (dds/card
+     (console/panel title (vec body) {:id id}))))
 
 (defn panel-session []
   (panel "アカウント"
