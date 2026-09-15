@@ -216,6 +216,31 @@
     (is (str/includes? html "kc-footer"))
     (is (str/includes? html "<nav"))))
 
+(deftest security-services-page-ships-the-suite
+  (let [html (site/security-services-html)]
+    (testing "document-head scripts are present (hydration contract)"
+      (is (str/includes? html "src=\"/js/session.js\""))
+      (is (str/includes? html "src=\"/js/language-selector.js\""))
+      (is (str/includes? html "freebuff-tag.js")))
+    (testing "shared chrome with the app sidebar, current item highlighted"
+      (is (str/includes? html "kc-header"))
+      (is (str/includes? html "kc-footer"))
+      (is (str/includes? html "kc-sb"))
+      (is (str/includes? html "data-current=\"true\""))
+      (is (str/includes? html "href=\"/security/services/\"")))
+    (testing "the four services render with their capability rows"
+      (doseq [needle ["CTEM" "DAST" "SAST" "VM" "aggregation-ledger"
+                      "finding-id" "ledger keys: cpe, cve"]]
+        (is (str/includes? html needle) needle))
+      (is (= 4 (count (re-seq #"data-service=" html))))
+      (is (str/includes? html "id=\"vm-ledger-flow\"")))))
+
+(deftest apps-grid-links-the-security-services-from-the-one-def
+  (let [html (site/apps-html :ja)]
+    (doseq [id ["security-ctem" "security-dast" "security-sast" "security-vm"]]
+      (is (str/includes? html (str "data-app=\"" id "\"")) id))
+    (is (<= 4 (count (re-seq #"href=\"/security/services/\"" html))))))
+
 (deftest header-links-cross-page-documents
   (let [html (site/page-html :ja)]
     (is (str/includes? html "href=\"/account\""))

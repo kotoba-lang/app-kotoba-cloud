@@ -8,6 +8,7 @@
             [app-kotoba-cloud.funnel :as funnel]
             [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.research :as research]
+            [app-kotoba-cloud.security-services :as security-services]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
@@ -880,6 +881,12 @@
       ;; SECURE surface (orcarouter pattern): public metadata of the runtime
       ;; controls — guardrail templates, firewall tool map, compliance coverage.
       ;; Read-only; the authority enforces, the edge only describes.
+      ;; Security-services suite catalog (describing only): the edge serves
+      ;; the ONE canonical def; any enforcement stays on the private
+      ;; authority.
+      (= path "/v1/security/services")
+      (json-response security-services/security-services)
+
       (= path "/v1/secure")
       (json-response research/secure-profile)
 

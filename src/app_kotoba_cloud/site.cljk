@@ -14,6 +14,7 @@
             [app-kotoba-cloud.crypto-site :as crypto-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.apps-site :as apps-site]
+                        [app-kotoba-cloud.security-services-site :as security-services-site]
             [app-kotoba-cloud.docs-site :as docs-site]
             [app-kotoba-cloud.research-site :as research-site]
             [app-kotoba-cloud.research :as research]
@@ -453,6 +454,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
      (item (:sb-insights t) "/account")
      [:div {:class "kc-sb__group"} (:sb-secure t)]
      (item (:menu-security t) "/security/aup/")
+     (item (t "セキュリティサービス" "Security services") "/security/services/")
      (item (:sb-docs t) "/docs/reference/errors/")
      [:div {:class "kc-sb__group"} (:sb-account t)]
      (item (:menu-account t) "/account")
@@ -1011,6 +1013,16 @@ body:has(.kc-sb){padding-inline-start:15rem}
                (fn [ja?]
                  (docs-site/client-view id (if ja? :ja :en))))))
 
+(defn security-services-html
+  ([] (security-services-html :ja))
+  ([locale]
+   (site-layout {:title "セキュリティサービス — Kotoba Cloud"
+                 :description "First-party security services: CTEM, DAST, SAST feed the VM vulnerability ledger (wvme)."
+                 :lang "ja"
+                 :sidebar? true :current "/security/services/"
+                  :extra-css security-services-site/css}
+    (security-services-site/view locale))))
+
 (defn apps-html
   ([] (apps-html :en))
   ([locale]
@@ -1315,6 +1327,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (copy-file (node-path/join "assets" "norbert-chat.js") (node-path/join js-dir "norbert-chat.js"))
       (spit-file (node-path/join root "apps" "index.html") (apps-html :en))
       (spit-file (node-path/join root "ja" "apps" "index.html") (apps-html :ja))
+      (spit-file (node-path/join root "security" "services" "index.html") (security-services-html :ja))
+      (spit-file (node-path/join root "ja" "security" "services" "index.html") (security-services-html :ja))
       (spit-file (node-path/join root "security" "aup" "index.html") (aup-html :en))
       (spit-file (node-path/join root "ja" "security" "aup" "index.html") (aup-html :ja))
       (spit-file (node-path/join root "crypto" "index.html") (crypto-html))

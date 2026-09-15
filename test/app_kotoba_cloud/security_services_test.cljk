@@ -1,0 +1,45 @@
+(ns app-kotoba-cloud.security-services-test
+  (:require [app-kotoba-cloud.security-services :as sec]
+            [kotoba.lang.text :as str]
+            [clojure.test :refer [deftest is testing]]))
+
+(deftest catalog-has-the-four-services
+  (testing "exactly four unique services, in order"
+    (is (= [:ctem :dast :sast :vm] (mapv :id sec/security-services)))
+    (is (= (count sec/security-services) (count (set (map :id sec/security-services))))))
+  (testing "every service carries name, bilingual summary, domain, status, io"
+    (doseq [s sec/security-services]
+      (is (seq (:name s)))
+      (is (seq (:ja (:summary s))))
+      (is (seq (:en (:summary s))))
+      (is (contains? #{:exposure-management :dynamic-testing :static-analysis
+                       :vulnerability-management}
+                     (:domain s)))
+      (is (contains? #{"component-shipped" "gated"} (:status s)))
+      (is (seq (:inputs s)))
+      (is (seq (:outputs s)))
+      (is (seq (:integration s)))))
+  (testing "every capability row is a keyword with a non-empty label"
+    (doseq [s sec/security-services
+            [k label] (:capabilities s)]
+      (is (keyword? k))
+      (is (seq label)))))
+
+(deftest vm-is-the-aggregation-ledger
+  (let [vm (sec/service-by-id :vm)]
+    (is (= "vm" (:feeds (:integration (sec/service-by-id :ctem)))))
+    (is (= "vm" (:feeds (:integration (sec/service-by-id :dast)))))
+    (is (= "vm" (:feeds (:integration (sec/service-by-id :sast)))))
+    (is (= "aggregation-ledger" (:role (:integration vm))))
+    (is (:dedup (:integration vm)))
+    (is (= [:reachability :exploitability] (:scoring (:integration vm))))
+    (is (= [:cpe :cve] (:ledger-keys (:integration vm))))
+    (is (seq (:remediation-lifecycle (:integration vm))))
+    (is (str/includes? (pr-str (:integration vm)) "ledger"))))
+
+(deftest upstream-findings-share-one-schema
+  (is (= [:finding-id :service :asset :severity :evidence :first-seen :last-seen]
+         sec/finding-schema)))
+
+(deftest page-and-api-cannot-drift
+  (is (= "/security/services/" sec/ledger-page)))
