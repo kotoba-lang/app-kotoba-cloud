@@ -773,9 +773,10 @@
     :css (document-css)
     :app-css (str tokens/skin-css app-css extra-css)
     :head (if robots [[:meta {:name "robots" :content robots}]] [])}
-   (site-header :ja copy)
+   (let [t (translation :ja)]
+     (site-header :ja t))
    [:main {:id "main"} body]
-   (site-footer copy)))
+   (site-footer (translation :ja))))
 
 (defn security-html []
      (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
