@@ -686,9 +686,26 @@ let researchRecord = { principalId: researchPrincipal, policyVersion: researchPo
   continuous: { policyVersion: "kotoba-session-evidence-2026-09-v1", sessionRef: researchSessionRef, action: 'code-review', decision: 'allow',
     opinion: { belief: .9, disbelief: 0, uncertainty: .1, calibrated: false }, evaluatedAt: researchNow, expiresAt: researchNow + 15000 },
   trust: { policyVersion: "kotoba-trust-routes-2026-09-v1", score: 60, routes: ["web-reviewed"], evaluatedAt: researchNow, expiresAt: researchNow + 60000 },
-  ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
-  screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 60000 },
-  scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 60000 }] };
+  // evidence windows: an hour, so a run slowed by a concurrent build cannot
+  // outlive them (the projections below are re-stamped per read instead)
+  ekyc: { status: "verified", evidenceRef: "private-evidence", verifiedAt: researchNow - 1000, expiresAt: researchNow + 3600000 },
+  screening: { status: "clear", evidenceRef: "private-screen", checkedAt: researchNow - 1000, expiresAt: researchNow + 3600000 },
+  scopes: [{ id: "owned-code", status: "approved", tasks: ["code-review"], expiresAt: researchNow + 3600000 }] };
+// The authority re-stamps its trust / session projections on every read
+// (research_authority trust-projection / session-projection: evaluatedAt =
+// its now). This mock did not: the stamps were minted once at module load
+// with 15 s (session) and 60 s (trust) windows, so a run slowed by a
+// concurrent build answered 403 session-reverification-required from the
+// paid-inference block onward (measured 2026-09-15 23:25). Re-stamp a
+// projection that still has its untouched window width and has aged past
+// 5 s; a test that deliberately broke a stamp (expiresAt = 1, evaluatedAt
+// in the future) keeps it.
+const projected = (record) => {
+  const now = Date.now();
+  const fresh = (p, width) => (p && p.expiresAt - p.evaluatedAt === width && p.evaluatedAt < now - 5000)
+    ? { ...p, evaluatedAt: now, expiresAt: now + width } : p;
+  return { ...record, continuous: fresh(record.continuous, 15000), trust: fresh(record.trust, 60000) };
+};
 let corruptReceipt = false;
 let oldTrustReceipt = false;
 let exhausted = false;
@@ -710,7 +727,7 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
   if (init.redirect !== undefined && init.redirect !== "follow" && init.redirect !== "manual") {
     throw new TypeError("Invalid redirect mode: " + init.redirect);
   }
-  if (path === "/status") return Response.json(researchRecord);
+  if (path === "/status") return Response.json(projected(researchRecord));
   // personal API token registry (per principal): what the real authority keeps
   if (path.startsWith("/tokens/")) {
     const op = path.slice("/tokens/".length);
@@ -771,14 +788,14 @@ const researchEnv = { ...env, RESEARCH_AUTHORITY: { fetch: async (url, init) => 
     }
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, policyDecision: "allowed",
-      model: body.request ? body.request.model : researchModel, record: researchRecord });
+      model: body.request ? body.request.model : researchModel, record: projected(researchRecord) });
   }
   if (path === "/jobs/status") {
     const job = jobs.get(body.jobId);
     if (!job) return new Response(JSON.stringify({ error: "not-found" }), { status: 404 });
     return Response.json({ ...job, policyVersion: body.policyVersion, trustPolicyVersion: body.trustPolicyVersion,
       sessionPolicyVersion: body.sessionPolicyVersion, policyDecision: "allowed",
-      model: body.request ? body.request.model : researchModel, record: researchRecord });
+      model: body.request ? body.request.model : researchModel, record: projected(researchRecord) });
   }
   assert.equal(path, "/complete");
   assert.equal(body.principalId, researchPrincipal);

@@ -1,0 +1,1 @@
+{"product/category":"SAST","product/csf":["PR.PS-06","ID.RA-01","ID.IM-03"],"product/id":"sonarqube","product/name":"SonarQube","product/platform":"Self-hosted/SaaS","product/source":"https://www.sonarsource.com/products/sonarqube/","product/summary":"Code quality and security: static analysis with taint tracking in CI.","product/vendor":"Sonar"}

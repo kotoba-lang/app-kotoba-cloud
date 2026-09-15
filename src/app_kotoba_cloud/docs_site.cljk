@@ -11,7 +11,8 @@
   lines."
   (:require [app-kotoba-cloud.code-block :as code-block]
             [app-kotoba-cloud.billing :as billing]
-            [app-kotoba-cloud.research :as research]))
+            [app-kotoba-cloud.research :as research]
+            [clojure.string :as cstr]))
 
 (def css
   ".kc-docs{padding-block:var(--hig-spacing-6)}
@@ -52,7 +53,8 @@
     :pages [{:href "/docs/" :ja "はじめに" :en "Introduction"}
             {:href "/docs/reference/quickstart/" :ja "クイックスタート" :en "Quickstart"}
             {:href "/docs/reference/get-api-token/" :ja "API トークンを取得" :en "Get an API token"}
-            {:href "/docs/reference/models/" :ja "モデル" :en "Models"}]}
+            {:href "/docs/reference/models/" :ja "モデル" :en "Models"}
+            {:href "/docs/reference/cli-cheatsheet/" :ja "CLI 早見表" :en "CLI cheat sheet"}]}
    {:id :compat :ja "互換性" :en "Compatibility"
     :pages [{:href "/docs/reference/openai-sdk/" :ja "OpenAI SDK" :en "OpenAI SDK"}
             {:href "/docs/reference/anthropic-sdk/" :ja "Anthropic SDK" :en "Anthropic SDK"}
@@ -69,7 +71,8 @@
             {:href "/docs/reference/security-services/" :ja "セキュリティサービス" :en "Security services"}
             {:href "/docs/graph/" :ja "グラフ・オントロジー DB" :en "Graph & ontology DB"}]}
    {:id :operations :ja "運用" :en "Operations"
-    :pages [{:href "/docs/reference/rate-limits/" :ja "レート制限" :en "Rate limits"}
+    :pages [{:href "/docs/reference/endpoints/" :ja "エンドポイント一覧" :en "Endpoint reference"}
+            {:href "/docs/reference/rate-limits/" :ja "レート制限" :en "Rate limits"}
             {:href "/docs/reference/errors/" :ja "エラー" :en "Errors"}
             {:href "/docs/reference/billing-and-usage/" :ja "課金と利用量" :en "Billing & usage"}
             {:href "/docs/reference/per-request-cost/" :ja "リクエストごとの費用" :en "Per-request cost"}
@@ -292,8 +295,14 @@
     :desc-ja "アカウントコンソールで接続トークンを発行し、環境変数に置く。"
     :desc-en "Issue a connection token in the account console and put it in the environment."}
    {:id "models" :name "Models"
-    :desc-ja "カタログ /v1/models: レッドチーム（専用経路）とブルーチーム（共有経路）、各モデルの admission。"
-    :desc-en "The catalog at /v1/models: red-team (dedicated route) and blue-team (shared route) models and what admits each."}
+    :desc-ja "カタログ /v1/models: レッドチーム（専用経路）とブルーチーム（共有経路）、各モデルの admission と、モデルごとの詳細。"
+    :desc-en "The catalog at /v1/models: red-team (dedicated route) and blue-team (shared route) models, what admits each, and per-model detail."}
+   {:id "cli-cheatsheet" :name "CLI cheat sheet"
+    :desc-ja "curl だけで一通り: カタログ、補完、ストリーム、ツール、ジョブ、状態、残高。"
+    :desc-en "Everything with curl alone: catalog, completion, stream, tools, jobs, status, balance."}
+   {:id "endpoints" :name "Endpoint reference"
+    :desc-ja "公開エンドポイント全部: method、認証、リクエストと応答の形。"
+    :desc-en "Every public endpoint: method, auth, request and response shapes."}
    {:id "openai-sdk" :name "OpenAI SDK"
     :desc-ja "Python / TypeScript の OpenAI SDK を base_url 1 行で向ける。何が通り、何が落とされるか。"
     :desc-en "Point the Python / TypeScript OpenAI SDK with one base_url line. What passes, what is dropped."}
@@ -399,34 +408,41 @@
 (defn quickstart-view [locale]
   (let [ja? (= :ja locale)
         txt (fn [ja en] (if ja? ja en))]
-    [[:h1 (txt "Quickstart" "Quickstart")]
+    [[:h1 (txt "クイックスタート" "Quickstart")]
      [:p {:class "kc-docs__lead"}
-      (txt "サインイン → カード認証 → トークン発行 → 最初のリクエスト。だいたい 5 分。"
-           "Sign in, verify with a card, issue a token, send the first request. About five minutes.")]
-     [:h2 (txt "1. サインインとトークン発行" "1. Sign in and issue a token")]
-     (config-block {:ja? ja?} (str "# 1. Sign in at https://kotoba.cloud/account\n"
-                        "# 2. 「CLI / IDE から使う」→「接続トークンを発行」(shown once)\n"
-                        "export KOTOBA_API_TOKEN=\"kc_pat_<your-token>\""))
-     [:h2 (txt "2. 最初のジョブ (非同期)" "2. First job (async)")]
-     (config-block {:ja? ja?} (str "curl -s -X POST " openai-base "/research/jobs \\\n"
-                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
-                        "  -H \"content-type: application/json\" \\\n"
-                        "  -H \"idempotency-key: 11111111-1111-4111-8111-111111111111\" \\\n"
-                        "  -d '{\"model\":\"" model-id "\",\"task\":\"code-review\",\"scopeId\":\"owned\",\n"
-                        "        \"max_tokens\":256,\"messages\":[{\"role\":\"user\",\n"
-                        "        \"content\":\"Review this login function for auth bypasses.\"}]}'\n\n"
-                        "# poll until status is succeeded (queued/running -> 202)\n"
-                        "curl -s \"" openai-base "/research/job?jobId=<uuid>\" \\\n"
-                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\""))
-     [:h2 (txt "3. または同期呼び出し (OpenAI 互換)" "3. Or the sync call (OpenAI-compatible)")]
-     (config-block {:ja? ja?} (str "curl -s -X POST " openai-base "/chat/completions \\\n"
-                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
-                        "  -H \"content-type: application/json\" \\\n"
-                        "  -d '{\"model\":\"" model-id "\",\n"
-                        "        \"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: OK\"}]}'"))
+      (txt "サインイン → 接続トークン → 最初の呼び出し。5 分。レッドチームのモデルにはカード本人確認が要ります（無料枠 1,000 件/日はそのまま）。"
+           "Sign in, get a connection token, make the first call. Five minutes. Red-team models need card-based identity verification (the free 1,000/day allowance stays).")]
+     [:h2 (txt "1. サインインしてトークンを発行" "1. Sign in and issue a token")]
+     [:p (txt "kotoba.cloud/account にパスキーかウォレットでサインインし、「CLI / IDE から使う」→「接続トークンを発行」。一度だけ表示されます。"
+              "Sign in at kotoba.cloud/account with a passkey or a wallet, then “Use from a CLI / IDE” → “Issue a connection token”. It is shown once.")]
+     (config-block {:ja? ja?} (str "export KOTOBA_API_TOKEN=\"kc_pat_<your-token>\"\n"
+                        "curl -s " openai-base "/models -H \"Authorization: Bearer $KOTOBA_API_TOKEN\""))
+     [:h2 (txt "2. 本人確認（レッドチームのモデルに必要）" "2. Verify (needed for red-team models)")]
+     [:p (txt "アカウントコンソールの「本人確認」でクレジットまたはデビットカードを登録すると、数秒で code-review スコープが承認されます。ブルーチームのモデルはこの段階を飛ばせます。"
+              "In the account console's “Identity verification” register a credit or debit card; the code-review scope is approved within seconds. Blue-team models skip this step.")]
+     (config-block {:ja? ja?} (str "curl -s " openai-base "/research/status -H \"Authorization: Bearer $KOTOBA_API_TOKEN\"\n"
+                        "# → {\"status\": \"eligible\", \"freeTier\": {...}, \"scopes\": [{\"id\": \"owned\", \"status\": \"approved\", \"tasks\": [\"code-review\"]}]}"))
+     [:h2 (txt "3. 最初の呼び出し" "3. The first call")]
+     (config-block {:ja? ja? :title "curl"} (str "curl -s -X POST " openai-base "/chat/completions \\\n"
+                        "  -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" -H \"content-type: application/json\" \\\n"
+                        "  -d '{\"model\":\"" model-id "\",\"max_tokens\":2048,\n"
+                        "       \"messages\":[{\"role\":\"user\",\"content\":\"Review this login handler for auth bypasses: ...\"}]}'"))
+     (config-block {:ja? ja? :lang :text :title "Python"} (str "from openai import OpenAI\n"
+                        "client = OpenAI(base_url=\"" openai-base "\", api_key=os.environ[\"KOTOBA_API_TOKEN\"])\n"
+                        "r = client.chat.completions.create(model=\"" model-id "\", max_tokens=2048,\n"
+                        "    messages=[{\"role\": \"user\", \"content\": \"Review this login handler for auth bypasses: ...\"}])\n"
+                        "print(r.choices[0].message.content)"))
+     [:p (txt "応答は OpenAI の chat.completion に billing（\"free\" / \"paid\"）と receiptId が付いた形です。初回は origin の起動で数十秒〜数分かかることがあります。"
+              "The answer is an OpenAI chat.completion plus billing (\"free\" / \"paid\") and receiptId. The first call can take tens of seconds to minutes while the origin starts.")]
+     [:h2 (txt "4. 次に" "4. Next")]
+     [:ul
+      [:li [:a {:href "/docs/integrations/"} (txt "エージェント・IDE をつなぐ" "Connect an agent or IDE")] (txt "（Claude Code、Codex CLI、Cursor、hermes…）" " (Claude Code, Codex CLI, Cursor, hermes…)")]
+      [:li [:a {:href "/docs/reference/tools/"} (txt "ツール呼び出し" "Tool calling")] " · " [:a {:href "/docs/reference/streaming/"} (txt "ストリーミング" "Streaming")] " · " [:a {:href "/docs/reference/reasoning/"} "Reasoning"]]
+      [:li [:a {:href "/docs/reference/endpoints/"} (txt "エンドポイント一覧" "Endpoint reference")] " · " [:a {:href "/docs/reference/cli-cheatsheet/"} (txt "CLI 早見表" "CLI cheat sheet")]]
+      [:li [:a {:href "/docs/reference/billing-and-usage/"} (txt "credits を足す" "Add credits")] (txt "（無料枠を超えて使うとき）" " (when you need more than the free allowance)")]]
      (note-block
-      (txt "初回呼び出しの前に本人確認とスコープ承認が必要です。未承認の principal は 403 (verification-required / research-scope-required) を受けます。"
-           "Verification and an approved scope are required before the first call. An unverified principal receives 403 (verification-required / research-scope-required)."))]))
+      (txt "未確認の principal がレッドチームのモデルを呼ぶと 403 verification-required（本人確認前）または research-scope-required（スコープ未承認）です。ジョブ API（submit → poll）は Streaming の頁に。"
+           "An unverified principal calling a red-team model gets 403 verification-required (before verification) or research-scope-required (no approved scope). The job API (submit, poll) is on the Streaming page."))]))
 
 (defn streaming-view [locale]
   (let [ja? (= :ja locale)
@@ -641,7 +657,7 @@
        [:tbody
         [:tr [:td (txt "ジョブ記録（プロンプト・応答・tool_calls・usage）" "Job records (prompt, answer, tool_calls, usage)")]
          [:td (txt "principal ごとの private authority storage" "The principal's private authority storage")]
-         [:td (txt "現在は自動削除なし（保持期間は未設定 — 設定されるまでここに明記）。削除依頼は support@kotoba.cloud。" "No automatic deletion today (a retention window is not yet set — stated here until it is). Deletion on request: support@kotoba.cloud.")]]
+         [:td (txt "終端状態（succeeded / failed）から 24 時間で自動削除。終端に達しなかったジョブは作成から 24 時間。削除後は同じリクエストの再送で新しいジョブになります。" "Deleted automatically 24 hours after the terminal state (succeeded / failed); a job that never reached one, 24 hours after creation. After deletion an identical request becomes a new job.")]]
         [:tr [:td (txt "本人確認の状態・有効期限・証跡参照" "Verification status, expiry, evidence reference")]
          [:td (txt "同上" "Same")] [:td (txt "365 日で失効。証跡本体（書類・カード）は Stripe にのみ。" "Expires after 365 days. The evidence itself (documents, card) lives at Stripe only.")]]
         [:tr [:td (txt "AML/CTF 照合の状態" "AML/CTF screening status")] [:td (txt "同上" "Same")] [:td (txt "24 時間で失効。" "Expires after 24 hours.")]]
@@ -664,8 +680,8 @@
      (config-block {:ja? ja? :lang :http} (str "GET " openai-base "/secure\n"
                         "→ {\"compliance\": {\"auditLogRetentionDays\": 180, \"dataResidency\": \"unspecified\", \"zeroDataRetention\": \"designed-for-zdr\", ...}}"))
      (note-block
-      (txt "ジョブ記録の保持期間は未設定です。期間が設定され自動削除が入ったら、この頁の表とコードの両方が変わります。それまで「ZDR」は「ログを持たない・学習に使わない」の意味であって「ジョブ記録が無い」ではありません。"
-           "Job-record retention is not yet set. When a window is set and automatic deletion lands, both this table and the code change. Until then, \"ZDR\" means no logs and no training — not the absence of job records."))]))
+      (txt "ジョブ記録は 24 時間で消えます（research authority の retention alarm、2026-09-15 から）。「ZDR」は「推論ログを持たない・学習に使わない・テキストは 24 時間以内に消える」の意味です。台帳と監査ログに残るのは数値と id だけです。"
+           "Job records are gone after 24 hours (the research authority's retention alarm, since 2026-09-15). \"ZDR\" means no inference logs, no training, and text that is gone within 24 hours; what the ledger and the audit log keep are numbers and ids."))]))
 
 (defn byok-view [locale]
   (let [ja? (= :ja locale)
@@ -703,6 +719,23 @@
       (txt "取り消しは署名鍵の交換で行われ、発行済みのトークンはすべて無効になります: support@kotoba.cloud。トークンをログやリポジトリに置かないでください。"
            "Revocation rotates the signing key and invalidates every issued token: support@kotoba.cloud. Never put a token in a log or a repository."))]))
 
+(def model-detail
+  "One paragraph per catalog id: what it is for. Facts that live in
+   research/models (team, route, upstream, source) are rendered from there,
+   never repeated here."
+  {"qwen3.8-flash-next-whitehacker"
+   {:ja "セキュリティ研究向けに調整された flash クラスのモデル。コードレビュー、脆弱性トリアージ、修正提案。答える前に推論し、ネイティブなツール呼び出しを返します。認可された研究者向けの無制限モデルで、利用ポリシー（AUP）の同意が前提です。"
+    :en "A flash-class model tuned for security research: code review, vulnerability triage, remediation. It reasons before answering and returns native tool calls. Unrestricted for authorized researchers; AUP consent is the premise."}
+   "glm5.3-flash"
+   {:ja "レッドチームの 2 つ目のモデル。専用経路にまだ origin が無いため、カタログには載りますが admission で名指しで拒否されます（無料枠は消費しません）。origin が立ったらこの頁の状態が「提供中」に変わります。"
+    :en "The red team's second model. Its dedicated origin is not up yet, so it is listed and refused by name at admission (no quota spent). This page flips to “served” when the origin stands."}
+   "qwen/qwen3.8-flash"
+   {:ja "共有経路の一般モデル。サインインだけで使え、本人確認は不要。標準 3 タスク（code-review / vulnerability-triage / remediation）のみ。ID は発行元のものをそのまま使います。"
+    :en "A general model on the shared route. Sign-in only, no verification; the three standard tasks (code-review / vulnerability-triage / remediation). The id is the publisher's, used unchanged."}
+   "z-ai/glm-5.3-flash"
+   {:ja "共有経路のもう一つの一般モデル。admission と上限は qwen/qwen3.8-flash と同じ。"
+    :en "The other general model on the shared route; the same admission and ceilings as qwen/qwen3.8-flash."}})
+
 (defn models-view [locale]
   (let [ja? (= :ja locale)
         txt (fn [ja en] (if ja? ja en))
@@ -733,7 +766,28 @@
                (when (:source spec) [:span " · " [:a {:href (:source spec) :rel "noopener"} (txt "出典" "source")]])]]))
      (note-block
       (txt "「経路未設定」のモデルは admission で名指しで拒否され、無料枠を消費しません。どのプロバイダが各経路の背後にあるかは運用設定で、ここには書きません。"
-           "A model whose route is not configured is refused by name at admission and spends no quota. Which providers stand behind each route is operator configuration and is not stated here."))]))
+           "A model whose route is not configured is refused by name at admission and spends no quota. Which providers stand behind each route is operator configuration and is not stated here."))
+     [:h2 (txt "モデルごとの詳細" "Per-model detail")]
+     (into [:div]
+           (for [[id spec] (sort-by (comp name :team val) research/models)]
+             (let [red? (= :red (:team spec)) served? (not (false? (:served spec)))
+                   detail (get model-detail id)]
+               [:section {:id (str "model-" (cstr/replace id #"[^A-Za-z0-9]+" "-"))}
+                [:h3 id]
+                [:p (if ja? (:ja detail) (:en detail))]
+                [:ul
+                 [:li (txt (str "チーム: " (team-label (:team spec)) " · 経路: " (name (get-in research/teams [(:team spec) :route])) " · " (if served? "提供中" "経路未設定"))
+                           (str "Team: " (team-label (:team spec)) " · route: " (name (get-in research/teams [(:team spec) :route])) " · " (if served? "served" "route not configured")))]
+                 [:li (txt (if red? "admission: カード本人確認・利用ポリシー同意・承認スコープ（code-review は本人確認と同時に承認）・無料枠・ガードレール"
+                                    "admission: サインイン済み principal・無料枠・ガードレール（標準 3 タスクのみ）")
+                           (if red? "Admission: card verification, AUP consent, approved scope (code-review comes with verification), free quota, guardrails"
+                                    "Admission: a signed-in principal, free quota, guardrails (the three standard tasks only)"))]
+                 [:li (txt "上限: 入力 524,288 文字 · 出力 32,768 tokens（reasoning 込み）· tools 128 · turn 256"
+                           "Ceilings: 524,288 input characters · 32,768 output tokens (reasoning included) · 128 tools · 256 turns")]
+                 [:li (txt (str "応答の model は " (:upstream spec) (if (:strictAttribution spec) "（厳密に照合）" "（形と本文で検証）"))
+                           (str "The answer's model echoes " (:upstream spec) (if (:strictAttribution spec) " (strictly matched)" " (validated on shape and content)")))]]
+                (config-block {:ja? ja?} (str "curl -s -X POST " openai-base "/chat/completions -H \"Authorization: Bearer $KOTOBA_API_TOKEN\" \\\n"
+                                    "  -H \"content-type: application/json\" -d '{\"model\":\"" id "\",\"max_tokens\":2048,\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'"))])))]))
 
 (defn reasoning-view [locale]
   (let [ja? (= :ja locale)
@@ -931,8 +985,91 @@
       [:li (txt "レッドチームのモデルは本人確認とスコープが要ります。最初の 403 は /v1/research/status で理由を読む。" "Red-team models need verification and a scope; read the first 403's reason at /v1/research/status.")]
       [:li (txt "同じリクエストの再送は同じジョブに再接続します（二重課金なし）— リトライは安全です。" "Resending the identical request re-attaches to the same job (never charged twice) — retries are safe.")]]]))
 
+(defn cheatsheet-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))
+        H "-H \"Authorization: Bearer $KOTOBA_API_TOKEN\""
+        J "-H \"content-type: application/json\""]
+    [[:h1 (txt "CLI 早見表" "CLI cheat sheet")]
+     [:p {:class "kc-docs__lead"}
+      (txt "curl だけで一通り。KOTOBA_API_TOKEN を環境に置いてから。" "Everything with curl alone. Put KOTOBA_API_TOKEN in the environment first.")]
+     (config-block {:ja? ja? :title (txt "カタログと状態" "Catalog and state")}
+                   (str "curl -s " openai-base "/models " H "\n"
+                        "curl -s " openai-base "/research/status " H "        # eligible / pending + reason\n"
+                        "curl -s " openai-base "/billing/status " H "         # plan + balances\n"
+                        "curl -s " openai-base "/secure                          # guardrail / firewall / compliance versions"))
+     (config-block {:ja? ja? :title (txt "補完" "Completion")}
+                   (str "curl -s -X POST " openai-base "/chat/completions " H " " J " \\\n"
+                        "  -d '{\"model\":\"" model-id "\",\"max_tokens\":2048,\"messages\":[{\"role\":\"user\",\"content\":\"Review this: ...\"}]}'\n\n"
+                        "# stream (one-chunk SSE)\n"
+                        "curl -sN -X POST " openai-base "/chat/completions " H " " J " \\\n"
+                        "  -d '{\"model\":\"" model-id "\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'\n\n"
+                        "# with a file as context (JSON-escape it with jq)\n"
+                        "jq -n --arg m \"" model-id "\" --rawfile f src/auth.ts '{model:$m,max_tokens:4096,messages:[{role:\"user\",content:(\"Review for auth bypasses:\\n\"+$f)}]}' \\\n"
+                        "  | curl -s -X POST " openai-base "/chat/completions " H " " J " -d @-"))
+     (config-block {:ja? ja? :title (txt "ツール呼び出し" "Tool calling")}
+                   (str "curl -s -X POST " openai-base "/chat/completions " H " " J " -d '{\n"
+                        "  \"model\":\"" model-id "\",\"max_tokens\":2048,\"tool_choice\":\"auto\",\n"
+                        "  \"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"read_file\",\"parameters\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}}}}}],\n"
+                        "  \"messages\":[{\"role\":\"user\",\"content\":\"Review src/auth.ts\"}]}' | jq '.choices[0].message.tool_calls'"))
+     (config-block {:ja? ja? :title (txt "ジョブ API（自分で poll する）" "Job API (poll it yourself)")}
+                   (str "ID=$(uuidgen | tr A-Z a-z)\n"
+                        "curl -s -X POST " openai-base "/research/jobs " H " " J " -H \"idempotency-key: $ID\" \\\n"
+                        "  -d '{\"model\":\"" model-id "\",\"task\":\"code-review\",\"scopeId\":\"owned\",\"max_tokens\":2048,\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}'\n"
+                        "curl -s \"" openai-base "/research/job?jobId=$ID\" " H "   # 202 queued/running · 200 succeeded (content / toolCalls)"))
+     (config-block {:ja? ja? :title (txt "応答の読み方" "Reading an answer")}
+                   (str "... | jq '{text:.choices[0].message.content, billing, charged:.chargedMicroUSD, usage}'\n"
+                        "# billing: \"free\" | \"paid\" · charged only on paid · usage only on paid"))
+     (note-block
+      (txt "エラーは {\"error\":{\"code\":…}}。全 code は Errors の頁。同じ本文の再送は同じジョブに再接続します（二重課金なし）。"
+           "Errors come as {\"error\":{\"code\":…}}; every code is on the Errors page. Resending the same body re-attaches to the same job (never charged twice)."))]))
+
+(def endpoint-catalog
+  "Every public endpoint the edge serves, from the route tables (research-
+   gateway/paths, billing-gateway/paths, worker.cljk). auth: pat = the
+   research PAT bearer; cookie = the browser session (same-origin POST);
+   public = none."
+  [{:m "GET" :p "/v1/models" :auth "public" :ja "モデルカタログ（team, route, availability）。" :en "The model catalog (team, route, availability)."}
+   {:m "POST" :p "/v1/chat/completions" :auth "pat / cookie" :ja "OpenAI 互換の補完。tools, stream(emulated), max_tokens ≤ 32768。応答に billing / receiptId (+ usage, chargedMicroUSD)。" :en "OpenAI-compatible completion. tools, stream (emulated), max_tokens ≤ 32768. Answer carries billing / receiptId (+ usage, chargedMicroUSD)."}
+   {:m "GET" :p "/v1/research/status" :auth "pat / cookie" :ja "{status: eligible|pending, reason, freeTier, trust, scopes}。" :en "{status: eligible|pending, reason, freeTier, trust, scopes}."}
+   {:m "POST" :p "/v1/research/jobs" :auth "pat / cookie" :ja "ジョブ作成。ヘッダ idempotency-key (uuid v4)。本文は strict shape {model, task, scopeId, max_tokens, messages}。202 queued。" :en "Create a job. Header idempotency-key (uuid v4). Strict body {model, task, scopeId, max_tokens, messages}. 202 queued."}
+   {:m "GET" :p "/v1/research/job?jobId=" :auth "pat / cookie" :ja "{jobId, status, billing, model, receiptId, pollAfterMs, content?, toolCalls?, finishReason?}。202 while queued/running。" :en "{jobId, status, billing, model, receiptId, pollAfterMs, content?, toolCalls?, finishReason?}. 202 while queued/running."}
+   {:m "POST" :p "/v1/research/applications" :auth "pat / cookie" :ja "研究者登録の申請 {verificationMode, policyVersion, consent, authorizedResearch, purpose, scope}。202。" :en "Researcher application {verificationMode, policyVersion, consent, authorizedResearch, purpose, scope}. 202."}
+   {:m "POST" :p "/v1/research/ekyc/start" :auth "pat / cookie" :ja "本人確認の開始 {scopeId, tasks} → Stripe の URL。" :en "Start verification {scopeId, tasks} → a Stripe URL."}
+   {:m "GET" :p "/v1/research/ekyc/status" :auth "pat / cookie" :ja "本人確認の状態。" :en "Verification state."}
+   {:m "GET" :p "/v1/billing/catalog" :auth "public" :ja "プラン・単価・checkoutEnabled・purchasable。" :en "Plans, rates, checkoutEnabled, purchasable."}
+   {:m "GET" :p "/v1/billing/status" :auth "pat / cookie" :ja "{status, plan, balances[{scope, grantedMicroUSD, spentMicroUSD, reservedMicroUSD, availableMicroUSD}]}。" :en "{status, plan, balances[{scope, grantedMicroUSD, spentMicroUSD, reservedMicroUSD, availableMicroUSD}]}."}
+   {:m "POST" :p "/v1/billing/checkout" :auth "cookie" :ja "{sku, requestId} → Stripe Checkout の URL。PAT では 403。" :en "{sku, requestId} → a Stripe Checkout URL. 403 with a PAT."}
+   {:m "POST" :p "/v1/billing/portal" :auth "cookie" :ja "請求・解約の Customer Portal URL。" :en "The Customer Portal URL (invoices, cancellation)."}
+   {:m "GET" :p "/v1/secure" :auth "public" :ja "guardrails / firewall / compliance の版と規則。" :en "Guardrail / firewall / compliance versions and rules."}
+   {:m "GET" :p "/v1/session" :auth "cookie" :ja "{valid, username, principalId}。" :en "{valid, username, principalId}."}
+   {:m "POST" :p "/v1/account/api-token" :auth "cookie" :ja "接続トークンの発行（一度だけ表示）。" :en "Issue a connection token (shown once)."}
+   {:m "GET" :p "/v1/account/api-tokens" :auth "cookie" :ja "発行済みトークンの一覧（id, label）。" :en "Issued tokens (id, label)."}
+   {:m "POST" :p "/v1/account/api-token/revoke" :auth "cookie" :ja "トークンを 1 つ取り消す。" :en "Revoke one token."}
+   {:m "GET" :p "/v1/security/services" :auth "public" :ja "セキュリティサービスの公開カタログ。" :en "The public security-services catalog."}
+   {:m "GET" :p "/v1/control-plane" :auth "public" :ja "サービス発見のプロファイル。" :en "The service-discovery profile."}])
+
+(defn endpoints-view [locale]
+  (let [ja? (= :ja locale)
+        txt (fn [ja en] (if ja? ja en))]
+    [[:h1 (txt "エンドポイント一覧" "Endpoint reference")]
+     [:p {:class "kc-docs__lead"}
+      (txt (str "すべて " base-origin " 配下。auth の pat は接続トークンの Bearer、cookie はブラウザのセッション（同一 origin の POST）、public は認証なし。提供していない wire（/v1/messages, /v1/responses, Gemini）は 405 です。")
+           (str "All under " base-origin ". auth: pat = the connection-token bearer; cookie = the browser session (same-origin POST); public = none. Wires that are not served (/v1/messages, /v1/responses, Gemini) answer 405."))]
+     [:div {:class "kc-docs__scroll"}
+      [:table {:class "kc-docs__table"}
+       [:thead [:tr [:th "method"] [:th "path"] [:th "auth"] [:th (txt "本文と応答" "Body and answer")]]]
+       (into [:tbody]
+             (for [e endpoint-catalog]
+               [:tr [:td (:m e)] [:td [:code (:p e)]] [:td (:auth e)] [:td (if ja? (:ja e) (:en e))]]))]]
+     (note-block
+      (txt "共通: エラーは {\"error\":{\"code\":…}}（Errors）。POST の本文上限は 2 MiB、content-type は application/json 必須。"
+           "Common to all: errors are {\"error\":{\"code\":…}} (see Errors). POST bodies are capped at 2 MiB and must be application/json."))]))
+
 (defn ref-view [id locale]
   (case id
+    "cli-cheatsheet" (cheatsheet-view locale)
+    "endpoints" (endpoints-view locale)
     "openai-sdk" (openai-sdk-view locale)
     "anthropic-sdk" (anthropic-sdk-view locale)
     "google-genai-sdk" (google-sdk-view locale)
