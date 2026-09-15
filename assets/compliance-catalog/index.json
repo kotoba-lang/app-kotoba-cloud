@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T08:11:05.565Z",
+ "generatedAt": "2026-09-15T09:10:13.919Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 350,
+ "productCount": 351,
  "ontology": {
   "nodes": 44,
-  "claims": 3833,
+  "claims": 3844,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya"
+   "/": "baguqeeramy6qlk467uod5yrcpe3hm7wyjhhuxw7owrmxdu4wqoy7e7vnehla"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -2852,6 +2852,19 @@
    ],
    "record": {
     "/": "baguqeeraf7btdnhylo6fec75ie732syyhuz47xt2rfg7gj3h7t6ssczamvia"
+   }
+  },
+  {
+   "id": "trend-industrial-network-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Industrial Network Security",
+   "categoryId": "ot-ics",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; no public list pricing on the ja_jp product page (HTTP 200, verified 2026-09-15) — purchase/quote via Trend Micro direct sales or partners.",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/iot/industrial-network-security.html",
+   "record": {
+    "/": "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a"
    }
   },
   {
@@ -7604,6 +7617,11 @@
    "bytes": 298,
    "codec": "dag-json"
   },
+  "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a.json",
+   "bytes": 458,
+   "codec": "dag-json"
+  },
   "baguqeeragufypmasxwnelwifdaknfstfnn3rnldhu2a5w4rod7do3u7fguoa": {
    "path": "/compliance-data/compliance/blocks/baguqeeragufypmasxwnelwifdaknfstfnn3rnldhu2a5w4rod7do3u7fguoa.json",
    "bytes": 280,
@@ -8949,18 +8967,18 @@
    "bytes": 264,
    "codec": "dag-json"
   },
-  "baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya": {
-   "path": "/compliance-data/compliance/blocks/baguqeerars37irwddha7mftqp7lovvtfurhbik4m367cedxacu7s6kp346ya.json",
+  "baguqeeramy6qlk467uod5yrcpe3hm7wyjhhuxw7owrmxdu4wqoy7e7vnehla": {
+   "path": "/compliance-data/compliance/blocks/baguqeeramy6qlk467uod5yrcpe3hm7wyjhhuxw7owrmxdu4wqoy7e7vnehla.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa": {
-   "path": "/compliance-data/compliance/blocks/baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa.json",
-   "bytes": 249282,
+  "baguqeera2x5zedpmjte2amja5kprcboq2lvg4sjtsmpkchle7uaucljznfha": {
+   "path": "/compliance-data/compliance/blocks/baguqeera2x5zedpmjte2amja5kprcboq2lvg4sjtsmpkchle7uaucljznfha.json",
+   "bytes": 250028,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerabcuiieqf5r2zxii32tg63247n6jmkkkio7klvp466docalnjlloa"
+  "/": "baguqeera2x5zedpmjte2amja5kprcboq2lvg4sjtsmpkchle7uaucljznfha"
  }
 }
