@@ -1,0 +1,38 @@
+(ns app-kotoba-cloud.enforcement-site
+  "Civil compulsory-execution (差押え) catalog: the procedure after a
+   favorable judgment, plus the public/private data sources measured on
+   2026-09. Shell from the cloud-kotoba-dds catalog pattern."
+  (:require [cloud-kotoba-dds.catalog :as catalog]))
+
+(def css
+  ".ken-note{color:var(--hig-color-secondary-label);font-size:var(--hig-text-caption1-font-size)}")
+
+(defn view
+  ([] (view false))
+  ([embedded?]
+   (catalog/page
+    {:title "強制執行（差押え）カタログ — 勝訴後の手続とデータ源 (日本＋世界)"
+     :lead "判決勝訴後に強制執行（差押え）を行うための日本の手続、日本以外の全世界18法域の執行手段と公式データベース、そして検索対象となる公開データ・非公開データを出典付きカタログとして公開します。各データ源は 2026-09-16 に実測した HTTP StatusCode を持ちます。"
+     :nav (catalog/breadcrumb
+          "カタログ"
+          [["ホーム" "/"]
+           ["セキュリティ公開データ" "/security/"]
+           ["このカタログ" nil]])
+     :embedded? embedded?
+     :id "ken-main"}
+    (catalog/callout
+     [:strong "使い方："]
+     " 「手続 (日本)」タブで勝訴後の強制執行ステップを、「世界」タブで日本以外の18法域（US/UK/EU/中国/韓国/台湾/香港/ASEAN等）の差押手段と公式DBを、「公開データ」「非公開データ」タブで越境資産調査に使えるデータ源（TDB/TSR/D&B/Orbis/World-Check 等）を確認できます。HTTP 403/412/503 はボット拒否（ブラウザでは開ける）の正準URL、NXDOMAIN/unreachable は 2026-09-16 の応答なしを示します。")
+    (catalog/status "ken-summary" "データを読み込んでいます…")
+    (catalog/tabs {:id "ken-tabs" :label "カタログ種別"})
+    (catalog/tools
+     {:search-id "ken-search" :search-label "検索"
+      :search-placeholder "手続・データ源名で検索"})
+    (catalog/grid
+     {:list-id "ken-results" :list-label "一覧"}
+     (catalog/detail {:id "ken-detail" :label "詳細"}))
+    (catalog/about
+     {:summary "このカタログについて"
+      :links [[:a {:href "/enforcement-data/enforcement/index.json"} "IPLD インデックス"]]
+      :footnote "データはコード生成による content-addressed block（IPLD形式）として公開されています。各レコードに出典URLと実測HTTP StatusCodeを付けました。網羅を主張するものではなく、勝訴後の強制執行に必要な代表的なデータ源のスナップショットです。"})
+    [:script {:src "/js/enforcement-catalog.js" :defer true}])))

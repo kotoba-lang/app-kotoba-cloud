@@ -1,0 +1,1 @@
+{"id":"mx","mechanisms":["juicio ejecutivo mercantil（商執行訴訟）","embargo（差押）","almoneda（競売）"],"name":"Mexico","name-ja":"メキシコ","note":"商事公証書（título ejecutivo extrajudicial）でも執行可。外国判決はexequáturが必要。","sources":[{"name":"SCJN jurisprudence","status":403,"url":"https://sjf2.scjn.gob.mx/"},{"name":"Federal Judiciary","status":403,"url":"https://www.pjf.gob.mx/"}]}

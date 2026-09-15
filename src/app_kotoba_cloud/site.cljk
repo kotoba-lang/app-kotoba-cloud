@@ -17,6 +17,7 @@
             [app-kotoba-cloud.csf2-site :as csf2-site]
             [app-kotoba-cloud.crypto-site :as crypto-site]
             [app-kotoba-cloud.compliance-site :as compliance-site]
+            [app-kotoba-cloud.enforcement-site :as enforcement-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.apps-site :as apps-site]
                         [app-kotoba-cloud.security-services-site :as security-services-site]
@@ -1029,7 +1030,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
                 ;; the landing inlines its CSS (no /css/site.css link): the
                 ;; sidebar's account entry needs shell/css here too — the
                 ;; audit's :chrome-layers named it (24 apex variants at 0)
-                :app-css (str theme-toggle/css tokens/skin-css app-css app-sidebar-css shell/css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css security-site/css)
+                :app-css (str theme-toggle/css tokens/skin-css app-css app-sidebar-css shell/css research-site/css chat-site/css knowledge-site/css tokens/bridge-css security-site/css csf2-site/css crypto-site/css compliance-site/css enforcement-site/css security-site/css)
                 :head (into [[:script {:src "/js/theme.js"}]] (document-head locale :path (:title t) (:description t)))}
                (if (get locales/copy locale)
                  (mark-english-fallback locale (view-fn locale))
@@ -1064,7 +1065,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
        research-site/css "\n" chat-site/css "\n"
        knowledge-site/css "\n" tokens/bridge-css "\n"
        security-site/css "\n" csf2-site/css "\n"
-       crypto-site/css "\n" compliance-site/css "\n"
+       crypto-site/css "\n" compliance-site/css "\n" enforcement-site/css "\n"
        blog-site/css "\n"
        dds-console/css "\n" shell/css "\n" code/css "\n" account-site/css "\n"
        secure-site/css "\n" models-site/css "\n" billing-site/css "\n"
@@ -1171,6 +1172,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
                    :description "全世界のコンプライアンス基準と脆弱性対策製品のカテゴリ・価格・プロバイダーをまとめた公開データカタログ。"
                    :extra-css (str tokens/bridge-css dds-catalog/css compliance-site/css)}
       (compliance-site/view)))
+
+(defn enforcement-html []
+     (site-layout {:title "民事執行・差し押さえカタログ（日本＋世界） — Kotoba Cloud" :lang "ja"
+                   :description "勝訴後に強制執行（差し押さえ）へ進むための日本の手続、日本以外の全世界18法域の執行手段・公式DB、公開/非公開データソースをまとめたカタログ。"
+                   :extra-css (str tokens/bridge-css dds-catalog/css enforcement-site/css)}
+      (enforcement-site/view)))
 
 (defn blog-posts []
   "Authored articles from assets/blog/posts.edn, newest date first."
@@ -1709,6 +1716,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join root "compliance" "index.html") (compliance-html))
       (spit-file (node-path/join root "security" "compliance" "index.html") (compliance-html))
       (spit-file (node-path/join root "ja" "security" "compliance" "index.html") (compliance-html))
+      (spit-file (node-path/join root "enforcement" "index.html") (enforcement-html))
+      (spit-file (node-path/join root "security" "enforcement" "index.html") (enforcement-html))
+      (spit-file (node-path/join root "ja" "security" "enforcement" "index.html") (enforcement-html))
       ;; blog: security-research thinktank feed (articles = assets/blog/posts.edn).
       ;; One index per addressable locale, one article page per locale the
       ;; post actually carries (:en canonical, :ja, plus :i18n languages).
@@ -1727,6 +1737,12 @@ body:has(.kc-sb){padding-inline-start:15rem}
               target (node-path/join root "compliance-data" "compliance" rel)]
           (copy-file source target)))
       (copy-file (node-path/join "assets" "compliance-catalog.js") (node-path/join js-dir "compliance-catalog.js"))
+      ;; enforcement catalog data blocks + browser script (data at /enforcement-data/enforcement/)
+      (doseq [source (fs-walk-files (node-path/join "assets" "enforcement-catalog"))]
+        (let [rel (node-path/relative (node-path/join "assets" "enforcement-catalog") source)
+              target (node-path/join root "enforcement-data" "enforcement" rel)]
+          (copy-file source target)))
+      (copy-file (node-path/join "assets" "enforcement-catalog.js") (node-path/join js-dir "enforcement-catalog.js"))
       ;; graph docs: former kotobase.net content surface
       (spit-file (node-path/join root "docs" "graph" "index.html") (graph-docs-html :en))
       (spit-file (node-path/join root "ja" "docs" "graph" "index.html") (graph-docs-html :ja))
