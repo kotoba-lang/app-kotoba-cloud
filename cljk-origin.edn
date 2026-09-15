@@ -72,4 +72,14 @@
   "test/app_kotoba_cloud/rootkey_test.cljk" ".cljc"
   "test/app_kotoba_cloud/session_test.cljk" ".cljc"
   "test/app_kotoba_cloud/site_test.cljk" ".cljc"
-  "test/app_kotoba_cloud/test_runner.cljk" ".cljc"}}
+  "test/app_kotoba_cloud/test_runner.cljk" ".cljc"
+  "src/app_kotoba_cloud/account_browser.cljk" ".cljc"
+  "src/app_kotoba_cloud/account_site.cljk" ".cljc"
+  "src/app_kotoba_cloud/icao.cljk" ".cljc"
+  "src/app_kotoba_cloud/kotoba_proof.cljk" ".cljc"
+  "src/app_kotoba_cloud/org_authority.cljk" ".cljc"
+  "src/app_kotoba_cloud/org_gateway.cljk" ".cljc"
+  "src/app_kotoba_cloud/org_registry.cljk" ".cljc"
+  "src/app_kotoba_cloud/pat.cljk" ".cljc"
+  "test/graph-workbench-browser.cljk" ".cljc"
+ }}
