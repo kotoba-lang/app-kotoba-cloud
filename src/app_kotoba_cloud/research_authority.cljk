@@ -101,35 +101,40 @@
     (or (not (string? portrait-jpeg)) (empty? selfie-frames))
     (throw (ex-info "biometric-evidence-missing" {:status 400}))
     :else
-    (-> (js/Promise.resolve portrait-digest)
-        (.then (fn [computed]
-                 (when-not (and (string? computed) (= 64 (count computed)))
-                   (throw (ex-info "portrait-digest-missing" {:status 400})))
-                 (let [common {:portraitDigest computed
-                               :portraitJpeg portrait-jpeg
-                               :selfieFrames (vec selfie-frames)}]
-                   (-> (face-service-call env "verify" common)
-                       (.then (fn [verify-res]
-                                (if (and (map? verify-res) (boolean (:match verify-res)) (not (:error verify-res)))
-                                  (-> (face-service-call env "liveness"
-                                                         {:selfieFrames (vec selfie-frames)})
-                                      (.then (fn [live-res]
-                                               (let [live (and (map? live-res)
-                                                               (= "pass" (:liveness live-res)))]
-                                                 {:biometric {:match true
-                                                              :matchScore (:score verify-res)
-                                                              :faceModelId (:modelId verify-res)
-                                                              :liveness live
-                                                              :livenessScore (:score live-res)
-                                                              :livenessModelId (:modelId live-res)
-                                                              :checkedAt (js/Date.now)}
-                                                  :review? (not live)})))
-                                  {:biometric {:match false
-                                               :matchScore (:score verify-res)
-                                               :faceModelId (:modelId verify-res)
-                                               :reason (:error verify-res)
-                                               :checkedAt (js/Date.now)}
-                                   :review? true}}))))))))))
+    (.then (js/Promise.resolve portrait-digest)
+           (fn [computed]
+             (when-not (and (string? computed) (= 64 (count computed)))
+               (throw (ex-info "portrait-digest-missing" {:status 400})))
+             (let [frames (vec selfie-frames)
+                   common {:portraitDigest computed
+                           :portraitJpeg portrait-jpeg
+                           :selfieFrames frames}]
+               (.then (face-service-call env "verify" common)
+                      (fn [verify-res]
+                        ;; flattened per chain-continue precedent: nested ->/if
+                        ;; inside .then miscompiles to a bogus k.call form.
+                        (let [match (and (map? verify-res) (:match verify-res))
+                              err (when (map? verify-res) (:error verify-res))
+                              ok (and (true? match) (not err))]
+                          (if ok
+                            (.then (face-service-call env "liveness" {:selfieFrames frames})
+                                   (fn [live-res]
+                                     (let [live (and (map? live-res)
+                                                     (= "pass" (:liveness live-res)))]
+                                       {:biometric {:match true
+                                                    :matchScore (:score verify-res)
+                                                    :faceModelId (:modelId verify-res)
+                                                    :liveness live
+                                                    :livenessScore (:score live-res)
+                                                    :livenessModelId (:modelId live-res)
+                                                    :checkedAt (js/Date.now)}
+                                        :review? (not live)})))
+                            {:biometric {:match false
+                                         :matchScore (:score verify-res)
+                                         :faceModelId (:modelId verify-res)
+                                         :reason err
+                                         :checkedAt (js/Date.now)}
+                             :review? true})))))))))
 
 
 (defn- chain-continue
