@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:21:20.975Z",
+ "generatedAt": "2026-09-15T09:23:51.901Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 360,
+ "productCount": 361,
  "ontology": {
   "nodes": 44,
-  "claims": 3924,
+  "claims": 3932,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeeracgvyga5pawwelu2qjujmqn4wcbkrdjab472ebqkb3tdr3se4nv4a"
+   "/": "baguqeerapu7zu33n63mj2gn7533cur6g2fkvioeedkaqzq5gqlernifia46a"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -2878,6 +2878,19 @@
    "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/iot/industrial-network-security.html",
    "record": {
     "/": "baguqeeraut2qe3dxmrfgzmqnmtnwqfk2epxivmdqnfwydvbd4asofzzhlq3a"
+   }
+  },
+  {
+   "id": "trend-data-security",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "TrendAI Vision One Data Security",
+   "categoryId": "dspm",
+   "pricingMode": "quote-based",
+   "pricingNote": "quote-based; ja_jp 製品ページに公開価格はなく、CTA は無料体験/お問い合わせのみ (ページ HTTP 200, verified 2026-09-15) — 購入/見積は Trend Micro またはパートナー経由。",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/data-security",
+   "record": {
+    "/": "baguqeeradrjbklbvzpwth5b6n3becbfbxhepd23mnd5feaius3ajuq5kwbwa"
    }
   },
   {
@@ -7752,6 +7765,11 @@
    "bytes": 458,
    "codec": "dag-json"
   },
+  "baguqeeradrjbklbvzpwth5b6n3becbfbxhepd23mnd5feaius3ajuq5kwbwa": {
+   "path": "/compliance-data/compliance/blocks/baguqeeradrjbklbvzpwth5b6n3becbfbxhepd23mnd5feaius3ajuq5kwbwa.json",
+   "bytes": 465,
+   "codec": "dag-json"
+  },
   "baguqeeragufypmasxwnelwifdaknfstfnn3rnldhu2a5w4rod7do3u7fguoa": {
    "path": "/compliance-data/compliance/blocks/baguqeeragufypmasxwnelwifdaknfstfnn3rnldhu2a5w4rod7do3u7fguoa.json",
    "bytes": 280,
@@ -9137,18 +9155,18 @@
    "bytes": 493,
    "codec": "dag-json"
   },
-  "baguqeeracgvyga5pawwelu2qjujmqn4wcbkrdjab472ebqkb3tdr3se4nv4a": {
-   "path": "/compliance-data/compliance/blocks/baguqeeracgvyga5pawwelu2qjujmqn4wcbkrdjab472ebqkb3tdr3se4nv4a.json",
+  "baguqeerapu7zu33n63mj2gn7533cur6g2fkvioeedkaqzq5gqlernifia46a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerapu7zu33n63mj2gn7533cur6g2fkvioeedkaqzq5gqlernifia46a.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeeradsbakcjcqtiizdyu4arej22zdhz53xzsamhwft7nu7eah3s6yoea": {
-   "path": "/compliance-data/compliance/blocks/baguqeeradsbakcjcqtiizdyu4arej22zdhz53xzsamhwft7nu7eah3s6yoea.json",
-   "bytes": 257004,
+  "baguqeera3jposop72b4ysfdj2b4epntgzzhrwqxgsvqw4pbexjpgp7njocva": {
+   "path": "/compliance-data/compliance/blocks/baguqeera3jposop72b4ysfdj2b4epntgzzhrwqxgsvqw4pbexjpgp7njocva.json",
+   "bytes": 257757,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeeradsbakcjcqtiizdyu4arej22zdhz53xzsamhwft7nu7eah3s6yoea"
+  "/": "baguqeera3jposop72b4ysfdj2b4epntgzzhrwqxgsvqw4pbexjpgp7njocva"
  }
 }
