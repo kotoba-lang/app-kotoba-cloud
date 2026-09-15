@@ -1,17 +1,17 @@
 {
- "generatedAt": "2026-09-15T09:25:22.597Z",
+ "generatedAt": "2026-09-15T09:23:51.901Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
  "frameworkCount": 16,
  "categoryCount": 44,
- "productCount": 362,
+ "productCount": 363,
  "ontology": {
   "nodes": 44,
-  "claims": 3944,
+  "claims": 3958,
   "csfSource": "NIST CSF 2.0 (106 subcategories, validated against assets/csf2-catalog)",
   "linkedData": {
-   "/": "baguqeerayv5prk26idu7mlzqwyr4crkqjg5yyfjvmhsbk7z3b2kqlxjzvjta"
+   "/": "baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a"
   },
   "csf2Labels": {
    "GV.OC-01": "The organizational mission is understood and informs cybersecurity risk management",
@@ -7269,21 +7269,29 @@
    }
   },
   {
-   "id": "trend-vbts",
+   "id": "trend-security-operations",
    "provider": "Trend Micro",
    "providerHq": "JP",
-   "name": "ウイルスバスター トータルセキュリティ スタンダード / プレミアム",
-   "categoryId": "edr-xdr",
-   "pricingMode": "public-list",
-   "pricingNote": "公式オンラインショップで税込の公開価格 (public list)。スタンダード 3年版(自動更新) 16,940円(税込)、3年契約終了後は年額7,480円(税込)で自動更新。プレミアムはお困りごと相談サービス (+217円/月相当) を追加。価格は変更の可能性あり (取得日 2026-09-15)。",
-   "pricingUrl": "https://virusbuster.jp/vb/trial/sem/split_vb_ms.htm",
-   "complianceFits": [
-    "cis-controls",
-    "nist-csf-20",
-    "pci-dss-40"
-   ],
+   "name": "Trend Micro Security Operations (SecOps)",
+   "categoryId": "siem",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendaisecurity.com/ja/platform/security-operations",
+   "pricingNote": "quote-based; no public pricing on the JP product page (trendmicro.com/ja_jp/business/products/security-operations.html 301-redirects to trendaisecurity.com/ja/platform/security-operations, verified HTTP 200 on 2026-09-15); XDR + Agentic SIEM + SOAR integrated SOC platform (TrendAI Vision One Security Operations)",
    "record": {
-    "/": "baguqeeratdtebat3c6igxyudt65z7g7cbhpwiokrqohplqcyyhpteojdlwta"
+    "/": "baguqeera4dpbmzznbihg4iyaokogarfrdvocjh3jz6ajvfgu2cpjaaikrcna"
+   }
+  },
+  {
+   "id": "trend-security-expert-services",
+   "provider": "Trend Micro",
+   "providerHq": "JP",
+   "name": "Trend Micro Security Expert Services",
+   "categoryId": "ddil-forensics",
+   "pricingMode": "quote-based",
+   "pricingUrl": "https://www.trendmicro.com/ja_jp/business/products/support-services.html",
+   "pricingNote": "quote-based; JP product page (verified HTTP 200 on 2026-09-15) lists expert support services incl. incident-time support (インシデント時の支援) with no public pricing",
+   "record": {
+    "/": "baguqeeraphdckj7pxdev2h4mdd6vtdkbvzjwxic373zzqyir5luqx5qk6dha"
    }
   }
  ],
@@ -9173,23 +9181,28 @@
    "bytes": 493,
    "codec": "dag-json"
   },
-  "baguqeeratdtebat3c6igxyudt65z7g7cbhpwiokrqohplqcyyhpteojdlwta": {
-   "path": "/compliance-data/compliance/blocks/baguqeeratdtebat3c6igxyudt65z7g7cbhpwiokrqohplqcyyhpteojdlwta.json",
-   "bytes": 700,
+  "baguqeera4dpbmzznbihg4iyaokogarfrdvocjh3jz6ajvfgu2cpjaaikrcna": {
+   "path": "/compliance-data/compliance/blocks/baguqeera4dpbmzznbihg4iyaokogarfrdvocjh3jz6ajvfgu2cpjaaikrcna.json",
+   "bytes": 584,
    "codec": "dag-json"
   },
-  "baguqeerayv5prk26idu7mlzqwyr4crkqjg5yyfjvmhsbk7z3b2kqlxjzvjta": {
-   "path": "/compliance-data/compliance/blocks/baguqeerayv5prk26idu7mlzqwyr4crkqjg5yyfjvmhsbk7z3b2kqlxjzvjta.json",
+  "baguqeeraphdckj7pxdev2h4mdd6vtdkbvzjwxic373zzqyir5luqx5qk6dha": {
+   "path": "/compliance-data/compliance/blocks/baguqeeraphdckj7pxdev2h4mdd6vtdkbvzjwxic373zzqyir5luqx5qk6dha.json",
+   "bytes": 467,
+   "codec": "dag-json"
+  },
+  "baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a": {
+   "path": "/compliance-data/compliance/blocks/baguqeerahcahadrtakhnvnfdaty6s26ur5vc3b7wxyjlm7un3huwnvthuj2a.json",
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeerazuum2rv6mew3s3v36wz4l7usvnq53vwmj5zeqcm6hvyzmjwffu3a": {
-   "path": "/compliance-data/compliance/blocks/baguqeerazuum2rv6mew3s3v36wz4l7usvnq53vwmj5zeqcm6hvyzmjwffu3a.json",
-   "bytes": 258745,
+  "baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja": {
+   "path": "/compliance-data/compliance/blocks/baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja.json",
+   "bytes": 259384,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeerazuum2rv6mew3s3v36wz4l7usvnq53vwmj5zeqcm6hvyzmjwffu3a"
+  "/": "baguqeeran4q73prrgaaa3imtz57lkzfu5q4fnbxp4dzgx472rppt3lzpmjja"
  }
 }
