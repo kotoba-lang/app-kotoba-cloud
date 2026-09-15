@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-15T09:30:45.811Z",
+ "generatedAt": "2026-09-15T09:36:19.689Z",
  "source/kind": "kotoba.cloud compliance standards catalog",
  "corpus": "compliance-public",
  "verified": "2026-09",
@@ -4804,9 +4804,9 @@
    "categoryId": "itdr",
    "pricingMode": "quote-based",
    "pricingUrl": "https://www.trendaisecurity.com/ja/platform/identity-security",
-   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here)",
+   "pricingNote": "quote-based; no public per-unit pricing on the product page (JA page verified HTTP 200; legacy URL https://www.trendmicro.com/ja_jp/business/products/identity.html redirects here). JP page self-describes as TrendAI Vision One™ Identity Security — エンドツーエンドのIDセキュリティおよび保護ソリューション: シャドウアカウント/人間以外/AIエージェントのID排除、ハイブリッド環境全体のアセット継続検出とIDリスク低減 (title/description verified 2026-09-15). Product-specific compliance certifications not published on the product page; left unverified rather than inferred.",
    "record": {
-    "/": "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka"
+    "/": "baguqeeravyxwt6zdj7u35oa5nzn4emehbsuia4i7x3ne325rbo5ygdudbqra"
    }
   },
   {
@@ -8388,9 +8388,9 @@
    "bytes": 455,
    "codec": "dag-json"
   },
-  "baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka": {
-   "path": "/compliance-data/compliance/blocks/baguqeerakjrns7fk3mhpafnd4io6c644hrpw66kiff6tnwxomjiq2ylowoka.json",
-   "bytes": 438,
+  "baguqeeravyxwt6zdj7u35oa5nzn4emehbsuia4i7x3ne325rbo5ygdudbqra": {
+   "path": "/compliance-data/compliance/blocks/baguqeeravyxwt6zdj7u35oa5nzn4emehbsuia4i7x3ne325rbo5ygdudbqra.json",
+   "bytes": 904,
    "codec": "dag-json"
   },
   "baguqeeraops63ojcorv54ja6rjuxsynpes4pihrn6ffqufeoxmmdrmopxufa": {
@@ -9218,13 +9218,13 @@
    "bytes": 54,
    "codec": "dag-json"
   },
-  "baguqeera3c5bnkvy46cng6wxypslxcj7cesxq2wi4af7zqrglwvx2u6owmxa": {
-   "path": "/compliance-data/compliance/blocks/baguqeera3c5bnkvy46cng6wxypslxcj7cesxq2wi4af7zqrglwvx2u6owmxa.json",
-   "bytes": 260127,
+  "baguqeerayv4rtxae24x2njpl53xn6dndgvetsvjov5zp4ev3wtbovfmardua": {
+   "path": "/compliance-data/compliance/blocks/baguqeerayv4rtxae24x2njpl53xn6dndgvetsvjov5zp4ev3wtbovfmardua.json",
+   "bytes": 260593,
    "codec": "dag-json"
   }
  },
  "head": {
-  "/": "baguqeera3c5bnkvy46cng6wxypslxcj7cesxq2wi4af7zqrglwvx2u6owmxa"
+  "/": "baguqeerayv4rtxae24x2njpl53xn6dndgvetsvjov5zp4ev3wtbovfmardua"
  }
 }
