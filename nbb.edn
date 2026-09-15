@@ -19,7 +19,7 @@
         ;; COPIED from deps.edn: chat_site/knowledge_site require cloud-kotoba-dds.
         io.github.kotoba-lang/cloud-kotoba-dds
         {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git"
-         :git/sha "01db80709df67183fb29c0b1bae585895276b137"}
+         :git/sha "3392cf332ec17f90dd2d7f69e4b973629dbdbd55"}
         ;; COPIED from deps.edn: scripts/uiux-audit.cljk + uiux_audit_test.cljk
         ;; require shinkansen.audit / shinkansen.coscientist.
         io.github.kotoba-lang/shinkansen

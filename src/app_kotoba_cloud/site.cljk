@@ -315,7 +315,8 @@
    ".kc-header__inner{min-height:4.5rem;display:flex;align-items:center;justify-content:space-between;gap:var(--hig-spacing-4);}"
    ".kc-wordmark{display:flex;align-items:center;gap:var(--hig-spacing-3);color:var(--hig-color-label);font-weight:700;text-decoration:none;letter-spacing:.04em;}"
    ".kc-mark{inline-size:2rem;block-size:2rem;display:grid;place-items:center;border:2px solid var(--hig-color-tint);border-radius:var(--hig-radius-xs);color:var(--hig-color-tint);font-weight:700;}"
-   ".kc-nav{display:flex;align-items:center;gap:var(--hig-spacing-4);}"".kc-app-menu{position:relative;}.kc-app-menu summary{display:inline-flex;align-items:center;gap:var(--hig-spacing-2);min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-system-background);color:var(--hig-color-label);font:inherit;font-weight:700;cursor:pointer;list-style:none;white-space:nowrap;}.kc-app-menu summary::-webkit-details-marker{display:none;}.kc-app-menu__icon{font-size:1.15rem;line-height:1;}.kc-app-menu__label{font-size:var(--hig-text-caption1-font-size);}.kc-app-menu__panel{position:absolute;inset-inline-end:0;top:calc(100% + var(--hig-spacing-2));z-index:40;min-inline-size:13rem;display:grid;padding:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-system-background);box-shadow:0 8px 24px rgb(0 0 0 / 12%);}.kc-app-menu__panel a{display:flex;align-items:center;min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;white-space:nowrap;}.kc-app-menu__panel a:hover{background:var(--hig-color-secondary-system-background);}.kc-app-menu[open] .kc-app-menu__panel{display:grid;}.kc-app-menu:not([open]) .kc-app-menu__panel{display:none;}.kc-header--compact .kc-header__inner{min-height:3.5rem;}.kc-header--compact .kc-nav{display:none;}@media(max-width:64rem){.kc-app-menu{margin-inline-start:auto;}}@media(max-width:48rem){.kc-app-menu__label{display:none;}.kc-header--compact .kc-wordmark__text{display:none;}}"
+   ".kc-nav{display:flex;align-items:center;gap:var(--hig-spacing-4);}"
+   ".kc-header__tools{display:flex;align-items:center;gap:var(--hig-spacing-2);margin-inline-start:auto;}"".kc-app-menu{position:relative;}.kc-app-menu summary{display:inline-flex;align-items:center;gap:var(--hig-spacing-2);min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-system-background);color:var(--hig-color-label);font:inherit;font-weight:700;cursor:pointer;list-style:none;white-space:nowrap;}.kc-app-menu summary::-webkit-details-marker{display:none;}.kc-app-menu__icon{font-size:1.15rem;line-height:1;}.kc-app-menu__label{font-size:var(--hig-text-caption1-font-size);}.kc-app-menu__panel{position:absolute;inset-inline-end:0;top:calc(100% + var(--hig-spacing-2));z-index:40;min-inline-size:13rem;display:grid;padding:var(--hig-spacing-2);border:1px solid var(--hig-color-separator);border-radius:var(--hig-radius-md,12px);background:var(--hig-color-system-background);box-shadow:0 8px 24px rgb(0 0 0 / 12%);}.kc-app-menu__panel a{display:flex;align-items:center;min-height:2.75rem;padding:var(--hig-spacing-2) var(--hig-spacing-3);border-radius:var(--hig-radius-sm,8px);color:var(--hig-color-label);font-weight:700;text-decoration:none;white-space:nowrap;}.kc-app-menu__panel a:hover{background:var(--hig-color-secondary-system-background);}.kc-app-menu[open] .kc-app-menu__panel{display:grid;}.kc-app-menu:not([open]) .kc-app-menu__panel{display:none;}.kc-header--compact .kc-header__inner{min-height:3.5rem;}.kc-header--compact .kc-nav{display:none;}@media(max-width:64rem){.kc-app-menu{margin-inline-start:auto;}}@media(max-width:48rem){.kc-app-menu__label{display:none;}.kc-header--compact .kc-wordmark__text{display:none;}}"
    ".kc-nav>a{color:var(--hig-color-label);font-weight:700;text-underline-offset:.25em;}"
    ".kc-nav>a,.kc-nav .dads-menu-list-box__opener,.kc-nav .dads-button{white-space:nowrap;}"
    ;; 48-64rem: the header cannot fit every item unwrapped. The two anchor
@@ -624,18 +625,21 @@ body:has(.kc-sb){padding-inline-start:15rem}
          [:a {:class "kc-nav__secondary" :href "/security/csf2/"} (:nav-security t)]
          [:a {:class "kc-nav__secondary" :href "/blog/"} (:blog t)]
          [:a {:class "kc-nav__secondary" :href "/apps/"} (:menu-apps t)]])
-      (language-links locale (:language-label t)
-                      {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
-      theme-toggle/control
+      ;; the right edge: language, theme, app menu (and, on the full
+      ;; header, the sign-in entry) — one cluster pushed to the end
+      [:div {:class "kc-header__tools"}
+       (language-links locale (:language-label t)
+                       {:ja (or language-ja (if nav "/ja/") "/ja/") :en (or language-en (if nav "/" "/"))})
+       theme-toggle/control
       ;; The anonymous label. auth.kotoba.cloud's default way in is a Base
        ;; Account (smart-contract wallet) since 2026-09-07 (net-kotobase
        ;; ADR-2609071000); passkeys, wallets and recovery phrases remain.
        (app-menu locale t)
-      ;; beside the sidebar the account entry is the sidebar's chip (one
-      ;; home); the full header keeps its own
-      (when nav
-        (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
-                                       :href (passkey-href locale)}))])]))
+       ;; beside the sidebar the account entry is the sidebar's chip (one
+       ;; home); the full header keeps its own
+       (when nav
+         (dds/button (:nav-sign-in t) {:type :outline :size "sm" :id "kc-session-nav"
+                                        :href (passkey-href locale)}))]])]))
 
 (defn site-footer [t]
   [:footer {:class "kc-footer"}
@@ -944,7 +948,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (chat-site/view locale (passkey-href locale))]
      ;; after the main surface: content first in reading order on every
      ;; band (the nav is fixed left on desktop, a chip row on top below 64rem)
-     (app-sidebar locale t "/docs/reference/quickstart/")
+     ;; the landing is the chat, which is not a nav destination: no item is current
+     (app-sidebar locale t nil)
      (knowledge-site/view locale)
      [:div {:id "security-view" :hidden true} (security-site/view true)]
      [:span {:id "kc-session-labels" :hidden true
