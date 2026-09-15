@@ -1409,3 +1409,31 @@ console.log('Scoped database session exchange and header isolation passed');
   const noCt=await route(new Request('https://kotoba.cloud/v1/security/findings',{method:'POST',body:'[]'}),env);
   assert.equal(noCt.status,415);
 }
+
+{
+  // Compliance Fit Finder: deterministic service -> category -> control fit.
+  const fit=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit?framework=nist-csf-20'),env);
+  assert.equal(fit.status,200);
+  const fitBody=await fit.json();
+  assert.equal(fitBody.ok,true);
+  assert.equal(fitBody.framework.id,'nist-csf-20');
+  assert.equal(fitBody.framework.controlMapping,'committed');
+  assert.deepEqual(fitBody.services.map(s=>s.service).sort(),['ctem','dast','sast','vm']);
+  const vm=fitBody.services.find(s=>s.service==='vm');
+  assert.ok(vm.categories.includes('vm-scanner'));
+  assert.ok(vm.controls.length>0);
+  assert.ok(fitBody.allControls.length>0);
+  const fitPath=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/nist-csf-20'),env);
+  assert.equal(fitPath.status,200);
+  const fitPathBody=await fitPath.json();
+  assert.equal(fitPathBody.framework.id,'nist-csf-20');
+  // unknown framework -> 404 with error code + committed list
+  const unknown=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit/iso-99999'),env);
+  assert.equal(unknown.status,404);
+  const unknownBody=await unknown.json();
+  assert.equal(unknownBody.error.code,'unknown-framework');
+  assert.ok(unknownBody.error.committed.includes('nist-csf-20'));
+  // missing framework param -> 400
+  const missing=await route(new Request('https://kotoba.cloud/v1/security/compliance-fit'),env);
+  assert.equal(missing.status,400);
+}

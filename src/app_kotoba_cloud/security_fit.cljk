@@ -1,0 +1,80 @@
+(ns app-kotoba-cloud.security-fit
+  "Compliance Fit Finder (data-only, deterministic, no AI): the committed
+  mapping from the four first-party security services (CTEM/DAST/SAST/VM,
+  app-kotoba-cloud.security-services) to the committed compliance-catalog
+  categories, and from categories to NIST CSF 2.0 subcategory controls.
+  Every CSF id here was validated against the committed CSF 2.0 catalog
+  (assets/csf2-catalog/subcategories.json) at authoring time; a test keeps
+  the id space bounded. The fit view is transitive: framework controls are
+  satisfied via (service -> category -> control). Main's compliance catalog
+  is the 12-category / 29-product committed version (no ontology/relations
+  claims file has landed yet) — this def is the committed fit mapping and
+  is extended when the catalog grows.")
+
+(def framework
+  "The framework the control-level mapping is committed for."
+  {:id "nist-csf-20"
+   :name "NIST Cybersecurity Framework 2.0"
+   :kind "framework"
+   :publisher "NIST"
+   :sourceUrl "https://www.nist.gov/cyberframework"})
+
+(def frameworks
+  "All 16 committed catalog framework ids (from
+  assets/compliance-catalog-src/frameworks.json). A fit query may name any
+  of them; control-level expansion is committed for :id above only."
+  ["iso-27001" "soc2" "pci-dss-40" "gdpr" "ccpa-cp" "nist-csf-20"
+   "cis-controls" "fedramp" "hipaa-security-rule" "dora" "cra" "iso-27701"
+   "cloud-ccm" "apra-cps-234" "jp-appi" "uk-gdpr-dpa"])
+
+(def catalog-category-count 12)
+(def catalog-product-count 29)
+
+(def services-categories
+  "Which committed catalog categories each first-party service covers."
+  {:ctem ["threatintel" "cspm" "vm-scanner"]
+   :dast ["sast-dast" "waf"]
+   :sast ["sast-dast"]
+   :vm ["vm-scanner" "cspm" "siem"]})
+
+(def category-controls
+  "Committed category -> NIST CSF 2.0 subcategory ids (deterministic
+  mapping; ids validated against the committed CSF 2.0 catalog)."
+  {"vm-scanner" ["ID.RA-01" "ID.RA-02" "ID.RA-05" "PR.PS-02" "DE.CM-09"]
+   "sast-dast" ["ID.RA-01" "ID.AM-08" "PR.PS-01" "PR.PS-06"]
+   "cspm" ["ID.AM-01" "ID.AM-02" "PR.IR-01" "DE.CM-01" "DE.CM-09"]
+   "siem" ["DE.AE-02" "DE.AE-03" "RS.AN-03" "DE.CM-01" "DE.CM-03"]
+   "threatintel" ["ID.RA-02" "DE.AE-02" "DE.AE-08" "GV.RM-04"]
+   "waf" ["PR.DS-02" "PR.IR-01" "DE.CM-01"]
+   "grc" ["GV.RM-01" "GV.RM-02" "GV.RM-04" "GV.OV-01" "GV.OC-03" "ID.RA-05"]
+   "iam" ["PR.AA-01" "PR.AA-02" "PR.AA-03" "PR.AA-05" "PR.AA-06"]
+   "ztna" ["PR.AA-03" "PR.AA-05" "PR.IR-01" "PR.DS-01"]
+   "secrets" ["PR.AA-01" "PR.AA-05" "PR.DS-01"]
+   "edr-xdr" ["DE.CM-01" "DE.CM-03" "DE.CM-09" "RS.MI-01" "RS.MI-02"]
+   "ptesp" ["ID.RA-01" "ID.RA-02" "PR.PS-02" "GV.RM-04"]})
+
+(defn fit
+  "Deterministic transitive fit for one committed framework id. Returns
+  nil when the framework id is not committed. The control-level expansion
+  exists for nist-csf-20; other committed frameworks return the
+  services->categories mapping with controls: [] (honest: not committed)."
+  [framework-id]
+  (when (some #(= framework-id %) frameworks)
+    (let [csf? (= framework-id (:id framework))
+          controls-for (fn [categories]
+                         (->> categories
+                              (mapcat #(get category-controls % []))
+                              (distinct)
+                              (sort)))]
+      {:framework (cond-> (if csf? framework {:id framework-id})
+                          true (assoc :controlMapping (if csf? "committed" "not-committed")))
+       :catalog {:categoryCount catalog-category-count
+                 :productCount catalog-product-count}
+       :transitiveChain "service -> category -> control"
+       :services (into []
+                       (map (fn [[svc categories]]
+                              {:service (name svc)
+                               :categories categories
+                               :controls (when csf? (vec (controls-for categories)))})
+                            (sort-by (comp name key) services-categories)))
+       :allControls (when csf? (vec (controls-for (apply concat (vals services-categories)))))})))
