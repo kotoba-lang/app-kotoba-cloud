@@ -110,9 +110,9 @@
          (assoc base :messages (vec (repeat 512 {:role "tool" :content "ok" :tool_call_id "c1"})))))
     ;; past the ceiling the rejection names the measured count, so it is never
     ;; mistaken for a token error by a client-side classifier
-    (is (boolean (re-find (re-quote-replacement (str "turns (got " (inc r/max-turns) ")"))
-                          (r/completion-openai-compatible-problem
-                            (assoc base :messages (vec (repeat (inc r/max-turns) {:role "user" :content "x"})))))))
+    (is (not (neg? (.. (r/completion-openai-compatible-problem
+                         (assoc base :messages (vec (repeat (inc r/max-turns) {:role "user" :content "x"}))))
+                       (indexOf (str "turns (got " (inc r/max-turns) ")"))))))
     (doseq [bad [(assoc base :model "other")
                  (assoc base :stream "yes")
                  (assoc base :tools {:type "function"})
