@@ -29,7 +29,13 @@
    {:team :red :upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
     :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}
    "glm5.3-flash"
-   {:team :red :upstream "glm5.3-flash" :strictAttribution false
+   ;; :served false — the red route is ONE origin, and it serves only the
+   ;; qwen model: a glm5.3-flash request came back 404 "The model
+   ;; `glm5.3-flash` does not exist" after reserving a job and spending a
+   ;; quota unit (measured 2026-09-15); the model's own origin is not up.
+   ;; Listed as route-not-configured and refused at admission until an
+   ;; origin serves it.
+   {:team :red :upstream "glm5.3-flash" :strictAttribution false :served false
     :source "https://huggingface.co/zai-org/GLM"}
    "qwen/qwen3.8-flash"
    {:team :blue :upstream "qwen/qwen3.8-flash" :strictAttribution true
@@ -38,6 +44,11 @@
    {:team :blue :upstream "z-ai/glm-5.3-flash" :strictAttribution true
     :source "https://huggingface.co/zai-org"}})
 (defn model-team [id] (get-in models [id :team]))
+(defn model-served?
+  "A red-team model whose origin is not up is listed but refused by name; blue
+  models are an environment fact the edge checks separately."
+  [id]
+  (not (false? (get-in models [id :served]))))
 (defn blue? [id] (= :blue (model-team id)))
 (def model-ids (set (keys models)))
 (def upstream-model-id (get-in models [model-id :upstream]))
@@ -71,7 +82,9 @@
                   :route (name (get-in teams [(:team spec) :route]))
                   ;; the edge overrides :availability from its environment
                   ;; (blue: whether the shared route's key is configured)
-                  :availability (case (:team spec) :blue "route-not-configured" "upstream-tested-access-gated")
+                  :availability (cond (= :blue (:team spec)) "route-not-configured"
+                                      (false? (:served spec)) "route-not-configured"
+                                      :else "upstream-tested-access-gated")
                   :source (:source spec)})
                (seq models))
    :teams (into {} (map (fn [[k v]] [k (select-keys v [:label :label-en :route :requirements])]) teams))
