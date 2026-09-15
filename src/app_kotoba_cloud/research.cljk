@@ -88,25 +88,6 @@
   (and (number? start) (number? end) (<= 0 start (+ now clock-skew-ms)) (< now end)
        (<= (- now start) max-age)))
 
-(def projection-skew-ms
-  "How far a projection's `evaluatedAt` may lead the edge's own clock. The
-  authority stamps its trust / session projections with the Durable Object's
-  `Date.now()`; the edge compares them with the clock of whichever machine
-  serves the request. A stamp a few milliseconds in the future is two clocks,
-  not stale evidence — read as stale it refused eligible principals
-  intermittently (measured 2026-09-15 on the deployed edge: /v1/research/status
-  1/30 and /v1/chat/completions 4/14 answered `trust-route-required` for a
-  record the same second reported eligible; the gateway logs
-  `projection-refused` with the lead it saw)."
-  2000)
-
-(defn projection-fresh?
-  "`fresh?` for a stamp the authority minted moments ago: the stamp may lead
-  `now` by at most `projection-skew-ms`; the window and max-age are unchanged."
-  [start end now max-age]
-  (and (number? start) (number? now) (<= (- start now) projection-skew-ms)
-       (fresh? start end (max now start) max-age)))
-
 (defn trust-current?
   "Private authority projection only. Recompute fixed-policy points, reject unknown
   or repeated routes; authority must recheck canonical revocation before completion."
@@ -118,7 +99,7 @@
          (integer? (:score trust))
          (= (:score trust) (min (:ceiling trust-policy) (reduce + 0 (map weights routes))))
          (>= (:score trust) (:threshold trust-policy))
-         (projection-fresh? (:evaluatedAt trust) (:expiresAt trust) now 60000)
+         (fresh? (:evaluatedAt trust) (:expiresAt trust) now 60000)
          (<= (- (:expiresAt trust) (:evaluatedAt trust)) 60000))))
 
 (defn eligibility [principal record now]
@@ -145,7 +126,7 @@
          (<= 0.999999999 (+ belief disbelief uncertainty) 1.000000001)
          (>= belief (:minBelief session-policy)) (<= disbelief (:maxDisbelief session-policy))
          (<= uncertainty (:maxUncertainty session-policy))
-         (projection-fresh? (:evaluatedAt projection) (:expiresAt projection) now 15000)
+         (fresh? (:evaluatedAt projection) (:expiresAt projection) now 15000)
          (<= (- (:expiresAt projection) (:evaluatedAt projection)) 15000))))
 
 (defn application? [body]
