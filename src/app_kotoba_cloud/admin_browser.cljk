@@ -163,7 +163,7 @@
 
 (defn init! []
   (when (el "admin-console")
-    (let [login (el "kc-session-nav")]
+    (let [login (.querySelector js/document "#kc-session-entry [data-ck-account=\"sign-in\"]")]
       (when login
         (let [url (js/URL. (.-href login))]
           (.set (.-searchParams url) "return_to" "https://admin.kotoba.cloud/")

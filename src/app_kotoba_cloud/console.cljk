@@ -46,6 +46,44 @@
 
 (defn- label [item locale] (if (= locale :ja) (:ja item) (:en item)))
 
+;; --- surfaces ---------------------------------------------------------------
+;; One emit tree, two hosts (owner direction 2026-09-15: /docs/ moves to
+;; docs.kotoba.cloud). Every href in this repo is written ONCE in its apex
+;; form (/docs/reference/quickstart/, /account) and resolved for the
+;; surface the document is emitted on: same surface → a path relative to
+;; that surface's root; another surface → an absolute URL. Query-only
+;; (?lang=), fragment-only, absolute and mailto hrefs pass through.
+
+(def surfaces
+  {:apex {:origin "https://kotoba.cloud" :root "/"}
+   :docs {:origin "https://docs.kotoba.cloud" :root "/docs/"}})
+
+(defn surface-of
+  "The surface that owns an apex-form path: /docs/… → :docs, else :apex."
+  [href]
+  (if (or (= href "/docs") (str/starts-with? href "/docs/")) :docs :apex))
+
+(def shared-asset-prefixes
+  "Paths every surface serves from the one asset tree as its own: the
+   stylesheet, scripts, the brand mark, favicon. Never rewritten."
+  ["/css/" "/js/" "/assets/" "/favicon.ico"])
+
+(defn href-for
+  "The href as written on `surface` for an apex-form href."
+  [surface href]
+  (if-not (and (string? href) (str/starts-with? href "/") (not (str/starts-with? href "//"))
+               (not (some #(str/starts-with? href %) shared-asset-prefixes)))
+    href
+    (let [home (surface-of href)
+          {:keys [origin root]} (get surfaces home)
+          local (if (= home :apex)
+                  href
+                  (let [tail (subs href (count "/docs"))]
+                    (if (str/blank? tail) "/" tail)))]
+      (if (= home surface)
+        local
+        (str origin local)))))
+
 (defn- document-of
   "/secure/#guardrails → /secure/ ; /account#x → /account"
   [href]

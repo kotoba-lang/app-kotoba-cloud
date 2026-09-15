@@ -30,6 +30,7 @@
             [clojure.edn :as edn]
             [app-kotoba-cloud.csp :as csp]
             [app-kotoba-cloud.public-locales :as locales]
+            [app-kotoba-cloud.console :as console]
             [shinkansen.audit :as audit]
             [shinkansen.coscientist :as cosci]
             ["node:fs" :as fs]
@@ -90,9 +91,23 @@
         ;; every same-origin stylesheet the documents may reference, by path
         stylesheets (into {} (for [p files :when (str/ends-with? p ".css")]
                                [(url-path root p) (str (fs/readFileSync p "utf8"))]))
+        ;; two hosts share this tree (console/surfaces): the /docs/… documents
+        ;; (and their /<locale>/docs/… variants) are served from the root of
+        ;; docs.kotoba.cloud and were emitted for it — their same-origin links
+        ;; resolve against THAT surface's document set (shinkansen.audit: a
+        ;; document may carry its own :ctx), never against the apex's
+        docs-surface? (fn [f] (boolean (re-find #"^(?:/[A-Za-z-]+)?/docs/" f)))
+        docs-documents (into #{} (comp (filter #(str/starts-with? % "/docs/"))
+                                       (map #(console/href-for :docs %)))
+                             assets)
         docs (->> files
                   (filter #(str/ends-with? % ".html"))
-                  (map (fn [p] {:file (url-path root p) :html (str (fs/readFileSync p "utf8"))}))
+                  (map (fn [p] (let [f (url-path root p)]
+                                 (cond-> {:file f :html (str (fs/readFileSync p "utf8"))}
+                                   (docs-surface? f) (assoc :ctx {:documents (into docs-documents
+                                                                                   (filter #(some (fn [pfx] (str/starts-with? % pfx)) console/shared-asset-prefixes))
+                                                                                   assets)
+                                                               :routes []})))))
                   (filter #(or (nil? only) (str/includes? (:file %) only)))
                   vec)
         ;; every same-origin link must land on a published document or on a

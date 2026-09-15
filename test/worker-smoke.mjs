@@ -527,12 +527,12 @@ assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
 // saved cookie in both directions. A value outside the catalog is ignored
 // and never persisted.
 {
-  const jaQuery = await route(new Request("https://kotoba.cloud/docs/?lang=ja", {
+  const jaQuery = await route(new Request("https://kotoba.cloud/apps/?lang=ja", {
     headers: { cookie: "kb_locale=he" }
   }), env);
   assert.equal(jaQuery.status, 200);
   assert.equal(jaQuery.headers.get("location"), null);
-  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/ja/docs/?lang=ja");
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/ja/apps/?lang=ja");
   assert.match(jaQuery.headers.get("set-cookie") || "", /^kb_locale=ja;/);
   assert.match(jaQuery.headers.get("vary") || "", /Cookie/);
   const enQuery = await route(new Request("https://kotoba.cloud/billing/?lang=en", {
@@ -560,11 +560,46 @@ assert(!assetReads[assetReads.length - 1].includes("/ja/account"));
   const jaDirs = readdirSync(jaRoot, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
   assert(jaDirs.length >= 5, "public/ja/ has " + jaDirs.length + " directories — the emit tree looks empty");
   for (const dir of jaDirs) {
-    await route(new Request(`https://kotoba.cloud/${dir}/`, { headers: { cookie: "kb_locale=ja" } }), env);
+    // /docs/ is served from the root of docs.kotoba.cloud (console/surfaces)
+    const url = dir === "docs" ? "https://docs.kotoba.cloud/" : `https://kotoba.cloud/${dir}/`;
+    await route(new Request(url, { headers: { cookie: "kb_locale=ja" } }), env);
     assert.equal(assetReads[assetReads.length - 1], `https://kotoba.cloud/ja/${dir}/`,
       `/${dir}/ is emitted under /ja/ but the Worker did not serve the variant (locale/variant-roots)`);
   }
   console.log("locale switch: ?lang= served in place for " + jaDirs.length + " variant roots (" + jaDirs.join(", ") + "), prefix 301 kept");
+}
+// docs.kotoba.cloud (owner direction 2026-09-15): the /docs/… documents of
+// the same asset tree, served from the host root; locale negotiation and
+// ?lang= exactly as on the apex; shared assets as-is; the apex keeps the old
+// addresses as 301s to the host (locale prefix first).
+{
+  const docs = (path, headers = {}) => route(new Request("https://docs.kotoba.cloud" + path, { headers }), env);
+  const last = () => assetReads[assetReads.length - 1];
+  assert.equal((await docs("/")).status, 200);
+  assert.equal(last(), "https://kotoba.cloud/docs/", "the host root is /docs/");
+  assert.equal((await docs("/reference/quickstart/")).status, 200);
+  assert.equal(last(), "https://kotoba.cloud/docs/reference/quickstart/");
+  await docs("/reference/quickstart/", { cookie: "kb_locale=ja" });
+  assert.equal(last(), "https://kotoba.cloud/ja/docs/reference/quickstart/", "the ja variant by cookie");
+  const q = await docs("/integrations/?lang=ja");
+  assert.equal(last(), "https://kotoba.cloud/ja/docs/integrations/?lang=ja");
+  assert.match(q.headers.get("set-cookie") || "", /^kb_locale=ja;/);
+  await docs("/css/site.css");
+  assert.equal(last(), "https://docs.kotoba.cloud/css/site.css", "shared assets are the host's own");
+  await docs("/js/shell.js");
+  assert.equal(last(), "https://docs.kotoba.cloud/js/shell.js");
+  assert.match((await docs("/")).headers.get("content-security-policy"), /style-src 'self'/);
+  // the apex: /docs/… → the host, query kept; the locale prefix canonicalises first
+  const moved = await route(new Request("https://kotoba.cloud/docs/reference/quickstart/?lang=ja"), env);
+  assert.equal(moved.status, 301);
+  assert.equal(moved.headers.get("location"), "https://docs.kotoba.cloud/reference/quickstart/?lang=ja");
+  const root = await route(new Request("https://kotoba.cloud/docs/"), env);
+  assert.equal(root.headers.get("location"), "https://docs.kotoba.cloud/");
+  assert.equal((await route(new Request("https://kotoba.cloud/docs"), env)).headers.get("location"), "https://docs.kotoba.cloud/");
+  const prefixed = await route(new Request("https://kotoba.cloud/ja/docs/graph/"), env);
+  assert.equal(prefixed.status, 301);
+  assert.equal(prefixed.headers.get("location"), "/docs/graph/", "one hop to the locale-free apex path, the next to the host");
+  console.log("docs host: root, reference, ja by cookie and ?lang=, shared assets, apex 301s");
 }
 // /graph resolves to the locale-free apex; the apex negotiates the variant.
 {

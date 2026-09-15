@@ -35,6 +35,12 @@
     {
       "pattern": "admin.kotoba.cloud",
       "custom_domain": true
+    },
+    {
+      // docs.kotoba.cloud — the /docs/… documents of the same asset tree
+      // (worker.cljk route-docs-host; owner direction 2026-09-15)
+      "pattern": "docs.kotoba.cloud",
+      "custom_domain": true
     }
   ],
   "services": [
