@@ -1693,6 +1693,11 @@ try {
  const checkoutParams=new URLSearchParams(providerCalls.find(c=>c.url.endsWith('/checkout/sessions')).body);
  assert.equal(checkoutParams.get('line_items[0][price]'),'price_fixture');
  assert.equal(checkoutParams.has('line_items[1][price]'),false,'one recurring item includes both balances');
+ // USD only: the first live session (2026-09-15) presented $20 as ¥3,221 under
+ // the account's Adaptive Pricing; a JPY invoice never grants (paid-line)
+ assert.equal(checkoutParams.get('adaptive_pricing[enabled]'),'false');
+ assert.equal(checkoutParams.get('allow_promotion_codes'),'true');
+ assert.equal(checkoutParams.get('payment_method_collection'),'if_required','a fully discounted first invoice needs no card');
  r=await doBill('/reserve',{id:'reserved-one',scope:'ai',maximum:10000000});assert.equal(r.status,200,await r.clone().text());
  r=await doBill('/reserve',{id:'reserved-two',scope:'ai',maximum:3000000});assert.equal(r.status,402);
  r=await doBill('/settle',{id:'reserved-one',actual:8000000,receiptId:'receipt-fixture'});assert.equal(r.status,200);
