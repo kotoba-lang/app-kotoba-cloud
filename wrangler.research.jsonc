@@ -10,12 +10,13 @@
   "durable_objects": {
     "bindings": [
       { "name": "RESEARCH_RECORDS", "class_name": "ResearchAuthority" },
-      { "name": "ORG_RECORDS", "class_name": "OrgAuthority" }
+      { "name": "ORG_RECORDS", "class_name": "OrgAuthority2" }
     ]
   },
   "migrations": [
     { "tag": "v1-research-records", "new_sqlite_classes": ["ResearchAuthority"] },
-    { "tag": "v2-org-records", "new_sqlite_classes": ["OrgAuthority"] }
+    { "tag": "v2-org-records", "new_sqlite_classes": ["OrgAuthority"] },
+    { "tag": "v3-org-records-class-swap", "new_classes": ["OrgAuthority2"], "deleted_classes": ["OrgAuthority"] }
   ],
   "vars": {}
 }
