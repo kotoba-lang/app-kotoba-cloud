@@ -10,6 +10,7 @@
             [app-kotoba-cloud.research :as research]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
+            [app-kotoba-cloud.fake-report-gateway :as fake-report-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
             [app-kotoba-cloud.locale :as locale]
             [app-kotoba-cloud.profile :as profile]
@@ -763,6 +764,9 @@
 
       (contains? org-gateway/paths path)
       (org-gateway/route request env fetch-viewer private-json-response)
+
+      (contains? fake-report-gateway/paths path)
+      (fake-report-gateway/route request env fetch-viewer private-json-response)
 
       (and (contains? #{"/account" "/account/"} path) (= method "GET"))
       (-> (.fetch (gobj/get env "ASSETS") (js/Request. (str (.-origin url) "/account/") request))
