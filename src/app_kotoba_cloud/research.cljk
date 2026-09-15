@@ -143,6 +143,90 @@
               (some #{(:task body)} (:tasks %))) (:scopes record)))
 
 
+;; --- Assurance ladder (OrcaRouter-style rungs) ------------------------------
+;; Each rung names the evidence that puts a workspace at that level and the
+;; daily token allowance it unlocks. The bottom rung proves nothing about who
+;; the caller is (a chargeable card is not an identity), so it unlocks nothing
+;; on its own; each higher rung inherits the ones below. The authority computes
+;; the reached rung from the record; the edge only displays it.
+(def assurance-ladder
+  {:version "kotoba-assurance-ladder-2026-09-v1"
+   :unit "tokensPerDay"
+   :rungs
+   [{:id "card" :level 1 :label "Payment method on file"
+     :evidence "a live credit/debit card (prepaid rejected) verified with a $0 check"
+     :defaultTokensPerDay 0 :ceilingTokensPerDay 0
+     :grantsBand nil}
+    {:id "identity" :level 2 :label "Identity verified"
+     :evidence "Stripe Identity document + selfie check bound to the principal"
+     :defaultTokensPerDay 50000 :ceilingTokensPerDay 200000
+     :grantsBand "code-review"}
+    {:id "business" :level 3 :label "Business verified"
+     :evidence "a company on a public registry, a proven domain claim, clean screening"
+     :defaultTokensPerDay 2000000 :ceilingTokensPerDay 8000000
+     :grantsBand "cyber"}
+    {:id "contracted" :level 4 :label "Contracted researcher"
+     :evidence "named researchers, a signed authorized-scope statement, a contract"
+     :defaultTokensPerDay 8000000 :ceilingTokensPerDay 32000000
+     :grantsBand "offensive"}]})
+
+(def acceptable-use-policy
+  {:version "kotoba-security-aup-v1"
+   :title "Acceptable Use Policy — Security Research"
+   :intro "The Security Research tier provides unrestricted models for authorized, lawful security work. Access is granted to verified security professionals and is governed by this policy. Misuse results in immediate revocation."
+   :allowed
+   ["Vulnerability research"
+    "Exploit and proof-of-concept (PoC) development"
+    "Malware analysis and deobfuscation"
+    "Reverse engineering"
+    "Authorized phishing and social-engineering assessments"]
+   :prohibited
+   ["Child sexual abuse material (CSAM)"
+    "Chemical, biological, radiological, nuclear weapons or other weapons of mass destruction (CBRN/WMD)"
+    "Large-scale fraud-as-a-service"]
+   :prohibitedNote "CSAM and CBRN/WMD content is strictly blocked; confirmed cases are handled through our incident and abuse process."
+   :offensive {:title "Offensive capability, on conditions"
+               :intro "Payload and shellcode development, command-and-control (C2) tooling and weaponized exploits are permitted only inside a live engagement you have attested to — a named client, a named scope and an end date — at the contracted rung, on top of this policy."}
+   :privacy {:title "Privacy"
+             :points ["Designed for zero data retention"
+                      "Request content is screened in memory"
+                      "When zero-data-retention is enabled, your content is not used for training"]}})
+
+(defn reached-rung
+  "The highest rung the record's evidence reaches. Never fabricates: a rung is
+  reached only when its evidence fields are present and current on the record."
+  [record now]
+  (let [verified? (fn [path max-age]
+                    (let [m (get-in record path)]
+                      (and (map? m)
+                           (= "verified" (:status m))
+                           (text? (str (:evidenceRef m)) 512)
+                           (fresh? (:verifiedAt m) (:expiresAt m) now max-age))))
+        card? (verified? [:cardVerification] (* 365 86400000))
+        id? (verified? [:ekyc] (* 365 86400000))
+        business? (verified? [:businessVerification] (* 365 86400000))
+        contracted? (verified? [:contractVerification] (* 365 86400000))]
+    (cond
+      contracted? :contracted
+      business? :business
+      id? :identity
+      card? :card
+      :else :none)))
+
+(defn rung-by-id [id]
+  (some #(when (= id (:id %)) %) (:rungs assurance-ladder)))
+
+(defn rung-allowance
+  "Daily token allowance at the record's reached rung. The bottom rung and no
+  evidence grant zero; the free-tier request count still gates separately."
+  [record now]
+  (if-let [rung (rung-by-id (reached-rung record now))]
+    {:rungId (:id rung) :level (:level rung)
+     :tokensPerDay (:defaultTokensPerDay rung)
+     :ceilingTokensPerDay (:ceilingTokensPerDay rung)
+     :grantsBand (:grantsBand rung)}
+    {:rungId :none :level 0 :tokensPerDay 0 :ceilingTokensPerDay 0 :grantsBand nil}))
+
 (def identity-profile
   ;; Public identity metadata. The live route is Stripe Identity only
   ;; (web-reviewed console and app-passport routes remain in-repo components,

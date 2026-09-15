@@ -14,6 +14,7 @@
             [app-kotoba-cloud.crypto-site :as crypto-site]
             [app-kotoba-cloud.security-site :as security-site]
             [app-kotoba-cloud.research-site :as research-site]
+            [app-kotoba-cloud.research :as research]
             [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.public-locales :as locales]
             [app-kotoba-cloud.locale :as locale]
@@ -846,6 +847,52 @@
                       [:script {:src "/js/session.js" :defer true}]]}
               (billing-view locale))))
 
+(defn aup-view [locale]
+  ;; Security Research Acceptable Use Policy + assurance ladder (orcarouter
+  ;; pattern): allowed / strictly prohibited / offensive conditions / privacy
+  ;; plus the public rung schedule. The data comes from research.cljk so the
+  ;; page and the API contract cannot drift apart.
+  (let [aup research/acceptable-use-policy
+        ladder research/assurance-ladder
+        ja? (= locale :ja)
+        txt (fn [ja en] (if ja? ja en))]
+    (dds/container
+     (dds/heading 1 (:title aup) {:size "36"})
+     [:p (txt
+          "Security Research 層は, 認可された合法的なセキュリティ業務のための無制限モデルを提供します. アクセスは検証済みのセキュリティ専門家に付与され, 本ポリシーに従います. 悪用は即時失効となります. "
+          (:intro aup))]
+     (dds/heading 2 (txt "Assurance Ladder(Assurance Ladder)" "Assurance ladder") {:size "24"})
+     [:p (txt "各レベルが満たすべきEvidenceと, 解禁される 1 日あたりトークンAllowance. 下位レベルだけではモデルは開きません. "
+              "The evidence each rung requires and the daily token allowance it unlocks. No model opens on the bottom rung alone.")]
+     (into [:ol]
+           (map (fn [r]
+                  [:li [:strong (:label r)]
+                   [:p (str (if ja? "Evidence: " "Evidence: ") (:evidence r))]
+                   [:p (txt "Allowance: " "Allowance: ") (:defaultTokensPerDay r) " tokens/day · "
+                    (txt "上限 " "ceiling ") (:ceilingTokensPerDay r)]])
+                (:rungs ladder)))
+     (dds/heading 2 (txt "Allowed uses" "Allowed uses") {:size "24"})
+     (into [:ul] (map (fn [x] [:li x]) (:allowed aup)))
+     (dds/heading 2 (txt "Strictly prohibited" "Strictly prohibited") {:size "24"})
+     (into [:ul] (map (fn [x] [:li x]) (:prohibited aup)))
+     [:p (:prohibitedNote aup)]
+     (dds/heading 2 (txt "攻撃的機能(条件付き)" "Offensive capability, on conditions") {:size "24"})
+     [:p (get-in aup [:offensive :intro])]
+     (dds/heading 2 (txt "Privacy" "Privacy") {:size "24"})
+     (into [:ul] (map (fn [x] [:li x]) (:points (:privacy aup))))
+     (dds/heading 3 (str "Version: " (:version aup)) {:size "20"}))))
+
+(defn aup-html
+  ([] (aup-html :en))
+  ([locale]
+   (let [ja? (= locale :ja)]
+     (site-layout {:title (if ja?
+                            "Security Research AUP - Kotoba Cloud"
+                            "Acceptable Use Policy - Security Research - Kotoba Cloud")
+                   :description "Assurance ladder, allowed and prohibited uses for the Security Research tier."
+                   :lang (if ja? "ja" "en")}
+      (aup-view locale)))))
+
 (defn legal-html
      ([] (legal-html :en))
      ([locale]
@@ -1089,6 +1136,8 @@
       (spit-file (node-path/join js-dir "knowledge-host.js") knowledge-site/script)
       (copy-file (node-path/join "assets" "csf2-catalog.js") (node-path/join js-dir "csf2-catalog.js"))
       (copy-file (node-path/join "assets" "norbert-chat.js") (node-path/join js-dir "norbert-chat.js"))
+      (spit-file (node-path/join root "security" "aup" "index.html") (aup-html :en))
+      (spit-file (node-path/join root "ja" "security" "aup" "index.html") (aup-html :ja))
       (spit-file (node-path/join root "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "security" "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "ja" "security" "crypto" "index.html") (crypto-html))

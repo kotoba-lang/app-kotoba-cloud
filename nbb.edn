@@ -19,4 +19,9 @@
         ;; COPIED from deps.edn: chat_site/knowledge_site require cloud-kotoba-dds.
         io.github.kotoba-lang/cloud-kotoba-dds
         {:git/url "https://github.com/kotoba-lang/cloud-kotoba-dds.git"
-         :git/sha "01db80709df67183fb29c0b1bae585895276b137"}}}
+         :git/sha "01db80709df67183fb29c0b1bae585895276b137"}
+        ;; Transitive via jp-go-dds tokens (css.core): declared here because
+        ;; nbb does not read the dependency's own deps.edn.
+        io.github.kotoba-lang/css
+        {:git/url "https://github.com/kotoba-lang/css.git"
+         :git/sha "6eda5ee28ec177b9e09fdbee92c55a050b18cf7d"}}}

@@ -203,7 +203,9 @@
       (-> (load-org! storage handle)
           (.then (fn [existing]
                    (if existing
-                     (response {:error "org-handle-taken"} 409)
+                     (-> (save-org! storage handle existing)
+                         (.then (fn [_] (js-invoke storage "get" "org-index")))
+                         (.then (fn [idx] (response {:error "org-handle-taken" :debugIndex (str idx)} 409))))
                      ;; Mint the real did:webvh genesis log first: the DID and
                      ;; its SCID come from the signed entry, not from string
                      ;; assembly (ADR-2609141633 layer 1).
