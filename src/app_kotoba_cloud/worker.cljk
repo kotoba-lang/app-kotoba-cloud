@@ -9,6 +9,7 @@
             [app-kotoba-cloud.research-gateway :as research-gateway]
             [app-kotoba-cloud.research :as research]
             [app-kotoba-cloud.security-services :as security-services]
+            [app-kotoba-cloud.security-fit :as security-fit]
             [app-kotoba-cloud.identity-gateway :as identity-gateway]
             [app-kotoba-cloud.org-gateway :as org-gateway]
             [app-kotoba-cloud.org-registry :as org-registry]
@@ -981,6 +982,30 @@
       ;; authority.
       (= path "/v1/security/services")
       (json-response security-services/security-services)
+
+      ;; Compliance Fit Finder (deterministic, no AI): transitive
+      ;; service -> catalog-category -> framework-control expansion over the
+      ;; committed compliance-catalog fit mapping. Query-param or path form.
+      (and (= path "/v1/security/compliance-fit") (#{"GET" "HEAD"} method))
+      (let [fw (.get (.-searchParams (js/URL. (.-url request))) "framework")
+            fit (when fw (security-fit/fit fw))]
+        (if fit
+          (json-response (merge {:ok true} fit))
+          (json-response {:ok false
+                          :error {:code "unknown-framework"
+                                  :framework fw
+                                  :committed (vec security-fit/frameworks)}}
+                         (if fw 404 400))))
+
+      (.startsWith path "/v1/security/compliance-fit/")
+      (let [fw (subs path (count "/v1/security/compliance-fit/"))
+            fit (security-fit/fit fw)]
+        (if fit
+          (json-response (merge {:ok true} fit))
+          (json-response {:ok false
+                          :error {:code "unknown-framework"
+                                  :framework fw
+                                  :committed (vec security-fit/frameworks)}} 404)))
 
       (= path "/v1/secure")
       (json-response research/secure-profile)
