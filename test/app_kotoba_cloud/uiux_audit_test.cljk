@@ -23,7 +23,10 @@
                 "/security/aup/" "/security/services/" "/security/csf2/" "/billing/" "/legal/" "/legal/tokushoho/"
                 "/agent-quickstart.md" "/ekyc.md" "/llms.txt" "/security-data/pep/index.json"
                 "/security-data/pep/schema.edn" "/security-data/index.json" "/compliance-data/compliance/index.json"
-                "/security/" "/security/compliance/"}
+                "/security/" "/security/compliance/"
+                ;; blog surface: index documents per emitted locale (posts
+                ;; link through these; article pages are emitted per post)
+                "/blog/" "/ja/blog/"}
    :routes ["/account" "/identity" "/graph" "/health" "/mcp.json" "/v1/" "/api/" "/schemas/" "/.well-known/"]
    :csp csp/for-path})
 
