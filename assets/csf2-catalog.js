@@ -50,7 +50,7 @@
     const chips=$('chips');chips.replaceChildren();
     for(const id of subIds){
       const c=node('span',id);
-      c.className='csf2-chip'+(covered.has(id)?' csf2-chip--on':'');
+      c.className='ck-catalog__chip';if(covered.has(id))c.setAttribute('aria-pressed','true');
       c.title=subs[id];
       if(covered.has(id))c.onclick=()=>{const d=$('detail');d.replaceChildren(node('strong',id),node('p',subs[id]));d.hidden=false;};
       chips.append(c);

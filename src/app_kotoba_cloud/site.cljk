@@ -8,6 +8,7 @@
             [app-kotoba-cloud.identity-site :as identity-site]
             [app-kotoba-cloud.account-site :as account-site]
             [cloud-kotoba-dds.console :as dds-console]
+            [cloud-kotoba-dds.catalog :as dds-catalog]
             [app-kotoba-cloud.admin-site :as admin-site]
             [app-kotoba-cloud.csf2-site :as csf2-site]
             [app-kotoba-cloud.crypto-site :as crypto-site]
@@ -787,19 +788,19 @@
 
 (defn security-html []
      (site-layout {:title "セキュリティ公開データ — Kotoba Cloud" :lang "ja"
-                   :extra-css (str tokens/bridge-css security-site/css)}
+                   :extra-css (str tokens/bridge-css dds-catalog/css security-site/css)}
       (security-site/view)))
 
 (defn csf2-html []
      (site-layout {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
                    :description "サイバーセキュリティ製品を選ぶと、NIST CSF 2.0 の 106 サブカテゴリのどれをサポートするかを機能別チャートで表示します。"
-                   :extra-css (str tokens/bridge-css csf2-site/css)}
+                   :extra-css (str tokens/bridge-css dds-catalog/css csf2-site/css)}
       (csf2-site/view)))
 
 (defn crypto-html []
      (site-layout {:title "暗号資産詐欺対応カタログ — Kotoba Cloud" :lang "ja"
                    :description "全世界の暗号資産取引所の情報・セキュリティ通報窓口と、国・地域ごとの詐欺被害時の相談・通報手順をまとめた公開データカタログ。"
-                   :extra-css (str tokens/bridge-css crypto-site/css)}
+                   :extra-css (str tokens/bridge-css dds-catalog/css)}
       (crypto-site/view)))
 
 (defn admin-html []

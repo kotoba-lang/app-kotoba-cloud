@@ -10,7 +10,7 @@
   $('summary').replaceChildren(summary);
   // mode tabs
   for(const [m,label] of [['exchanges','取引所'],['procedures','通報手順']]){
-    const b=node('button',label);b.type='button';b.className='kcc-tab';b.setAttribute('aria-pressed',mode===m?'true':'false');
+    const b=node('button',label);b.type='button';b.className='ck-catalog__tab';b.setAttribute('aria-pressed',mode===m?'true':'false');
     b.onclick=()=>{mode=m;selected=null;for(const t of document.querySelectorAll('.kcc-tab'))t.setAttribute('aria-pressed',t===b?'true':'false');render();};
     $('tabs').append(b);
   }
