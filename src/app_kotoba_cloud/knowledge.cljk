@@ -10,8 +10,9 @@
   ;; the browser session (credentials same-origin), never an API key.
   {:schema "https://kotoba.cloud/schemas/mcp-config/v1"
    :name "kotoba-cloud"
-   :description "Kotoba Cloud: public security evidence retrieval and Stripe-Identity-gated white-hat research inference."
-   :documentation {:llms "https://kotoba.cloud/llms-full.txt"
+   :description "Kotoba Cloud: public security evidence retrieval and identity-gated white-hat research inference (card-based verification, approved scope)."
+   :documentation {:docs "https://docs.kotoba.cloud/"
+                   :llms "https://kotoba.cloud/llms-full.txt"
                    :registration "https://kotoba.cloud/ekyc.md"
                    :quickstart "https://kotoba.cloud/agent-quickstart.md"}
    :servers
@@ -38,7 +39,9 @@
    :tools
    [{:name "kotoba_knowledge_search" :description "Search published security evidence (ATT&CK etc). GET /v1/knowledge/search?q=" :inputSchema {:type "object" :properties {:q {:type "string" :maxLength 200}} :required ["q"]}}
     {:name "kotoba_knowledge_context" :description "Fetch immutable evidence context for an item ID. GET /v1/knowledge/context?id=" :inputSchema {:type "object" :properties {:id {:type "string"}} :required ["id"]}}
-    {:name "kotoba_research_run" :description "Authenticated security-research inference (requires Stripe-Identity-verified session). POST /v1/research/jobs with Idempotency-Key." :inputSchema {:type "object" :properties {:task {:type "string" :enum ["code-review" "vulnerability-triage" "remediation"]} :scopeId {:type "string"} :messages {:type "array"}} :required ["task" "scopeId" "messages"] :auth "browser-session-verified"}}]})
+    {:name "kotoba_research_run" :description "Authenticated security-research inference (a verified principal: card-based identity verification + approved scope). POST /v1/research/jobs with Idempotency-Key. Bearer PAT (kc_pat_…) or browser session." :inputSchema {:type "object" :properties {:task {:type "string" :enum ["code-review" "vulnerability-triage" "remediation"]} :scopeId {:type "string"} :messages {:type "array"}} :required ["task" "scopeId" "messages"] :auth "bearer-pat or browser-session (verified principal)"}}
+    ;; the OpenAI-shaped entry an agent's SDK already speaks (docs: OpenAI SDK)
+    {:name "kotoba_chat_completion" :description "OpenAI-compatible completion on the research models. POST https://api.kotoba.cloud/v1/chat/completions with Authorization: Bearer kc_pat_…; tools and stream accepted; the answer carries billing (free|paid) and, on paid answers, usage and chargedMicroUSD." :inputSchema {:type "object" :properties {:model {:type "string"} :messages {:type "array"} :max_tokens {:type "integer" :maximum 32768} :tools {:type "array"}} :required ["model" "messages"] :auth "bearer-pat or browser-session (verified principal)"}}]})
 (defn reply [body status]
   (js/Response. (js/JSON.stringify (clj->js body))
                 #js {:status status :headers #js {"content-type" "application/json; charset=utf-8"
