@@ -14,6 +14,7 @@
             [app-kotoba-cloud.funnel-test]
             [app-kotoba-cloud.attribution-test]
             [app-kotoba-cloud.site-test]
+            [app-kotoba-cloud.security-services-test]
             [app-kotoba-cloud.locale-test]
             [clojure.test :as test]))
 
@@ -32,6 +33,7 @@
                                'app-kotoba-cloud.funnel-test
                                'app-kotoba-cloud.attribution-test
                                'app-kotoba-cloud.site-test
+                               'app-kotoba-cloud.security-services-test
                                'app-kotoba-cloud.locale-test)]
     (when (pos? (+ (:fail result) (:error result)))
       (js/process.exit 1))))

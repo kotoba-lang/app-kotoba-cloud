@@ -4,6 +4,7 @@
   status badge and Open/Docs actions. The catalog data lives in apps-edn
   below so the page and the /apps data export cannot drift."
   (:require [cloud-kotoba-dds.catalog :as catalog]
+            [app-kotoba-cloud.security-services :as security-services]
             [jp-go-dds.core :as dds]))
 
 (def css
@@ -20,10 +21,26 @@
 .kc-app-card__status[data-state=beta]::before{background:var(--hig-color-tint)}
 .kc-app-card__actions{display:flex;flex-wrap:wrap;gap:var(--hig-spacing-3);align-items:center;margin-top:auto}")
 
+(defn- service->card
+  "Derive an /apps grid card from the ONE canonical security-services def —
+  the card and the /security/services/ page cannot drift."
+  [{:keys [id name summary capabilities status]}]
+  {:id (str "security-" (clojure.core/name id))
+   :name name
+   :kind "security-service"
+   :status (if (= status "component-shipped") "live" "beta")
+   :desc (:ja summary)
+   :desc-en (:en summary)
+   :links [["サービス詳細" security-services/ledger-page]]
+   :meta [(str (count capabilities) " capabilities")]})
+
 (def apps
   "The public app catalog. status: live (shipped, reachable) / beta (data live,
-  UI complete). Every href must resolve after render — the smoke checks it."
-  [{:id "pep-registry"
+  UI complete). Every href must resolve after render — the smoke checks it.
+  The four security-service cards derive from the ONE canonical
+  security-services def, so card and document cannot drift."
+  (into
+   [{:id "pep-registry"
     :name "PEP Registry"
     :kind "public-data"
     :status "live"
@@ -86,7 +103,8 @@
     :desc "推論モデルカタログとアクセスゲート状態 (availability / requirements / freeTier)。"
     :desc-en "Inference model catalog with live access-gate state (availability, requirements, freeTier)."
     :links [["API" "/v1/models"]]
-    :meta ["OpenAI-compatible" "gate state"]}])
+    :meta ["OpenAI-compatible" "gate state"]}]
+   (map service->card security-services/security-services)))
 
 (defn app-card [{:keys [name desc links meta status id]}]
   [:article {:class "kc-app-card" :data-app id}

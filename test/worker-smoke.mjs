@@ -1338,3 +1338,20 @@ console.log('Scoped database session exchange and header isolation passed');
     headers:{'content-type':'application/json'},body:'{}'}),{});
   assert.equal(noOrigin.status,403);
 }
+
+{
+  // Security-services suite catalog on the edge (describing only).
+  const res=await route(new Request('https://kotoba.cloud/v1/security/services'),env);
+  assert.equal(res.status,200);
+  const catalog=await res.json();
+  assert.deepEqual([...catalog.map(s=>s.id)].sort(),['ctem','dast','sast','vm']);
+  assert.ok(catalog.every(s=>s.integration&&s.capabilities&&s.summary));
+  const vm=catalog.find(s=>s.id==='vm');
+  assert.equal(vm.integration.role,'aggregation-ledger');
+  assert.deepEqual(vm.integration['ledger-keys'],['cpe','cve']);
+  for(const s of catalog.filter(x=>x.id!=='vm')){
+    assert.equal(s.integration.feeds,'vm');
+  }
+  const denied=await route(new Request('https://kotoba.cloud/v1/security/services',{method:'POST'}),env);
+  assert.equal(denied.status,405);
+}
