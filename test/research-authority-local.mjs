@@ -482,6 +482,8 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
   assert.equal(calls, before, "a live run is not dispatched again");
   globalThis.fetch = realUpstream; console.error = realError; console.warn = realWarn;
   console.log("retryable failure: 500 -> failed(retryable) -> retry re-queues -> succeeded; cap, legacy record, stale run covered");
+}
+
 // 11. personal API token registry on the principal record
 {
   let r;
