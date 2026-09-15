@@ -16,7 +16,7 @@
   ;; in-process: the documents the render emits are named here by hand (the
   ;; script reads them from public/); the Worker routes and the per-route CSP
   ;; are the same data the script uses
-  {:assets #{"/js/session.js" "/js/language-selector.js" "/js/theme.js" "/js/shell.js" "/css/site.css" "/assets/kotoba-logo.png"}
+  {:assets #{"/js/session.js" "/js/language-selector.js" "/js/theme.js" "/js/shell.js" "/js/code.js" "/css/site.css" "/assets/kotoba-logo.png"}
    :stylesheets {"/css/site.css" (site/site-css)}
    :documents (into #{"/zh/"} (map #(str "/" (name %) "/") site/supported-locales)) ; locale emits
    :documents-static #{"/" "/docs/" "/secure/" "/models/" "/blog/" "/docs/reference/" "/docs/reference/quickstart/" "/docs/reference/errors/"
