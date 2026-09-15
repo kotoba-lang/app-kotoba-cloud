@@ -696,6 +696,8 @@
    :receiptId (:receiptId job) :status (:status job)
    :task (get-in job [:request :task]) :scopeId (get-in job [:request :scopeId])
    :content (:content job)
+   :toolCalls (:toolCalls job)
+   :finishReason (:finishReason job)
    :record (public-record record session-ref (get-in job [:request :task]) now)})
 (defn- load-state [storage]
   (-> (js-invoke storage "get" "record") (.then decode)))
@@ -707,10 +709,76 @@
 (defn- load-job [storage job-id]
   (-> (js-invoke storage "get" (str "job:" job-id)) (.then decode)))
 
-(defn- upstream-body [request]
-  #js {:model (upstream-model-for (:model request)) :stream false
-       :messages (clj->js (:messages request))
-       :max_tokens (:max_tokens request)})
+;; --- text-form tool calls -------------------------------------------------
+;; The origin's vLLM runs --tool-call-parser hermes, but this model emits
+;; Qwen3-Coder XML (`<tool_call><function=NAME><parameter=KEY>VALUE
+;; </parameter>…</function></tool_call>`), which that parser does not read —
+;; so the calls arrive as TEXT content and the agent, which only reads
+;; native tool_calls (or `<tool_call>{json}</tool_call>`), sees an empty
+;; answer and falls back to another provider (measured 2026-09-15 21:04).
+;; Convert both text forms to native tool_calls here. Parameter values are
+;; strings in the XML; the request's tool schema says which are numbers,
+;; booleans, objects or arrays (what vLLM's qwen3_xml parser does).
+(def ^:private tool-call-block #"<tool_call>([\s\S]*?)</tool_call>")
+(def ^:private xml-function #"<function=([^>\n]+)>([\s\S]*?)</function>")
+(def ^:private xml-parameter #"<parameter=([^>\n]+)>\n?([\s\S]*?)\n?</parameter>")
+
+(defn- schema-type [tools fname key]
+  (some (fn [t]
+          (when (= fname (get-in t [:function :name]))
+            (get-in t [:function :parameters :properties (keyword key) :type])))
+        tools))
+
+(defn- coerce-parameter [type value]
+  (case type
+    ("integer" "number") (let [n (js/Number value)] (if (js/isNaN n) value n))
+    "boolean" (case (.trim value) "true" true "false" false value)
+    ("object" "array") (try (js->clj (js/JSON.parse value)) (catch :default _ value))
+    value))
+
+(defn- xml-tool-call [tools body]
+  (when-let [[_ fname inner] (re-find xml-function body)]
+    (let [fname (.trim fname)
+          args (into {} (map (fn [[_ k v]] [(.trim k) (coerce-parameter (schema-type tools fname (.trim k)) v)])
+                             (re-seq xml-parameter inner)))]
+      {:id (str "call_" (subs (str (random-uuid)) 0 12)) :type "function"
+       :function {:name fname :arguments (js/JSON.stringify (clj->js args))}})))
+
+(defn- json-tool-call [body]
+  (let [parsed (try (js->clj (js/JSON.parse (.trim body)) :keywordize-keys true) (catch :default _ nil))]
+    (when (and (map? parsed) (string? (:name parsed)))
+      {:id (str "call_" (subs (str (random-uuid)) 0 12)) :type "function"
+       :function {:name (:name parsed)
+                  :arguments (let [a (:arguments parsed)]
+                               (if (string? a) a (js/JSON.stringify (clj->js (or a {})))))}})))
+
+(defn- text-tool-calls
+  "Native tool_calls recovered from text content, and the text that is left
+  once the blocks are removed (nil when only whitespace remains). Blocks that
+  parse as neither form are left in the text untouched."
+  [content tools]
+  (if-not (and (string? content) (.includes content "<tool_call>"))
+    {:content content :tool-calls nil}
+    (let [calls (keep (fn [[_ body]] (or (json-tool-call body) (xml-tool-call tools body)))
+                      (re-seq tool-call-block content))]
+      (if (empty? calls)
+        {:content content :tool-calls nil}
+        (let [rest (.trim (.replace content (js/RegExp. (.-source tool-call-block) "g") ""))]
+          {:content (when (seq rest) rest) :tool-calls (vec calls)})))))
+
+(defn- upstream-body
+  "The origin request. Client tool definitions and tool_choice pass through
+  when the edge admitted them: the origin's vLLM runs a tool-call parser, so
+  the model answers with native `tool_calls` the agent executes on ITS side
+  (nothing runs here). Without them the model cannot call anything — the
+  agent's first two calls came back empty and it fell back to another
+  provider (measured 2026-09-15)."
+  [request]
+  (clj->js (cond-> {:model (upstream-model-for (:model request)) :stream false
+                    :messages (:messages request)
+                    :max_tokens (:max_tokens request)}
+             (seq (:tools request)) (assoc :tools (:tools request))
+             (some? (:tool_choice request)) (assoc :tool_choice (:tool_choice request)))))
 
 (def blue-route-url
   "The shared inference route's OpenAI-compatible endpoint. Which provider
@@ -811,13 +879,15 @@
                                                   :error (str (or (.-message e) e))
                                                   :upstreamStatus (:status data)
                                                   :finishedAt (js/Date.now)))))
-              succeed (fn [{:keys [content usage-receipt]}]
-                        (when-not (text? content max-content-characters)
+              succeed (fn [{:keys [content tool-calls finish-reason usage-receipt]}]
+                        (when-not (or (text? content max-content-characters) (seq tool-calls))
                           (throw (ex-info "inference-result-empty" {})))
-                        (store-job! storage (assoc job :status "succeeded"
-                                                   :content content
-                                                   :usageReceipt usage-receipt
-                                                   :finishedAt (js/Date.now))))
+                        (store-job! storage (cond-> (assoc job :status "succeeded"
+                                                           :content (when (text? content max-content-characters) content)
+                                                           :finishReason finish-reason
+                                                           :usageReceipt usage-receipt
+                                                           :finishedAt (js/Date.now))
+                                              (seq tool-calls) (assoc :toolCalls (vec tool-calls)))))
               fetched (js-invoke q "then"
                         (fn [r]
                           (if-not (.-ok r)
@@ -836,17 +906,47 @@
               parsed (js-invoke fetched "then"
                        (fn [raw]
                          (let [decoded (decode raw)
-                               content (get-in decoded [:choices 0 :message :content])
-                               reasoning (get-in decoded [:choices 0 :message :reasoning])
+                               choice (get-in decoded [:choices 0])
+                               content (get-in choice [:message :content])
+                               reasoning (get-in choice [:message :reasoning])
                                fallback (if (text? content max-content-characters) content reasoning)
+                               ;; native tool calls: id / type function / name / arguments
+                               ;; (a JSON string). Anything else is a malformed origin answer.
+                               ;; Text-form calls (Qwen XML / json tags) are converted first.
+                               recovered (text-tool-calls fallback (get-in job [:request :tools]))
+                               fallback (:content recovered)
+                               tool-calls (let [tc (get-in choice [:message :tool_calls])]
+                                            (or (when (and (vector? tc) (seq tc)) tc)
+                                                (:tool-calls recovered)))
+                               tool-calls-ok? (or (nil? tool-calls)
+                                                  (and (<= (count tool-calls) 64)
+                                                       (every? #(and (map? %) (text? (:id %) 128)
+                                                                     (= "function" (:type %))
+                                                                     (text? (get-in % [:function :name]) 64)
+                                                                     (string? (get-in % [:function :arguments]))
+                                                                     (<= (count (get-in % [:function :arguments])) max-content-characters))
+                                                               tool-calls)))
+                               ;; calls recovered from text arrive with the origin's
+                               ;; "stop"; the agent needs tool_calls to act on them
+                               finish-reason (cond (seq tool-calls) "tool_calls"
+                                                   (= "length" (:finish_reason choice)) "length"
+                                                   :else "stop")
                                expected (upstream-model-for (get-in job [:request :model]))]
                            (if-not (and (or (not expected)
                                             (= expected (:model decoded)))
                                         (= "chat.completion" (:object decoded))
-                                        (text? fallback max-content-characters))
+                                        tool-calls-ok?
+                                        (or (text? fallback max-content-characters) tool-calls))
                              (throw (ex-info "unexpected-upstream-model-or-response"
-                                             {:upstream {:model (:model decoded) :object (:object decoded)}}))
+                                             {:upstream {:model (:model decoded) :object (:object decoded)
+                                                         :finish (:finish_reason choice)}}))
                              {:content fallback
+                              :tool-calls (when tool-calls
+                                            (mapv #(hash-map :id (:id %) :type "function"
+                                                             :function {:name (get-in % [:function :name])
+                                                                        :arguments (get-in % [:function :arguments])})
+                                                  tool-calls))
+                              :finish-reason finish-reason
                               :usage-receipt (upstream-usage-receipt decoded job)}))))]
           (js-invoke (js-invoke parsed "then" succeed) "catch" fail)))))))
 ;; --- request handling -------------------------------------------------------
@@ -931,7 +1031,7 @@
                                           :else
                                           (let [job {:jobId (:jobId body) :principalId (:principalId body)
                                                      :status "queued" :receiptId (str "receipt-" (:jobId body))
-                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens])
+                                                     :request (select-keys (:request body) [:model :task :scopeId :messages :max_tokens :tools :tool_choice])
                                                      :createdAt now :sessionRef (:sessionRef body)}
                                                 next (assoc-in record [:usage :day] day)
                                                 next (assoc-in next [:usage :count] (inc used))]
