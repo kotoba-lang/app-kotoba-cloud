@@ -94,7 +94,7 @@ One endpoint, created 2026-09-16 00:40:21Z through the platform's form:
 | instance | AWS us-east-2 · Nvidia RTX PRO 6000 Blackwell ×1 (96 GB, 23 vCPU, 256 GB) · $2.75/h | 64 GiB GPU-resident + 6 GiB KV + buffers fits; the PLE table's 27 GiB sits in the 256 GB host RAM; +10 % over A100 for +16 GB VRAM and ~1.6× FP16 compute (prefill of 128k prompts) |
 | engine | llama.cpp, `ghcr.io/ggml-org/llama.cpp:server-cuda` (master) | measured fact 4 |
 | Max Tokens (per request) | 131072 | the edge's contract: `prompt + max_tokens ≤ 131,072` (`research.cljk`) |
-| Max Concurrent Requests | 2 | total context 262,144 = the model's maximum; two 128k slots |
+| Max Concurrent Requests | **4** (since 02:16Z; 2 at creation) | four 131,072-token slots (`ctxSize 524288`, each sequence stays within the trained 262,144); the live workload runs 3–5 requests in flight (concurrency section) |
 | layers on GPU | all (blank) | |
 | mmproj | `mmproj-Qwen3.8-Flash-Next-Uncensored-F16.gguf` | the only choice the form offers; 0.85 GiB |
 | authentication | Private | the authority sends `Authorization: Bearer <token>` |
@@ -203,18 +203,43 @@ queued behind and then interleaved with the production session's tasks
 window (ubatch 2048, threads 16, cache 0) were each reverted and
 re-measured before being blamed; the contention explains all of it.
 
-Knobs left as they are, with the reason: `nParallel 2` (a third concurrent
-agent queues; raising it costs per-stream speed, not aggregate — the
-aggregate is ≈ 75–80 tok/s either way, and 4 slots would set the total
-context above the model's 262,144); flash attention `auto`; KV in f16 (no
-VRAM pressure); scale-to-zero 15 min (36–42 s to serve again).
+## Concurrency (2026-09-16 02:00–02:27Z, live workload)
+
+The production session is not one stream: Analytics "pending requests"
+(in-flight + queued) sat at **3–6 from ~01:35Z** while the endpoint had
+two slots, and the endpoint log for 02:00–02:14Z shows **both slots busy
+83 % of the time** — every third request waited for a whole task (median
+579 generated tokens ≈ 17 s plus prefill). `nParallel` was raised 2 → 4
+at 02:15:55Z through the management API (`model.image.llamacpp.nParallel
+4, ctxSize 524288`; the replica came back at 02:16:44Z, `n_slots = 4,
+n_ctx_slot = 131072`). Same workload, 02:17–02:27Z:
+
+| | 2 slots (02:00–02:14Z) | 4 slots (02:17–02:27Z) |
+|---|---|---|
+| tasks finished | 60 / 808 s = **4.4 /min** | 59 / 581 s = **6.1 /min** |
+| per-stream decode, median | 33.7 tok/s | 47.9 tok/s (p10 22, p90 83) |
+| slots busy | 2: 83 %, 1: 16 %, 0: 1 % | 4: 8 %, 3: 9 %, 2: 30 %, 1: 32 %, 0: 21 % |
+| pending requests (Analytics) | 3–6 | 2–5, mostly ≤ 4 |
+
+A probe of four simultaneous 2.3k-token requests on the 4-slot replica
+(with the live traffic on top) ran three of them together at 28–29 tok/s
+each and the fourth alone at 100 tok/s: per-stream speed divides, the
+aggregate stays ≈ 85–100 tok/s. Four slots therefore buy no total
+throughput — they remove the queue, which is what the agents were paying
+for. Six slots would fit the demand's peaks but KV alone would take
+another 6 GiB on a card at 78 GB of 96; not done. If pending requests sit
+above 4 again, that is the number to move (and the H200 ×1 at $5/h is the
+next step, not a second replica: two replicas do not share the prompt
+cache).
+
+Knobs left as they are, with the reason: flash attention `auto`; KV in f16
+(no VRAM pressure); scale-to-zero 15 min (36–42 s to serve again).
 
 ## Not measured yet (fill in, do not infer)
 
 - Prefill/decode with the MTP draft once PR #28243 lands in the master
   image (card: 1.3–2× decode).
-- Whether `nParallel 3–4` is wanted: measure the queue (Analytics → pending
-  requests) against the number of concurrent agent sessions first.
+- GPU memory with four slots under load (Analytics; expected ≈ 84 GB).
 
 ## Cost
 
