@@ -2,12 +2,12 @@
 import assert from "node:assert/strict";
 let upstreamBody = null;
 globalThis.fetch = async (url, init) => {
-  assert.equal(url, "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions");
-  assert.equal(init.headers.authorization, "Bearer modal-test-token");
+  assert.equal(url, "https://obnct428kmjxul06.us-east-2.aws.endpoints.huggingface.cloud/v1/chat/completions");
+  assert.equal(init.headers.authorization, "Bearer hf-endpoint-test-token");
   const req = JSON.parse(String(init.body));
   return new Response(JSON.stringify({
     id: "chatcmpl-test", object: "chat.completion",
-    model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    model: "qwen3.8-flash-next-uncensored-iq4-xs",
     choices: [{ index: 0, message: { role: "assistant", content: "Fix authorization." }, finish_reason: "stop" }],
     usage: { prompt_tokens: 12, completion_tokens: 3, total_tokens: 15 },
   }), { status: 200, headers: { "content-type": "application/json" } });
@@ -31,8 +31,8 @@ const state = {
 const env = {
   ORIGIN_LOADING_RETRY_MS: "20",
   RESEARCH_OPERATOR_SECRET: "test-operator-secret-0123456789abcdef",
-  MODAL_INFERENCE_URL: "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions",
-  MODAL_INFERENCE_TOKEN: "modal-test-token",
+  MODAL_INFERENCE_URL: "https://obnct428kmjxul06.us-east-2.aws.endpoints.huggingface.cloud/v1/chat/completions",
+  MODAL_INFERENCE_TOKEN: "hf-endpoint-test-token",
   INFERENCE_NOT_READY_DELAY_MS: "1",
 };
 const auth = new ResearchAuthority(state, env);
@@ -173,6 +173,31 @@ assert.deepEqual(storedJob.usageReceipt && {
   // and the poll reports the failure, not a receipt
   const rs = await call("/jobs/status", { principalId: principal, sessionRef, jobId: failJobId });
   assert.equal(rs.json.status, "failed");
+  // The route moved (ADR 2609160940): a secret still holding the previous
+  // deployment's host is refused BY NAME before any fetch — a stale value
+  // must not become a call to a deployment that no longer serves the model.
+  {
+    const staleHost = new ResearchAuthority(state, { ...env,
+      MODAL_INFERENCE_URL: "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions" });
+    const untouched = globalThis.fetch;
+    let fetched = 0;
+    globalThis.fetch = async () => { fetched++; throw new Error("must not reach the network"); };
+    const staleErr = console.error; console.error = () => {};
+    const staleJobId = "5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a";
+    const rq = await staleHost.fetch(new Request("https://research.internal/jobs/create", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ principalId: principal, sessionRef, jobId: staleJobId, policyVersion: "whitehat-2026-09-12-v1",
+        billing: "free-only", request: { model: "qwen3.8-flash-next-whitehacker", task: "code-review",
+          scopeId: "owned", max_tokens: 96, messages: [{ role: "user", content: "Review owned code, please." }] } }),
+    }));
+    assert.equal(rq.status, 200, "the job is accepted; the route refuses inside the run");
+    await new Promise(r => setTimeout(r, 50));
+    globalThis.fetch = untouched; console.error = staleErr;
+    const stale = JSON.parse(await state.storage.get("job:" + staleJobId));
+    assert.equal(stale.status, "failed");
+    assert.equal(stale.error, "red-route-url-invalid", JSON.stringify(stale));
+    assert.equal(fetched, 0, "the previous deployment's host is never called");
+  }
   // The same prompt again re-dispatches the FAILED reservation (the origin is
   // back) instead of replaying the failure — measured live 2026-09-15: the
   // second identical request answered 502 in 0.3 s without a run.
@@ -213,7 +238,7 @@ assert.deepEqual(storedJob.usageReceipt && {
     if (attempts === 1) return new Response("error code: 524", { status: 524 });
     if (attempts === 2) return new Response(JSON.stringify({ error: "model loading" }), { status: 503, headers: { "content-type": "application/json" } });
     return new Response(JSON.stringify({
-      id: "chatcmpl-cold", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      id: "chatcmpl-cold", object: "chat.completion", model: "qwen3.8-flash-next-uncensored-iq4-xs",
       choices: [{ index: 0, message: { role: "assistant", content: "Served after loading." }, finish_reason: "stop" }],
       usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
     }), { status: 200, headers: { "content-type": "application/json" } });
@@ -248,7 +273,7 @@ assert.deepEqual(storedJob.usageReceipt && {
     const req = JSON.parse(String(init.body));
     seenTools = { tools: req.tools, tool_choice: req.tool_choice, roles: req.messages.map(m => m.role) };
     return new Response(JSON.stringify({
-      id: "chatcmpl-tool", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+      id: "chatcmpl-tool", object: "chat.completion", model: "qwen3.8-flash-next-uncensored-iq4-xs",
       choices: [{ index: 0, finish_reason: "tool_calls", message: { role: "assistant", content: null,
         reasoning: "The user wants a file.",
         tool_calls: [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{\"path\":\"hello.txt\",\"content\":\"hi\"}" } }] } }],
@@ -292,7 +317,7 @@ assert.deepEqual(storedJob.usageReceipt && {
   const realUpstream = globalThis.fetch;
   const xml = '\n\n<tool_call>\n<function=write_file>\n<parameter=path>\ngreet.py\n</parameter>\n<parameter=content>\nprint("hi")\n\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=terminal>\n<parameter=command>\npython3 greet.py\n</parameter>\n<parameter=timeout>\n30\n</parameter>\n<parameter=background>\nfalse\n</parameter>\n</function>\n</tool_call>';
   globalThis.fetch = async () => new Response(JSON.stringify({
-    id: "chatcmpl-xml", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    id: "chatcmpl-xml", object: "chat.completion", model: "qwen3.8-flash-next-uncensored-iq4-xs",
     choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: xml } }],
     usage: { prompt_tokens: 40, completion_tokens: 60, total_tokens: 100 },
   }), { status: 200, headers: { "content-type": "application/json" } });
@@ -321,7 +346,7 @@ assert.deepEqual(storedJob.usageReceipt && {
   assert.notEqual(xmlJob.toolCalls[0].id, xmlJob.toolCalls[1].id);
   // the hermes-style json form is read too, and text outside the block survives
   globalThis.fetch = async () => new Response(JSON.stringify({
-    id: "chatcmpl-json", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    id: "chatcmpl-json", object: "chat.completion", model: "qwen3.8-flash-next-uncensored-iq4-xs",
     choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: 'Let me look.\n<tool_call>\n{"name": "read_file", "arguments": {"path": "a.txt"}}\n</tool_call>' } }],
     usage: { prompt_tokens: 4, completion_tokens: 6, total_tokens: 10 },
   }), { status: 200, headers: { "content-type": "application/json" } });
@@ -436,7 +461,7 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
   globalThis.fetch = async () => {
     calls++;
     if (calls <= 2) return new Response(JSON.stringify({ error: "model loading" }), { status: 503, headers: { "content-type": "application/json" } });
-    return new Response(JSON.stringify({ id: "c", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    return new Response(JSON.stringify({ id: "c", object: "chat.completion", model: "qwen3.8-flash-next-uncensored-iq4-xs",
       choices: [{ index: 0, message: { role: "assistant", content: "Warm now." }, finish_reason: "stop" }],
       usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 } }), { status: 200, headers: { "content-type": "application/json" } });
   };
@@ -503,7 +528,7 @@ assert.ok(r.json.applicationId.startsWith("app-req-1"));
   globalThis.fetch = async () => {
     calls++;
     if (mode === "500") return new Response("upstream exploded", { status: 500 });
-    return new Response(JSON.stringify({ id: "c", object: "chat.completion", model: "qwen3.8-flash-next-cybersecurity-nvfp4",
+    return new Response(JSON.stringify({ id: "c", object: "chat.completion", model: "qwen3.8-flash-next-uncensored-iq4-xs",
       choices: [{ index: 0, message: { role: "assistant", content: "Recovered." }, finish_reason: "stop" }],
       usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 } }), { status: 200, headers: { "content-type": "application/json" } });
   };
@@ -608,8 +633,8 @@ const stripeEnv2 = {
   STRIPE_IDENTITY_KEY: "rk_test_stripe-identity-key-0123456789abcdef",
   STRIPE_VERIFICATION_FLOW: "vf_flow_0123456789",
   STRIPE_IDENTITY_WEBHOOK_SECRET: "whsec_test_0123456789abcdef",
-  MODAL_INFERENCE_URL: "https://kotoba-labs--cybersecurity-inference.modal.run/v1/chat/completions",
-  MODAL_INFERENCE_TOKEN: "modal-test-token",
+  MODAL_INFERENCE_URL: "https://obnct428kmjxul06.us-east-2.aws.endpoints.huggingface.cloud/v1/chat/completions",
+  MODAL_INFERENCE_TOKEN: "hf-endpoint-test-token",
 };
 
 const realFetch = globalThis.fetch;

@@ -96,7 +96,10 @@ retry. The edge deliberately does not retry completion requests.
 
 ## Inference qualification before launch
 
-Candidate: `qwen3.8-flash-next-cybersecurity-nvfp4`. Treat all model-card benchmark
+Candidate (2026-09-16, ADR 2609160940): `qwen3.8-flash-next-uncensored-iq4-xs`
+— the IQ4_XS llama.cpp build of the refusal-removed Qwen3.8-Flash-Next on a
+dedicated Inference Endpoint (before that: `qwen3.8-flash-next-cybersecurity-nvfp4`).
+Treat all model-card benchmark
 and hardware claims as provider claims until independently measured. The linked
 card describes reduced refusals; identity checks and a system prompt alone are
 not sufficient content controls. The private authority must enforce input/output
@@ -124,8 +127,9 @@ prove this full process is live.
 
 ## Reference sources (checked 2026-09-12)
 
-- https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4 — candidate model card.
-- https://dealign.ai/ — source research; no model modifications are performed here.
+- https://huggingface.co/orcarouter/Qwen3.8-Flash-Next-Uncensored-GGUF — candidate model card
+  (2026-09-16, gated; revision pinned in ADR 2609160940). No model modifications are performed here.
+- https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4 — the previous candidate (2026-09-12).
 - https://docs.sumsub.com/docs/reusable-kyc — example of contractual verification reuse, not a selected vendor.
 - https://www.fatf-gafi.org/content/dam/fatf/documents/recommendations/pdfs/Guidance-on-Digital-Identity-report.pdf — risk-based digital identity guidance.
 
@@ -138,9 +142,10 @@ prove this full process is live.
 - `verify-event`: official Svix verification of raw bytes, followed by exact live
   flow/version, pre-KYC product, challenge/session, time and predicate checks.
   Returns **identity evidence requiring review**, never blanket AML clearance.
-- `infer`: a private, explicit `MODAL_INFERENCE_URL` on a `.modal.run` deployment,
-  authenticated with `MODAL_INFERENCE_TOKEN`, model
-  `qwen3.8-flash-next-cybersecurity-nvfp4`. No Murakumo relay or fallback model;
+- `infer`: a private, explicit `MODAL_INFERENCE_URL` on a `.endpoints.huggingface.cloud`
+  deployment (the secret's name is fixed by its stored value; was `.modal.run`
+  until 2026-09-16), authenticated with `MODAL_INFERENCE_TOKEN`, model
+  `qwen3.8-flash-next-uncensored-iq4-xs`. No Murakumo relay or fallback model;
   the authority rejects mismatched response attribution and provider usage that is
   missing or internally inconsistent.
 
