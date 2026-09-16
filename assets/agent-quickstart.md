@@ -45,17 +45,20 @@ Expected result: 42. Package admission verifies Ed25519 and ML-DSA-65 signatures
 execution is local after installation. A catalog fetch alone is not verification
 or execution evidence. Keep the release/CID and command output with your result.
 
-## 4. Verified research access (Stripe Identity — live)
+## 4. Verified research access (card-based — live)
 
-Sign in, then follow https://kotoba.cloud/ekyc.md. The account holder completes one
-Stripe Identity check at https://verify.stripe.com (agents never do this themselves);
-approval is then automatic — ekyc, screening, trust and scope in one webhook, no manual
-review. When GET https://api.kotoba.cloud/v1/research/status returns "eligible", the
-scoped security-research model runs via POST /v1/research/jobs (free daily allowance).
-For a local IDE/CLI agent, issue a personal token once at https://kotoba.cloud/account
-(CLI / IDE section, 1 click) and call the same endpoints with
-`Authorization: Bearer kc_pat_...` — OpenAI-compatible base `https://api.kotoba.cloud`.
-Tool calls are never executed server-side: the model returns text only; run tools locally.
+Sign in, then follow https://kotoba.cloud/ekyc.md. The account holder registers one credit or
+debit card at https://checkout.stripe.com ($0 setup; agents never enter card details); approval
+is then automatic — verification, screening, trust and the code-review scope in one webhook, no
+manual review. When GET https://api.kotoba.cloud/v1/research/status returns "eligible", the
+research models answer at POST https://api.kotoba.cloud/v1/chat/completions (OpenAI shape:
+tools, tool_choice, stream; max_tokens ≤ 32768) — free daily allowance of 1,000 requests, and a
+prepaid path past it. For a local IDE/CLI agent, issue a personal token once at
+https://kotoba.cloud/account (CLI / IDE section, 1 click; revocable one by one) and call the same
+endpoints with `Authorization: Bearer kc_pat_...` — OpenAI base URL
+`https://api.kotoba.cloud/v1`. The server never executes tools: tool_calls come back as data
+and run on your machine. Per-tool setup, SDKs, frameworks, every error code:
+https://docs.kotoba.cloud/
 
 ## 5. Connect services or publish a library
 

@@ -8,31 +8,36 @@ Bring our strengths together. Bring light back to the world.
 
 # Kotoba Cloud — verified white-hat research
 
-Security-focused LLM inference for authorized code review, vulnerability triage and remediation.
-Status: LIVE. Identity verification runs on Stripe Identity only (no manual review queue).
-One Stripe Identity verification approves the account automatically: ekyc, screening, trust, scope and activation.
+OpenAI-compatible inference for authorized code review, vulnerability triage and remediation.
+Status: LIVE. Verification is card-based: a live credit or debit card on file ($0 setup at
+checkout.stripe.com; prepaid and virtual cards refused) approves the account automatically —
+verification, screening, trust route, the owned / code-review scope, activation. Document
+verification (Stripe Identity) can be added; it is not required for the free allowance.
 
-Free allowance: 1,000 requests per day, up to 32,768 output tokens per request (524,288 input characters, about 128k tokens). No automatic paid fallback.
-Access order: a card on file unlocks the free allowance immediately; identity verification
-and governance checks come after and raise the ceiling. Tool calls are never executed
-server-side — the model returns text only; run tools locally.
+Free allowance: 1,000 requests per UTC day, up to 32,768 output tokens per request, 524,288 input
+characters per request (about 128k tokens). With prepaid AI credits a request past the daily
+allowance runs paid instead (never charged twice). No automatic top-up.
 
-Registration steps the agent can drive (human completes the Stripe identity check):
-- Full registration guide: https://kotoba.cloud/ekyc.md
-1. Sign in at https://auth.kotoba.cloud/sign-in — any method works and yields the
-   same Stable Principal (identity method does not affect verification):
-   - Passkey (Face ID / Touch ID / Windows Hello), or
-   - Your own key: self-minted CACAO (`kotoba cacao --aud https://auth.kotoba.cloud`), or
-   - Ethereum wallet (SIWE) or Base Account, or
-   - Recovery phrase (BIP-39, derived in-browser).
-   The session cookie (`credentials: "same-origin"`) is what the research API reads.
-2. POST https://api.kotoba.cloud/v1/research/ekyc/start (same-origin JSON:
-   {"scopeId":"owned","tasks":["code-review"]}) → verificationUrl
-3. Human opens the verificationUrl (https://verify.stripe.com) — agents never complete the identity check themselves.
-4. Approval is automatic on Stripe webhook; then GET /v1/research/status → eligible.
-5. POST /v1/research/jobs (Idempotency-Key uuid) and poll GET /v1/research/job?jobId=.
+Native tool calls: send tools and tool_choice, get tool_calls back; the server executes nothing —
+tools run on the caller's machine. stream: true is served as a one-chunk SSE. Guardrails run on
+every request.
 
-- Model catalog: https://kotoba.cloud/v1/models
+Registration steps the agent can drive (the human completes the card step):
+- Full registration guide: https://kotoba.cloud/ekyc.md · docs: https://docs.kotoba.cloud/
+1. Sign in at https://auth.kotoba.cloud/sign-in — passkey, own key (self-minted CACAO), Ethereum
+   wallet (SIWE) / Base Account, or recovery phrase; every method yields the same stable principal.
+   CLI / IDE agents: the account holder issues a personal API token at https://kotoba.cloud/account
+   (shown once; revocable one by one) and the agent sends Authorization: Bearer kc_pat_...
+2. POST https://api.kotoba.cloud/v1/research/ekyc/start {"scopeId":"owned","tasks":["code-review"]}
+   → approved at once if a card is on file, else {"verificationUrl": "https://checkout.stripe.com/..."}
+3. The human registers a credit or debit card at that URL — agents never enter card details.
+4. Approval is automatic on Stripe's webhook; GET /v1/research/status → eligible.
+5. POST /v1/chat/completions (OpenAI shape, tools, stream) — or POST /v1/research/jobs
+   (idempotency-key uuid) and poll GET /v1/research/job?jobId= for long work.
+
+- Model catalog: https://kotoba.cloud/v1/models (red team = dedicated route, verification required;
+  blue team = shared route, sign-in only)
+- Every error code: https://docs.kotoba.cloud/reference/errors/
 - Registration page: https://kotoba.cloud/#research-register
 
 Existing infrastructure features below retain separate authority boundaries.
@@ -59,13 +64,13 @@ Post-quantum signatures remain mandatory for library publication. The authentica
 
 ## Start
 
-- Agent onboarding: https://kotoba.cloud/agent-quickstart.md
+- Agent onboarding: https://kotoba.cloud/agent-quickstart.md · docs: https://docs.kotoba.cloud/
 - Graph CLI and MCP onboarding: https://kotobase.net/agent-quickstart.md
 
 - Executable language quickstart: https://kotoba-lang.org/agent-quickstart.md
 - Language performance and safety evidence: https://kotoba-lang.org/#proof
 - Graph documentation: https://kotobase.net/llms-full.txt
-- Japanese site: https://kotoba.cloud/ja/
+- Japanese: add ?lang=ja to any page (https://kotoba.cloud/?lang=ja); the /ja/ paths are compatibility redirects.
 
 Public operator: Kotoba Labs Inc. Contact: support@kotoba.cloud.
 
@@ -75,8 +80,7 @@ Qualification note (8 September 2026): the installed native CLI reference-packag
 - https://kotoba.cloud/security-data/README.md
 - https://kotoba.cloud/security-data/index.json
 - https://kotoba.cloud/security-data/graph.jsonld
-- Security data hub: https://kotoba.cloud/csf2/ (the former /ja/security/ page is
-  currently unreachable in production: it redirects to /security/, which returns 404)
+- Security data hub: https://kotoba.cloud/security/ · CSF 2.0 catalog: https://kotoba.cloud/csf2/
 
 ## Legal
 - Terms / policies: https://kotoba.cloud/legal/
