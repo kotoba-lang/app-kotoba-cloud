@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:orgbrain="https://kotoba.cloud/orgbrain" id="definitions_incorporation" targetNamespace="https://kotoba.cloud/orgbrain" name="法人設立・組織変更">
+<process id="incorporation" name="法人設立・組織変更" isExecutable="false">
+<startEvent id="start"/>
+<task id="draft-articles" name="定款草案作成">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="ceo" orgbrain:authorityRequired="sign-contract" orgbrain:slaDays="20"/>
+</extensions>
+<documentation>定款草案作成</documentation>
+</task>
+<task id="notarize" name="定款認証">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="board" orgbrain:authorityRequired="sign-contract" orgbrain:slaDays="10"/>
+</extensions>
+<documentation>定款認証</documentation>
+</task>
+<task id="capital-payin" name="出資金払込み">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="cfo" orgbrain:authorityRequired="approve-spend" orgbrain:slaDays="10"/>
+</extensions>
+<documentation>出資金払込み</documentation>
+</task>
+<task id="register" name="法人登記">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="ceo" orgbrain:authorityRequired="sign-contract" orgbrain:slaDays="5"/>
+</extensions>
+<documentation>法人登記</documentation>
+</task>
+<exclusiveGateway id="gov-notice" name="監督官庁届出要否?"/>
+<task id="license-apply" name="許認可申請">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="coo" orgbrain:authorityRequired="sign-contract" orgbrain:slaDays="30"/>
+</extensions>
+<documentation>許認可申請</documentation>
+</task>
+<task id="appoint-officers" name="役員選任">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="board" orgbrain:authorityRequired="hire" orgbrain:slaDays="7"/>
+</extensions>
+<documentation>役員選任</documentation>
+</task>
+<task id="open-bank" name="法人銀行口座開設">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="cfo" orgbrain:authorityRequired="sign-contract" orgbrain:slaDays="7"/>
+</extensions>
+<documentation>法人銀行口座開設</documentation>
+</task>
+<endEvent id="end"/>
+<sequenceFlow id="flow-1" sourceRef="start" targetRef="draft-articles"/>
+<sequenceFlow id="flow-2" sourceRef="draft-articles" targetRef="notarize"/>
+<sequenceFlow id="flow-3" sourceRef="notarize" targetRef="capital-payin"/>
+<sequenceFlow id="flow-4" sourceRef="capital-payin" targetRef="register"/>
+<sequenceFlow id="flow-5" sourceRef="register" targetRef="gov-notice"/>
+<sequenceFlow id="flow-6" sourceRef="gov-notice" targetRef="license-apply"/>
+<sequenceFlow id="flow-7" sourceRef="gov-notice" targetRef="appoint-officers"/>
+<sequenceFlow id="flow-8" sourceRef="license-apply" targetRef="open-bank"/>
+<sequenceFlow id="flow-9" sourceRef="appoint-officers" targetRef="open-bank"/>
+<sequenceFlow id="flow-10" sourceRef="open-bank" targetRef="end"/>
+</process>
+<bpmndi:BPMNDiagram id="diagram_incorporation"><bpmndi:BPMNPlane bpmnElement="incorporation">
+<bpmndi:BPMNShape bpmnElement="start"><dc:Bounds x="70" y="332" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="draft-articles"><dc:Bounds x="320" y="315" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="notarize"><dc:Bounds x="570" y="315" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="capital-payin"><dc:Bounds x="820" y="315" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="register"><dc:Bounds x="1070" y="315" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="gov-notice"><dc:Bounds x="1320" y="325" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="license-apply"><dc:Bounds x="1570" y="250" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="appoint-officers"><dc:Bounds x="1570" y="380" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="open-bank"><dc:Bounds x="1820" y="315" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="end"><dc:Bounds x="2070" y="332" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNEdge bpmnElement="flow-1"><di:waypoint x="106" y="350"/><di:waypoint x="320" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-2"><di:waypoint x="470" y="350"/><di:waypoint x="570" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-3"><di:waypoint x="720" y="350"/><di:waypoint x="820" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-4"><di:waypoint x="970" y="350"/><di:waypoint x="1070" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-5"><di:waypoint x="1220" y="350"/><di:waypoint x="1320" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-6"><di:waypoint x="1370" y="350"/><di:waypoint x="1570" y="285"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-7"><di:waypoint x="1370" y="350"/><di:waypoint x="1570" y="415"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-8"><di:waypoint x="1720" y="285"/><di:waypoint x="1820" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-9"><di:waypoint x="1720" y="415"/><di:waypoint x="1820" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-10"><di:waypoint x="1970" y="350"/><di:waypoint x="2070" y="350"/></bpmndi:BPMNEdge>
+</bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</definitions>

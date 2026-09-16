@@ -1,0 +1,1004 @@
+{
+ "orgbrain/data-version": "1",
+ "generatedAt": "2026-09-16T01:26:38.747Z",
+ "source": {
+  "repo": "kotoba-lang/kyber",
+  "rev": "7f6a36227e0be72a9a95d293005be11d880d3cc2",
+  "url": "https://github.com/kotoba-lang/kyber",
+  "files": {
+   "docs/orgbrain/org-ontology.schema.edn": {
+    "sha256": "948c85c118ecb7071805237e2f1021269ae11626ca2006c079be487124dd04d1",
+    "bytes": 4754
+   },
+   "docs/orgbrain/incorporation.bpmn.edn": {
+    "sha256": "9615c37cc0752cdfed66af34a38dfc1340641269022e57748b6c588674c9f0e3",
+    "bytes": 1760
+   },
+   "docs/orgbrain/onboarding-offboarding.bpmn.edn": {
+    "sha256": "f683fda9365a201f2121de9a5ce2ee3044f0a447b4f874bbb0510a9453924d74",
+    "bytes": 1851
+   }
+  }
+ },
+ "weights": {
+  "raci-coverage": 0.3,
+  "authority-concentration": 0.2,
+  "delegation-depth": 0.15,
+  "single-point-of-failure": 0.2,
+  "approval-gap": 0.15
+ },
+ "ontology": {
+  "orgbrain/schema-version": "0.1.0",
+  "orgbrain/authorities": [
+   "approve-spend",
+   "sign-contract",
+   "hire",
+   "fire",
+   "compliance",
+   "it-admin"
+  ],
+  "orgbrain/levels": [
+   "board",
+   "exec",
+   "manager",
+   "staff"
+  ],
+  "orgbrain/roles": [
+   {
+    "orgbrain/role-id": "ceo",
+    "orgbrain/name": "CEO",
+    "orgbrain/level": "board",
+    "orgbrain/min-headcount": 1
+   },
+   {
+    "orgbrain/role-id": "cfo",
+    "orgbrain/name": "CFO",
+    "orgbrain/level": "exec",
+    "orgbrain/min-headcount": 1
+   },
+   {
+    "orgbrain/role-id": "coo",
+    "orgbrain/name": "COO",
+    "orgbrain/level": "exec",
+    "orgbrain/min-headcount": 1
+   },
+   {
+    "orgbrain/role-id": "cto",
+    "orgbrain/name": "CTO",
+    "orgbrain/level": "exec",
+    "orgbrain/min-headcount": 1
+   },
+   {
+    "orgbrain/role-id": "hr-manager",
+    "orgbrain/name": "HR Manager",
+    "orgbrain/level": "manager",
+    "orgbrain/min-headcount": 1
+   },
+   {
+    "orgbrain/role-id": "finance-staff",
+    "orgbrain/name": "Finance Staff",
+    "orgbrain/level": "staff",
+    "orgbrain/min-headcount": 2
+   },
+   {
+    "orgbrain/role-id": "it-admin",
+    "orgbrain/name": "IT Admin",
+    "orgbrain/level": "staff",
+    "orgbrain/min-headcount": 2
+   }
+  ],
+  "orgbrain/delegations": [
+   {
+    "orgbrain/from-role": "board",
+    "orgbrain/to-role": "ceo",
+    "orgbrain/authority": "approve-spend"
+   },
+   {
+    "orgbrain/from-role": "board",
+    "orgbrain/to-role": "ceo",
+    "orgbrain/authority": "sign-contract"
+   },
+   {
+    "orgbrain/from-role": "board",
+    "orgbrain/to-role": "ceo",
+    "orgbrain/authority": "hire"
+   },
+   {
+    "orgbrain/from-role": "ceo",
+    "orgbrain/to-role": "cfo",
+    "orgbrain/authority": "approve-spend"
+   },
+   {
+    "orgbrain/from-role": "ceo",
+    "orgbrain/to-role": "coo",
+    "orgbrain/authority": "hire"
+   },
+   {
+    "orgbrain/from-role": "cfo",
+    "orgbrain/to-role": "finance-staff",
+    "orgbrain/authority": "approve-spend"
+   },
+   {
+    "orgbrain/from-role": "cto",
+    "orgbrain/to-role": "it-admin",
+    "orgbrain/authority": "it-admin"
+   },
+   {
+    "orgbrain/from-role": "board",
+    "orgbrain/to-role": "board",
+    "orgbrain/authority": "sign-contract"
+   },
+   {
+    "orgbrain/from-role": "board",
+    "orgbrain/to-role": "board",
+    "orgbrain/authority": "hire"
+   },
+   {
+    "orgbrain/from-role": "ceo",
+    "orgbrain/to-role": "coo",
+    "orgbrain/authority": "sign-contract"
+   },
+   {
+    "orgbrain/from-role": "ceo",
+    "orgbrain/to-role": "cfo",
+    "orgbrain/authority": "sign-contract"
+   }
+  ],
+  "orgbrain/tasks": [
+   {
+    "orgbrain/task-id": "annual-budget",
+    "orgbrain/name": "年度予算承認",
+    "orgbrain/critical?": true,
+    "orgbrain/sla-days": 30,
+    "orgbrain/raci": {
+     "responsible": [
+      "cfo"
+     ],
+     "accountable": [
+      "board"
+     ],
+     "consulted": [
+      "coo"
+     ],
+     "informed": [
+      "finance-staff"
+     ]
+    }
+   },
+   {
+    "orgbrain/task-id": "contract-signing",
+    "orgbrain/name": "契約締結",
+    "orgbrain/critical?": true,
+    "orgbrain/sla-days": 14,
+    "orgbrain/raci": {
+     "responsible": [
+      "cfo"
+     ],
+     "accountable": [
+      "ceo"
+     ],
+     "consulted": [],
+     "informed": [
+      "board"
+     ]
+    }
+   },
+   {
+    "orgbrain/task-id": "payroll-run",
+    "orgbrain/name": "給与計算・支払",
+    "orgbrain/critical?": true,
+    "orgbrain/sla-days": 1,
+    "orgbrain/raci": {
+     "responsible": [
+      "finance-staff"
+     ],
+     "accountable": [
+      "cfo"
+     ],
+     "consulted": [
+      "hr-manager"
+     ],
+     "informed": []
+    }
+   },
+   {
+    "orgbrain/task-id": "hiring-approval",
+    "orgbrain/name": "採用承認",
+    "orgbrain/critical?": false,
+    "orgbrain/sla-days": 21,
+    "orgbrain/raci": {
+     "responsible": [
+      "hr-manager"
+     ],
+     "accountable": [
+      "coo"
+     ],
+     "consulted": [
+      "ceo"
+     ],
+     "informed": []
+    }
+   },
+   {
+    "orgbrain/task-id": "it-change-mgmt",
+    "orgbrain/name": "IT 変更管理",
+    "orgbrain/critical?": true,
+    "orgbrain/sla-days": 5,
+    "orgbrain/raci": {
+     "responsible": [
+      "it-admin"
+     ],
+     "accountable": [
+      "cto"
+     ],
+     "consulted": [],
+     "informed": []
+    }
+   },
+   {
+    "orgbrain/task-id": "compliance-audit",
+    "orgbrain/name": "コンプライアンス監査",
+    "orgbrain/critical?": true,
+    "orgbrain/sla-days": 90,
+    "orgbrain/raci": {
+     "responsible": [
+      "coo"
+     ],
+     "accountable": [
+      "board"
+     ],
+     "consulted": [
+      "cfo"
+     ],
+     "informed": []
+    }
+   },
+   {
+    "orgbrain/task-id": "onboarding",
+    "orgbrain/name": "入社手続き",
+    "orgbrain/critical?": false,
+    "orgbrain/sla-days": 14,
+    "orgbrain/raci": {
+     "responsible": [
+      "hr-manager"
+     ],
+     "accountable": [
+      "coo"
+     ],
+     "consulted": [
+      "it-admin"
+     ],
+     "informed": [
+      "finance-staff"
+     ]
+    }
+   },
+   {
+    "orgbrain/task-id": "offboarding",
+    "orgbrain/name": "退職手続き",
+    "orgbrain/critical?": true,
+    "orgbrain/sla-days": 5,
+    "orgbrain/raci": {
+     "responsible": [
+      "hr-manager"
+     ],
+     "accountable": [
+      "coo"
+     ],
+     "consulted": [
+      "it-admin"
+     ],
+     "informed": [
+      "cfo"
+     ]
+    }
+   }
+  ]
+ },
+ "processes": [
+  {
+   "id": "incorporation",
+   "name": "法人設立・組織変更",
+   "source": "docs/orgbrain/incorporation.bpmn.edn",
+   "elements": [
+    {
+     "id": "start",
+     "type": "event",
+     "event": "start"
+    },
+    {
+     "id": "draft-articles",
+     "type": "task",
+     "name": "定款草案作成",
+     "actor-role": "ceo",
+     "authority-required": "sign-contract",
+     "sla-days": 20
+    },
+    {
+     "id": "notarize",
+     "type": "task",
+     "name": "定款認証",
+     "actor-role": "board",
+     "authority-required": "sign-contract",
+     "sla-days": 10
+    },
+    {
+     "id": "capital-payin",
+     "type": "task",
+     "name": "出資金払込み",
+     "actor-role": "cfo",
+     "authority-required": "approve-spend",
+     "sla-days": 10
+    },
+    {
+     "id": "register",
+     "type": "task",
+     "name": "法人登記",
+     "actor-role": "ceo",
+     "authority-required": "sign-contract",
+     "sla-days": 5
+    },
+    {
+     "id": "gov-notice",
+     "type": "gateway",
+     "name": "監督官庁届出要否?",
+     "gateway": "xor"
+    },
+    {
+     "id": "license-apply",
+     "type": "task",
+     "name": "許認可申請",
+     "actor-role": "coo",
+     "authority-required": "sign-contract",
+     "sla-days": 30
+    },
+    {
+     "id": "appoint-officers",
+     "type": "task",
+     "name": "役員選任",
+     "actor-role": "board",
+     "authority-required": "hire",
+     "sla-days": 7
+    },
+    {
+     "id": "open-bank",
+     "type": "task",
+     "name": "法人銀行口座開設",
+     "actor-role": "cfo",
+     "authority-required": "sign-contract",
+     "sla-days": 7
+    },
+    {
+     "id": "end",
+     "type": "event",
+     "event": "end"
+    }
+   ],
+   "flows": [
+    [
+     "start",
+     "draft-articles"
+    ],
+    [
+     "draft-articles",
+     "notarize"
+    ],
+    [
+     "notarize",
+     "capital-payin"
+    ],
+    [
+     "capital-payin",
+     "register"
+    ],
+    [
+     "register",
+     "gov-notice"
+    ],
+    [
+     "gov-notice",
+     "license-apply"
+    ],
+    [
+     "gov-notice",
+     "appoint-officers"
+    ],
+    [
+     "license-apply",
+     "open-bank"
+    ],
+    [
+     "appoint-officers",
+     "open-bank"
+    ],
+    [
+     "open-bank",
+     "end"
+    ]
+   ],
+   "layout": {
+    "bounds": {
+     "start": {
+      "x": 70,
+      "y": 332,
+      "width": 36,
+      "height": 36,
+      "layer": 0
+     },
+     "draft-articles": {
+      "x": 320,
+      "y": 315,
+      "width": 150,
+      "height": 70,
+      "layer": 1
+     },
+     "notarize": {
+      "x": 570,
+      "y": 315,
+      "width": 150,
+      "height": 70,
+      "layer": 2
+     },
+     "capital-payin": {
+      "x": 820,
+      "y": 315,
+      "width": 150,
+      "height": 70,
+      "layer": 3
+     },
+     "register": {
+      "x": 1070,
+      "y": 315,
+      "width": 150,
+      "height": 70,
+      "layer": 4
+     },
+     "gov-notice": {
+      "x": 1320,
+      "y": 325,
+      "width": 50,
+      "height": 50,
+      "layer": 5
+     },
+     "license-apply": {
+      "x": 1570,
+      "y": 250,
+      "width": 150,
+      "height": 70,
+      "layer": 6
+     },
+     "appoint-officers": {
+      "x": 1570,
+      "y": 380,
+      "width": 150,
+      "height": 70,
+      "layer": 6
+     },
+     "open-bank": {
+      "x": 1820,
+      "y": 315,
+      "width": 150,
+      "height": 70,
+      "layer": 7
+     },
+     "end": {
+      "x": 2070,
+      "y": 332,
+      "width": 36,
+      "height": 36,
+      "layer": 8
+     }
+    },
+    "edges": [
+     {
+      "id": "flow-1",
+      "from": "start",
+      "to": "draft-articles",
+      "waypoints": [
+       {
+        "x": 106,
+        "y": 350
+       },
+       {
+        "x": 320,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-2",
+      "from": "draft-articles",
+      "to": "notarize",
+      "waypoints": [
+       {
+        "x": 470,
+        "y": 350
+       },
+       {
+        "x": 570,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-3",
+      "from": "notarize",
+      "to": "capital-payin",
+      "waypoints": [
+       {
+        "x": 720,
+        "y": 350
+       },
+       {
+        "x": 820,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-4",
+      "from": "capital-payin",
+      "to": "register",
+      "waypoints": [
+       {
+        "x": 970,
+        "y": 350
+       },
+       {
+        "x": 1070,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-5",
+      "from": "register",
+      "to": "gov-notice",
+      "waypoints": [
+       {
+        "x": 1220,
+        "y": 350
+       },
+       {
+        "x": 1320,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-6",
+      "from": "gov-notice",
+      "to": "license-apply",
+      "waypoints": [
+       {
+        "x": 1370,
+        "y": 350
+       },
+       {
+        "x": 1570,
+        "y": 285
+       }
+      ]
+     },
+     {
+      "id": "flow-7",
+      "from": "gov-notice",
+      "to": "appoint-officers",
+      "waypoints": [
+       {
+        "x": 1370,
+        "y": 350
+       },
+       {
+        "x": 1570,
+        "y": 415
+       }
+      ]
+     },
+     {
+      "id": "flow-8",
+      "from": "license-apply",
+      "to": "open-bank",
+      "waypoints": [
+       {
+        "x": 1720,
+        "y": 285
+       },
+       {
+        "x": 1820,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-9",
+      "from": "appoint-officers",
+      "to": "open-bank",
+      "waypoints": [
+       {
+        "x": 1720,
+        "y": 415
+       },
+       {
+        "x": 1820,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-10",
+      "from": "open-bank",
+      "to": "end",
+      "waypoints": [
+       {
+        "x": 1970,
+        "y": 350
+       },
+       {
+        "x": 2070,
+        "y": 350
+       }
+      ]
+     }
+    ],
+    "canvas": {
+     "width": 2176,
+     "height": 510
+    }
+   },
+   "xml": "/org-data/bpmn/incorporation.bpmn.xml"
+  },
+  {
+   "id": "onboarding-offboarding",
+   "name": "入退社ライフサイクル",
+   "source": "docs/orgbrain/onboarding-offboarding.bpmn.edn",
+   "elements": [
+    {
+     "id": "start",
+     "type": "event",
+     "event": "start"
+    },
+    {
+     "id": "entry-or-exit",
+     "type": "gateway",
+     "name": "新規入社 or 退職?",
+     "gateway": "xor"
+    },
+    {
+     "id": "offer-approval",
+     "type": "task",
+     "name": "採用最終承認",
+     "actor-role": "coo",
+     "authority-required": "hire",
+     "sla-days": 7
+    },
+    {
+     "id": "labor-contract",
+     "type": "task",
+     "name": "雇用契約締結",
+     "actor-role": "ceo",
+     "authority-required": "sign-contract",
+     "sla-days": 7
+    },
+    {
+     "id": "it-setup",
+     "type": "task",
+     "name": "アカウント・機材払出",
+     "actor-role": "it-admin",
+     "authority-required": "it-admin",
+     "sla-days": 3
+    },
+    {
+     "id": "payroll-register",
+     "type": "task",
+     "name": "給与台帳登録",
+     "actor-role": "finance-staff",
+     "authority-required": "approve-spend",
+     "sla-days": 3
+    },
+    {
+     "id": "exit-approval",
+     "type": "task",
+     "name": "退職承認",
+     "actor-role": "coo",
+     "authority-required": "sign-contract",
+     "sla-days": 7
+    },
+    {
+     "id": "revoke-access",
+     "type": "task",
+     "name": "権限剥奪・備品回収",
+     "actor-role": "it-admin",
+     "authority-required": "it-admin",
+     "sla-days": 3
+    },
+    {
+     "id": "final-pay",
+     "type": "task",
+     "name": "最終給与・精算",
+     "actor-role": "finance-staff",
+     "authority-required": "approve-spend",
+     "sla-days": 14
+    },
+    {
+     "id": "end",
+     "type": "event",
+     "event": "end"
+    }
+   ],
+   "flows": [
+    [
+     "start",
+     "entry-or-exit"
+    ],
+    [
+     "entry-or-exit",
+     "offer-approval"
+    ],
+    [
+     "entry-or-exit",
+     "exit-approval"
+    ],
+    [
+     "offer-approval",
+     "labor-contract"
+    ],
+    [
+     "labor-contract",
+     "it-setup"
+    ],
+    [
+     "it-setup",
+     "payroll-register"
+    ],
+    [
+     "payroll-register",
+     "end"
+    ],
+    [
+     "exit-approval",
+     "revoke-access"
+    ],
+    [
+     "revoke-access",
+     "final-pay"
+    ],
+    [
+     "final-pay",
+     "end"
+    ]
+   ],
+   "layout": {
+    "bounds": {
+     "start": {
+      "x": 70,
+      "y": 332,
+      "width": 36,
+      "height": 36,
+      "layer": 0
+     },
+     "entry-or-exit": {
+      "x": 320,
+      "y": 325,
+      "width": 50,
+      "height": 50,
+      "layer": 1
+     },
+     "offer-approval": {
+      "x": 570,
+      "y": 250,
+      "width": 150,
+      "height": 70,
+      "layer": 2
+     },
+     "exit-approval": {
+      "x": 570,
+      "y": 380,
+      "width": 150,
+      "height": 70,
+      "layer": 2
+     },
+     "labor-contract": {
+      "x": 820,
+      "y": 250,
+      "width": 150,
+      "height": 70,
+      "layer": 3
+     },
+     "revoke-access": {
+      "x": 820,
+      "y": 380,
+      "width": 150,
+      "height": 70,
+      "layer": 3
+     },
+     "it-setup": {
+      "x": 1070,
+      "y": 250,
+      "width": 150,
+      "height": 70,
+      "layer": 4
+     },
+     "final-pay": {
+      "x": 1070,
+      "y": 380,
+      "width": 150,
+      "height": 70,
+      "layer": 4
+     },
+     "payroll-register": {
+      "x": 1320,
+      "y": 315,
+      "width": 150,
+      "height": 70,
+      "layer": 5
+     },
+     "end": {
+      "x": 1570,
+      "y": 332,
+      "width": 36,
+      "height": 36,
+      "layer": 6
+     }
+    },
+    "edges": [
+     {
+      "id": "flow-1",
+      "from": "start",
+      "to": "entry-or-exit",
+      "waypoints": [
+       {
+        "x": 106,
+        "y": 350
+       },
+       {
+        "x": 320,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-2",
+      "from": "entry-or-exit",
+      "to": "offer-approval",
+      "waypoints": [
+       {
+        "x": 370,
+        "y": 350
+       },
+       {
+        "x": 570,
+        "y": 285
+       }
+      ]
+     },
+     {
+      "id": "flow-3",
+      "from": "entry-or-exit",
+      "to": "exit-approval",
+      "waypoints": [
+       {
+        "x": 370,
+        "y": 350
+       },
+       {
+        "x": 570,
+        "y": 415
+       }
+      ]
+     },
+     {
+      "id": "flow-4",
+      "from": "offer-approval",
+      "to": "labor-contract",
+      "waypoints": [
+       {
+        "x": 720,
+        "y": 285
+       },
+       {
+        "x": 820,
+        "y": 285
+       }
+      ]
+     },
+     {
+      "id": "flow-5",
+      "from": "labor-contract",
+      "to": "it-setup",
+      "waypoints": [
+       {
+        "x": 970,
+        "y": 285
+       },
+       {
+        "x": 1070,
+        "y": 285
+       }
+      ]
+     },
+     {
+      "id": "flow-6",
+      "from": "it-setup",
+      "to": "payroll-register",
+      "waypoints": [
+       {
+        "x": 1220,
+        "y": 285
+       },
+       {
+        "x": 1320,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-7",
+      "from": "payroll-register",
+      "to": "end",
+      "waypoints": [
+       {
+        "x": 1470,
+        "y": 350
+       },
+       {
+        "x": 1570,
+        "y": 350
+       }
+      ]
+     },
+     {
+      "id": "flow-8",
+      "from": "exit-approval",
+      "to": "revoke-access",
+      "waypoints": [
+       {
+        "x": 720,
+        "y": 415
+       },
+       {
+        "x": 820,
+        "y": 415
+       }
+      ]
+     },
+     {
+      "id": "flow-9",
+      "from": "revoke-access",
+      "to": "final-pay",
+      "waypoints": [
+       {
+        "x": 970,
+        "y": 415
+       },
+       {
+        "x": 1070,
+        "y": 415
+       }
+      ]
+     },
+     {
+      "id": "flow-10",
+      "from": "final-pay",
+      "to": "end",
+      "waypoints": [
+       {
+        "x": 1220,
+        "y": 415
+       },
+       {
+        "x": 1570,
+        "y": 350
+       }
+      ]
+     }
+    ],
+    "canvas": {
+     "width": 1676,
+     "height": 510
+    }
+   },
+   "xml": "/org-data/bpmn/onboarding-offboarding.bpmn.xml"
+  }
+ ]
+}

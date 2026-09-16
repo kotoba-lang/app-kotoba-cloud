@@ -83,6 +83,7 @@
   "src/app_kotoba_cloud/org_authority.cljk" ".cljc"
   "src/app_kotoba_cloud/org_gateway.cljk" ".cljc"
   "src/app_kotoba_cloud/org_registry.cljk" ".cljc"
+  "src/app_kotoba_cloud/orgbrain_site.cljk" ".cljc"
   "src/app_kotoba_cloud/pat.cljk" ".cljc"
   "src/app_kotoba_cloud/secure.cljk" ".cljc"
   "src/app_kotoba_cloud/apps_site.cljk" ".cljc"

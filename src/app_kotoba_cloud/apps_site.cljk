@@ -96,6 +96,16 @@
     :links [["API" "/v1/knowledge/search?q=ATT%26CK"]
             ["MCP設定" "/mcp.json"]]
     :meta ["GET" "CORS-open" "no auth"]}
+   {:id "orgbrain"
+    :name "組織運営オントロジー — Kyber orgbrain"
+    :kind "public-data"
+    :status "live"
+    :desc "法人・組織の運営プロセスをオントロジー × BPMN 2.0 × 決定論的リスクの三層で公開する管理アプリ。図・RACI・権限監査・シミュレーターがその場で動き、BPMN 2.0 XML / EDN としてダウンロード可能。正本は kotoba-lang/kyber。"
+    :desc-en "A management app publishing organization operations as three layers: responsibility/authority ontology, BPMN 2.0 processes and a deterministic risk model. Live diagram, RACI, authority audit and in-browser simulator; downloadable as BPMN 2.0 XML / EDN. Source of truth: kotoba-lang/kyber."
+    :links [["管理アプリを開く" "/orgs/"]
+            ["データ (index)" "/org-data/index.json"]
+            ["正本リポジトリ" "https://github.com/kotoba-lang/kyber/tree/main/docs/orgbrain"]]
+    :meta ["3 layers" "5 risk axes" "rev-pinned + sha256"]}
    {:id "models"
     :name "Model Catalog"
     :kind "api"

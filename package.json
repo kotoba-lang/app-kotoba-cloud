@@ -27,6 +27,8 @@
     "test:vc-catalog": "node test/vc-catalog.mjs",
     "build:crypto-catalog": "node scripts/build-crypto-catalog.mjs",
     "test:crypto-catalog": "node test/crypto-catalog.mjs",
+    "build:orgbrain-data": "node scripts/build-orgbrain-data.mjs",
+    "test:orgbrain-catalog": "node test/orgbrain-catalog.mjs",
     "test:workerd": "kbb --backend sci test/workerd-contract.cljk"
   },
   "devDependencies": {

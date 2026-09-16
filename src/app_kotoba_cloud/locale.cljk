@@ -182,7 +182,9 @@
    "secure" "models" "identity" "security-data"
    ;; 2026-09-16: vc_site.cljk emits public/ja/vc/ (PR #223) — the smoke's
    ;; emit-tree derivation caught the missing root before deploy
-   "vc"])
+   "vc"
+   ;; 2026-09-16: orgbrain_site.cljk emits public/ja/orgs/ (ADR-2609142000)
+   "orgs"])
 
 (defn- forkable-path?
   "Content paths that have per-locale emit variants: the landing apex and

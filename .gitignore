@@ -21,3 +21,6 @@
 
 .state/
 node_modules
+
+# build-script download cache (orgbrain source-of-truth fetch)
+.cache/
