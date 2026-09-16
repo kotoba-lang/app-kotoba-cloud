@@ -3,11 +3,12 @@
   the balance tiles appear only with numbers from /v1/billing/status, the
   sign-in block only when the session says signed-out, the plan buttons
   only when /v1/billing/catalog says checkout is enabled. Nothing is
-  greyed out to mean 'unknown'.")
+  greyed out to mean 'unknown'."
+  (:require [app-kotoba-cloud.copy :as copy]))
 
 (defn- el [id] (.getElementById js/document id))
 (defn- ja? [] (= "ja" (.-lang (.-documentElement js/document))))
-(defn- t [ja en] (if (ja?) ja en))
+(defn- t [ja en] (copy/runtime-t ja en))
 (defn- status! [message] (when-let [x (el "billing-status")] (set! (.-textContent x) message)))
 (defn- show! [id] (when-let [x (el id)] (set! (.-hidden x) false)))
 (defn- cell! [id text]

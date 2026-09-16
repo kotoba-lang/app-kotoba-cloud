@@ -14,11 +14,13 @@
   control is the one entry. Also hydrates the two policy consoles
   (/secure/, /models/) from their live endpoints."
   (:require [app-kotoba-cloud.console :as console]
+            [app-kotoba-cloud.copy :as copy]
             [kotoba.lang.text :as str]))
 
 (defn- el [id] (.getElementById js/document id))
 (defn- ja? [] (= "ja" (.-lang (.-documentElement js/document))))
-(defn- t [ja en] (if (ja?) ja en))
+(defn- t [ja en] (copy/runtime-t ja en))
+(defn- tf [ja en vars] (copy/fill (t ja en) vars))
 
 (defn- copy
   "A console-chrome string in the document's own locale: site.cljk emits
@@ -147,15 +149,16 @@
                      (when-let [chips (el "secure-observe-mode")]
                        (set! (.-innerHTML chips)
                              (str "<span class=\"ck-console__badge\" data-state=\"" (if (get-in r [:firewall :observeMode]) "action" "ok") "\">"
-                                  (t (if (get-in r [:firewall :observeMode]) "観測モード: オン（記録のみ）" "観測モード: オフ（拒否を実行）")
-                                     (if (get-in r [:firewall :observeMode]) "Observe mode: on (record only)" "Observe mode: off (denies enforced)"))
+                                  (if (get-in r [:firewall :observeMode])
+                                    (t "観測モード: オン（記録のみ）" "Observe mode: on (record only)")
+                                    (t "観測モード: オフ（拒否を実行）" "Observe mode: off (denies enforced)"))
                                   "</span>"))
                        (set! (.-hidden chips) false))
                      (set! (.-textContent (el "secure-status"))
                            (if (empty? mismatched)
                              (t "実行中の規則と一致しています。" "Matches the running policy.")
-                             (t (str "表示と実行中の版が異なります: " (str/join ", " (map second mismatched)) "。再読み込みしてください。")
-                                (str "Rendered and running versions differ: " (str/join ", " (map second mismatched)) ". Reload.")))))))))))
+                             (tf "表示と実行中の版が異なります: {versions}。再読み込みしてください。" "Rendered and running versions differ: {versions}. Reload."
+                                 {:versions (str/join ", " (map second mismatched))}))))))))))
 
 ;; --- /models/ -----------------------------------------------------------------
 
@@ -179,4 +182,4 @@
                        (.setAttribute cell "data-state" "error")
                        (set! (.-textContent cell) (t "一覧にありません" "Not listed")))
                      (set! (.-textContent (el "models-status"))
-                           (t (str "ポリシー版 " (:policyVersion r)) (str "Policy version " (:policyVersion r)))))))))))
+                           (tf "ポリシー版 {version}" "Policy version {version}" {:version (:policyVersion r)})))))))))

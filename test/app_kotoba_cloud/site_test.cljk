@@ -1,5 +1,6 @@
 (ns app-kotoba-cloud.site-test
-  (:require [app-kotoba-cloud.profile :as profile]
+  (:require [app-kotoba-cloud.account-copy-generated :as account-gen]
+            [app-kotoba-cloud.profile :as profile]
             [app-kotoba-cloud.site :as site]
             [app-kotoba-cloud.public-locales :as locales]
             [kotoba.lang.text :as str]
@@ -265,4 +266,15 @@
   (let [html (site/account-html)]
     (is (str/includes? html "class=\"kc-sb\""))
     (is (str/includes? html "noindex"))
-    (is (str/includes? html "接続トークン"))))
+    (is (str/includes? html "接続トークン")))
+  ;; the body in another public locale (2026-09-16): the German document
+  ;; carries the German answer for the panel title and no lang=en wrapper;
+  ;; the runtime strings for the browser sit in #kc-copy-runtime
+  (let [de (site/account-html :de)
+        de-title (get-in account-gen/copy [:de "Use from a CLI / IDE"])]
+    (is (string? de-title))
+    (is (str/includes? de (str ">" de-title "<")) "the generated German panel title is the rendered text")
+    (is (not (str/includes? de ">Use from a CLI / IDE<")) "the English source is not rendered (it is only a key of the runtime map)")
+    (is (not (str/includes? de "<div lang=\"en\">")))
+    (is (str/includes? de "id=\"kc-copy-runtime\""))
+    (is (str/includes? de (str "\"Not signed in.\":" (pr-str (get-in account-gen/copy [:de "Not signed in."])))) "the runtime map answers the browser's English by German")))

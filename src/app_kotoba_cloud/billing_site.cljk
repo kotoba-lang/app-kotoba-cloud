@@ -12,6 +12,8 @@
   serves. Japanese and English copy; billing-browser fills the state."
   (:require [jp-go-dds.core :as dds]
             [app-kotoba-cloud.billing :as billing]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.billing-copy-generated :as gen]
             [cloud-kotoba-dds.console :as console]))
 
 (def css
@@ -62,7 +64,7 @@
     (txt "このプランは準備中です。" "This plan is not purchasable yet.")]])
 
 (defn section [locale sign-in-href]
-  (let [ja? (= locale :ja) txt (fn [ja en] (if ja? ja en))
+  (let [ja? (= locale :ja) txt (copy/txt-for gen/copy locale)
         platform (filter #(= "platform" (:scope %)) billing/plans)
         monthly (filter :monthly billing/plans)
         topups (filter :topup billing/plans)]

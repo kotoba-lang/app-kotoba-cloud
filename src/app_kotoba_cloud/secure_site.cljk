@@ -17,6 +17,8 @@
   (:require [jp-go-dds.core :as dds]
             [kotoba.lang.text :as str]
             [app-kotoba-cloud.secure :as secure]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.secure-copy-generated :as gen]
             [cloud-kotoba-dds.console :as console]))
 
 (def css
@@ -71,7 +73,7 @@
      [:thead [:tr [:th (txt "名前" "Name")] [:th (txt "動作" "Action")] [:th (txt "説明" "Description")] [:th (txt "パターン" "Patterns")]]]
      (into [:tbody]
            (for [{:keys [id action description patterns]} secure/guardrail-templates]
-             [:tr [:td [:code id]] [:td (action-badge txt action)] [:td description]
+             [:tr [:td [:code id]] [:td (action-badge txt action)] [:td (txt description description)]
               [:td (str (count patterns) (txt " 件" ""))]]))]]])
 
 (defn firewall-view [txt]
@@ -98,7 +100,7 @@
      [:div {:class "kc-secure__head"}
       [:h2 {:class "kc-secure__title"} (txt "コンプライアンス" "Compliance")]
       [:span {:class "kc-secure__version" :id "secure-compliance-version"} secure/compliance-version]]
-     [:p {:class "kc-secure__lead"} note]
+     [:p {:class "kc-secure__lead"} (txt note note)]
      [:div {:class "kc-secure__table"}
       [:table
        [:thead [:tr [:th (txt "フレームワーク" "Framework")] [:th (txt "地域" "Region")] [:th (txt "自動制御" "Automated controls")]]]
@@ -116,8 +118,7 @@
    structure in both; only the copy differs."
   ([] (section :ja))
   ([locale]
-   (let [ja? (= :ja locale)
-         txt (fn [ja en] (if ja? ja en))]
+   (let [txt (copy/txt-for gen/copy locale)]
      [:div {:class "kc-secure"}
       (dds/heading 1 (txt "セキュリティ管理" "Security controls") {:size "36"})
       [:p {:class "kc-secure__lead"}

@@ -23,7 +23,9 @@
   processes remain in English\"). account-browser reads <html lang> and
   answers in the same language."
   (:require [jp-go-dds.core :as dds]
-            [cloud-kotoba-dds.console :as console]))
+            [cloud-kotoba-dds.console :as console]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.account-copy-generated :as gen]))
 
 (def css
   "Console-pattern CSS is owned by cloud-kotoba-dds.console/css; this string
@@ -73,7 +75,11 @@
   [summary & ps]
   (into [:details [:summary summary]] (map (fn [p] [:p p]) ps)))
 
-(defn- txt-for [locale] (fn [ja en] (if (= locale :ja) ja en)))
+(defn- txt-for
+  "(txt ja en) for the document's locale: the inline reading for ja / en,
+   the generated map (account-copy-generated, by English) for every other
+   public locale, English when it does not know the string."
+  [locale] (copy/txt-for gen/copy locale))
 
 (defn panel-session [txt]
   (panel (txt "アカウント" "Account")
@@ -263,8 +269,8 @@
   "https://auth.kotoba.cloud/sign-in?return_to=https%3A%2F%2Fkotoba.cloud%2Faccount")
 
 (defn section
-  "The console in one locale: :ja in Japanese, every other locale in
-   English (the shell around it is localized by site.cljk)."
+  "The console body in one public locale (copy/txt-for over
+   account-copy-generated; the shell around it is site.cljk's)."
   ([] (section :ja))
   ([locale]
    (let [txt (txt-for locale)]

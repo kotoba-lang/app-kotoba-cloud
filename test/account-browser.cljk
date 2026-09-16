@@ -64,8 +64,16 @@ const WAIT=Number(process.env.ACCOUNT_WAIT_MS||20000);
   if(en.lang!=='en'||en.status!=='Not signed in.'||en.h1!=='Account')throw Error('english root document: '+JSON.stringify(en));
   await page.goto(base+'/de/account/');
   await page.waitForFunction(()=>!document.getElementById('account-signed-out').hidden,null,{timeout:WAIT});
-  const de=await page.evaluate(()=>({lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,bodyLang:document.getElementById('account-console').closest('[lang]').getAttribute('lang')}));
-  if(de.lang!=='de'||de.status!=='Not signed in.'||de.bodyLang!=='en')throw Error('german shell, english body: '+JSON.stringify(de));
+  // the body speaks the document's locale since 2026-09-16: the German
+  // document's status line is the German answer of #kc-copy-runtime for the
+  // English string, the body is NOT wrapped in lang=en, and the heading is
+  // German (account-copy-generated, machine-translated)
+  const de=await page.evaluate(()=>{const R=JSON.parse(document.getElementById('kc-copy-runtime').textContent);return {lang:document.documentElement.lang,status:document.getElementById('account-session-status').textContent,
+    expected:R['Not signed in.'],bodyLang:document.getElementById('account-console').closest('[lang]').getAttribute('lang'),h1:document.querySelector('#account-console h1').textContent.trim(),runtimeKeys:Object.keys(R).length};});
+  if(de.lang!=='de'||de.bodyLang!=='de')throw Error('german document, german body: '+JSON.stringify(de));
+  if(!de.expected||de.status!==de.expected||de.status==='Not signed in.')throw Error('german status from the runtime map: '+JSON.stringify(de));
+  if(de.h1==='Account'||!de.h1)throw Error('german heading: '+JSON.stringify(de));
+  if(de.runtimeKeys<100)throw Error('runtime map too small ('+de.runtimeKeys+' keys): the browser strings did not reach the document');
   if(!s.signedOutVisible||!s.bodyHidden)throw Error('signed-out reveal wrong '+JSON.stringify(s));
   if(!/auth\\.kotoba\\.cloud\\/sign-in/.test(s.signIn))throw Error('sign-in href '+s.signIn);
   if(s.pending!==0)throw Error('pending cells after session known: '+s.pending);

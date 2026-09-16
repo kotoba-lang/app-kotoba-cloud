@@ -5,7 +5,9 @@
    English (`txt`); the document is emitted per public locale by site.cljk
    (body ja for :ja, en otherwise). assets/security-data.js answers in the
    document's language (<html lang>)."
-  (:require [cloud-kotoba-dds.catalog :as catalog]))
+  (:require [cloud-kotoba-dds.catalog :as catalog]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.security-copy-generated :as gen]))
 
 (def css
   "Card-grid results and detail pre are this hub's own layout."
@@ -21,8 +23,7 @@
    `embedded?` = inside the apex page (no page-level chrome)."
   ([] (view :ja false))
   ([locale embedded?]
-   (let [ja? (= :ja locale)
-         txt (fn [ja en] (if ja? ja en))]
+   (let [txt (copy/txt-for gen/copy locale)]
      (catalog/page
       {:title (txt "セキュリティ公開データ" "Security public data")
        :lead (txt "脆弱性、攻撃手法、グループ、ログを、出典まで辿って調べる。"

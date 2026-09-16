@@ -6,6 +6,8 @@
   (:require [app-kotoba-cloud.security-services :as security-services]
             [cloud-kotoba-dds.catalog :as catalog]
             [kotoba.lang.text :as str]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.security-copy-generated :as gen]
             [jp-go-dds.core :as dds]))
 
 (def css
@@ -26,18 +28,17 @@
 .kc-secsvc__status[data-state=gated]::before{background:var(--hig-color-tint)}")
 
 (defn view [locale]
-  (let [ja? (= locale :ja)]
+  (let [ja? (= locale :ja)
+        txt (copy/txt-for gen/copy locale)]
     (catalog/page
-     {:title (if ja? "セキュリティサービス" "Security services")
-      :lead (if ja?
-              "kotoba.cloud の第一次セキュリティサービス群。CTEM・DAST・SAST の所見は共通スキーマで VM 台帳へ集約されます。"
-              "The first-party security services suite on kotoba.cloud. CTEM, DAST and SAST findings flow into the VM ledger in one shared schema.")
-      :nav-label (if ja? "カタログ" "Catalog")
+     {:title (txt "セキュリティサービス" "Security services")
+      :lead (txt "kotoba.cloud の第一次セキュリティサービス群。CTEM・DAST・SAST の所見は共通スキーマで VM 台帳へ集約されます。" "The first-party security services suite on kotoba.cloud. CTEM, DAST and SAST findings flow into the VM ledger in one shared schema.")
+      :nav-label (txt "カタログ" "Catalog")
       :nav (catalog/breadcrumb
             "Security services"
-            [[(if ja? "ホーム" "Home") "/"]
+            [[(txt "ホーム" "Home") "/"]
              ["Apps" "/apps/"]
-             [(if ja? "セキュリティサービス" "Security services") nil]])}
+             [(txt "セキュリティサービス" "Security services") nil]])}
      [:div {:class "kc-secsvc"}
       (into [:div {:class "kc-secsvc__card"}]
             (map (fn [{:keys [id name summary domain capabilities inputs outputs integration status]}]
@@ -47,44 +48,40 @@
                      [:span {:class "kc-secsvc__domain"} (clojure.core/name domain)]
                      [:span {:class "kc-secsvc__status" :data-state status}
                       (if (= status "component-shipped")
-                        (if ja? "コンポーネント提供中" "component shipped")
-                        (if ja? "ゲート中" "gated"))]]
+                        (txt "コンポーネント提供中" "component shipped")
+                        (txt "ゲート中" "gated"))]]
                     ;; the summary in the document's language; the Japanese
                     ;; document keeps the English line under it (the
                     ;; catalog is bilingual by design), the English one
                     ;; does not repeat itself
                     (if ja?
                       (list [:p (:ja summary)] [:p {:lang "en"} (:en summary)])
-                      [:p (:en summary)])
+                      [:p (txt (:ja summary) (:en summary))])
                     (into [:table {:class "kc-secsvc__table"}
-                           [:thead [:tr [:th (if ja? "機能" "Capability")]
-                                    [:th (if ja? "説明" "Description")]]]]
+                           [:thead [:tr [:th (txt "機能" "Capability")]
+                                    [:th (txt "説明" "Description")]]]]
                           (map (fn [[k label]]
-                                 [:tr [:td (str (clojure.core/name k))] [:td (get label (if ja? :ja :en) label)]])
+                                 [:tr [:td (str (clojure.core/name k))] [:td (if (map? label) (txt (:ja label) (:en label)) label)]])
                                capabilities))
                     (into [:ul {:class "kc-secsvc__io"}
-                           [:li (str (if ja? "入力: " "inputs: ") (str/join ", " (map clojure.core/name inputs)))]
-                           [:li (str (if ja? "出力: " "outputs: ") (str/join ", " (map clojure.core/name outputs)))]
-                           [:li (str (if ja? "VM 統合: " "VM integration: ") (get (:note integration) (if ja? :ja :en) (:note integration)))]])])
+                           [:li (str (txt "入力: " "inputs: ") (str/join ", " (map clojure.core/name inputs)))]
+                           [:li (str (txt "出力: " "outputs: ") (str/join ", " (map clojure.core/name outputs)))]
+                           [:li (str (txt "VM 統合: " "VM integration: ") (let [n (:note integration)] (if (map? n) (txt (:ja n) (:en n)) n)))]])])
                  security-services/security-services))
       [:section {:id "vm-ledger-flow"}
-       (dds/heading 2 (if ja? "VM 台帳へのデータフロー" "Dataflow into the VM ledger") {:size "24"})
-       [:p (if ja?
-             "上流 3 サービスは共通スキーマの所見を出し、VM が重複排除・スコアリング・修正追跡を行います。"
-             "The three upstream services emit shared-schema findings; VM dedups, scores and tracks remediation.")]
+       (dds/heading 2 (txt "VM 台帳へのデータフロー" "Dataflow into the VM ledger") {:size "24"})
+       [:p (txt "上流 3 サービスは共通スキーマの所見を出し、VM が重複排除・スコアリング・修正追跡を行います。" "The three upstream services emit shared-schema findings; VM dedups, scores and tracks remediation.")]
        (into [:ul {:class "kc-secsvc__flow"}]
              (map (fn [{:keys [id name integration]}]
                     [:li [:span {:class "arrow"} "→"]
                      [:span [:strong name]
-                      (str " · " (if ja? "役割: " "role: ") (:role integration))
+                      (str " · " (txt "役割: " "role: ") (:role integration))
                       (when (= :vm id)
                         (str " · ledger keys: cpe, cve"))]])
                   security-services/security-services))
        [:p {:class "kc-secsvc__domain"}
         (str "finding schema: " (str/join ", " (map clojure.core/name security-services/finding-schema)))]]
       [:p {:class "ck-catalog__footnote"}
-       (if ja?
-         "このページと GET /v1/security/services は同じ正本定義から描画されます。実施（enforcement）は非公開 authority が担い、この面は記述のみを行います。"
-         "This page and GET /v1/security/services render from the one canonical def. Enforcement stays on the private authority; this surface only describes.")]])))
+       (txt "このページと GET /v1/security/services は同じ正本定義から描画されます。実施（enforcement）は非公開 authority が担い、この面は記述のみを行います。" "This page and GET /v1/security/services render from the one canonical def. Enforcement stays on the private authority; this surface only describes.")]])))
 
 ;; html is emitted by site.cljk (site-layout wrapper) — no bare page here.

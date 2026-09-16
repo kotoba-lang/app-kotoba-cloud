@@ -533,14 +533,20 @@ const sharedUntouched = await route(new Request("https://kotoba.cloud/account", 
   assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/account/?lang=en", "?lang=en beats the ja cookie: the English document at the locale-free root");
   assert.match(accountEn.headers.get("set-cookie") || "", /^kb_locale=en;/, "the switch is persisted");
   const accountDe = await route(new Request("https://kotoba.cloud/account/", { headers: { "accept-language": "de" } }), env);
-  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/de/account/", "every public locale has an emit (German shell, English body)");
+  assert.equal(assetReads[assetReads.length - 1], "https://kotoba.cloud/de/account/", "every public locale has an emit");
   assert.equal(accountDe.status, 200);
   // the emitted documents: 22 locales, each with its own <html lang>, RTL
-  // marked, the non-ja/en body in English
+  // marked; since 2026-09-16 the body speaks the document's locale too
+  // (account-copy-generated), so the Arabic document carries no lang=en
+  // wrapper, its heading is not the English one, and the browser's strings
+  // travel with it (#kc-copy-runtime, keyed by English)
   const accountRoot = new URL("../public/", import.meta.url);
   const arDoc = readFileSync(new URL("ar/account/index.html", accountRoot), "utf8");
   assert.match(arDoc, /<html lang="ar" dir="rtl">/);
-  assert.match(arDoc, /<div lang="en">/, "an English body under a non-English shell says so");
+  assert.doesNotMatch(arDoc, /<div lang="en">/, "the body is Arabic, not an English body under an Arabic shell");
+  assert.doesNotMatch(arDoc, /<h1[^>]*>Account<\/h1>/, "the heading is translated");
+  assert.match(arDoc, /id="kc-copy-runtime"/);
+  assert.match(arDoc, /"Not signed in\.":"(?!Not signed in\.)[^"]+"/, "the runtime map answers the browser's English by Arabic");
   assert.match(readFileSync(new URL("ja/account/index.html", accountRoot), "utf8"), /<html lang="ja">[\s\S]*本人確認/);
   assert.match(readFileSync(new URL("account/index.html", accountRoot), "utf8"), /<html lang="en">[\s\S]*Identity verification/);
   const adminUntouched = await route(new Request("https://kotoba.cloud/admin", { headers: { cookie: "kb_locale=ja" } }), env);
