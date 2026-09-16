@@ -39,7 +39,10 @@ for (const t of ont['orgbrain/tasks']) {
 }
 
 // ---- BPMN processes: references, structure, authority audit ----
-assert.equal(index.processes.length, 2, 'incorporation + onboarding-offboarding');
+const vendored = Object.keys(index.source.files).filter(f => f.endsWith('.bpmn.edn')).sort();
+assert.ok(index.processes.length >= 2, 'incorporation + onboarding-offboarding at minimum');
+assert.deepEqual(index.processes.map(p => p.source).sort(), vendored,
+  'every vendored *.bpmn.edn at the pinned rev is published as a process (auto-discovery)');
 for (const p of index.processes) {
   const ids = new Set(p.elements.map(e => e.id));
   for (const [f, t] of p.flows) {
