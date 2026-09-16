@@ -7,10 +7,14 @@
 // + XML — no fabricated numbers: the "reference" risk report embedded here is
 // computed by assets/orgbrain-risk.js (a deterministic port of org_risk.cljc,
 // golden-checked against the Clojure original).
-import {readFileSync, writeFileSync, mkdirSync, existsSync, rmSync} from 'node:fs';
+import {readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {execFile as execFileCb} from 'node:child_process';
+import {promisify} from 'node:util';
 import {resolve, dirname, basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
+
+const execFile = promisify(execFileCb);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, '../assets/orgbrain-catalog');
@@ -19,14 +23,52 @@ const out = resolve(here, '../assets/orgbrain-catalog');
 const REV = process.env.ORGBRAIN_REV || '7f6a36227e0be72a9a95d293005be11d880d3cc2';
 const REPO = 'kotoba-lang/kyber';
 const RAW = `https://raw.githubusercontent.com/${REPO}/${REV}/`;
-const FILES = [
-  'docs/orgbrain/org-ontology.schema.edn',
-  'docs/orgbrain/incorporation.bpmn.edn',
-  'docs/orgbrain/onboarding-offboarding.bpmn.edn'
-];
+// The ontology schema is one fixed file; the process set is AUTO-DISCOVERED.
+// The orgbrain-maint bot adds one operating process per odd-day extension
+// (finance, legal, IT, crisis — ADR-2609142000), and the publication side
+// must not need hand-listing: every docs/orgbrain/*.bpmn.edn at the pinned
+// rev is published, sorted for byte-deterministic output (owner direction
+// 2026-09-16: close the kyber-main → /org-data loop).
+const SCHEMA_FILE = 'docs/orgbrain/org-ontology.schema.edn';
 // Local-checkout override (offline build): --dir=/path/to/kyber
 const dirArg = process.argv.find(a => a.startsWith('--dir='));
 const localDir = dirArg ? dirArg.slice(6) : null;
+
+async function listProcessFiles() {
+  if (localDir) {
+    const dir = resolve(localDir, 'docs/orgbrain');
+    if (!existsSync(dir)) throw new Error(`--dir source missing: ${dir}`);
+    return readdirSync(dir).filter(f => f.endsWith('.bpmn.edn')).sort()
+      .map(f => 'docs/orgbrain/' + f);
+  }
+  const api = `https://api.github.com/repos/${REPO}/git/trees/${REV}?recursive=1`;
+  const pick = tree => (tree.tree || [])
+    .filter(e => e.type === 'blob' && e.path.startsWith('docs/orgbrain/') && e.path.endsWith('.bpmn.edn'))
+    .map(e => e.path).sort();
+  // authenticated gh first (rate limits), unauthenticated REST as fallback
+  let lastErr = null;
+  for (const run of [
+    async () => {
+      const {stdout} = await execFile('gh', ['api',
+        `repos/${REPO}/git/trees/${REV}?recursive=1`], {maxBuffer: 1 << 24});
+      return pick(JSON.parse(stdout));
+    },
+    async () => {
+      const res = await fetch(api, {headers: {'accept': 'application/vnd.github+json',
+        'user-agent': 'orgbrain-catalog-build'}});
+      if (!res.ok) throw new Error(`tree listing: HTTP ${res.status}`);
+      return pick(await res.json());
+    }]) {
+    try {
+      const got = await run();
+      if (got.length) return got;
+      lastErr = new Error('empty listing');
+    } catch (e) { lastErr = e; }
+  }
+  throw new Error(`orgbrain process discovery failed at ${REV}: ${lastErr && lastErr.message}`);
+}
+
+const FILES = [SCHEMA_FILE, ...(await listProcessFiles())];
 
 const sha256 = b => createHash('sha256').update(b).digest('hex');
 

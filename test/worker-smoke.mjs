@@ -593,8 +593,11 @@ const sharedUntouched = await route(new Request("https://kotoba.cloud/account", 
   const jaDirs = readdirSync(jaRoot, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
   assert(jaDirs.length >= 5, "public/ja/ has " + jaDirs.length + " directories — the emit tree looks empty");
   for (const dir of jaDirs) {
-    // /docs/ is served from the root of docs.kotoba.cloud (console/surfaces)
-    const url = dir === "docs" ? "https://docs.kotoba.cloud/" : `https://kotoba.cloud/${dir}/`;
+    // /docs/ is served from the root of docs.kotoba.cloud, /orgs/ from
+    // kyber.kotoba.cloud (console/surfaces) — both negotiate locale on the host
+    const url = dir === "docs" ? "https://docs.kotoba.cloud/"
+      : dir === "orgs" ? "https://kyber.kotoba.cloud/"
+      : `https://kotoba.cloud/${dir}/`;
     await route(new Request(url, { headers: { cookie: "kb_locale=ja" } }), env);
     assert.equal(assetReads[assetReads.length - 1], `https://kotoba.cloud/ja/${dir}/`,
       `/${dir}/ is emitted under /ja/ but the Worker did not serve the variant (locale/variant-roots)`);
@@ -635,6 +638,34 @@ const sharedUntouched = await route(new Request("https://kotoba.cloud/account", 
   assert.equal(prefixed.status, 301);
   assert.equal(prefixed.headers.get("location"), "/docs/graph/", "one hop to the locale-free apex path, the next to the host");
   console.log("docs host: root, reference, ja by cookie and ?lang=, shared assets, apex 301s");
+}
+// kyber.kotoba.cloud (owner direction 2026-09-16, ADR-2609142000): the
+// orgbrain management app on its own host — the /orgs/ emit at the root,
+// locale negotiation as on the apex, the /org-data/ data plane passing
+// through unremapped, the apex keeping /orgs/… as 301s.
+{
+  const kyber = (path, headers = {}) => route(new Request("https://kyber.kotoba.cloud" + path, { headers }), env);
+  const last = () => assetReads[assetReads.length - 1];
+  assert.equal((await kyber("/")).status, 200);
+  assert.equal(last(), "https://kotoba.cloud/orgs/", "the host root is the /orgs/ emit");
+  await kyber("/", { cookie: "kb_locale=ja" });
+  assert.equal(last(), "https://kotoba.cloud/ja/orgs/", "the ja variant by cookie");
+  const q = await kyber("/?lang=ja");
+  assert.equal(last(), "https://kotoba.cloud/ja/orgs/?lang=ja");
+  assert.match(q.headers.get("set-cookie") || "", /^kb_locale=ja;/);
+  await kyber("/org-data/index.json");
+  assert.equal(last(), "https://kyber.kotoba.cloud/org-data/index.json", "the data plane passes through the host's own");
+  await kyber("/js/orgbrain-app.js");
+  assert.equal(last(), "https://kyber.kotoba.cloud/js/orgbrain-app.js", "shared assets are the host's own");
+  const moved = await route(new Request("https://kotoba.cloud/orgs/?lang=ja"), env);
+  assert.equal(moved.status, 301);
+  assert.equal(moved.headers.get("location"), "https://kyber.kotoba.cloud/?lang=ja");
+  assert.equal((await route(new Request("https://kotoba.cloud/orgs/"), env)).headers.get("location"), "https://kyber.kotoba.cloud/");
+  assert.equal((await route(new Request("https://kotoba.cloud/orgs"), env)).headers.get("location"), "https://kyber.kotoba.cloud/");
+  const prefixed = await route(new Request("https://kotoba.cloud/ja/orgs/"), env);
+  assert.equal(prefixed.status, 301);
+  assert.equal(prefixed.headers.get("location"), "/orgs/", "one hop to the locale-free apex path, the next to the host");
+  console.log("kyber host: root, ja by cookie and ?lang=, data + assets pass-through, apex 301s");
 }
 // /graph resolves to the locale-free apex; the apex negotiates the variant.
 {
