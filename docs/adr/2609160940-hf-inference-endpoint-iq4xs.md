@@ -102,7 +102,8 @@ One endpoint, created 2026-09-16 00:40:21Z through the platform's form:
 | `LLAMA_ARG_ALIAS` | `qwen3.8-flash-next-uncensored-iq4-xs` | measured fact 6; equals `upstream-models` in the authority and `:upstream` in `research.cljk` |
 | `LLAMA_ARG_THINK_BUDGET` | `1024` | thinking is on by default; agents send `max_tokens 2048` (`research.cljk`), an unbounded trace leaves `content` empty → `inference-result-empty` |
 | `LLAMA_ARG_CACHE_RAM` | `65536` | prompt cache of idle slots in host RAM (default 8 GiB): agent loops resend the growing conversation; a hybrid model cannot KV-shift, so prefix reuse is checkpoints + this cache |
-| `LLAMA_ARG_UBATCH` / `LLAMA_ARG_BATCH` | `1024` / `2048` | prefill of long prompts (default 512/2048); raise to 2048/4096 after the first VRAM measurement |
+| `LLAMA_ARG_UBATCH` / `LLAMA_ARG_BATCH` | `2048` / `4096` (since 02:00Z; `1024` / `2048` at creation) | prefill measured +22 % at 14k and +13 % at 60k tokens against 1024 with ~18 GB of VRAM still free (tuning section) |
+| `LLAMA_ARG_THREADS` | `16` (since 01:43Z) | the container reports the host's 96 cores to llama.cpp (`n_threads = 96` in the log) on a 23-vCPU instance; 16 measured neutral for decode (103 vs 104 tok/s) and prefill, and stops the oversubscription |
 
 Not set (defaults measured to be right): flash attention `auto`, `--jinja`
 on, sampling from the file, reasoning format `deepseek` (the trace lands in
@@ -165,23 +166,55 @@ on, sampling from the file, reasoning format `deepseek` (the trace lands in
   authority surfaces both as `red-route-unavailable` (retryable), with the
   upstream body in `inference-run-failed`.
 
+## Tuning measurements (2026-09-16 01:19–02:01Z)
+
+Probe (reproduce with curl, no tooling landed): direct
+`POST /v1/chat/completions` with the stored token, `stream: false`, numbers
+read from llama-server's own `timings` object in the response (`prompt_n`,
+`prompt_per_second`, `cache_n`, `predicted_per_second`) and `usage`
+(`prompt_tokens_details.cached_tokens`). Prompts are llama.cpp source text;
+`POST /tokenize` gave 56,000 chars = 14.4k tokens, 230,000 = 60.1k,
+430,000 = 116.5k. Prefix reuse = the same prompt with a different last
+line. Long output = `ignore_eos: true` (a llama.cpp request field). **Single tenant until ~01:35Z; from
+then on a production agent session (≈110 requests/hour, 29k–53k-token
+contexts, both slots busy at 35–39 tok/s each — the endpoint log) shared
+the GPU, so later numbers are contended and say so.**
+
+| what | value | when / condition |
+|---|---|---|
+| decode, 64-token prompt | **102–104 tok/s** | clean, both thread settings |
+| decode at 14k / 60k / 116k context | 74–87 / 60–68 / 52 tok/s | clean (single stream) |
+| prefill, cold, 14k prompt | 2,913 tok/s → **3,543 tok/s** | ubatch 1024 → 2048 (+22 %), clean |
+| prefill, 47k new tokens on a 13k cached prefix | 2,503 → **2,838 tok/s** | ubatch 1024 → 2048 (+13 %), clean |
+| prefill, cold, 116k prompt | 1,580–2,090 tok/s (56–72 s) | both ubatch values; the later runs contended |
+| prefix reuse (same prefix, new tail) | **93–99 % cached** (`cache_n` 13,470 / 59,132 / 115,584 of 14.5k / 60k / 116.6k), tail re-prefill ≤ 2 s | `LLAMA_ARG_CACHE_RAM=65536` (checkpoints + host prompt cache) |
+| prefix reuse with `LLAMA_ARG_CACHE_RAM=0` | **0 %** — the 116k prompt re-prefilled in full (55 s) on the very next call | measured 01:49Z; the host cache is mandatory on this hybrid model |
+| two concurrent 14k prompts | 35 + 44 tok/s per stream ≈ one stream's 74–79 tok/s; prefills serialised | clean |
+| 32,768-token answer, `stream: false` (`ignore_eos`) | **200 after 460 s**, 71.4 tok/s, 129k chars; the platform proxy did not cut it | clean; the authority's `stream: false` and the edge's 14-minute wait hold for 32k output |
+| GPU memory (Analytics) | ≈ 76 GB at ubatch 1024, ≈ 78 GB at 2048, of 96 GB | matches measured fact 2 (≈ 64 GiB weights on the GPU + 6 GiB KV + buffers; the 27 GiB PLE table is not on the GPU) |
+| host memory (Analytics) | 2–15 GB RSS | the PLE table is memory-mapped; the prompt cache grows RSS |
+| `--reasoning-budget 1024` | caps thinking, does not reserve answer tokens: `content` empty at `max_tokens` 16–256, present at 2048 | clients must send `max_tokens` well above 1024; the edge's default 2048 does |
+| replica update (env change) | ≈ 50 s rolling, 503 at the proxy meanwhile | four updates 01:38–02:00Z |
+
+Not a config effect: after ~01:45Z short requests took 15–35 s wall for
+128 tokens with decode at 8–50 tok/s. The endpoint log shows they were
+queued behind and then interleaved with the production session's tasks
+(`selected slot by LRU`, two slots generating). Config changes made in that
+window (ubatch 2048, threads 16, cache 0) were each reverted and
+re-measured before being blamed; the contention explains all of it.
+
+Knobs left as they are, with the reason: `nParallel 2` (a third concurrent
+agent queues; raising it costs per-stream speed, not aggregate — the
+aggregate is ≈ 75–80 tok/s either way, and 4 slots would set the total
+context above the model's 262,144); flash attention `auto`; KV in f16 (no
+VRAM pressure); scale-to-zero 15 min (36–42 s to serve again).
+
 ## Not measured yet (fill in, do not infer)
 
-- **VRAM split at load.** The container log does not carry the
-  `load_tensors: … buffer size` lines (server-level verbosity only); read
-  it from the Analytics tab's GPU memory or `nvidia-smi` is not exposed.
-  Expected ≈ 64 GiB GPU / ≈ 27 GiB host from measured fact 2.
-- **Throughput**: prefill and decode tok/s at a 128k prompt (llama-server
-  `/metrics`), then the ubatch decision.
-- **The platform proxy's non-streaming timeout.** The authority calls with
-  `stream: false` and waits up to 35 min; the platform documents no limit
-  (forum reports 120–300 s). A 32k-token answer must be measured; if the
-  proxy cuts it, the authority needs streaming.
-- **`--reasoning-budget 1024`**: `content` was non-empty at `max_tokens
-  2048` (above); at `max_tokens 16` the answer was all reasoning
-  (`finish_reason length`, empty `content`) — the budget caps thinking, it
-  does not reserve answer tokens. Clients must send `max_tokens` well above
-  1024; the edge's default of 2048 does.
+- Prefill/decode with the MTP draft once PR #28243 lands in the master
+  image (card: 1.3–2× decode).
+- Whether `nParallel 3–4` is wanted: measure the queue (Analytics → pending
+  requests) against the number of concurrent agent sessions first.
 
 ## Cost
 
