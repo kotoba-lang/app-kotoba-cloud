@@ -718,6 +718,36 @@
        (console/href-for :docs path)
        search))
 
+(def orgbrain-host "kyber.kotoba.cloud")
+
+(defn route-orgbrain-host
+  "kyber.kotoba.cloud (owner direction 2026-09-16: the orgbrain management
+   app of ADR-2609142000 moves to its own host the way docs did). The app
+   is the /orgs/… emit of the ONE asset tree — the host root is that
+   directory (/ → /orgs/, ?lang= and cookies negotiate exactly as on the
+   apex); shared assets serve as the host's own. One addition over the
+   docs form: /org-data/ — the JSON/EDN/XML data plane — passes through
+   unremapped, because the app fetches it at runtime from its own origin."
+  [request env path]
+  (let [url (js/URL. (.-url request))
+        apex-path (cond
+                    (some #(.startsWith path %) console/shared-asset-prefixes) path
+                    (or (= path "/org-data") (.startsWith path "/org-data/")) path
+                    :else (str "/orgs" (if (= path "/") "/" path)))]
+    (if (= apex-path path)
+      (route-static request env path)
+      (route-static (js/Request. (str (get-in console/surfaces [:apex :origin])
+                                      apex-path (.-search url))
+                                 request)
+                    env apex-path))))
+
+(defn- orgbrain-host-location
+  "Where an apex /orgs/… request goes: the same path on the orgbrain host."
+  [path search]
+  (str (get-in console/surfaces [:kyber :origin])
+       (console/href-for :kyber path)
+       search))
+
 (defn- boot-error [error status]
   (response (js/JSON.stringify (clj->js {:ok false :error error}))
             status "application/json; charset=utf-8"
@@ -867,10 +897,17 @@
       (= hostname docs-host)
       (route-docs-host request env path)
 
+      (= hostname orgbrain-host)
+      (route-orgbrain-host request env path)
+
       ;; the docs moved to docs.kotoba.cloud: the apex keeps the old
       ;; addresses as a 301 (locale prefix first: /ja/docs/x → /docs/x → host)
       (and (= method "GET") (or (= path "/docs") (.startsWith path "/docs/")))
       (locale-redirect (docs-host-location path (.-search url)) 301)
+
+      ;; the orgbrain app moved to kyber.kotoba.cloud: same 301 grammar
+      (and (= method "GET") (or (= path "/orgs") (.startsWith path "/orgs/")))
+      (locale-redirect (orgbrain-host-location path (.-search url)) 301)
 
       ;; Operator console: admin.kotoba.cloud serves only the console document
       ;; and the shared identity gateway. No marketing surface, no discovery,

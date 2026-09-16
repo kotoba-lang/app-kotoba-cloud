@@ -65,12 +65,19 @@
 
 (def surfaces
   {:apex {:origin "https://kotoba.cloud" :root "/"}
-   :docs {:origin "https://docs.kotoba.cloud" :root "/docs/"}})
+   :docs {:origin "https://docs.kotoba.cloud" :root "/docs/"}
+   ;; 2026-09-16: the orgbrain management app (ADR-2609142000) has its own
+   ;; host the way docs got one — the apex keeps /orgs/… as 301s
+   :kyber {:origin "https://kyber.kotoba.cloud" :root "/orgs/"}})
 
 (defn surface-of
-  "The surface that owns an apex-form path: /docs/… → :docs, else :apex."
+  "The surface that owns an apex-form path: /docs/… → :docs,
+   /orgs/… → :kyber, else :apex."
   [href]
-  (if (or (= href "/docs") (str/starts-with? href "/docs/")) :docs :apex))
+  (cond
+    (or (= href "/docs") (str/starts-with? href "/docs/")) :docs
+    (or (= href "/orgs") (str/starts-with? href "/orgs/")) :kyber
+    :else :apex))
 
 (def shared-asset-prefixes
   "Paths every surface serves from the one asset tree as its own: the
@@ -87,7 +94,8 @@
           {:keys [origin root]} (get surfaces home)
           local (if (= home :apex)
                   href
-                  (let [tail (subs href (count "/docs"))]
+                  (let [prefix (subs root 0 (dec (count root)))
+                        tail (subs href (count prefix))]
                     (if (str/blank? tail) "/" tail)))]
       (if (= home surface)
         local

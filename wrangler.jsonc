@@ -41,6 +41,12 @@
       // (worker.cljk route-docs-host; owner direction 2026-09-15)
       "pattern": "docs.kotoba.cloud",
       "custom_domain": true
+    },
+    {
+      // orgbrain management app — its own host, worker.cljk route-orgbrain-host
+      // (owner direction 2026-09-16; ADR-2609142000)
+      "pattern": "kyber.kotoba.cloud",
+      "custom_domain": true
     }
   ],
   "services": [
