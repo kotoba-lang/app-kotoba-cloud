@@ -1,0 +1,121 @@
+(ns app-kotoba-cloud.orgbrain-site
+  "orgbrain — organization operations as three layers: ontology × BPMN ×
+  deterministic risk. Source of truth is kotoba-lang/kyber docs/orgbrain
+  (ADR-2609142000); this page publishes a pinned rev as /org-data/index.json
+  and renders it as a management app: BPMN diagram (with downloadable
+  BPMN 2.0 XML + DI), ontology / authority-holders / RACI tables, the
+  5-axis risk panel and a local-only simulator (same pure math as kyber's
+  lg/lg_kyber/graphs/org_risk.cljc — golden-verified port)."
+  (:require [cloud-kotoba-dds.catalog :as catalog]))
+
+(def css
+  "orgbrain-only CSS. The page shell comes from the dds catalog pattern."
+  (str
+   ".ob-tabs{display:flex;flex-wrap:wrap;gap:var(--hig-spacing-2,8px);margin:var(--hig-spacing-4,16px) 0}"
+   ".ob-tab{border:1px solid var(--hig-color-separator,rgba(0,0,0,.2));border-radius:var(--hig-radius-capsule,999px);background:var(--hig-color-tertiary-system-background,rgba(120,120,128,.12));color:var(--hig-color-label,#1d1d1f);padding:6px 14px;font:inherit;cursor:pointer}"
+   ".ob-tab[aria-pressed=true]{background:var(--hig-color-tint,#0b57a4);color:#fff;border-color:transparent}"
+   ".ob-svg{width:100%;height:auto;background:var(--hig-color-tertiary-system-background,rgba(120,120,128,.08));border:1px solid var(--hig-color-separator,rgba(0,0,0,.2));border-radius:var(--hig-radius-md,12px)}"
+   ".ob-flow{fill:none;stroke:var(--hig-color-secondary-label,#6e6e73);stroke-width:1.5px;color:var(--hig-color-secondary-label,#6e6e73)}"
+   ".ob-task{fill:#fff;stroke:var(--hig-color-tint,#0b57a4);stroke-width:1.5px}"
+   ".ob-start{fill:#fff;stroke:#1a7f37;stroke-width:2px}"
+   ".ob-end{fill:#fff;stroke:#cf222e;stroke-width:3px}"
+   ".ob-gw{fill:#fff3cd;stroke:#9a6700;stroke-width:1.5px}"
+   ".ob-el{cursor:pointer;outline:none}.ob-el:hover rect,.ob-el:hover circle,.ob-el:hover path{stroke-width:3px}"
+   ".ob-bad .ob-task,.ob-bad .ob-gw{stroke:#cf222e;stroke-width:3px}"
+   ".ob-label{font-size:11px;text-anchor:middle;fill:var(--hig-color-label,#1d1d1f)}"
+   ".ob-sub{font-size:10px;text-anchor:middle;fill:var(--hig-color-secondary-label,#6e6e73)}"
+   ".ob-tbl{border-collapse:collapse;font-size:var(--hig-text-footnote-font-size,.85rem);margin:var(--hig-spacing-3,12px) 0}"
+   ".ob-tbl th,.ob-tbl td{border:1px solid var(--hig-color-separator,rgba(0,0,0,.2));padding:4px 10px;text-align:left}"
+   ".ob-ok{color:#1a7f37}.ob-ng{color:#cf222e}"
+   ".ob-a{background:#dbeafe;font-weight:700}.ob-r{background:#dcfce7}"
+   ".ob-muted{color:var(--hig-color-secondary-label,#6e6e73);font-size:var(--hig-text-footnote-font-size,.85rem)}"
+   ".ob-row{display:grid;grid-template-columns:13em 1fr 7em;align-items:center;gap:var(--hig-spacing-2,8px);margin:var(--hig-spacing-2,8px) 0}"
+   ".ob-fn{font-size:var(--hig-text-footnote-font-size,.85rem);color:var(--hig-color-secondary-label,#6e6e73)}"
+   ".ob-count{font-variant-numeric:tabular-nums;color:var(--hig-color-label,#1d1d1f);font-size:var(--hig-text-footnote-font-size,.85rem);text-align:right}"
+   ".ob-bar{height:12px;border-radius:var(--hig-radius-capsule,999px);border:1px solid var(--hig-color-separator,rgba(0,0,0,.2));background:var(--hig-color-tertiary-system-background,rgba(120,120,128,.12));overflow:hidden}"
+   ".ob-fill{height:100%;min-width:2px;border-radius:var(--hig-radius-capsule,999px)}"
+   "@media(prefers-reduced-motion:reduce){.ob-fill{transition:none}}"
+   ".ob-level{display:flex;gap:var(--hig-spacing-3,12px);align-items:center;border:1px solid var(--hig-color-separator,rgba(0,0,0,.2));border-radius:var(--hig-radius-md,12px);padding:var(--hig-spacing-3,12px)}"
+   ".ob-level-low strong{color:#1a7f37}.ob-level-moderate strong{color:#9a6700}.ob-level-elevated strong{color:#bc4c00}.ob-level-critical strong{color:#cf222e}"
+   "#orgbrain-editor{width:100%;min-height:20rem;font-family:var(--hig-font-mono,ui-monospace,monospace);font-size:.8rem;border:1px solid var(--hig-color-separator,rgba(0,0,0,.2));border-radius:var(--hig-radius-sm,8px);padding:var(--hig-spacing-3,12px)}"
+   ".ob-actions{display:flex;flex-wrap:wrap;gap:var(--hig-spacing-3,12px);margin-top:var(--hig-spacing-3,12px)}"
+   ".ob-actions button,.ob-dl{border:1px solid var(--hig-color-separator,rgba(0,0,0,.2));border-radius:var(--hig-radius-sm,8px);background:var(--hig-color-tertiary-system-background,rgba(120,120,128,.12));color:var(--hig-color-label,#1d1d1f);padding:6px 12px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}"))
+
+(defn view
+  ([] (view false))
+  ([ja?]
+   (let [txt (fn [ja en] (if ja? ja en))]
+     (catalog/page
+      {:title (txt "組織運営オントロジー — Kyber orgbrain"
+                   "Organization-operating ontology — Kyber orgbrain")
+       :lead (txt "法人・組織の運営プロセスを、責任と権限のオントロジー × BPMN 2.0 プロセス定義 × 決定論的リスク計算の三層で公開します。図はクリックで詳細、XML / EDN としてダウンロードでき、リスクは kyber の純関数と同じ計算でその場で再計算できます。"
+                  "Organization operations defined as three layers: a responsibility-and-authority ontology, BPMN 2.0 process definitions and a deterministic risk model. Click the diagram for detail, download processes as BPMN 2.0 XML / EDN, and recompute risk in-place with the same pure functions kyber uses.")
+       :id "orgbrain-main"
+       :nav (catalog/breadcrumb
+             (txt "アプリ" "Apps")
+             [[(txt "ホーム" "Home") "/"]
+              [(txt "Apps" "Apps") "/apps/"]
+              [(txt "orgbrain" "orgbrain") nil]])}
+      (catalog/status "orgbrain-summary"
+                      (txt "データを読み込んでいます…" "Loading data…"))
+      [:div {:id "orgbrain-tabs" :class "ob-tabs" :role "tablist"}]
+
+      ;; panel 1 — BPMN processes
+      [:section {:id "orgbrain-process" :class "ob-panel"}
+       [:label {:class "ob-muted"} (txt "プロセス " "Process ")]
+       [:select {:id "orgbrain-process-select"}]
+       [:div {:id "orgbrain-process-view"}]
+       [:div {:id "orgbrain-element-detail" :aria-live "polite"}]]
+
+      ;; panel 2 — ontology layer
+      [:section {:id "orgbrain-ontology" :class "ob-panel" :hidden true}
+       [:h2 (txt "役割 (roles)" "Roles")]
+       [:table {:id "orgbrain-roles-table" :class "ob-tbl"}]
+       [:h2 (txt "権限の保持者 (direct delegations)" "Authority holders (direct delegations)")]
+       [:table {:id "orgbrain-holders-table" :class "ob-tbl"}]
+       [:h2 (txt "委任チェーン" "Delegation chain")]
+       [:ul {:id "orgbrain-delegations-list"}]]
+
+      ;; panel 3 — RACI matrix
+      [:section {:id "orgbrain-raci" :class "ob-panel" :hidden true}
+       [:h2 "RACI"]
+       [:p {:class "ob-muted"} (txt "★ = 重要タスク。A=accountable R=responsible C=consulted I=informed"
+                                    "★ = critical task. A=accountable R=responsible C=consulted I=informed")]
+       [:table {:id "orgbrain-raci-table" :class "ob-tbl"}]]
+
+      ;; panel 4 — deterministic risk
+      [:section {:id "orgbrain-risk" :class "ob-panel" :hidden true}
+       [:h2 (txt "運営リスク (決定論 5 軸)" "Operating risk (deterministic, 5 axes)")]
+       [:div {:id "orgbrain-risk-chart"}]
+       [:div {:id "orgbrain-risk-composite"}]
+       [:h3 (txt "BPMN 権限監査" "BPMN authority audit")]
+       [:ul {:id "orgbrain-audit-list"}]]
+
+      ;; panel 5 — local simulator
+      [:section {:id "orgbrain-simulate" :class "ob-panel" :hidden true}
+       [:h2 (txt "シミュレーター (この端末内で計算)" "Simulator (computed in this browser)")]
+       [:p {:class "ob-muted"} (txt "オントロジー JSON を編集するとリスクと権限監査が即時再計算されます。サーバーには送信されません。"
+                                    "Edit the ontology JSON — risk and the authority audit recompute immediately. Nothing is sent to a server.")]
+       [:textarea {:id "orgbrain-editor" :spell-check "false" :aria-label (txt "オントロジー JSON" "Ontology JSON")}]
+       [:p {:id "orgbrain-editor-error" :class "ob-ng" :hidden true}]
+       [:div {:id "orgbrain-sim-report"}]
+       [:p {:id "orgbrain-sim-delta"}]
+       [:ul {:id "orgbrain-sim-audit"}]
+       [:div {:class "ob-actions"}
+        [:button {:id "orgbrain-sim-reset" :type "button"} (txt "参照値に戻す" "Reset to reference")]
+        [:button {:id "orgbrain-sim-dl-json" :type "button"} (txt "JSON をダウンロード" "Download JSON")]
+        [:button {:id "orgbrain-sim-dl-edn" :type "button"} (txt "EDN をダウンロード (kyber への PR 用)" "Download EDN (for a kyber PR)")]]]
+
+      (catalog/about
+       {:summary (txt "データと出典" "Data & provenance")
+        :links [[:a {:href "/org-data/index.json"} "/org-data/index.json (catalog)"]
+                [:a {:href "/org-data/edn/org-ontology.schema.edn"} "org-ontology.schema.edn"]
+                [:a {:href "https://github.com/kotoba-lang/kyber/tree/main/docs/orgbrain"} "kotoba-lang/kyber · docs/orgbrain"]
+                [:a {:href "https://github.com/kotoba-lang/bpmn-sdk"} "kotoba-lang/bpmn-sdk (BPMN 2.0 SDK)"]
+                [:a {:href "https://github.com/kotoba-lang/org-omg-bpmn"} "kotoba-lang/org-omg-bpmn (OMG registry)"]]
+        :footnote (txt
+                    "正本は kotoba-lang/kyber の docs/orgbrain (rev はハッシュで固定)。リスク軸は LLM を混入しない決定論純関数で、kyber の lg/lg_kyber/graphs/org_risk.cljc と bit-同じ結果を golden テストで検証しています。設計は ADR-2609142000、運営プロセスは orgbrain-maint bot が日次で拡張しています。"
+                    "The source of truth is kotoba-lang/kyber docs/orgbrain at a hash-pinned rev. Risk axes are deterministic pure functions without LLM mixing, golden-verified bit-for-bit against kyber's lg/lg_kyber/graphs/org_risk.cljc. Design: ADR-2609142000; the orgbrain-maint bot extends the processes daily.")})
+      [:p {:id "orgbrain-provenance" :class "ob-muted"}]
+      [:script {:src "/js/orgbrain-risk.js" :defer true}]
+      [:script {:src "/js/orgbrain-app.js" :defer true}]))))

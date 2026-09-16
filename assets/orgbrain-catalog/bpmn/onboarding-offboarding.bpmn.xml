@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:orgbrain="https://kotoba.cloud/orgbrain" id="definitions_onboarding-offboarding" targetNamespace="https://kotoba.cloud/orgbrain" name="入退社ライフサイクル">
+<process id="onboarding-offboarding" name="入退社ライフサイクル" isExecutable="false">
+<startEvent id="start"/>
+<exclusiveGateway id="entry-or-exit" name="新規入社 or 退職?"/>
+<task id="offer-approval" name="採用最終承認">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="coo" orgbrain:authorityRequired="hire" orgbrain:slaDays="7"/>
+</extensions>
+<documentation>採用最終承認</documentation>
+</task>
+<task id="labor-contract" name="雇用契約締結">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="ceo" orgbrain:authorityRequired="sign-contract" orgbrain:slaDays="7"/>
+</extensions>
+<documentation>雇用契約締結</documentation>
+</task>
+<task id="it-setup" name="アカウント・機材払出">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="it-admin" orgbrain:authorityRequired="it-admin" orgbrain:slaDays="3"/>
+</extensions>
+<documentation>アカウント・機材払出</documentation>
+</task>
+<task id="payroll-register" name="給与台帳登録">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="finance-staff" orgbrain:authorityRequired="approve-spend" orgbrain:slaDays="3"/>
+</extensions>
+<documentation>給与台帳登録</documentation>
+</task>
+<task id="exit-approval" name="退職承認">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="coo" orgbrain:authorityRequired="sign-contract" orgbrain:slaDays="7"/>
+</extensions>
+<documentation>退職承認</documentation>
+</task>
+<task id="revoke-access" name="権限剥奪・備品回収">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="it-admin" orgbrain:authorityRequired="it-admin" orgbrain:slaDays="3"/>
+</extensions>
+<documentation>権限剥奪・備品回収</documentation>
+</task>
+<task id="final-pay" name="最終給与・精算">
+<extensions>
+<orgbrain:attributes orgbrain:actorRole="finance-staff" orgbrain:authorityRequired="approve-spend" orgbrain:slaDays="14"/>
+</extensions>
+<documentation>最終給与・精算</documentation>
+</task>
+<endEvent id="end"/>
+<sequenceFlow id="flow-1" sourceRef="start" targetRef="entry-or-exit"/>
+<sequenceFlow id="flow-2" sourceRef="entry-or-exit" targetRef="offer-approval"/>
+<sequenceFlow id="flow-3" sourceRef="entry-or-exit" targetRef="exit-approval"/>
+<sequenceFlow id="flow-4" sourceRef="offer-approval" targetRef="labor-contract"/>
+<sequenceFlow id="flow-5" sourceRef="labor-contract" targetRef="it-setup"/>
+<sequenceFlow id="flow-6" sourceRef="it-setup" targetRef="payroll-register"/>
+<sequenceFlow id="flow-7" sourceRef="payroll-register" targetRef="end"/>
+<sequenceFlow id="flow-8" sourceRef="exit-approval" targetRef="revoke-access"/>
+<sequenceFlow id="flow-9" sourceRef="revoke-access" targetRef="final-pay"/>
+<sequenceFlow id="flow-10" sourceRef="final-pay" targetRef="end"/>
+</process>
+<bpmndi:BPMNDiagram id="diagram_onboarding-offboarding"><bpmndi:BPMNPlane bpmnElement="onboarding-offboarding">
+<bpmndi:BPMNShape bpmnElement="start"><dc:Bounds x="70" y="332" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="entry-or-exit"><dc:Bounds x="320" y="325" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="offer-approval"><dc:Bounds x="570" y="250" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="labor-contract"><dc:Bounds x="820" y="250" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="it-setup"><dc:Bounds x="1070" y="250" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="payroll-register"><dc:Bounds x="1320" y="315" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="exit-approval"><dc:Bounds x="570" y="380" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="revoke-access"><dc:Bounds x="820" y="380" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="final-pay"><dc:Bounds x="1070" y="380" width="150" height="70"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape bpmnElement="end"><dc:Bounds x="1570" y="332" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNEdge bpmnElement="flow-1"><di:waypoint x="106" y="350"/><di:waypoint x="320" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-2"><di:waypoint x="370" y="350"/><di:waypoint x="570" y="285"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-3"><di:waypoint x="370" y="350"/><di:waypoint x="570" y="415"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-4"><di:waypoint x="720" y="285"/><di:waypoint x="820" y="285"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-5"><di:waypoint x="970" y="285"/><di:waypoint x="1070" y="285"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-6"><di:waypoint x="1220" y="285"/><di:waypoint x="1320" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-7"><di:waypoint x="1470" y="350"/><di:waypoint x="1570" y="350"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-8"><di:waypoint x="720" y="415"/><di:waypoint x="820" y="415"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-9"><di:waypoint x="970" y="415"/><di:waypoint x="1070" y="415"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge bpmnElement="flow-10"><di:waypoint x="1220" y="415"/><di:waypoint x="1570" y="350"/></bpmndi:BPMNEdge>
+</bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</definitions>
