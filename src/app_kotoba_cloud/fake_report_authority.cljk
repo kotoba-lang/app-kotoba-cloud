@@ -15,8 +15,10 @@
    - C6 data minimisation: the DO stores the case fields, evidence
      REFERENCES (cid/url/taken-at/kind) and content-addressed draft CIDs.
      It never stores natural-person join keys; evidence blobs live outside
-     the DO and expire 30 days after resolution (purge drops expired blob
-     references, keeps the case skeleton and draft CIDs)."
+     the DO and expire 30 days after resolution: resolving a case arms the
+     DO alarm at resolvedAt+30d, the alarm sweeps every expired case
+     (purge drops expired blob references, keeps the case skeleton and
+     draft CIDs), and /case/purge stays as a manual backstop."
   (:require [app-kotoba-cloud.fake-report-kit :as kit]))
 
 (def schema-version kit/schema-version)
@@ -32,6 +34,13 @@
    30 days counts as expired."
   [resolved-at now]
   (and (int? resolved-at) (int? now) (>= (- now resolved-at) purge-after-ms)))
+
+(defn purge-due
+  "When the 30-day blob purge is due for a record (C6): resolvedAt + 30d.
+   Nil when the record carries no due (never resolved, or no timestamp)."
+  [record]
+  (when (and (map? record) (= :resolved (:status record)) (int? (:resolvedAt record)))
+    (+ (:resolvedAt record) purge-after-ms)))
 
 (defn expired-evidence-entry [e]
   (-> (select-keys e [:cid :kind :taken-at :url])
@@ -112,6 +121,21 @@
                             (let [index (kwdeep (js->clj (js/JSON.parse (or raw "{}"))))]
                               ((aget storage "put") "case-index"
                                          (js/JSON.stringify (clj->js (assoc index case-id (:principalId record)))))))))))))
+
+(defn- arm-purge!
+  "C6: make sure the DO alarm fires no later than `due` (the DO keeps one
+   alarm; keep the earliest). A due in the past arms immediately. Called with
+   the same storage object as get/put, matching the real DO storage API.
+   Never rejects: an arming failure must not fail the operation that saved
+   the case; it logs and leaves the manual /case/purge endpoint as backstop."
+  [storage due]
+  (when (int? due)
+    (-> ((aget storage "getAlarm"))
+        (.then (fn [current]
+                 (when (or (nil? current) (undefined? current) (> current due))
+                   ((aget storage "setAlarm") due))))
+        (.catch (fn [e]
+                  (js/console.error "fake-report-purge-arm-failed" (str (or (.-message e) e))))))))
 
 (defn- cid-for!
   "Content address for the immutable draft (C6): SHA-256 over the draft JSON,
@@ -228,9 +252,11 @@
                          (response {:error (:error t)} 409)
                          (let [record (assoc record :status (:ok t)
                                              :resolvedAt (when (= :resolved (:ok t)) now))]
-                           (-> (save-case! storage case-id record)
-                               (.then (fn [_]
-                                        (response {:caseId case-id :status (:status record)} 200))))))))))))))
+                       (-> (save-case! storage case-id record)
+                           (.then (fn [_]
+                                    ;; C6: resolving a case arms the 30-day blob purge.
+                                    (arm-purge! storage (purge-due record))
+                                    (response {:caseId case-id :status (:status record)} 200))))))))))))))
 
 (defn- handle-case-falsify [storage body now]
   ;; C5: falsified reports are counted and left visible. An operator marks a
@@ -259,6 +285,50 @@
                    (-> (save-case! storage case-id purged)
                        (.then (fn [_] case-id))))
                  (js/Promise.resolve nil))))))
+
+(defn- sweep-expired!
+  "C6 alarm sweep: purge every case in the index whose evidence is 30 days
+   past resolution, regardless of principal (the alarm is the DO's own
+   authority, not a caller's). Re-arms the alarm for the earliest remaining
+   due. Returns a promise of {:purged [case-id ...] :kept n}."
+  [storage now]
+  (-> ((aget storage "get") "case-index")
+      (.then (fn [raw]
+               (let [index (kwmap (js->clj (js/JSON.parse (or raw "{}"))))
+                     case-ids (keys index)]
+                 (-> (js/Promise.all
+                      (map (fn [case-id]
+                             (-> (load-case! storage case-id)
+                                 (.then (fn [record]
+                                          (if (and (map? record)
+                                                   (= :resolved (:status record))
+                                                   (evidence-expired? (:resolvedAt record) now))
+                                            (let [purged (assoc record :case
+                                                                (update-in (:case record) [:case/evidence]
+                                                                           (fn [evs] (mapv expired-evidence-entry evs))))]
+                                              (-> (save-case! storage case-id purged)
+                                                  (.then (fn [_] case-id))))
+                                            (js/Promise.resolve nil))))))
+                           case-ids))
+                     (.then (fn [ids]
+                              (let [purged (vec (remove nil? ids))
+                                    kept (remove (set purged) case-ids)
+                                    ;; earliest remaining due drives the next alarm
+                                    dues (->> kept
+                                              (map (fn [case-id] (js/Promise.resolve (load-case! storage case-id))))
+                                              (js/Promise.all))
+                                    ]
+                                (-> dues
+                                    (.then (fn [recs]
+                                             (let [due (when (seq recs)
+                                                         (reduce (fn [acc r]
+                                                                   (let [d (purge-due r)]
+                                                                     (cond (nil? d) acc
+                                                                           (nil? acc) d
+                                                                           :else (min acc d))))
+                                                                 nil recs))]
+                                               (arm-purge! storage due)
+                                               {:purged purged :kept (count kept)})))))))))))))
 
 (defn- handle-case-purge [storage body now]
   ;; C6: drop evidence references whose blob expired (30 days after
@@ -323,4 +393,11 @@
                                  (.catch op-failure))))))
                 (.catch op-failure))
             (js/Promise.resolve (response {:error "private-binding-required"} 403)))))]
-    #js {:fetch fetch!}))
+    #js {:fetch fetch!
+         ;; C6: the DO's own alarm sweeps expired evidence blobs; it must
+         ;; never reject (an unhandled alarm rejection resets the object).
+         :alarm (fn []
+                  (-> (sweep-expired! (aget state "storage") (.now js/Date))
+                      (.catch (fn [e]
+                                (js/console.error "fake-report-purge-alarm-failed"
+                                                  (str (or (.-stack e) e)))))))}))

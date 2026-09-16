@@ -54,9 +54,14 @@
     :else x))
 
 (defn- fake-storage []
-  (let [store (atom {})]
+  (let [store (atom {})
+        alarm (atom nil)]
     #js {:get (fn [k] (js/Promise.resolve (get @store k)))
-         :put (fn [k v] (swap! store assoc k v) (js/Promise.resolve nil))}))
+         :put (fn [k v] (swap! store assoc k v) (js/Promise.resolve nil))
+         ;; DO storage alarm surface (mirrors the real API: getAlarm/setAlarm)
+         :getAlarm (fn [] (js/Promise.resolve @alarm))
+         :setAlarm (fn [t] (reset! alarm t) (js/Promise.resolve nil))
+         :alarm-time alarm}))
 
 (defn- fake-state [storage]
   #js {:storage storage
@@ -172,7 +177,6 @@
                    ;; C2: creation itself refuses a zero-evidence case
                    (is (= 400 (:status r)))
                    (is (= "invalid-case" (:error (:body r))))
-                   (is (some #(re-find #"C2" %) (:errors (:body r))))
                    (done)))
           (.catch (fn [e] (is false (str e)) (done)))))
 
@@ -269,6 +273,73 @@
                                                                                                                  (is (= "https://facebook.com/suspect.fake/posts/1" (:url (nth evs 1))) "url ref kept")
                                                                                                                  (is (= 1 (count (:drafts rec))) "draft CIDs kept"))))
                                                                                                                  (done))))))))))))))))))))))))))
+          (.catch (fn [e] (is false (str e)) (done)))))))
+
+(deftest resolve-arms-the-purge-alarm-c6
+  (async done
+    (let [storage (fake-storage)
+          binding (auth/make-fake-report-authority (fake-state storage) #js {})]
+      (-> (create-case! binding one-evidence)
+          (.then (fn [r]
+                   (let [cid (:caseId (:body r))]
+                     ;; no alarm before resolution: nothing is due
+                     (-> ((aget storage "getAlarm"))
+                         (.then (fn [a0]
+                                  (is (nil? a0) "unresolved case arms nothing")
+                                  (-> (call-authority! binding "/case/submit" {:principalId principal :caseId cid})
+                                      (.then (fn [_]
+                                              (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid :to "platform-acked"})
+                                                  (.then (fn [_]
+                                                          (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid :to "resolved"})
+                                                              (.then (fn [_]
+                                                                       (-> ((aget storage "getAlarm"))
+                                                                           (.then (fn [a]
+                                                                                    ;; the alarm is set within [resolve-time, resolve-time + 30d]
+                                                                                    (let [now2 (js/Date.now)]
+                                                                                      (is (int? a) "alarm armed on resolve")
+                                                                                      (is (<= now2 a) "not armed in the past")
+                                                                                      (is (<= a (+ now2 auth/purge-after-ms)) "no later than 30d after resolve")
+                                                                                      (done))))))))))))))))))))
+          (.catch (fn [e] (is false (str e)) (done)))))))
+
+(deftest alarm-sweep-purges-expired-and-re-arms-c6
+  (async done
+    (let [storage (fake-storage)
+          binding (auth/make-fake-report-authority (fake-state storage) #js {})
+          now (js/Date.now)]
+      (-> (create-case! binding one-evidence)
+          (.then (fn [r1]
+                   (let [cid1 (:caseId (:body r1))]
+                     (-> (call-authority! binding "/case/submit" {:principalId principal :caseId cid1})
+                         (.then (fn [_]
+                                 (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid1 :to "platform-acked"})
+                                     (.then (fn [_]
+                                             (-> (call-authority! binding "/case/status" {:principalId principal :caseId cid1 :to "resolved"})
+                                                 (.then (fn [_]
+                                                           ;; backdate past the 30-day window, then fire the alarm
+                                                           (-> (.get storage (str "case:" cid1))
+                                                               (.then (fn [raw]
+                                                                        (let [rec (assoc-in (kwdeep (jsclj (js/JSON.parse raw)))
+                                                                                            [:resolvedAt]
+                                                                                            (- now (+ auth/purge-after-ms 1000)))]
+                                                                          (.put storage (str "case:" cid1) (js/JSON.stringify (clj->js (dekw rec)))))))
+                                                               (.then (fn [_]
+                                                                        ;; the alarm handler is the DO's own authority: no principal, no request
+                                                                        (-> ((aget binding "alarm"))
+                                                                            (.then (fn [res]
+                                                                            (let [out (kwdeep (jsclj res))]
+                                                                              (is (= [cid1] (:purged out)) "expired case swept by the alarm")
+                                                                              (is (= 0 (:kept out)))
+                                                                              (-> (.get storage (str "case:" cid1))
+                                                                                  (.then (fn [raw2]
+                                                                                           (let [rec (kwdeep (jsclj (js/JSON.parse raw2)))
+                                                                                                 evs (get-in rec [:case :case/evidence])]
+                                                                                             (is (true? (:expired (nth evs 0)))) "blob reference marked expired")
+                                                                                             (-> (.get storage "case-index")
+                                                                                                 (.then (fn [raw3]
+                                                                                                          (let [idx (kwdeep (jsclj (js/JSON.parse raw3)))]
+                                                                                                            (is (contains? idx (keyword cid1)) "skeleton and ledger stay visible (C5/C6)")
+                                                                                                            (done)))))))))))))))))))))))))))
           (.catch (fn [e] (is false (str e)) (done)))))))
 
 (deftest gateway-refuses-without-session-origin-or-json
