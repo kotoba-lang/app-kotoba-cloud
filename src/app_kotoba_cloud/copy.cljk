@@ -1,0 +1,67 @@
+(ns app-kotoba-cloud.copy
+  "How a console body speaks the document's language.
+
+  A body is authored as (txt \"ja\" \"en\") pairs — the call site keeps both
+  readings next to each other, which is how the ja / en console was
+  written and reviewed. For every other public locale the answer comes
+  from a generated map keyed by the ENGLISH string
+  (scripts/translate-console-copy.cljk --source <name> →
+  <name>_copy_generated.cljk): `txt-for` builds the txt fn for one
+  locale over one such map, falling back to English per string, so a
+  string the map does not know reads as English, never as a blank.
+
+  The browser gets the same answer without the maps: site.cljk emits the
+  document's runtime strings as one JSON object (#kc-copy-runtime, keyed by
+  English), and each browser namespace's `t` reads it (runtime-t)."
+  (:require [kotoba.lang.text :as str]))
+
+(defn txt-for
+  "(txt-for generated locale) → (fn [ja en] …) for that locale over the
+   generated map {locale {en translated}}."
+  [generated locale]
+  (case locale
+    :ja (fn [ja _en] ja)
+    :en (fn [_ja en] en)
+    (let [m (get generated locale)]
+      (fn [_ja en] (or (get m en) en)))))
+
+(defn fill
+  "Substitute {name} placeholders: (fill \"Signed in as @{username}\" {:username \"x\"})."
+  [s vars]
+  (reduce (fn [acc [k v]] (str/replace acc (str "{" (name k) "}") (str v))) (str s) vars))
+
+(defn runtime-json
+  "The JSON text of the document's runtime strings for `locale`: the union
+   of the given generated maps' entries for that locale (English → text),
+   `<` escaped so it can sit inside a <script type=application/json>.
+   Empty for ja / en — the browser's inline pairs answer there."
+  [locale generated-maps]
+  (if (contains? #{:ja :en} locale)
+    "{}"
+    (let [m (apply merge (map #(get % locale {}) generated-maps))]
+      (-> (js/JSON.stringify (clj->js m))
+          (str/replace "<" "\\u003c")))))
+
+;; --- the browser side ------------------------------------------------------
+
+(defonce ^:private runtime (atom nil))
+
+(defn runtime-map
+  "The document's runtime strings (#kc-copy-runtime), parsed once."
+  []
+  (or @runtime
+      (reset! runtime
+              (let [el (.getElementById js/document "kc-copy-runtime")]
+                (if el
+                  (try (js->clj (js/JSON.parse (.-textContent el))) (catch :default _ {}))
+                  {})))))
+
+(defn runtime-t
+  "(t ja en) for browser code: the inline reading for a ja / en document,
+   the document's runtime map (by English) for every other locale, English
+   when the map does not know the string."
+  [ja en]
+  (case (.-lang (.-documentElement js/document))
+    "ja" ja
+    "en" en
+    (or (get (runtime-map) en) en)))

@@ -20,6 +20,7 @@
             [app-kotoba-cloud.fake-report-authority-test]
             [app-kotoba-cloud.uiux-audit-test]
             [app-kotoba-cloud.console-test]
+            [app-kotoba-cloud.copy-test]
             [app-kotoba-cloud.sousa-test]
             [app-kotoba-cloud.org-sso-gateway-test]
             [app-kotoba-cloud.research-kotoba-proof-gateway-test]
@@ -46,6 +47,7 @@
                                'app-kotoba-cloud.fake-report-authority-test
                                'app-kotoba-cloud.uiux-audit-test
                                'app-kotoba-cloud.console-test
+                               'app-kotoba-cloud.copy-test
                                'app-kotoba-cloud.sousa-test
                                'app-kotoba-cloud.org-sso-gateway-test
                                'app-kotoba-cloud.research-kotoba-proof-gateway-test)]

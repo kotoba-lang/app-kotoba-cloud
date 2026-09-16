@@ -5,6 +5,8 @@
   below so the page and the /apps data export cannot drift."
   (:require [cloud-kotoba-dds.catalog :as catalog]
             [app-kotoba-cloud.security-services :as security-services]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.site-copy-generated :as gen]
             [jp-go-dds.core :as dds]))
 
 (def css
@@ -134,21 +136,17 @@
                 links)))])
 
 (defn view [locale]
-  (let [ja? (= locale :ja)]
+  (let [txt (copy/txt-for gen/copy locale)]
     (catalog/page
-     {:title (if ja? "Apps" "Apps")
-      :lead (if ja?
-              "kotoba.cloud ゲートウェイ上で動く公開プロダクト。データ・API・ドキュメントをそのまま開けます。"
-              "Public products on the kotoba.cloud gateway — data, APIs and docs you can open directly.")
+     {:title (txt "Apps" "Apps")
+      :lead (txt "kotoba.cloud ゲートウェイ上で動く公開プロダクト。データ・API・ドキュメントをそのまま開けます。" "Public products on the kotoba.cloud gateway — data, APIs and docs you can open directly.")
       :nav (catalog/breadcrumb
             "Apps"
-            [["ホーム" "/"]
+            [[(txt "ホーム" "Home") "/"]
              ["Apps" nil]])}
      (into [:div {:class "kc-apps-grid"}]
            (map app-card apps))
      [:p {:class "ck-catalog__footnote"}
-      (if ja?
-        "新しいアプリはこのページにカードとして追加されます (サイドバーは増えません)。"
-        "New apps land here as cards — the sidebar never grows.")])))
+      (txt "新しいアプリはこのページにカードとして追加されます (サイドバーは増えません)。" "New apps land here as cards — the sidebar never grows.")])))
 
 ;; html is emitted by site.cljk (site-layout wrapper) — no bare page here.

@@ -1,0 +1,60 @@
+(ns app-kotoba-cloud.copy-test
+  "The console bodies speak every public locale (owner direction
+   2026-09-16): every generated body map carries every locale of the public
+   catalog with the same keys, placeholders kept; txt-for answers by the
+   English string and falls back to English, never to a blank; the runtime
+   JSON is safe inside a <script> element. Coverage against the AUTHORED
+   pairs (extraction from the source files) is the script's own check:
+   kbb --backend sci scripts/translate-console-copy.cljk --check."
+  (:require [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.public-locales :as locales]
+            [app-kotoba-cloud.account-copy-generated :as account-gen]
+            [app-kotoba-cloud.secure-copy-generated :as secure-gen]
+            [app-kotoba-cloud.models-copy-generated :as models-gen]
+            [app-kotoba-cloud.security-copy-generated :as security-gen]
+            [app-kotoba-cloud.billing-copy-generated :as billing-gen]
+            [app-kotoba-cloud.site-copy-generated :as site-gen]
+            [kotoba.lang.text :as str]
+            [clojure.test :refer [deftest is testing]]))
+
+(def generated
+  {:account account-gen/copy :secure secure-gen/copy :models models-gen/copy
+   :security security-gen/copy :billing billing-gen/copy :site site-gen/copy})
+
+(def targets (remove #{:en :ja} locales/locale-order))
+
+(defn- placeholders [s] (set (re-seq #"\{[a-zA-Z]+\}" (str s))))
+
+(deftest every-body-map-covers-every-public-locale
+  (doseq [[source m] generated]
+    (testing (name source)
+      (is (= (set targets) (set (keys m))) (str (name source) " locales"))
+      (let [reference (get m :fr)]
+        (is (seq reference) (str (name source) " has keys"))
+        (doseq [loc targets]
+          (let [own (get m loc)]
+            (is (= (set (keys reference)) (set (keys own))) (str (name source) " " (name loc) " keys"))
+            (doseq [[en v] own]
+              (is (and (string? v) (seq v)) (str (name source) " " (name loc) " " (subs en 0 (min 40 (count en)))))
+              (is (= (placeholders en) (placeholders v)) (str (name source) " " (name loc) " placeholders in " (subs en 0 (min 40 (count en))))))))))))
+
+(deftest txt-for-answers-by-the-english-string
+  (let [m {:de {"Sign in" "Anmelden"}}
+        ja (copy/txt-for m :ja) en (copy/txt-for m :en) de (copy/txt-for m :de) xx (copy/txt-for m :xx)]
+    (is (= "サインイン" (ja "サインイン" "Sign in")))
+    (is (= "Sign in" (en "サインイン" "Sign in")))
+    (is (= "Anmelden" (de "サインイン" "Sign in")))
+    (is (= "Sign out" (de "ログアウト" "Sign out")) "a string the map does not know reads as English")
+    (is (= "Sign in" (xx "サインイン" "Sign in")) "an unknown locale reads as English, never as a blank")))
+
+(deftest the-generated-account-map-answers-a-real-string
+  (is (not= "Not signed in." (get-in account-gen/copy [:de "Not signed in."])))
+  (is (string? (get-in account-gen/copy [:id "Not signed in."]))))
+
+(deftest fill-and-runtime-json
+  (is (= "Signed in as @hanako" (copy/fill "Signed in as @{username}" {:username "hanako"})))
+  (is (= "{}" (copy/runtime-json :ja [account-gen/copy])))
+  (is (= "{}" (copy/runtime-json :en [account-gen/copy])))
+  (let [json (copy/runtime-json :de [{:de {"a<b" "x</script>"}}])]
+    (is (not (str/includes? json "<")) "< is escaped so the JSON cannot close its <script> element")
+    (is (str/includes? json "\\u003c"))))

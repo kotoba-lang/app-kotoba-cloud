@@ -10,6 +10,12 @@
             [cloud-kotoba-dds.console :as dds-console]
             [cloud-kotoba-dds.shell :as shell]
             [app-kotoba-cloud.console-locales :as cl]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.site-copy-generated :as site-gen]
+            [app-kotoba-cloud.account-copy-generated :as account-gen]
+            [app-kotoba-cloud.secure-copy-generated :as secure-gen]
+            [app-kotoba-cloud.billing-copy-generated :as billing-gen]
+            [app-kotoba-cloud.security-copy-generated :as security-gen]
             [cloud-kotoba-dds.code :as code]
             [app-kotoba-cloud.code-block :as code-block]
             [cloud-kotoba-dds.catalog :as dds-catalog]
@@ -956,14 +962,25 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (walk node))))
 
 (defn- console-body
-  "A console body authored in ja / en, placed in a document of `locale`: the
-   body itself for :ja and :en, wrapped in lang=en for every other public
-   locale so assistive tech reads it in the right language (the shell
-   around it is in the document's locale)."
-  [locale body]
-  (if (contains? #{:ja :en} locale) body [:div {:lang "en"} body]))
+  "A console body in a document of `locale`. Until 2026-09-16 a non-ja/en
+   body was English and wrapped in lang=en; every body now speaks the
+   document's locale (app-kotoba-cloud.copy/txt-for over its generated
+   map), so this is the body itself."
+  [_locale body]
+  body)
 
-(defn- body-locale [locale] (if (= locale :ja) :ja :en))
+(defn- body-locale
+  "The locale a body renders in — the document's own since 2026-09-16."
+  [locale] locale)
+
+(defn- copy-runtime
+  "The document's runtime strings for its browser code (account-browser,
+   shell-browser's secure / models hydration, billing-browser,
+   assets/security-data.js), as one <script type=application/json>
+   keyed by English — copy/runtime-t answers from it. Empty for ja / en."
+  [locale]
+  [:script {:type "application/json" :id "kc-copy-runtime"}
+   (copy/runtime-json locale [account-gen/copy secure-gen/copy billing-gen/copy security-gen/copy])])
 
 (defn view [locale]
   (let [t (translation locale)]
@@ -979,7 +996,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
      (app-sidebar locale t nil)
      (knowledge-site/view locale)
      [:div {:id "security-view" :hidden true}
-      (console-body locale (security-site/view (body-locale locale) true))]
+      (security-site/view locale true)]
+     (copy-runtime locale)
      [:span {:id "kc-session-labels" :hidden true
              :data-signed-in-action (:signed-in-action t)
              :data-signed-in-status (:signed-in-status t)
@@ -1134,12 +1152,14 @@ body:has(.kc-sb){padding-inline-start:15rem}
        ;; and the setup banner are the console chrome the reference IA has;
        ;; both chips hydrate from the session (shell-browser).
        (list [:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
+             (copy-runtime locale)
              [:main {:id "main" :class "kc-sb-main"}
               (console-topbar locale current)
               (setup-banner locale)
               body]
              (app-sidebar locale t (or current "/docs/reference/quickstart/")))
        (list [:a {:class "kc-skip dads-button" :data-type "outline" :data-size "sm" :href "#main"} (:skip t)]
+             (copy-runtime locale)
              (site-header locale t)
              [:main {:id "main"} body])))
    (site-footer (translation (or locale :ja)))))))
@@ -1152,11 +1172,11 @@ body:has(.kc-sb){padding-inline-start:15rem}
    copy is ja / en; assets/security-data.js answers in <html lang>)."
   ([] (security-html :ja))
   ([locale]
-   (let [t (translation locale) ja? (= locale :ja)]
-     (site-layout {:title (if ja? "セキュリティ公開データ — Kotoba Cloud" "Security public data — Kotoba Cloud")
+   (let [t (translation locale) txt (copy/txt-for site-gen/copy locale)]
+     (site-layout {:title (txt "セキュリティ公開データ — Kotoba Cloud" "Security public data — Kotoba Cloud")
                    :lang (:html-lang t) :locale locale
                    :extra-css (str tokens/bridge-css dds-catalog/css security-site/css)}
-      (console-body locale (security-site/view (body-locale locale) false))))))
+      (security-site/view locale false)))))
 
 (defn csf2-html []
      (site-layout {:title "セキュリティ製品 × NIST CSF 2.0 カタログ — Kotoba Cloud" :lang "ja"
@@ -1236,8 +1256,8 @@ body:has(.kc-sb){padding-inline-start:15rem}
    One document per public locale (copy ja / en)."
   ([] (identity-html :ja))
   ([locale]
-   (let [t (translation locale) ja? (= locale :ja)
-         txt (fn [ja en] (if ja? ja en))]
+   (let [t (translation locale)
+         txt (copy/txt-for site-gen/copy locale)]
      (site-layout {:title (txt "本人確認 — Kotoba Cloud" "Identity verification — Kotoba Cloud")
                    :lang (:html-lang t) :locale locale
                    :robots "noindex"
@@ -1262,31 +1282,30 @@ body:has(.kc-sb){padding-inline-start:15rem}
    Accept-Language."
   ([] (account-html :ja))
   ([locale]
-   (let [t (translation locale) ja? (= locale :ja)]
-     (site-layout {:title (if ja? "アカウント管理 — Kotoba Cloud" "Account — Kotoba Cloud")
+   (let [t (translation locale) txt (copy/txt-for site-gen/copy locale)]
+     (site-layout {:title (txt "アカウント管理 — Kotoba Cloud" "Account — Kotoba Cloud")
                    :lang (:html-lang t)
                    :locale locale
                    :robots "noindex"
                    :sidebar? true :current "/account"
                    :extra-css (str account-site/css dds-console/css)}
-      ;; a non-ja, non-en shell carries an English body: say so on the
-      ;; region so assistive tech reads it in the right language
-      (if (contains? #{:ja :en} locale)
-        (account-site/section locale)
-        [:div {:lang "en"} (account-site/section locale)])))))
+      ;; the body speaks the document's locale (account-copy-generated)
+      (account-site/section locale)))))
 
 (defn billing-html [locale]
   ;; ACCOUNT › 料金・決済: the console shell in the document's locale (the
   ;; edge negotiates /billing/ by cookie; the ja and en emits are the two
   ;; variants of one route). Balance / plan buttons are revealed by
   ;; billing-browser only when their facts are known.
-  (let [ja? (= locale :ja)]
-    (site-layout {:title (if ja? "料金・決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
+  ;; one document per public locale since 2026-09-16 (copy/txt-for over
+  ;; billing-copy-generated)
+  (let [t (translation locale) txt (copy/txt-for site-gen/copy locale)]
+    (site-layout {:title (txt "料金・決済 — Kotoba Cloud" "Billing — Kotoba Cloud")
                   :description "Kotoba Cloud inference, graph and ontology database subscriptions and credits."
-                  :locale (if ja? :ja :en)
+                  :lang (:html-lang t) :locale locale
                   :sidebar? true :current "/billing/"
                   :extra-css (str dds-console/css billing-site/css)}
-     (billing-site/section (if ja? :ja :en) (passkey-href (if ja? :ja :en))))))
+     (billing-site/section locale (passkey-href locale)))))
 
 (defn secure-html
   "SECURE: guardrails / firewall / compliance — one document, three views,
@@ -1294,28 +1313,28 @@ body:has(.kc-sb){padding-inline-start:15rem}
    document per public locale, negotiated like /account."
   ([] (secure-html :ja))
   ([locale]
-   (let [t (translation locale) ja? (= locale :ja)]
-     (site-layout {:title (if ja? "セキュリティ管理 — Kotoba Cloud" "Security controls — Kotoba Cloud")
+   (let [t (translation locale) txt (copy/txt-for site-gen/copy locale)]
+     (site-layout {:title (txt "セキュリティ管理 — Kotoba Cloud" "Security controls — Kotoba Cloud")
                    :lang (:html-lang t) :locale locale
-                   :description (if ja? "研究環境の実行時制御 — ガードレール、ファイアウォール、コンプライアンスの規則と版。"
-                                    "Runtime controls of the research environment — guardrail, firewall and compliance rules and their versions.")
+                   :description (txt "研究環境の実行時制御 — ガードレール、ファイアウォール、コンプライアンスの規則と版。"
+                                     "Runtime controls of the research environment — guardrail, firewall and compliance rules and their versions.")
                    :sidebar? true :current "/secure/"
                    :extra-css (str dds-console/css secure-site/css)}
-      (console-body locale (secure-site/section (body-locale locale)))))))
+      (secure-site/section locale)))))
 
 (defn models-html
   "MANAGE › Models: the admitted research models, limits and conditions.
    One document per public locale, negotiated like /account."
   ([] (models-html :ja))
   ([locale]
-   (let [t (translation locale) ja? (= locale :ja)]
-     (site-layout {:title (if ja? "モデル — Kotoba Cloud" "Models — Kotoba Cloud")
+   (let [t (translation locale) txt (copy/txt-for site-gen/copy locale)]
+     (site-layout {:title (txt "モデル — Kotoba Cloud" "Models — Kotoba Cloud")
                    :lang (:html-lang t) :locale locale
-                   :description (if ja? "研究 API で選べるモデル、無料枠、許可の条件。"
-                                    "The research API's models, the free allowance and the conditions of admission.")
+                   :description (txt "研究 API で選べるモデル、無料枠、許可の条件。"
+                                     "The research API's models, the free allowance and the conditions of admission.")
                    :sidebar? true :current "/models/"
                    :extra-css (str dds-console/css models-site/css)}
-      (console-body locale (models-site/section (body-locale locale)))))))
+      (models-site/section locale)))))
 
 (defn docs-page
   "Shared chrome for a docs page — the shared site-layout WITH the app
@@ -1376,20 +1395,20 @@ body:has(.kc-sb){padding-inline-start:15rem}
   "One document per public locale (the view's copy is ja / en)."
   ([] (security-services-html :ja))
   ([locale]
-   (let [t (translation locale) ja? (= locale :ja)]
-     (site-layout {:title (if ja? "セキュリティサービス — Kotoba Cloud" "Security services — Kotoba Cloud")
+   (let [t (translation locale) txt (copy/txt-for site-gen/copy locale)]
+     (site-layout {:title (txt "セキュリティサービス — Kotoba Cloud" "Security services — Kotoba Cloud")
                    :description "First-party security services: CTEM, DAST, SAST feed the VM vulnerability ledger (wvme)."
                    :lang (:html-lang t) :locale locale
                    :sidebar? true :current "/security/services/"
                    :extra-css security-services-site/css}
-      (console-body locale (security-services-site/view (body-locale locale)))))))
+      (security-services-site/view locale)))))
 
 (defn apps-html
   ([] (apps-html :en))
   ([locale]
    (site-layout {:title "Apps — Kotoba Cloud"
                  :description "Public apps on the kotoba.cloud gateway: PEP registry, eKYC guide, security data, AUP, APIs."
-                 :lang (if (= locale :ja) "ja" "en")
+                 :lang (:html-lang (translation locale)) :locale locale
                  :sidebar? true :current "/apps/"
                  :extra-css apps-site/css}
     (apps-site/view locale))))
@@ -1402,7 +1421,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
   (let [aup research/acceptable-use-policy
         ladder research/assurance-ladder
         ja? (= locale :ja)
-        txt (fn [ja en] (if ja? ja en))]
+        txt (copy/txt-for site-gen/copy locale)]
     (dds/container
      (dds/heading 1 (:title aup) {:size "36"})
      [:p (txt
@@ -1434,12 +1453,11 @@ body:has(.kc-sb){padding-inline-start:15rem}
 (defn aup-html
   ([] (aup-html :en))
   ([locale]
-   (let [ja? (= locale :ja)]
-     (site-layout {:title (if ja?
-                            "Security Research AUP - Kotoba Cloud"
-                            "Acceptable Use Policy - Security Research - Kotoba Cloud")
+   (let [txt (copy/txt-for site-gen/copy locale)]
+     (site-layout {:title (txt "Security Research AUP - Kotoba Cloud"
+                               "Acceptable Use Policy - Security Research - Kotoba Cloud")
                    :description "Assurance ladder, allowed and prohibited uses for the Security Research tier."
-                   :lang (if ja? "ja" "en")
+                   :lang (:html-lang (translation locale)) :locale locale
                    :sidebar? true :current "/security/aup/"}
       (aup-view locale)))))
 
@@ -1633,8 +1651,7 @@ body:has(.kc-sb){padding-inline-start:15rem}
       ;; Simplified Chinese compatibility alias uses the canonical document.
       (fs/mkdirSync (node-path/join root "zh") #js {:recursive true})
       (spit-file (node-path/join root "zh" "index.html") (page-html :zh-Hans))
-      (doseq [[path locale] [["billing/index.html" :en] ["ja/billing/index.html" :ja] ["en/billing/index.html" :en]]]
-        (spit-file (node-path/join root path) (billing-html locale)))
+      (spit-locale-variants! root "billing" billing-html)
       (spit-file (node-path/join root "index.html") (page-html :en))
       (spit-file (node-path/join root "404.html") (not-found-html :en))
       (spit-file (node-path/join root "legal" "index.html") (legal-html :en))
@@ -1723,11 +1740,9 @@ body:has(.kc-sb){padding-inline-start:15rem}
       (spit-file (node-path/join js-dir "knowledge-host.js") knowledge-site/script)
       (copy-file (node-path/join "assets" "csf2-catalog.js") (node-path/join js-dir "csf2-catalog.js"))
       (copy-file (node-path/join "assets" "norbert-chat.js") (node-path/join js-dir "norbert-chat.js"))
-      (spit-file (node-path/join root "apps" "index.html") (apps-html :en))
-      (spit-file (node-path/join root "ja" "apps" "index.html") (apps-html :ja))
+      (spit-locale-variants! root "apps" apps-html)
       (spit-locale-variants! root (node-path/join "security" "services") security-services-html)
-      (spit-file (node-path/join root "security" "aup" "index.html") (aup-html :en))
-      (spit-file (node-path/join root "ja" "security" "aup" "index.html") (aup-html :ja))
+      (spit-locale-variants! root (node-path/join "security" "aup") aup-html)
       (spit-file (node-path/join root "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "security" "crypto" "index.html") (crypto-html))
       (spit-file (node-path/join root "ja" "security" "crypto" "index.html") (crypto-html))

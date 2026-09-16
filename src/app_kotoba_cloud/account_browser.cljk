@@ -1,11 +1,19 @@
 (ns app-kotoba-cloud.account-browser
   "Client for the /account console. Reads /v1/session, /v1/research/ekyc/status,
   /v1/research/status and /v1/billing/status; every state maps to one action."
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [app-kotoba-cloud.copy :as copy]))
 
 (defn el [id] (.getElementById js/document id))
 (defn ja? [] (= "ja" (.-lang (.-documentElement js/document))))
-(defn t [ja en] (if (ja?) ja en))
+(defn t
+  "The inline reading for a ja / en document; for every other public
+   locale the document's runtime map (#kc-copy-runtime, by English) —
+   app-kotoba-cloud.copy/runtime-t."
+  [ja en] (copy/runtime-t ja en))
+(defn tf
+  "A template with {placeholders}: (tf \"…{username}\" \"…{username}\" {:username u})."
+  [ja en vars] (copy/fill (t ja en) vars))
 (defn say! [id s] (when-let [x (el id)] (set! (.-textContent x) s)))
 (defn state! [id kind]
   (when-let [x (el id)]
@@ -50,8 +58,7 @@
   (cond
     (and payload (:valid payload))
     (do (state! "account-session-status" :ok)
-        (say! "account-session-status" (t (str "サインイン済み: @" (:username payload))
-                                          (str "Signed in as @" (:username payload))))
+        (say! "account-session-status" (tf "サインイン済み: @{username}" "Signed in as @{username}" {:username (:username payload)}))
         (state! "account-username" :value)
         (say! "account-username" (str "@" (:username payload)))
         (state! "account-principal" :value)
@@ -139,8 +146,8 @@
     (if-let [ft (:freeTier r)]
       (do (state! "account-free-tier" :value)
           (say! "account-free-tier"
-                (t (str (:requestsPerDay ft) " 件/日 · 出力最大 " (:maxOutputTokens ft) " tokens")
-                   (str (:requestsPerDay ft) " req/day · up to " (:maxOutputTokens ft) " output tokens"))))
+                (tf "{requests} 件/日 · 出力最大 {tokens} tokens" "{requests} req/day · up to {tokens} output tokens"
+                    {:requests (:requestsPerDay ft) :tokens (:maxOutputTokens ft)})))
       (state! "account-free-tier" (if (:httpOk r) :empty :error)))))
 
 (defn render-scopes [scopes]
@@ -175,8 +182,8 @@
           :else (let [ai (some #(when (= "ai" (:scope %)) %) (:balances r))
                       avail (.toFixed (/ (or (:availableMicroUSD ai) 0) 1000000) 2)
                       plan (:plan r)]
-                  (t (str (if plan (str plan " プラン") "無料枠") " · AI 残高 $" avail " · 購入・管理は料金ページから")
-                     (str (if plan (str plan " plan") "Free allowance") " · AI balance $" avail " · buy and manage on the billing page"))))))
+                  (tf "{plan} · AI 残高 ${balance} · 購入・管理は料金ページから" "{plan} · AI balance ${balance} · buy and manage on the billing page"
+                      {:plan (if plan (tf "{name} プラン" "{name} plan" {:name plan}) (t "無料枠" "Free allowance")) :balance avail})))))
 
 (defn render-team [r]
   (let [host (el "account-team")]
@@ -290,13 +297,12 @@
         linked (.get params "linked")
         err (.get params "link_error")]
     (cond
-      linked (say! "account-linked-note" (t (str (provider-label linked) " を連携しました。")
-                                            (str (provider-label linked) " linked.")))
+      linked (say! "account-linked-note" (tf "{provider} を連携しました。" "{provider} linked." {:provider (provider-label linked)}))
       err (say! "account-linked-note"
                 (case err
                   "identity-linked-to-another-account"
                   (t "この Google / GitHub アカウントは別の Kotoba アカウントに連携済みです。" "That Google/GitHub account is already linked to another Kotoba account.")
-                  (t (str "連携できませんでした: " err) (str "Could not link: " err)))))))
+                  (tf "連携できませんでした: {error}" "Could not link: {error}" {:error err}))))))
 
 ;; ── organization SSO ────────────────────────────────────────────────────────
 
@@ -328,9 +334,8 @@
             (not (:httpOk status)) (t "読み込めませんでした。" "Could not load.")
             (not (get-in status [:sso :configured]))
             (if (:eligible status)
-              (t (str (:plan status) " プラン · 未設定") (str (:plan status) " plan · not configured"))
-              (t (str "プラン: " (or (:plan status) "free") " · Team / Enterprise で利用できます")
-                 (str "Plan: " (or (:plan status) "free") " · available on Team / Enterprise")))
+              (tf "{plan} プラン · 未設定" "{plan} plan · not configured" {:plan (:plan status)})
+              (tf "プラン: {plan} · Team / Enterprise で利用できます" "Plan: {plan} · available on Team / Enterprise" {:plan (or (:plan status) "free")}))
             :else
             (str (t "設定済み" "Configured") " · " (get-in status [:sso :issuer])
                  " · " (if (get-in status [:sso :enforce]) (t "必須" "enforced") (t "任意" "optional"))
@@ -400,8 +405,8 @@
                              "org-plan-not-eligible" (t "Team / Enterprise プランが必要です。" "A Team or Enterprise plan is required.")
                              "org-role-insufficient" (t "owner または admin だけが設定できます。" "Only an owner or admin can configure this.")
                              "org-sso-entitlement-not-configured" (t "この環境では組織 SSO がまだ有効化されていません。" "Organization SSO is not enabled in this environment yet.")
-                             "connection is not usable" (t (str "設定を確認してください: " (get-in r [:error :detail])) (str "Check the settings: " (get-in r [:error :detail])))
-                             (t (str "保存できませんでした: " (get-in r [:error :code])) (str "Could not save: " (get-in r [:error :code]))))))
+                             "connection is not usable" (tf "設定を確認してください: {detail}" "Check the settings: {detail}" {:detail (get-in r [:error :detail])})
+                             (tf "保存できませんでした: {code}" "Could not save: {code}" {:code (get-in r [:error :code])}))))
                    (load-sso-status!)))))))
 
 (defn remove-sso! []
@@ -423,9 +428,10 @@
           (.then (fn [r]
                    (say! "account-org-sso-note"
                          (if (:httpOk r)
-                           (t (str "IdP の認証を確認しました" (when (get-in r [:member :role]) (str " · ロール " (get-in r [:member :role]))))
-                              (str "IdP assertion confirmed" (when (get-in r [:member :role]) (str " · role " (get-in r [:member :role])))))
-                           (t (str "同期できませんでした: " (get-in r [:error :code])) (str "Could not sync: " (get-in r [:error :code])))))
+                           (if-let [role (get-in r [:member :role])]
+                             (tf "IdP の認証を確認しました · ロール {role}" "IdP assertion confirmed · role {role}" {:role role})
+                             (t "IdP の認証を確認しました" "IdP assertion confirmed"))
+                           (tf "同期できませんでした: {code}" "Could not sync: {code}" {:code (get-in r [:error :code])})))
                    (refresh!)))))))
 
 (defn create-org! []
@@ -437,8 +443,7 @@
           (.then (fn [r]
                    (if (:httpOk r)
                      (do (say! "account-org-note"
-                               (t (str "作成しました: " (:orgDid r))
-                                  (str "Created: " (:orgDid r))))
+                               (tf "作成しました: {did}" "Created: {did}" {:did (:orgDid r)}))
                          (refresh!))
                      (do (say! "account-org-note"
                                (case (get-in r [:error :code])
@@ -540,8 +545,7 @@
                                  (.then (fn [r]
                                           (say! "account-pat-list-note"
                                                 (if (:httpOk r)
-                                                  (t (str "トークン " id " を取り消しました。このトークンでの呼び出しは 401 になります。")
-                                                     (str "Token " id " revoked; calls with it now answer 401."))
+                                                  (tf "トークン {id} を取り消しました。このトークンでの呼び出しは 401 になります。" "Token {id} revoked; calls with it now answer 401." {:id id})
                                                   (t "取り消せませんでした。状態を更新してください。" "Could not revoke. Refresh and retry.")))
                                           (load-pat-list!))))))
         (.appendChild row btn)))
@@ -560,8 +564,7 @@
             (say! "account-pat-list-state" (t "発行済みのトークンはありません" "No tokens issued")))
         :else
         (do (state! "account-pat-list-state" :value)
-            (say! "account-pat-list-state" (t (str (count (remove :revokedAt tokens)) " 本が有効 / " (count tokens) " 本")
-                                              (str (count (remove :revokedAt tokens)) " active / " (count tokens))))
+            (say! "account-pat-list-state" (tf "{active} 本が有効 / {total} 本" "{active} active / {total}" {:active (count (remove :revokedAt tokens)) :total (count tokens)}))
             (doseq [tk tokens]
               (let [row (token-row tk)]
                 (.setAttribute row "data-token-row" (:id tk))

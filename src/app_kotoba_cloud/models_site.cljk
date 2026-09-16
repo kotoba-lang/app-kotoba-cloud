@@ -15,6 +15,8 @@
             [kotoba.lang.text :as str]
             [app-kotoba-cloud.research :as research]
             [cloud-kotoba-dds.console :as console]
+            [app-kotoba-cloud.copy :as copy]
+            [app-kotoba-cloud.models-copy-generated :as gen]
             [app-kotoba-cloud.code-block :as code-block]))
 
 (def css
@@ -40,22 +42,22 @@
 (def requirement-labels
   "The gateway's admission conditions, in the person's words (ja / en),
    with the place to satisfy each."
-  {"authenticated-principal" ["サインイン済み" "Signed in" "/account"]
-   "verified-ekyc-card" ["カード登録による本人確認" "Identity verified with a card" "/account#account-panel-identity"]
-   "aup-consent" ["利用ポリシー（AUP）への同意" "Acceptable-use policy (AUP) accepted" "/security/aup/"]
-   "current-aml-ctf-clearance" ["AML/CTF 照合が有効" "AML/CTF screening current" "/account#account-panel-eligibility"]
-   "current-trust-route" ["信頼経路が有効" "Trust route current" "/account#account-panel-eligibility"]
-   "approved-research-scope" ["承認済みスコープ" "Approved research scope" "/account#account-panel-scopes"]
-   "available-free-quota" ["無料枠の残り" "Free allowance remaining" "/account#account-panel-eligibility"]
-   "guardrails" ["全リクエストにガードレールが適用" "Guardrails on every request" "/secure/#guardrails"]})
+  {"authenticated-principal" {:ja "サインイン済み" :en "Signed in" :href "/account"}
+   "verified-ekyc-card" {:ja "カード登録による本人確認" :en "Identity verified with a card" :href "/account#account-panel-identity"}
+   "aup-consent" {:ja "利用ポリシー（AUP）への同意" :en "Acceptable-use policy (AUP) accepted" :href "/security/aup/"}
+   "current-aml-ctf-clearance" {:ja "AML/CTF 照合が有効" :en "AML/CTF screening current" :href "/account#account-panel-eligibility"}
+   "current-trust-route" {:ja "信頼経路が有効" :en "Trust route current" :href "/account#account-panel-eligibility"}
+   "approved-research-scope" {:ja "承認済みスコープ" :en "Approved research scope" :href "/account#account-panel-scopes"}
+   "available-free-quota" {:ja "無料枠の残り" :en "Free allowance remaining" :href "/account#account-panel-eligibility"}
+   "guardrails" {:ja "全リクエストにガードレールが適用" :en "Guardrails on every request" :href "/secure/#guardrails"}})
 
 (def team-copy
-  {:blue {:title ["ブルーチーム" "Blue team"]
-          :lead ["一般用途のモデル。サインインすれば無料枠の範囲で使えます。"
-                 "General-purpose models. Signing in is enough; the free allowance applies."]}
-   :red {:title ["レッドチーム" "Red team"]
-         :lead ["セキュリティ研究向けの無制限モデル。カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"
-                "Unrestricted models for security research. Only researchers who verified their identity with a card and accepted the acceptable-use policy can use them."]}})
+  {:blue {:title {:ja "ブルーチーム" :en "Blue team"}
+          :lead {:ja "一般用途のモデル。サインインすれば無料枠の範囲で使えます。"
+                 :en "General-purpose models. Signing in is enough; the free allowance applies."}}
+   :red {:title {:ja "レッドチーム" :en "Red team"}
+         :lead {:ja "セキュリティ研究向けの無制限モデル。カード登録による本人確認と利用ポリシーへの同意を経た研究者だけが使えます。"
+                :en "Unrestricted models for security research. Only researchers who verified their identity with a card and accepted the acceptable-use policy can use them."}}})
 
 (defn- model-rows [txt team]
   (for [[id {:keys [source strictAttribution] :as spec}] research/models
@@ -74,10 +76,10 @@
         reqs (get-in research/teams [team :requirements])]
     [:section {:class "ck-console__panel" :id (str "team-" (name team))}
      [:div {:class "kc-models__head"}
-      [:h2 (apply txt title)]
+      [:h2 (txt (:ja title) (:en title))]
       (console/badge (if (= team :red) (txt "本人確認が必要" "Verification required") (txt "サインインで利用" "Sign in to use"))
                      {:state (if (= team :red) :action :ok)})]
-     [:p {:class "ck-console__note"} (apply txt lead)]
+     [:p {:class "ck-console__note"} (txt (:ja lead) (:en lead))]
      [:div {:class "kc-models__table"}
       [:table
        [:thead [:tr [:th (txt "モデル" "Model")] [:th (txt "提供状態" "Availability")] [:th (txt "出所" "Source")] [:th (txt "帰属検証" "Attribution check")]]]
@@ -85,7 +87,7 @@
      [:h3 (txt "利用の条件" "Conditions of use")]
      (into [:ul {:class "kc-models__reqs"}]
            (for [r reqs
-                 :let [[ja en href] (get requirement-labels r [r r nil])
+                 :let [{:keys [ja en href]} (get requirement-labels r {:ja r :en r})
                        label (txt ja en)]]
              [:li (if href [:a {:href href} label] label) " " [:code r]]))]))
 
@@ -95,7 +97,7 @@
   ([] (section :ja))
   ([locale]
    (let [ja? (= :ja locale)
-         txt (fn [ja en] (if ja? ja en))
+         txt (copy/txt-for gen/copy locale)
          {:keys [requestsPerDay maxOutputTokens maxInputCharacters]} research/free-limits]
      [:div {:class "kc-models"}
       (dds/heading 1 (txt "モデル" "Models") {:size "36"})
