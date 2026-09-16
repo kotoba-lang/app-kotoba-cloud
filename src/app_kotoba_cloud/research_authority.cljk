@@ -299,7 +299,12 @@
 (def trust-window-ms 60000)
 (def session-window-ms 15000)
 (def upstream-models
-  {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-cybersecurity-nvfp4"
+  ;; red team (the dedicated deployment): the upstream id is the alias the
+  ;; deployment's server answers with (`LLAMA_ARG_ALIAS`; llama-server
+  ;; otherwise echoes the model FILE PATH, which strict attribution refuses).
+  ;; ADR 2609160940: the served weights are the IQ4_XS build of the
+  ;; refusal-removed Qwen3.8-Flash-Next (repo + revision recorded there).
+  {"qwen3.8-flash-next-whitehacker" "qwen3.8-flash-next-uncensored-iq4-xs"
    "glm5.3-flash" "glm5.3-flash"
    ;; blue team (the shared route): the public id is the publisher's id
    "qwen/qwen3.8-flash" "qwen/qwen3.8-flash"
@@ -956,6 +961,13 @@
          "authorization" (str "Bearer " key)
          "HTTP-Referer" "https://kotoba.cloud"
          "X-Title" "Kotoba Cloud"}))
+(def red-route-host-suffix
+  "The dedicated deployment's host family (ADR 2609160940: a dedicated
+  Inference Endpoint; before 2026-09-16 the `.modal.run` deployment of ADR
+  260914). One suffix, so the old host is refused by name once the route has
+  moved — a stale secret value fails as `red-route-url-invalid`, never as a
+  silent call to a deployment that no longer serves this model."
+  ".endpoints.huggingface.cloud")
 (defn- red-route-url
   "The dedicated research deployment's URL is an operator secret /
   configuration (MODAL_INFERENCE_URL — the secret's name is fixed by the
@@ -968,7 +980,7 @@
       (throw (ex-info "red-route-not-configured" {:status 503})))
     (let [url (js/URL. raw)
           host (.toLowerCase (.-hostname url))]
-      (when-not (and (= "https:" (.-protocol url)) (.endsWith host ".modal.run"))
+      (when-not (and (= "https:" (.-protocol url)) (.endsWith host red-route-host-suffix))
         (throw (ex-info "red-route-url-invalid" {:status 503})))
       raw)))
 
@@ -998,16 +1010,16 @@
      :observedAt (js/Date.now)}))
 
 ;; --- origin dispatch: absorb the deployment's cold start ---------------------
-;; The dedicated deployment scales to zero and rebuilds its GPU snapshot on
-;; every `modal deploy`. While no container is ready the platform holds a
-;; request ~2 min and then answers 303/502/504 (nothing listens yet), and the
-;; origin's own proxy answers 503 "model loading" once it does. One shot
-;; against that made a 14-minute deploy window a terminal `failed` job:
-;; measured 2026-09-15 12:38:03Z, an agent's first call landed the second
-;; the container went to sleep for its snapshot and failed after 129 s. The
-;; deployment's own `smoke` polls those four statuses; the authority now does
-;; the same, under the edge's 14-minute wait (research-gateway
-;; job-wait-budget-ms).
+;; The dedicated deployment scales to zero. While it scales back up its proxy
+;; answers 503 (the platform's documented behaviour for a scaled-to-zero
+;; endpoint; the previous deployment answered 303/502/504 while nothing
+;; listened and 503 "model loading" once it did). One shot against that made
+;; a 14-minute deploy window a terminal `failed` job: measured 2026-09-15
+;; 12:38:03Z on the previous deployment, an agent's first call landed the
+;; second the container went to sleep and failed after 129 s. The authority
+;; polls those statuses under the edge's 14-minute wait (research-gateway
+;; job-wait-budget-ms). ADR 2609160940 records the cold start measured on
+;; the current deployment.
 (def not-ready-statuses #{303 502 503 504 524})
 (def dispatch-budget-ms 780000)
 (defn- not-ready-delay-ms

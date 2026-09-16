@@ -25,9 +25,14 @@
   team's route; `:strictAttribution` requires the upstream to echo its own
   model id. Blue-team public ids are the publishers' ids (an OpenAI-
   compatible client uses them unchanged); red-team ids are Kotoba's."
+  ;; :upstream is the alias the dedicated deployment answers with; :source is
+  ;; the publisher's page of the base model (the served build is a
+  ;; refusal-removed IQ4_XS derivative — repo and revision are operator
+  ;; record, ADR 2609160940, never a public surface: owner direction
+  ;; 2026-09-15, no provider named in the catalog).
   {"qwen3.8-flash-next-whitehacker"
-   {:team :red :upstream "qwen3.8-flash-next-cybersecurity-nvfp4" :strictAttribution true
-    :source "https://huggingface.co/dealignai/Qwen3.8-Flash-Next-CYBERSECURITY-NVFP4"}
+   {:team :red :upstream "qwen3.8-flash-next-uncensored-iq4-xs" :strictAttribution true
+    :source "https://huggingface.co/Qwen/Qwen3.8-Flash-Next"}
    "glm5.3-flash"
    ;; :served false — the red route is ONE origin, and it serves only the
    ;; qwen model: a glm5.3-flash request came back 404 "The model

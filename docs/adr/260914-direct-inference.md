@@ -1,6 +1,6 @@
 # ADR 260914: Kotoba Cloud research inference connects directly to its dedicated deployment
 
-**Status:** Accepted
+**Status:** Accepted; host and model superseded by ADR 2609160940 (2026-09-16)
 
 ## Context
 
@@ -53,3 +53,11 @@ Public surfaces (the catalog, `/models/`, README) name no provider; the
 deployment behind each route is operator configuration. This record keeps
 the two secret names because a stored secret cannot be renamed without its
 value.
+
+## 2026-09-16
+
+The dedicated deployment moved (ADR 2609160940): the authority now pins the
+host suffix `.endpoints.huggingface.cloud` instead of `.modal.run`, and the
+upstream id is `qwen3.8-flash-next-uncensored-iq4-xs`. The secret names,
+the fail-closed rules, the usage receipt and the launch condition of this
+record are unchanged.

@@ -313,13 +313,18 @@ implementation, provider contracts, actual screening, durable audit, atomic
 quotas, model qualification and independent end-to-end acceptance are launch
 requirements. No configuration flag alone constitutes launch approval.
 
-### Selected Murakumo model and Self integration
+### Selected research model and Self integration
 
 The public model is `qwen3.8-flash-next-whitehacker`, mapped exclusively to
-`qwen3.8-flash-next-cybersecurity-nvfp4` at
-`https://api.murakumo.cloud/v1/chat/completions`. On 2026-09-12 a direct defensive
-request returned the exact model in 251.94 seconds; the compiled private transport
-then returned the same model in 2.52 seconds. These are upstream transport checks,
+`qwen3.8-flash-next-uncensored-iq4-xs` on the dedicated deployment of
+ADR 2609160940 (`docs/adr/2609160940-hf-inference-endpoint-iq4xs.md`: a
+Hugging Face Inference Endpoint, RTX PRO 6000 Blackwell ×1, the IQ4_XS
+llama.cpp build of `orcarouter/Qwen3.8-Flash-Next-Uncensored-GGUF`, revision
+pinned there). Before 2026-09-16 the upstream was
+`qwen3.8-flash-next-cybersecurity-nvfp4` on a `.modal.run` deployment, and
+before 2026-09-14 the Murakumo relay (on 2026-09-12 a direct defensive request
+returned the exact model in 251.94 seconds; the compiled private transport then
+returned the same model in 2.52 seconds). These are upstream transport checks,
 not an end-to-end verified-researcher qualification.
 
 `shadow-cljs release research-providers` builds the private Self/Murakumo
