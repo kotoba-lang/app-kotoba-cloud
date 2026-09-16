@@ -143,27 +143,45 @@ on, sampling from the file, reasoning format `deepseek` (the trace lands in
   `llama_server: listening` line of the newest replica against the time of
   the wake-up.
 
+- **Token and end-to-end (01:18–01:27Z).** A fine-grained token (org
+  `com-kotobalabs`, endpoint calls) probed directly: 503 at 01:18:35Z and
+  01:18:56Z (scaling from zero), **200 at 01:19:17Z** (~42 s), `model` =
+  the alias, `object` = `chat.completion`, `usage` present. Stored as
+  `MODAL_INFERENCE_TOKEN` on `kotoba-research-authority` (piped, never
+  displayed). Then the launch condition of ADR 260914: an **admitted
+  end-to-end job** through `api.kotoba.cloud` (browser session, red model,
+  `code-review` / `owned`, `max_tokens 2048`) answered **200 in 4.3 s** with
+  a three-sentence IDOR finding, `billing: free`, a `receiptId`, and the
+  provider's usage (`prompt 102 / completion 354 / total 456` — the 354
+  include the ≤ 1024-token reasoning budget; `content` was non-empty at
+  `max_tokens 2048`). The job was the one that had failed with the previous
+  token (`red-route-unavailable`, 401): it re-dispatched on the identical
+  request (`inference-job-requeued … prior=failed upstreamStatus=401`),
+  spending no second quota unit.
+- **Auth failure shapes at the endpoint** (measured for the runbook): no
+  header, an empty bearer and an unknown token all answer **401
+  `UNAUTHORIZED`**; a real token without the endpoint permission answers
+  **403** `missing permissions: inference.endpoints.infer.write`. The
+  authority surfaces both as `red-route-unavailable` (retryable), with the
+  upstream body in `inference-run-failed`.
+
 ## Not measured yet (fill in, do not infer)
 
 - **VRAM split at load.** The container log does not carry the
   `load_tensors: … buffer size` lines (server-level verbosity only); read
   it from the Analytics tab's GPU memory or `nvidia-smi` is not exposed.
   Expected ≈ 64 GiB GPU / ≈ 27 GiB host from measured fact 2.
-- **A direct request.** The operator's stored OAuth token lacks
-  `inference.endpoints.infer.write`; the Playground needs a token too. A
-  fine-grained token with "Make calls to Inference Endpoints" for
-  `com-kotobalabs` is needed both for `MODAL_INFERENCE_TOKEN` and for the
-  direct checks below.
 - **Throughput**: prefill and decode tok/s at a 128k prompt (llama-server
   `/metrics`), then the ubatch decision.
 - **The platform proxy's non-streaming timeout.** The authority calls with
   `stream: false` and waits up to 35 min; the platform documents no limit
   (forum reports 120–300 s). A 32k-token answer must be measured; if the
   proxy cuts it, the authority needs streaming.
-- **`--reasoning-budget 1024` with `max_tokens 2048`**: `content` non-empty,
-  `reasoning_content` ≤ ~1024 tokens.
-- **Admitted end-to-end job** through the edge with a provider usage receipt
-  (ADR 260914's launch condition, unchanged).
+- **`--reasoning-budget 1024`**: `content` was non-empty at `max_tokens
+  2048` (above); at `max_tokens 16` the answer was all reasoning
+  (`finish_reason length`, empty `content`) — the budget caps thinking, it
+  does not reserve answer tokens. Clients must send `max_tokens` well above
+  1024; the edge's default of 2048 does.
 
 ## Cost
 
